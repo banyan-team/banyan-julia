@@ -1,0 +1,2 @@
+macro pa(ex...)
+end

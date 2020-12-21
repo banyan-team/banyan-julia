@@ -30,10 +30,11 @@ end
 #########################
 
 struct PartitioningConstraints
-
+	# TODO: Implement this
 end
 
-function constraints_to_jl(constraints::PartitioningConstraints)
+function partitioning_constraints_to_jl(constraints::PartitioningConstraints)
+	# TODO: Implement this
 	return Dict()
 end
 
@@ -43,10 +44,13 @@ end
 ########################
 
 struct PartitionAnnotation
-    partitions::Dict{ValueId,Dict{Level,Vector{PartitionType}}}
-    constraints
+    partitions::Dict{ValueId, Vector{PartitionType}}
+    partitioning_constraints::PartitioningConstraints
 end
 
 function pa_to_jl(pa::PartitionAnnotation)
-    return Dict()
+	"partitions" => Dict(
+		v => [pt_to_jl(pt) for pt in pts for (v, pts) in pa.partitions
+	),
+	"partitioning_constraints" => partitioning_constraints_to_jl(pa.partitioning_constraints)
 end
