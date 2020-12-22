@@ -13,7 +13,7 @@ struct PartitionType
     merge_name::String
     splitting_parameters::Vector{Any}
     merging_parameters::Vector{Any}
-    max_partitions::Int32
+    max_npartitions::Int32
 end
 
 function pt_to_jl(pt::PartitionType)
@@ -21,7 +21,7 @@ function pt_to_jl(pt::PartitionType)
         "split_name" => pt.split_name,
         "merge_name" => pt.merge_name,
         "splitting_parameters" => pt.splitting_parameters,
-        "max_partitions" => pt.max_partitions,
+        "max_npartitions" => pt.max_npartitions,
     )
 end
 
