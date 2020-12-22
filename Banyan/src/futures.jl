@@ -23,7 +23,7 @@ mutable struct Future
         # Create finalizer and register
         function destroy_future(fut)
             global futures
-            # TODO: Do we need to send eviction request to executor>
+            # TODO: Do we need to send eviction request to executor
             delete!(futures, fut.value_id)
         end
         finalizer(destroy_future, new_future)

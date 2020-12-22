@@ -1,5 +1,6 @@
 const ValueId = Int32
 const MessageId = String
+const ClusterId = String
 const JobId = String
 
 
