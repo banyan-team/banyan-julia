@@ -28,7 +28,7 @@ mutable struct Future
         end
         finalizer(destroy_future, new_future)
     end
-    function Future(value=nothing)
+    function Future(value = nothing)
         Future(get_job_id(), value)
     end
 end
@@ -73,10 +73,7 @@ function evaluate(job_id::String, fut::Future)
         # Send evaluate request
         response = send_request_get_response(
             :evaluate,
-            Dict{String,Any}(
-                "job_id" => environment_id,
-                "value_id" => fut.value_id,
-            ),
+            Dict{String,Any}("job_id" => environment_id, "value_id" => fut.value_id),
         )
 
         # Get queues

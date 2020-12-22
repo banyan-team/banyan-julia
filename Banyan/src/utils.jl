@@ -46,19 +46,13 @@ end
 """
 Sends given request with given content
 """
-function send_request_get_response(
-    method,
-    content::Dict{String,Any},
-)
+function send_request_get_response(method, content::Dict{String,Any})
     # Prepare request
     # TODO: Remove adding secret token
     content["secret_token"] = SECRET_TOKEN
     content["debug"] = is_debug_on()
     # TODO: Use something other than delayedrequest.com
-    url = string(
-        BANYAN_API_ENDPOINT,
-        method_to_string(method),
-    )
+    url = string(BANYAN_API_ENDPOINT, method_to_string(method))
     headers = (("content-type", "application/json"))
 
     # Post and return response

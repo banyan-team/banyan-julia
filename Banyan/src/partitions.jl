@@ -21,7 +21,7 @@ function pt_to_jl(pt::PartitionType)
         "split_name" => pt.split_name,
         "merge_name" => pt.merge_name,
         "splitting_parameters" => pt.splitting_parameters,
-        "max_partitions" => pt.max_partitions
+        "max_partitions" => pt.max_partitions,
     )
 end
 
@@ -30,12 +30,12 @@ end
 #########################
 
 struct PartitioningConstraints
-	# TODO: Implement this
+    # TODO: Implement this
 end
 
 function partitioning_constraints_to_jl(constraints::PartitioningConstraints)
-	# TODO: Implement this
-	return Dict()
+    # TODO: Implement this
+    return Dict()
 end
 
 
@@ -44,13 +44,12 @@ end
 ########################
 
 struct PartitionAnnotation
-    partitions::Dict{ValueId, Vector{PartitionType}}
+    partitions::Dict{ValueId,Vector{PartitionType}}
     partitioning_constraints::PartitioningConstraints
 end
 
 function pa_to_jl(pa::PartitionAnnotation)
-	"partitions" => Dict(
-		v => [pt_to_jl(pt) for pt in pts for (v, pts) in pa.partitions
-	),
-	"partitioning_constraints" => partitioning_constraints_to_jl(pa.partitioning_constraints)
+    "partitions" => Dict(v => [pt_to_jl(pt) for pt in pts for (v, pts) in pa.partitions]),
+    "partitioning_constraints" =>
+        partitioning_constraints_to_jl(pa.partitioning_constraints)
 end
