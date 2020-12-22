@@ -21,6 +21,7 @@ function pt_to_jl(pt::PartitionType)
         "split_name" => pt.split_name,
         "merge_name" => pt.merge_name,
         "splitting_parameters" => pt.splitting_parameters,
+        "merging_parameters" => pt.merging_parameters,
         "max_npartitions" => pt.max_npartitions,
     )
 end
