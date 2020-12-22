@@ -23,7 +23,7 @@ EOF
 
 # Upload pt_lib_info.json to Clusters DynamoDB Table
 
-aws dynamodb put-item \
+aws dynamodb update-item \
 	--table-name Clusters  \
 	--key '{"cluster_id": "$1"}' \
 	--update-expression 'SET pt_lib_info = :pt_lib_info' \
