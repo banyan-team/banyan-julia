@@ -1,4 +1,4 @@
-global requests_list = Arry{Any}()
+global requests_list = Vector{Any}()
 
 function record_request(request::Any)
 	global requests_list
