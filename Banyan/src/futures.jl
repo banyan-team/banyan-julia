@@ -71,10 +71,7 @@ function evaluate(job_id::String, fut::Future)
         fut.mutated = false
 
         # Send evaluate request
-        response = send_request_get_response(
-            :evaluate,
-            Dict{String,Any}("job_id" => environment_id, "value_id" => fut.value_id),
-        )
+        response = send_evaluation(job_id, fut.value_id)
 
         # Get queues
         scatter_queue = get_scatter_queue(job_id)
