@@ -3,6 +3,8 @@ if [ $# -eq 0 ]; then
 	exit 0
 fi
 
+cluster_id=$1
+
 # Create cluster
 pcluster create -c $2 $1
 
@@ -29,7 +31,4 @@ EOF
 # Update DynamoDB table
 aws dynamodb put-item \
     --table-name Clusters \
-    --item '{ \
-        "cluster_id": "$1", \
-        "pt_lib_info": {}, \
- 	}'
+    --item '{"cluster_id": {"S": "'$cluster_id'"}, "pt_lib_info": {"M": {}}}'

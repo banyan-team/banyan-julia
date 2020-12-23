@@ -4,16 +4,15 @@ global BANYAN_API_ENDPOINT
 global SECRET_TOKEN
 global AWS
 
-# export create_environment,
-#     destroy_environment,
-#     EnvironmentConfig,
-#     set_environment_config,
-#     get_environment_id,
-#     record_mut,
-#     evaluate
-# export Future
-# # export eval TODO: determine how to export this and make sure that's safe
-# export PartitionAnnotation,
+export create_job,
+    destroy_job,
+    JobConfig,
+    set_cluster_id,
+    set_job_config,
+    get_job_id,
+    evaluate
+export Future
+#export PartitionAnnotation,
 #     PartitionType,
 #     join_with,
 #     join_cross,
@@ -29,15 +28,15 @@ global AWS
 # export Const, Mut
 # export SysInfo
 
-# include("id.jl")
-# include("utils.jl")
-# include("utils_conversion.jl")
-# include("sys_info.jl")
-# include("environments.jl")
-# include("futures.jl")
-# include("partitions.jl")
+include("id.jl")
+include("utils.jl")
+include("jobs.jl")
+include("futures.jl")
+include("partitions.jl")
+include("queues.jl")
 # include("pt_lib_constructors.jl")
-# include("annotation.jl")
+#include("macros.jl")
+
 
 function __init__()
     global BANYAN_API_ENDPOINT
