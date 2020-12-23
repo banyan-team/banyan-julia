@@ -1,5 +1,6 @@
 struct LocationType
     name::String
+    data_size::Int64
     parameters::Vector{Any}
 end
 
