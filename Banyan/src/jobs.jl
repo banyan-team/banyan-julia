@@ -3,10 +3,9 @@ struct JobConfig
     num_workers::Int32
 end
 
-# TODO: Document whether this is thread/process-local
+# TODO: Support multiple jobs and make this thread-local
 global current_cluster_id = nothing
 global current_job_id = nothing
-
 global current_job_config = nothing
 
 function set_cluster_id(cluster_id::ClusterId)

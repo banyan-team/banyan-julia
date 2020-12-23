@@ -30,8 +30,17 @@ end
 # PARTITION CONSTRAINTS #
 #########################
 
+@enum ConstraintType Cross, Equal, Order, Sequential
+
+const PartitionTypeReference = Tuple{ValueId, Int32}
+
+struct PartitioningConstraint
+    type::ConstraintType
+    args::Vector{PartitionTypeReference}
+end
+
 struct PartitioningConstraints
-    # TODO: Implement this
+    constraints::Vector{PartitioningConstraint}
 end
 
 function partitioning_constraints_to_jl(constraints::PartitioningConstraints)
