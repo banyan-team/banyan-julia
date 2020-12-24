@@ -66,7 +66,7 @@ end
 function evaluate(job_id::String, fut::Future)
     global futures
     # Only evaluate if future has been mutated
-    if fut.mutated == true
+    if true  #fut.mutated == true
         println("EVALUATE getting sent")
         fut.mutated = false
 

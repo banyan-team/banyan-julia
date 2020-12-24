@@ -48,11 +48,11 @@ macro pa(ex...)
 		@debug value_names
 
 		# Record mutated values for later evaluation
-		for (value_id, effect) in pa.effects
-			if effect == Mut
-				record_mut(value_id)
-			end
-		end
+		#for (value_id, effect) in pa.effects
+		#	if effect == Mut
+		#		record_mut(value_id)
+		#	end
+		#end
 
 		# Record request to record code region
 		record_request(

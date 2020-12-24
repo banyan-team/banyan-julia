@@ -30,7 +30,7 @@ end
 # PARTITION CONSTRAINTS #
 #########################
 
-@enum ConstraintType Cross, Equal, Order, Sequential
+@enum ConstraintType Cross Equal Order Sequential
 
 const PartitionTypeReference = Tuple{ValueId, Int32}
 
@@ -59,7 +59,7 @@ struct PartitionAnnotation
 end
 
 function pa_to_jl(pa::PartitionAnnotation)
-    "partitions" => Dict(v => [pt_to_jl(pt) for pt in pts for (v, pts) in pa.partitions]),
+    "partitions" => Dict(v => [pt_to_jl(pt) for pt in pts] for (v, pts) in pa.partitions),
     "partitioning_constraints" =>
         partitioning_constraints_to_jl(pa.partitioning_constraints)
 end
