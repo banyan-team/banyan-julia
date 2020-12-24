@@ -10,10 +10,13 @@ export create_job,
     set_cluster_id,
     set_job_config,
     get_job_id,
-    evaluate
+    evaluate,
+    record_request,
+    send_request_get_response
 export Future
-#export PartitionAnnotation,
-#     PartitionType,
+export PartitionAnnotation,
+     PartitionType,
+     PartitioningConstraints
 #     join_with,
 #     join_cross,
 #     join_cross_eq,
@@ -22,7 +25,7 @@ export Future
 #     mut,
 #     fuse,
 #     seq, batches
-# export @pa
+export @pa
 # export None, Copy, Div, New, Value, Block
 # export Level, C, R, N, CT
 # export Const, Mut
@@ -35,7 +38,8 @@ include("futures.jl")
 include("partitions.jl")
 include("queues.jl")
 # include("pt_lib_constructors.jl")
-#include("macros.jl")
+include("macros.jl")
+include("evaluation.jl")
 
 
 function __init__()
