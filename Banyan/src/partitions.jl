@@ -40,7 +40,7 @@ struct PartitioningConstraint
 end
 
 struct PartitioningConstraints
-    constraints::Vector{PartitioningConstraint}
+    constraints::Set{PartitioningConstraint}
 end
 
 function partitioning_constraints_to_jl(constraints::PartitioningConstraints)
