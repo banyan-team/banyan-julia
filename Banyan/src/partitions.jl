@@ -16,7 +16,7 @@ struct PartitionType
     max_npartitions::Int32
 end
 
-function pt_to_jl(pt::PartitionType)
+function to_jl(pt::PartitionType)
     return Dict(
         "split_name" => pt.split_name,
         "merge_name" => pt.merge_name,
@@ -58,7 +58,7 @@ struct PartitionAnnotation
     partitioning_constraints::PartitioningConstraints
 end
 
-function pa_to_jl(pa::PartitionAnnotation)
+function to_jl(pa::PartitionAnnotation)
     "partitions" => Dict(v => [pt_to_jl(pt) for pt in pts] for (v, pts) in pa.partitions),
     "partitioning_constraints" =>
         partitioning_constraints_to_jl(pa.partitioning_constraints)

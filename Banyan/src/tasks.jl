@@ -3,3 +3,13 @@ struct Task
     value_names::Dict{ValueId, String}
     pa_union::Set{PartitionAnnotation}
 end
+
+function to_jl(task::Task)
+	return Dict{Any}(
+		"code" => task.code,
+		"value_names" => task.value_names
+		"pa_union" => [
+			to_jl(pa) for pa in task.pa_union
+		]
+	)
+end

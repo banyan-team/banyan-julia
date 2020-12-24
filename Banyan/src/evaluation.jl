@@ -2,7 +2,7 @@ global requests_list = Vector{Any}()
 
 function record_request(request::Any)
 	global requests_list
-	push!(requests_list, request)
+	push!(requests_list, to_jl(request))
 end
 
 function send_evaluation(job_id::JobId, value_id::ValueId)
