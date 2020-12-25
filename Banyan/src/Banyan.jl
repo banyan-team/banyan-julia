@@ -16,27 +16,23 @@ export create_job,
 export Future
 export PartitionAnnotation,
      PartitionType,
+     PartitioningConstraint,
      PartitioningConstraints
-#     join_with,
-#     join_cross,
-#     join_cross_eq,
-#     bind_to,
-#     bind_mut,
-#     mut,
-#     fuse,
-#     seq, batches
+export LocationType
+export Task
+     
 export @pa
 # export None, Copy, Div, New, Value, Block
-# export Level, C, R, N, CT
 # export Const, Mut
-# export SysInfo
 
 include("id.jl")
 include("utils.jl")
 include("jobs.jl")
 include("futures.jl")
 include("partitions.jl")
+include("locations.jl")
 include("queues.jl")
+include("tasks.jl")
 # include("pt_lib_constructors.jl")
 include("macros.jl")
 include("evaluation.jl")
