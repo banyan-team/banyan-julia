@@ -14,6 +14,7 @@ function set_cluster_id(cluster_id::ClusterId)
 end
 
 function get_cluster_id()::ClusterId
+	global current_cluster_id
 	return current_cluster_id
 end
 
@@ -48,7 +49,7 @@ function create_job(config::JobConfig; make_current = false,)
 		),
 	)["job_id"]
 
-	@debug "Creating job $job_id"
+	println("Creating job $job_id")
 
 	# If making current, store in global state
 	if make_current
@@ -60,6 +61,7 @@ function create_job(config::JobConfig; make_current = false,)
 	ssh_key_pair =
 		"SSH_KEY_PAIR" in keys(ENV) ? ENV["SSH_KEY_PAIR"] : "EC2ConnectKeyPair"
 	cluster_id = config.cluster_id
+	num_workers = config.num_workers
 	script_path = joinpath(@__DIR__, "create_job.sh")
 	run(`bash $script_path $cluster_id $ssh_key_pair $job_id $num_workers`)
 	return job_id

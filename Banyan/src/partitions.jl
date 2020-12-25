@@ -16,7 +16,7 @@ struct PartitionType
     max_npartitions::Int32
 end
 
-function pt_to_jl(pt::PartitionType)
+function to_jl(pt::PartitionType)
     return Dict(
         "split_name" => pt.split_name,
         "merge_name" => pt.merge_name,
@@ -30,7 +30,11 @@ end
 # PARTITION CONSTRAINTS #
 #########################
 
+<<<<<<< HEAD
 @enum ConstraintType Co, Cross, Equal, Order, Sequential
+=======
+@enum ConstraintType Cross Equal Order Sequential
+>>>>>>> 99386a3bf952a8ef3da547830f5fa5c45788b49b
 
 const PartitionTypeReference = Tuple{ValueId,Int32}
 
@@ -40,7 +44,7 @@ struct PartitioningConstraint
 end
 
 struct PartitioningConstraints
-    constraints::Vector{PartitioningConstraint}
+    constraints::Set{PartitioningConstraint}
 end
 
 function partitioning_constraints_to_jl(constraints::PartitioningConstraints)
@@ -58,8 +62,8 @@ struct PartitionAnnotation
     partitioning_constraints::PartitioningConstraints
 end
 
-function pa_to_jl(pa::PartitionAnnotation)
-    "partitions" => Dict(v => [pt_to_jl(pt) for pt in pts for (v, pts) in pa.partitions]),
+function to_jl(pa::PartitionAnnotation)
+    "partitions" => Dict(v => [pt_to_jl(pt) for pt in pts] for (v, pts) in pa.partitions),
     "partitioning_constraints" =>
         partitioning_constraints_to_jl(pa.partitioning_constraints)
 end

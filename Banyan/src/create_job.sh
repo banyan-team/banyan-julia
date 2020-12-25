@@ -8,6 +8,6 @@ fi
 # SSH into the pcluster
 pcluster ssh $1 -i $2 /bin/bash << EOF
 
-bash launch_job.sh --environment-id $3 --num-workers $4
+bash launch_job.sh --job-id $3 --num-workers $4
 
 EOF

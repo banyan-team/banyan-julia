@@ -48,19 +48,17 @@ macro pa(ex...)
 		@debug value_names
 
 		# Record mutated values for later evaluation
-		for (value_id, effect) in pa.effects
-			if effect == Mut
-				record_mut(value_id)
-			end
-		end
+		#for (value_id, effect) in pa.effects
+		#	if effect == Mut
+		#		record_mut(value_id)
+		#	end
+		#end
 
 		# Record request to record code region
-		record_request(
-			Dict{String,Any}(
-				"value_names" => value_names,
-				"pa" => pa_to_jl(pa),
-				"code" => $(string(code_region)),
-			)
-		)
+		record_request(Task(
+			$(string(code_region)),
+			value_names,
+			pa
+		))
 	end
 end
