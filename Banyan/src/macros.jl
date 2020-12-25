@@ -53,12 +53,15 @@ macro pa(ex...)
 		#		record_mut(value_id)
 		#	end
 		#end
+		effects = Dict()
+		pa = Set([pa])
 
 		# Record request to record code region
-		record_request(Task(
+		record_request(RecordTaskRequest(Task(
 			$(string(code_region)),
 			value_names,
+			effects,
 			pa
-		))
+		)))
 	end
 end

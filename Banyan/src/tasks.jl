@@ -6,7 +6,7 @@ struct Task
 end
 
 function to_jl(task::Task)
-	return Dict{Any}(
+	return Dict{String, Any}(
 		"code" => task.code,
 		"value_names" => task.value_names,
 		"effects" => task.effects,

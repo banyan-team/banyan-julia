@@ -8,7 +8,7 @@
 
 @testset "Simple annotation" begin
     x = Future([1, 2, 3, 4, 5])
-    @pa x, PartitionAnnotation(Dict(), PartitioningConstraints([])) begin
+    @pa x, PartitionAnnotation(Dict(), PartitioningConstraints(Set())) begin
         z = 10
         println("hello ", z)
     end
