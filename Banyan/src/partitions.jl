@@ -30,9 +30,13 @@ end
 # PARTITION CONSTRAINTS #
 #########################
 
+<<<<<<< HEAD
+@enum ConstraintType Co, Cross, Equal, Order, Sequential
+=======
 @enum ConstraintType Cross Equal Order Sequential
+>>>>>>> 99386a3bf952a8ef3da547830f5fa5c45788b49b
 
-const PartitionTypeReference = Tuple{ValueId, Int32}
+const PartitionTypeReference = Tuple{ValueId,Int32}
 
 struct PartitioningConstraint
     type::ConstraintType
