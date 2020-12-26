@@ -18,9 +18,15 @@ mutable struct Future
 
         # Create new Future and add to futures dictionary
         new_future = new(value, value_id, false, lt)
-        if lt.src_name == "Client"  # TODO: Change this name
+        if lt.src_name == "Client"
             futures[value_id] = new_future
         end
+
+        # Record request to update location type
+		record_request(UpdateLocationType(
+			value_id,
+			lt
+		))
 
         # Create finalizer and register
         function destroy_future(fut)
@@ -31,8 +37,7 @@ mutable struct Future
         finalizer(destroy_future, new_future)
     end
     function Future(value = nothing)
-        # TODO: What should default location type be?? or init to Nothing?
-        Future(get_job_id(), value, LocationType("New", "None", [], [], 1024))
+        Future(get_job_id(), value, LocationType("None", "None", [], [], 0))
     end
 end
 
@@ -41,6 +46,7 @@ end
 # Global State #
 ################
 
+# Contains Futures with a LocationType of Client
 global futures = Dict{ValueId,Future}()
 
 #################

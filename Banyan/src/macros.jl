@@ -2,7 +2,8 @@ macro pa(ex...)
 	annotation = ex[1].args
 	code_region = ex[end]
 
-	variables = annotation[1:end-1]
+	variables = annotation[1:end-2]
+	effects_dict = annotation[end-1]	
 	pa = annotation[end]
 
 	# TODO: Generate code to allow PAs and annotations to be created without
@@ -28,13 +29,23 @@ macro pa(ex...)
 		end
 	end
 
-	for variable in variables
-		variable_conversion_code = quote
-			if !isa($(string(variable)), Future)
-				$(esc(variable)) = Future($(esc(variable)))
-			end
-		end
-	end
+	# value_names_creation_code = quote
+	# 	value_names = Dict()
+	# end
+	# for variable in variables
+	# 	value_names_creation_code = quote
+	# 		$value_names_creation_code
+	# 		value_names[$(esc(variable)).value_id] = $(string(variable))
+	# 	end
+	# end
+
+	# for variable in variables
+	# 	variable_conversion_code = quote
+	# 		if !isa($(string(variable)), Future)
+	# 			$(esc(variable)) = Future($(esc(variable)))
+	# 		end
+	# 	end
+	# end
 
 	return quote
 		# Get PA
@@ -53,8 +64,18 @@ macro pa(ex...)
 		#		record_mut(value_id)
 		#	end
 		#end
+		effects_dict = $(esc(effects_dict))
 		effects = Dict()
+		for (fut, effect) in effects_dict
+			if effect == "Mut"
+				fut.mutated = true
+			end
+			effects[fut.value_id] = effect
+		end
 		pa = Set([pa])
+
+		println(effects)
+		println($(string(code_region)))
 
 		# Record request to record code region
 		record_request(RecordTaskRequest(Task(
@@ -79,7 +100,7 @@ macro lt(ex...)
 
 		@debug lt
 
-		# Record request to record code region
+		# Record request to update location type
 		record_request(UpdateLocationType(
 			fut.value_id,
 			lt
