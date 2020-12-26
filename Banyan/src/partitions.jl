@@ -1,9 +1,3 @@
-#########
-# ENUMS #
-#########
-
-
-
 ##################
 # PARTITION TYPE #
 ##################
@@ -30,11 +24,21 @@ end
 # PARTITION CONSTRAINTS #
 #########################
 
-<<<<<<< HEAD
 @enum ConstraintType Co, Cross, Equal, Order, Sequential
-=======
-@enum ConstraintType Cross Equal Order Sequential
->>>>>>> 99386a3bf952a8ef3da547830f5fa5c45788b49b
+
+function to_jl(constraint_type::ConstraintType)
+    if constraint_type == Co
+        return "CO"
+    elseif constraint_type == Cross
+        retun "CROSS"
+    elseif constraint_type == Equal
+        return "EQUAL"
+    elseif constraint_type == Order
+        return "ORDER"
+    elseif constraint_type == Sequential
+        return "SEQUENTIAL"
+    end
+end
 
 const PartitionTypeReference = Tuple{ValueId,Int32}
 
@@ -43,13 +47,21 @@ struct PartitioningConstraint
     args::Vector{PartitionTypeReference}
 end
 
+function to_jl(constraint::PartitioningConstraint)
+    return Dict(
+        "type" => to_jl(constraint.type),
+        "args" => args
+    )
+end
+
 struct PartitioningConstraints
     constraints::Set{PartitioningConstraint}
 end
 
-function partitioning_constraints_to_jl(constraints::PartitioningConstraints)
-    # TODO: Implement this
-    return Dict()
+function to_jl(constraints::PartitioningConstraints)
+    return Dict(
+        "constraints" => [to_jl(constraint) for constraint in constraints.constraints]
+    )
 end
 
 
@@ -65,5 +77,5 @@ end
 function to_jl(pa::PartitionAnnotation)
     "partitions" => Dict(v => [pt_to_jl(pt) for pt in pts] for (v, pts) in pa.partitions),
     "partitioning_constraints" =>
-        partitioning_constraints_to_jl(pa.partitioning_constraints)
+        to_jl(pa.partitioning_constraints)
 end
