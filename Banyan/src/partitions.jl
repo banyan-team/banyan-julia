@@ -24,13 +24,13 @@ end
 # PARTITION CONSTRAINTS #
 #########################
 
-@enum ConstraintType Co, Cross, Equal, Order, Sequential
+@enum ConstraintType Co Cross Equal Order Sequential
 
 function to_jl(constraint_type::ConstraintType)
     if constraint_type == Co
         return "CO"
     elseif constraint_type == Cross
-        retun "CROSS"
+        return "CROSS"
     elseif constraint_type == Equal
         return "EQUAL"
     elseif constraint_type == Order

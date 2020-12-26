@@ -6,11 +6,17 @@
 #    destroy_job()
 #end
 
-@testset "Simple annotation" begin
+# @testset "Simple annotation" begin
+#     x = Future([1, 2, 3, 4, 5])
+#     @pa x, PartitionAnnotation(Dict(), PartitioningConstraints(Set())) begin
+#         z = 10
+#         println("hello ", z)
+#     end
+#     evaluate(x)
+# end
+
+@testset "Location Type" begin
     x = Future([1, 2, 3, 4, 5])
-    @pa x, PartitionAnnotation(Dict(), PartitioningConstraints(Set())) begin
-        z = 10
-        println("hello ", z)
-    end
-    evaluate(x)
+    @lt x LocationType("New", "HDF5", [], [], 1024)
+    println("done")
 end

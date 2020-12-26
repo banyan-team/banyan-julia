@@ -65,3 +65,25 @@ macro pa(ex...)
 		)))
 	end
 end
+
+macro lt(ex...)
+	fut = ex[1]
+	lt = ex[end]
+
+	return quote
+		# Get LT
+		lt = $(esc(lt))
+
+		# Get future
+		fut = $(esc(fut))
+
+		@debug lt
+
+		# Record request to record code region
+		record_request(UpdateLocationType(
+			fut.value_id,
+			lt
+		))
+	end
+
+end

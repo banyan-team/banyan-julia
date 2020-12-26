@@ -3,6 +3,8 @@ if [ $# -eq 0 ]; then
 	exit 0
 fi
 
+# TODO: Specify language
+
 cluster_id=$1
 
 # Create cluster
@@ -31,4 +33,4 @@ EOF
 # Update DynamoDB table
 aws dynamodb put-item \
     --table-name Clusters \
-    --item '{"cluster_id": {"S": "'$cluster_id'"}, "pt_lib_info": {"M": {}}}'
+    --item '{"cluster_id": {"S": "'$cluster_id'"}, "language": {"S": "jl"}, "pt_lib_info": {"M": {}}}'

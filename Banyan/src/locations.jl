@@ -1,14 +1,18 @@
 struct LocationType
-    name::String
-    data_size::Int64
-    parameters::Vector{Any}
+    src_name::String
+    dst_name::String
+    src_parameters::Vector{Any}
+    dst_parameters::Vector{Any}
+    total_memory_usage::Int64
 end
 
-function lt_to_jl(lt::LocationType)
+function to_jl(lt::LocationType)
     return Dict(
-    	"name" => lt.location_name,
-    	"data_size" => lt.data_size,
-    	"parameters" => lt.parameters
+        "src_name" => lt.src_name,
+        "dst_name" => lt.dst_name,
+        "src_parameters" => lt.src_parameters,
+        "dst_parameters" => lt.dst_parameters,
+        "total_memory_usage" => lt.total_memory_usage,
     )
 end
 
@@ -16,8 +20,10 @@ struct LocationTypes
     location_types::Dict{ValueId, LocationType}
 end
 
-function to_jl(lts:LocationTypes)
+function to_jl(lts::LocationTypes)
     return Dict(
-        "location_types" => {value_id => lt_to_jl(lt) for (value_id, lt) in lts.location_types}
+        "location_types" => Dict(
+            value_id => to_jl(lt) for (value_id, lt) in lts.location_types
+        )
     )
 end

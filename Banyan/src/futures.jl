@@ -9,16 +9,18 @@ mutable struct Future
     value::Any
     value_id::ValueId
     mutated::Bool
-    function Future(job_id::String, value::Any)
+    location_type::LocationType
+    function Future(job_id::String, value::Any, lt::LocationType)
         global futures
 
         # Generate new value id
         value_id = create_value_id()
 
         # Create new Future and add to futures dictionary
-        new_future = new(value, value_id, false)
-        # TODO: Make sure that global futures is getting updated
-        futures[value_id] = new_future
+        new_future = new(value, value_id, false, lt)
+        if lt.src_name == "Client"  # TODO: Change this name
+            futures[value_id] = new_future
+        end
 
         # Create finalizer and register
         function destroy_future(fut)
@@ -29,7 +31,8 @@ mutable struct Future
         finalizer(destroy_future, new_future)
     end
     function Future(value = nothing)
-        Future(get_job_id(), value)
+        # TODO: What should default location type be?? or init to Nothing?
+        Future(get_job_id(), value, LocationType("New", "None", [], [], 1024))
     end
 end
 

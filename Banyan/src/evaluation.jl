@@ -44,7 +44,7 @@ end
 function to_jl(update_location_type::UpdateLocationType)
 	return Dict(
 		"request_type" => "UPDATE_LOCATION_TYPE",
-		"value_id" => value_id,
+		"value_id" => update_location_type.value_id,
 		"location_type" => to_jl(update_location_type.location_type)
 	)
 end

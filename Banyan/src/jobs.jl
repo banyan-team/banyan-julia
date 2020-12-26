@@ -43,7 +43,6 @@ function create_job(config::JobConfig; make_current = false,)
 	job_id = send_request_get_response(
 		:create_job,
 		Dict{String,Any}(
-			"language" => "jl",
 			"cluster_id" => config.cluster_id,
 			"num_workers" => config.num_workers,
 		),

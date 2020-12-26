@@ -21,16 +21,16 @@ export PartitionAnnotation,
 export LocationType
 export Task
      
-export @pa
+export @pa, @lt
 # export None, Copy, Div, New, Value, Block
 # export Const, Mut
 
 include("id.jl")
 include("utils.jl")
 include("jobs.jl")
+include("locations.jl")
 include("futures.jl")
 include("partitions.jl")
-include("locations.jl")
 include("queues.jl")
 include("tasks.jl")
 # include("pt_lib_constructors.jl")
