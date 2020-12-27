@@ -7,11 +7,6 @@
 # BASE FUNCTIONS #
 ##################
 
-default_lt_func = function(
-    src, part, pt::PartitionType, idx, npartitions, lt::LocationType
-)
-end
-
 default_batches_func = function(
     src, part, pt::PartitionType, idx, npartitions
 )
@@ -19,6 +14,11 @@ end
 
 default_workers_func = function(
     src, part, pt::PartitionType, idx, npartitions, comm::MPI_Comm
+)
+end
+
+default_lt_func = function(
+    src, part, pt::PartitionType, idx, npartitions, lt::LocationType
 )
 end
 
@@ -58,6 +58,48 @@ SPLIT["Div"]["Workers"] = function(
 end
 
 SPLIT["Div"]["None"] = default_lt_func
+
+SPLIT["Replicate"]["Batches"] = function()
+
+end
+
+SPLIT["Replicate"]["Workers"] = function()
+end
+
+SPLIT["Replicate"]["Client"] = function(
+    src, part, pt::PartitionType, idx, npartitions, lt::LocationType
+)
+
+    global comm  # TODO: not necessarily
+
+    # Main worker sends scatter request on gather queue
+    #   and waits for response on scatter queue
+    value_id = pt.splitting_parameters[1]
+    v = nothing
+    if MPI.Comm_rank(comm) == 0
+        sqs_send_message(
+            get_gather_queue()
+            JSON.json(Dict(
+                "kind" => "SCATTER_REQUEST",
+                "value_id" => value_id
+            )),
+            (:MessageGroupId, "1"),
+            (:MessageDeduplicationId, get_message_id())
+        )
+
+        m = nothing
+        while (isnothing(m))
+            m = sqs_receive_message(get_scatter_queue())
+        end
+        v = JSON.parse(m[:message])["value"]
+        v = deserialize(IOBuffer(convert(Array{Uint8}, v,)))
+        sqs_delete_message(get_scatter_queue(), m)
+    end
+
+    part = MPI.bcast(v, 0, comm)
+
+end
+
 
 SPLIT["Block"]["Batches"] = function(
     src, part, pt::PartitionType, idx, npartitions
@@ -112,14 +154,45 @@ MERGE["Div"]["Batches"] = default_batches_func
 
 MERGE["Div"]["None"] = default_lt_func
 
+MERGE["Replicate"]["Workers"] = function()
+end
+
+MERGE["Replicate"]["Workers"] = function()
+end
+
+MERGE["Replicate"]["Client"] = function (
+    src, part, pt::PartitionType, idx, npartitions, lt::LocationType
+)
+    value_id = pt.merging_parameters[1]
+    if MPI.Comm_rank(comm) == 0
+        buf = IOBuffer()
+        serialize(buf, part)
+        value = take!(buf)
+        sqs_send_message(
+            get_gather_queue(),
+            JSON.json(Dict(
+                "kind" => "GATHER",
+                "value_id" => value_id,
+                "value" => value
+            )),
+            (:MessageGroupId, "1"),
+            (:MessageDeduplicationId, get_message_id())
+        )
+    end
+end
+
 MERGE["Block"]["Batches"] = default_batches_func
 
 MERGE["Block"]["Workers"] = function(
     src, part, pt::PartitionType, idx, npartitions, comm::MPI_Comm
 )
 
-    # TODO: Allgather or Allgather!
-    src = Allgather(part, comm)
+    if src == nothing
+        # TODO: Implement this case
+    else
+        # TODO: Allgather or Allgather!
+        src = Allgather(part, comm)
+    end
 end
 
 MERGE["Block"]["None"] = default_lt_func
