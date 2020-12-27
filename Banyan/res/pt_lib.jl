@@ -1,5 +1,16 @@
 
 
+############################
+# TEMPORARY TEST FUNCTIONS #
+############################
+function split(pt_name::String, type::String, args...)
+    SPLIT[pt_name][type](args)
+end
+
+function merge(pt_name::String, type::String, args...)
+    MERGE[pt_name][type](args)
+end
+
 # src, part, pt::PartitionType, idx::Int64, npartitions::Int64; comm::MPI.Comm, lt::LocationType
 # part is a reference
 
@@ -134,6 +145,27 @@ end
 
 SPLIT["Block"]["None"] = default_lt_func
 
+SPLIT["Stencil"]["Batches"] = function (
+    src, part, pt::PartitionType, idx, npartitions
+)
+    dim = pt.splitting_parameters[1]
+    size = pt.splitting_parameters[2]
+    stride = pt.splitting_parameters[3]
+    @assert length(size) = len(stride)
+
+    num_blocks = cld(cld(size(src, dim) - size, stride), npartitions)
+    first_idx = 1 + idx * stride * num_blocks
+    last_idx = min(1 + idx * stride * num_blocks + size, size(src, dim))
+
+    part = selectdim(src, dim, first_idx:last_idx)
+end
+
+SPLIT["Stencil"]["Workers"] = function ()
+    # TODO: Implement this
+end
+
+SPLIT["Stencil"]["None"] = default_lt_func
+
 
 ###################
 # MERGE FUNCTIONS #
@@ -163,6 +195,10 @@ end
 MERGE["Replicate"]["Client"] = function (
     src, part, pt::PartitionType, idx, npartitions, lt::LocationType
 )
+
+    # TODO: Get comm
+    global commf
+
     value_id = pt.merging_parameters[1]
     if MPI.Comm_rank(comm) == 0
         buf = IOBuffer()
@@ -196,6 +232,14 @@ MERGE["Block"]["Workers"] = function(
 end
 
 MERGE["Block"]["None"] = default_lt_func
+
+MERGE["Stencil"]["Batches"] = default_batches_func
+
+MERGE["Stencil"]["Workers"] = function ()
+    # TODO: Implement this
+end
+
+MERGE["Stencil"]["None"] = default_lt_func
 
 
 ##################
