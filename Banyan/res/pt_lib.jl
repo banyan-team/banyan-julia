@@ -3,6 +3,7 @@
 ############################
 # TEMPORARY TEST FUNCTIONS #
 ############################
+
 function split(pt_name::String, type::String, args...)
     SPLIT[pt_name][type](args)
 end
@@ -45,16 +46,20 @@ SPLIT = Dict{String, Dict}()
 SPLIT["Value"]["Batches"] = function(
     src, part, pt::PartitionType, idx, npartitions
 )
-    part = pt.splitting_parameters[1]
+    part = src
 end
 
 SPLIT["Value"]["Workers"] = function(
     src, part, pt::PartitionType, idx, npartitions, comm::MPI_Comm
 )
-    part = pt.splitting_parameters[1]
+    part = src
 end
 
-SPLIT["Value"]["None"] = default_lt_func
+SPLIT["Value"]["None"] = function(
+    src, part, pt::PartitionType, idx, npartitions, lt::LocationType
+)
+    part = pt.splitting_parameters[1]
+end
 
 SPLIT["Div"]["Batches"] = function(
     src, part, pt::PartitionType, idx, npartitions
@@ -68,7 +73,11 @@ SPLIT["Div"]["Workers"] = function(
     part = fld(src, npartitions)
 end
 
-SPLIT["Div"]["None"] = default_lt_func
+SPLIT["Div"]["None"] = function(
+    src, part, pt::PartitionType, idx, npartitions, lt::LocationType
+)
+    part = flt(pt.splitting_parameters[1], npartitions)
+end
 
 SPLIT["Replicate"]["Batches"] = function()
 
@@ -88,15 +97,7 @@ SPLIT["Replicate"]["Client"] = function(
     value_id = pt.splitting_parameters[1]
     v = nothing
     if MPI.Comm_rank(comm) == 0
-        sqs_send_message(
-            get_gather_queue()
-            JSON.json(Dict(
-                "kind" => "SCATTER_REQUEST",
-                "value_id" => value_id
-            )),
-            (:MessageGroupId, "1"),
-            (:MessageDeduplicationId, get_message_id())
-        )
+        send_scatter_request(value_id)
 
         m = nothing
         while (isnothing(m))
@@ -160,8 +161,15 @@ SPLIT["Stencil"]["Batches"] = function (
     part = selectdim(src, dim, first_idx:last_idx)
 end
 
-SPLIT["Stencil"]["Workers"] = function ()
+SPLIT["Stencil"]["Workers"] = function (
+    src, part, pt::PartitionType, idx, npartitions, comm::MPI_Comm
+)
     # TODO: Implement this
+
+
+    
+
+
 end
 
 SPLIT["Stencil"]["None"] = default_lt_func
@@ -197,23 +205,14 @@ MERGE["Replicate"]["Client"] = function (
 )
 
     # TODO: Get comm
-    global commf
+    global comm
 
     value_id = pt.merging_parameters[1]
     if MPI.Comm_rank(comm) == 0
         buf = IOBuffer()
         serialize(buf, part)
         value = take!(buf)
-        sqs_send_message(
-            get_gather_queue(),
-            JSON.json(Dict(
-                "kind" => "GATHER",
-                "value_id" => value_id,
-                "value" => value
-            )),
-            (:MessageGroupId, "1"),
-            (:MessageDeduplicationId, get_message_id())
-        )
+        send_gather(value_id, value)
     end
 end
 
@@ -237,6 +236,20 @@ MERGE["Stencil"]["Batches"] = default_batches_func
 
 MERGE["Stencil"]["Workers"] = function ()
     # TODO: Implement this
+
+    if src == nothing
+        # TODO: Implement this case
+    else
+        dim = pt.splitting_parameters[1]
+        size = pt.splitting_parameters[2]
+        stride = pt.splitting_parameters[3]
+
+        overlap = [min(, 0) for s in size]
+
+    num_blocks = cld(cld(size(src, dim) - size, stride), npartitions)
+    first_idx = 1 + idx * stride * num_blocks
+    last_idx = min(1 + idx * stride * num_blocks + size, size(src, dim))
+    end
 end
 
 MERGE["Stencil"]["None"] = default_lt_func
