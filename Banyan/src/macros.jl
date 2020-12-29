@@ -103,6 +103,9 @@ macro lt(ex...)
 
 		@debug lt
 
+		global locations
+		locations[fut.value_id] = lt
+
 		# Record request to update location type
 		record_request(UpdateLocationType(
 			fut.value_id,
