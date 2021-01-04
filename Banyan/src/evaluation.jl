@@ -36,15 +36,15 @@ function to_jl(record_task_request::RecordTaskRequest)
 	)
 end
 
-struct UpdateLocationType
-	value_id::ValueId
-	location_type::LocationType
-end
+# struct UpdateLocationType
+# 	value_id::ValueId
+# 	location_type::LocationType
+# end
 
-function to_jl(update_location_type::UpdateLocationType)
-	return Dict(
-		"request_type" => "UPDATE_LOCATION_TYPE",
-		"value_id" => update_location_type.value_id,
-		"location_type" => to_jl(update_location_type.location_type)
-	)
-end
+# function to_jl(update_location_type::UpdateLocationType)
+# 	return Dict(
+# 		"request_type" => "UPDATE_LOCATION_TYPE",
+# 		"value_id" => update_location_type.value_id,
+# 		"location_type" => to_jl(update_location_type.location_type)
+# 	)
+# end

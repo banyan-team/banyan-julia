@@ -15,15 +15,3 @@ function to_jl(lt::LocationType)
         "total_memory_usage" => lt.total_memory_usage,
     )
 end
-
-struct LocationTypes
-    location_types::Dict{ValueId, LocationType}
-end
-
-function to_jl(lts::LocationTypes)
-    return Dict(
-        "location_types" => Dict(
-            value_id => to_jl(lt) for (value_id, lt) in lts.location_types
-        )
-    )
-end

@@ -48,6 +48,8 @@ macro pa(ex...)
 	# end
 
 	return quote
+		global locations
+		
 		# Get PA
 		pa = $(esc(pa))
 
@@ -81,6 +83,7 @@ macro pa(ex...)
 		record_request(RecordTaskRequest(Task(
 			$(string(code_region)),
 			value_names,
+			locations,
 			effects,
 			pa
 		)))
@@ -99,6 +102,9 @@ macro lt(ex...)
 		fut = $(esc(fut))
 
 		@debug lt
+
+		global locations
+		locations[fut.value_id] = lt
 
 		# Record request to update location type
 		record_request(UpdateLocationType(

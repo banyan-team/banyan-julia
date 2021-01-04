@@ -3,6 +3,7 @@
 ############################
 # TEMPORARY TEST FUNCTIONS #
 ############################
+
 function split(pt_name::String, type::String, args...)
     SPLIT[pt_name][type](args)
 end
@@ -11,7 +12,7 @@ function merge(pt_name::String, type::String, args...)
     MERGE[pt_name][type](args)
 end
 
-# src, part, pt::PartitionType, idx::Int64, npartitions::Int64; comm::MPI.Comm, lt::LocationType
+# src, part, parameters::Vector{Any}, idx::Int64, nbatches::Int64; comm::MPI.Comm, lt_params
 # part is a reference
 
 ##################
@@ -19,17 +20,17 @@ end
 ##################
 
 default_batches_func = function(
-    src, part, pt::PartitionType, idx, npartitions
+    src, part, parameters::Vector{Any}, idx, nbatches
 )
 end
 
 default_workers_func = function(
-    src, part, pt::PartitionType, idx, npartitions, comm::MPI_Comm
+    src, part, parameters::Vector{Any}, comm::MPI_Comm
 )
 end
 
 default_lt_func = function(
-    src, part, pt::PartitionType, idx, npartitions, lt::LocationType
+    src, part, parameters::Vector{Any}, idx, nbatches, comm, lt_params
 )
 end
 
@@ -43,32 +44,40 @@ end
 SPLIT = Dict{String, Dict}()
 
 SPLIT["Value"]["Batches"] = function(
-    src, part, pt::PartitionType, idx, npartitions
+    src, part, splitting_parameters, idx, nbatches
 )
-    part = pt.splitting_parameters[1]
+    part = src
 end
 
 SPLIT["Value"]["Workers"] = function(
-    src, part, pt::PartitionType, idx, npartitions, comm::MPI_Comm
+    src, part, splitting_parameters, comm::MPI_Comm
 )
-    part = pt.splitting_parameters[1]
+    part = src
 end
 
-SPLIT["Value"]["None"] = default_lt_func
+SPLIT["Value"]["None"] = function(
+    src, part, splitting_parameters, idx, nbatches, comm, lt_params
+)
+    part = splitting_parameters[1]
+end
 
 SPLIT["Div"]["Batches"] = function(
-    src, part, pt::PartitionType, idx, npartitions
+    src, part, splitting_parameters, idx, nbatches
 )
-    part = fld(src, npartitions)
+    part = fld(src, nbatches)
 end
 
 SPLIT["Div"]["Workers"] = function(
-    src, part, pt::PartitionType, idx, npartitions, comm::MPI_Comm
+    src, part, splitting_parameters, comm::MPI_Comm
 )
-    part = fld(src, npartitions)
+    part = fld(src, nbatches)
 end
 
-SPLIT["Div"]["None"] = default_lt_func
+SPLIT["Div"]["None"] = function(
+    src, part, splitting_parameters, idx, nbatches, comm, lt_params
+)
+    part = flt(splitting_parameters[1], nbatches)
+end
 
 SPLIT["Replicate"]["Batches"] = function()
 
@@ -78,7 +87,7 @@ SPLIT["Replicate"]["Workers"] = function()
 end
 
 SPLIT["Replicate"]["Client"] = function(
-    src, part, pt::PartitionType, idx, npartitions, lt::LocationType
+    src, part, splitting_parameters, idx, nbatches, comm, lt_params
 )
 
     global comm  # TODO: not necessarily
@@ -88,15 +97,7 @@ SPLIT["Replicate"]["Client"] = function(
     value_id = pt.splitting_parameters[1]
     v = nothing
     if MPI.Comm_rank(comm) == 0
-        sqs_send_message(
-            get_gather_queue()
-            JSON.json(Dict(
-                "kind" => "SCATTER_REQUEST",
-                "value_id" => value_id
-            )),
-            (:MessageGroupId, "1"),
-            (:MessageDeduplicationId, get_message_id())
-        )
+        send_scatter_request(value_id)
 
         m = nothing
         while (isnothing(m))
@@ -113,10 +114,10 @@ end
 
 
 SPLIT["Block"]["Batches"] = function(
-    src, part, pt::PartitionType, idx, npartitions
+    src, part, splitting_parameters, idx, nbatches
 )
-    dim = pt.splitting_parameters[1]
-    partition_length = cld(size(src, dim), npartitions)
+    dim = splitting_parameters[1]
+    partition_length = cld(size(src, dim), nbatches)
 
     first_idx = min(1 + idx * partition_length, size(src, dim) + 1)
     last_idx = min((idx + 1) * partition_length, size(src, dim))
@@ -127,10 +128,10 @@ end
 
 # TODO: Make sure this is correct
 SPLIT["Block"]["Workers"] = function(
-    src, part, pt::PartitionType, idx, npartitions, comm::MPI_Comm
+    src, part, splitting_parameters, idx, nbatches, comm::MPI_Comm
 )
     dim = pt.splitting_parameters[1]
-    partition_length = cld(size(src, dim), npartitions)
+    partition_length = cld(size(src, dim), nbatches)
 
     # TODO: Scatter or Scatter!
     # TODO: Or should this be idx == 0? replace 0 below with idx then
@@ -146,22 +147,29 @@ end
 SPLIT["Block"]["None"] = default_lt_func
 
 SPLIT["Stencil"]["Batches"] = function (
-    src, part, pt::PartitionType, idx, npartitions
+    src, part, splitting_parameters, idx, nbatches
 )
-    dim = pt.splitting_parameters[1]
-    size = pt.splitting_parameters[2]
-    stride = pt.splitting_parameters[3]
+    dim = splitting_parameters[1]
+    size = splitting_parameters[2]
+    stride = splitting_parameters[3]
     @assert length(size) = len(stride)
 
-    num_blocks = cld(cld(size(src, dim) - size, stride), npartitions)
+    num_blocks = cld(cld(size(src, dim) - size, stride), nbatches)
     first_idx = 1 + idx * stride * num_blocks
     last_idx = min(1 + idx * stride * num_blocks + size, size(src, dim))
 
     part = selectdim(src, dim, first_idx:last_idx)
 end
 
-SPLIT["Stencil"]["Workers"] = function ()
+SPLIT["Stencil"]["Workers"] = function (
+    src, part, splitting_parameters, idx, nbatches, comm::MPI_Comm
+)
     # TODO: Implement this
+
+
+    
+
+
 end
 
 SPLIT["Stencil"]["None"] = default_lt_func
@@ -193,34 +201,25 @@ MERGE["Replicate"]["Workers"] = function()
 end
 
 MERGE["Replicate"]["Client"] = function (
-    src, part, pt::PartitionType, idx, npartitions, lt::LocationType
+    src, part, merge_params, idx, nbatches, comm, lt_params
 )
 
     # TODO: Get comm
-    global commf
+    global comm
 
-    value_id = pt.merging_parameters[1]
+    value_id = merge_params[1]
     if MPI.Comm_rank(comm) == 0
         buf = IOBuffer()
         serialize(buf, part)
         value = take!(buf)
-        sqs_send_message(
-            get_gather_queue(),
-            JSON.json(Dict(
-                "kind" => "GATHER",
-                "value_id" => value_id,
-                "value" => value
-            )),
-            (:MessageGroupId, "1"),
-            (:MessageDeduplicationId, get_message_id())
-        )
+        send_gather(value_id, value)
     end
 end
 
 MERGE["Block"]["Batches"] = default_batches_func
 
 MERGE["Block"]["Workers"] = function(
-    src, part, pt::PartitionType, idx, npartitions, comm::MPI_Comm
+    src, part, merge_params, comm::MPI_Comm
 )
 
     if src == nothing
@@ -235,8 +234,24 @@ MERGE["Block"]["None"] = default_lt_func
 
 MERGE["Stencil"]["Batches"] = default_batches_func
 
-MERGE["Stencil"]["Workers"] = function ()
+MERGE["Stencil"]["Workers"] = function (
+    src, part, merge_params, comm::MPI_Comm
+)
     # TODO: Implement this
+
+    if src == nothing
+        # TODO: Implement this case
+    else
+    #     dim = splitting_parameters[1]
+    #     size = splitting_parameters[2]
+    #     stride = splitting_parameters[3]
+
+    #     overlap = [min(, 0) for s in size]
+
+    # num_blocks = cld(cld(size(src, dim) - size, stride), nbatches)
+    # first_idx = 1 + idx * stride * num_blocks
+    # last_idx = min(1 + idx * stride * num_blocks + size, size(src, dim))
+    end
 end
 
 MERGE["Stencil"]["None"] = default_lt_func
