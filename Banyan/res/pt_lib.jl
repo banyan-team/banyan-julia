@@ -242,15 +242,15 @@ MERGE["Stencil"]["Workers"] = function (
     if src == nothing
         # TODO: Implement this case
     else
-        dim = splitting_parameters[1]
-        size = splitting_parameters[2]
-        stride = splitting_parameters[3]
+    #     dim = splitting_parameters[1]
+    #     size = splitting_parameters[2]
+    #     stride = splitting_parameters[3]
 
-        overlap = [min(, 0) for s in size]
+    #     overlap = [min(, 0) for s in size]
 
-    num_blocks = cld(cld(size(src, dim) - size, stride), nbatches)
-    first_idx = 1 + idx * stride * num_blocks
-    last_idx = min(1 + idx * stride * num_blocks + size, size(src, dim))
+    # num_blocks = cld(cld(size(src, dim) - size, stride), nbatches)
+    # first_idx = 1 + idx * stride * num_blocks
+    # last_idx = min(1 + idx * stride * num_blocks + size, size(src, dim))
     end
 end
 
