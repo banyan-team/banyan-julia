@@ -12,7 +12,7 @@
         z = 10
         println("hello ", z)
     end
-    # evaluate(x)
+    evaluate(x)
 end
 
 # @testset "Location Type" begin
