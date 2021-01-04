@@ -12,7 +12,7 @@ function merge(pt_name::String, type::String, args...)
     MERGE[pt_name][type](args)
 end
 
-# src, part, parameters::Vector{Any}, idx::Int64, npartitions::Int64; comm::MPI.Comm, lt::LocationType
+# src, part, parameters::Vector{Any}, idx::Int64, nbatches::Int64; comm::MPI.Comm, lt_params
 # part is a reference
 
 ##################
@@ -20,17 +20,17 @@ end
 ##################
 
 default_batches_func = function(
-    src, part, parameters::Vector{Any}, idx, npartitions
+    src, part, parameters::Vector{Any}, idx, nbatches
 )
 end
 
 default_workers_func = function(
-    src, part, parameters::Vector{Any}, idx, npartitions, comm::MPI_Comm
+    src, part, parameters::Vector{Any}, comm::MPI_Comm
 )
 end
 
 default_lt_func = function(
-    src, part, parameters::Vector{Any}, idx, npartitions, lt::LocationType
+    src, part, parameters::Vector{Any}, idx, nbatches, comm, lt_params
 )
 end
 
@@ -44,39 +44,39 @@ end
 SPLIT = Dict{String, Dict}()
 
 SPLIT["Value"]["Batches"] = function(
-    src, part, splitting_parameters, idx, npartitions
+    src, part, splitting_parameters, idx, nbatches
 )
     part = src
 end
 
 SPLIT["Value"]["Workers"] = function(
-    src, part, splitting_parameters, idx, npartitions, comm::MPI_Comm
+    src, part, splitting_parameters, comm::MPI_Comm
 )
     part = src
 end
 
 SPLIT["Value"]["None"] = function(
-    src, part, splitting_parameters, idx, npartitions, lt::LocationType
+    src, part, splitting_parameters, idx, nbatches, comm, lt_params
 )
     part = splitting_parameters[1]
 end
 
 SPLIT["Div"]["Batches"] = function(
-    src, part, splitting_parameters, idx, npartitions
+    src, part, splitting_parameters, idx, nbatches
 )
-    part = fld(src, npartitions)
+    part = fld(src, nbatches)
 end
 
 SPLIT["Div"]["Workers"] = function(
-    src, part, splitting_parameters, idx, npartitions, comm::MPI_Comm
+    src, part, splitting_parameters, comm::MPI_Comm
 )
-    part = fld(src, npartitions)
+    part = fld(src, nbatches)
 end
 
 SPLIT["Div"]["None"] = function(
-    src, part, splitting_parameters, idx, npartitions, lt::LocationType
+    src, part, splitting_parameters, idx, nbatches, comm, lt_params
 )
-    part = flt(splitting_parameters[1], npartitions)
+    part = flt(splitting_parameters[1], nbatches)
 end
 
 SPLIT["Replicate"]["Batches"] = function()
@@ -87,7 +87,7 @@ SPLIT["Replicate"]["Workers"] = function()
 end
 
 SPLIT["Replicate"]["Client"] = function(
-    src, part, splitting_parameters, idx, npartitions, lt::LocationType
+    src, part, splitting_parameters, idx, nbatches, comm, lt_params
 )
 
     global comm  # TODO: not necessarily
@@ -114,10 +114,10 @@ end
 
 
 SPLIT["Block"]["Batches"] = function(
-    src, part, splitting_parameters, idx, npartitions
+    src, part, splitting_parameters, idx, nbatches
 )
     dim = splitting_parameters[1]
-    partition_length = cld(size(src, dim), npartitions)
+    partition_length = cld(size(src, dim), nbatches)
 
     first_idx = min(1 + idx * partition_length, size(src, dim) + 1)
     last_idx = min((idx + 1) * partition_length, size(src, dim))
@@ -128,10 +128,10 @@ end
 
 # TODO: Make sure this is correct
 SPLIT["Block"]["Workers"] = function(
-    src, part, splitting_parameters, idx, npartitions, comm::MPI_Comm
+    src, part, splitting_parameters, idx, nbatches, comm::MPI_Comm
 )
     dim = pt.splitting_parameters[1]
-    partition_length = cld(size(src, dim), npartitions)
+    partition_length = cld(size(src, dim), nbatches)
 
     # TODO: Scatter or Scatter!
     # TODO: Or should this be idx == 0? replace 0 below with idx then
@@ -147,14 +147,14 @@ end
 SPLIT["Block"]["None"] = default_lt_func
 
 SPLIT["Stencil"]["Batches"] = function (
-    src, part, splitting_parameters, idx, npartitions
+    src, part, splitting_parameters, idx, nbatches
 )
     dim = splitting_parameters[1]
     size = splitting_parameters[2]
     stride = splitting_parameters[3]
     @assert length(size) = len(stride)
 
-    num_blocks = cld(cld(size(src, dim) - size, stride), npartitions)
+    num_blocks = cld(cld(size(src, dim) - size, stride), nbatches)
     first_idx = 1 + idx * stride * num_blocks
     last_idx = min(1 + idx * stride * num_blocks + size, size(src, dim))
 
@@ -162,7 +162,7 @@ SPLIT["Stencil"]["Batches"] = function (
 end
 
 SPLIT["Stencil"]["Workers"] = function (
-    src, part, splitting_parameters, idx, npartitions, comm::MPI_Comm
+    src, part, splitting_parameters, idx, nbatches, comm::MPI_Comm
 )
     # TODO: Implement this
 
@@ -201,13 +201,13 @@ MERGE["Replicate"]["Workers"] = function()
 end
 
 MERGE["Replicate"]["Client"] = function (
-    src, part, merging_parameters, idx, npartitions, lt::LocationType
+    src, part, merge_params, idx, nbatches, comm, lt_params
 )
 
     # TODO: Get comm
     global comm
 
-    value_id = merging_parameters[1]
+    value_id = merge_params[1]
     if MPI.Comm_rank(comm) == 0
         buf = IOBuffer()
         serialize(buf, part)
@@ -219,7 +219,7 @@ end
 MERGE["Block"]["Batches"] = default_batches_func
 
 MERGE["Block"]["Workers"] = function(
-    src, part, merging_parameters, idx, npartitions, comm::MPI_Comm
+    src, part, merge_params, comm::MPI_Comm
 )
 
     if src == nothing
@@ -235,7 +235,7 @@ MERGE["Block"]["None"] = default_lt_func
 MERGE["Stencil"]["Batches"] = default_batches_func
 
 MERGE["Stencil"]["Workers"] = function (
-    src, part, merging_parameters, idx, npartitions, comm::MPI_Comm
+    src, part, merge_params, comm::MPI_Comm
 )
     # TODO: Implement this
 
@@ -248,7 +248,7 @@ MERGE["Stencil"]["Workers"] = function (
 
         overlap = [min(, 0) for s in size]
 
-    num_blocks = cld(cld(size(src, dim) - size, stride), npartitions)
+    num_blocks = cld(cld(size(src, dim) - size, stride), nbatches)
     first_idx = 1 + idx * stride * num_blocks
     last_idx = min(1 + idx * stride * num_blocks + size, size(src, dim))
     end
