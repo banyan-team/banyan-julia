@@ -17,7 +17,8 @@ export Future
 export PartitionAnnotation,
      PartitionType,
      PartitioningConstraint,
-     PartitioningConstraints
+     PartitioningConstraints,
+     Partitions
 export LocationType
 export Task
      

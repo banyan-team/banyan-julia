@@ -68,14 +68,25 @@ end
 ######################## 
 # PARTITION ANNOTATION #
 ########################
+struct Partitions
+    pt_stacks::Dict{ValueId, Vector{PartitionType}}
+end
+
+function to_jl(p::Partitions)
+    return Dict(
+        "pt_stacks" => Dict(v => [to_jl(pt) for pt in pts] for (v, pts) in p.pt_stacks)
+    )
+end
 
 struct PartitionAnnotation
-    partitions::Dict{ValueId,Vector{PartitionType}}
-    partitioning_constraints::PartitioningConstraints
+    partitions::Partitions
+    constraints::PartitioningConstraints
 end
 
 function to_jl(pa::PartitionAnnotation)
-    "partitions" => Dict(v => [pt_to_jl(pt) for pt in pts] for (v, pts) in pa.partitions),
-    "partitioning_constraints" =>
-        to_jl(pa.partitioning_constraints)
+    return Dict(
+        "partitions" => to_jl(pa.partitions),
+        "constraints" =>
+        to_jl(pa.constraints)
+    )
 end
