@@ -16,17 +16,15 @@ mutable struct Future
         # Generate new value id
         value_id = create_value_id()
 
-        # Create new Future and add to futures dictionary
+        # Create new Future and add to futures dictionary if lt is Client
         new_future = new(value, value_id, false, lt)
         if lt.src_name == "Client"
             futures[value_id] = new_future
         end
 
-        # Record request to update location type
-		record_request(UpdateLocationType(
-			value_id,
-			lt
-		))
+        # Update location type
+	global locations
+	locations[value_id] = lt
 
         # Create finalizer and register
         function destroy_future(fut)
@@ -48,6 +46,9 @@ end
 
 # Contains Futures with a LocationType of Client
 global futures = Dict{ValueId,Future}()
+
+# Contains all Futures
+global locations = Dict{ValueId,LocationType}()
 
 #################
 # Magic Methods #

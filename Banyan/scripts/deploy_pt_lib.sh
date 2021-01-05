@@ -25,6 +25,6 @@ EOF
 
 aws dynamodb update-item \
 	--table-name Clusters  \
-	--key '{"cluster_id": "$1"}' \
+	--key '{"cluster_id": {"S": "'"$1"'"}}' \
 	--update-expression 'SET pt_lib_info = :pt_lib_info' \
-	--expression-attribute-values res/pt_lib_info.json
+	--expression-attribute-values file://res/pt_lib_info.json

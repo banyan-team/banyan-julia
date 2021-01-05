@@ -1,3 +1,4 @@
 {
-    "pt_lib_info": {}
+    ":pt_lib_info": {"M": {"test": {"S": "hi"}}}
 }
+
