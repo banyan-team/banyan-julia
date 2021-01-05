@@ -7,8 +7,8 @@
 #end
 
 @testset "Simple annotation" begin
-    x = Future([1, 2, 3, 4, 5])
-    @pa x, Dict(x => "Mut"), PartitionAnnotation(Partitions(Dict()), PartitioningConstraints(Set())) begin
+    x = Future(49)
+    @pa x, Dict(x => "Mut"), PartitionAnnotation(Partitions(Dict(x.value_id => [PartitionType("Value", "Value", [x.value,], [x.value,], 10)])), PartitioningConstraints(Set())) begin
         z = 10
         println("hello ", z)
     end
