@@ -1,4 +1,13 @@
 {
-    ":pt_lib_info": {"M": {"test": {"S": "hi"}}}
+    ":pt_lib_info": {
+        "M": {
+            "in_place_casts": {"M": {}},
+            "shuffling_casts": {"M": {}},
+            "partition_memory_usage": {"M": {
+                "Value": {"S": "none"},
+                "Replicate": {"S": "all"},
+                "Block": {"S": "div"}
+            }}
+        }
+    }
 }
-
