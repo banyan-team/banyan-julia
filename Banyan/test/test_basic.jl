@@ -8,7 +8,8 @@
 
 @testset "Simple annotation" begin
     x = Future(49)
-    @pa x, Dict(x => "Mut"), PartitionAnnotation(Partitions(Dict(x.value_id => [PartitionType("Value", "Value", [x.value,], [x.value,], 10)])), PartitioningConstraints(Set())) begin
+    # @pa x, Dict(x => "Mut"), PartitionAnnotation(Partitions(Dict(x.value_id => [Value(x)])), PartitioningConstraints(Set())) begin
+    @pa x, Dict(x => "Mut"), pa_noconstraints(Dict(x.value_id => [Value(x)])) begin
         z = 10
         println("hello ", z)
     end
@@ -20,3 +21,12 @@ end
 #     @lt x LocationType("New", "HDF5", [], [], 1024)
 #     println("done")
 # end
+
+@testset "Simple annotation with Block" begin
+    y = Future(fill(1, 16))
+
+    @pa y, Dict(x => "Mut"), pa_noconstraints(Dict(x.value_id => [Block(y)])) begin
+        y = y * 2
+        println("hello ", y)
+    end
+end

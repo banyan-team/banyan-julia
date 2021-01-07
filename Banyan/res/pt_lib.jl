@@ -126,7 +126,6 @@ SPLIT["Block"]["Batches"] = function(
     part = selectdim(src, dim, first_idx:last_idx)
 end
 
-# TODO: Make sure this is correct
 SPLIT["Block"]["Workers"] = function(
     src, part, splitting_parameters, idx, nbatches, comm::MPI_Comm
 )
