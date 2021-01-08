@@ -1,4 +1,4 @@
-
+using MPI
 
 ############################
 # TEMPORARY TEST FUNCTIONS #
@@ -25,7 +25,7 @@ default_batches_func = function(
 end
 
 default_workers_func = function(
-    src, part, parameters::Vector{Any}, comm::MPI_Comm
+    src, part, parameters::Vector{Any}, comm
 )
 end
 
@@ -52,7 +52,7 @@ SPLIT_IMPL["Value"]["Batches"] = function(
 end
 
 SPLIT_IMPL["Value"]["Workers"] = function(
-    src, part, splitting_parameters, comm::MPI_Comm
+    src, part, splitting_parameters, comm
 )
     part = src
 end
@@ -72,7 +72,7 @@ SPLIT_IMPL["Div"]["Batches"] = function(
 end
 
 SPLIT_IMPL["Div"]["Workers"] = function(
-    src, part, splitting_parameters, comm::MPI_Comm
+    src, part, splitting_parameters, comm
 )
     part = fld(src, nbatches)
 end
@@ -134,7 +134,7 @@ SPLIT_IMPL["Block"]["Batches"] = function(
 end
 
 SPLIT_IMPL["Block"]["Workers"] = function(
-    src, part, splitting_parameters, idx, nbatches, comm::MPI_Comm
+    src, part, splitting_parameters, idx, nbatches, comm
 )
     dim = pt.splitting_parameters[1]
     partition_length = cld(size(src, dim), nbatches)
@@ -170,7 +170,7 @@ SPLIT_IMPL["Stencil"]["Batches"] = function (
 end
 
 SPLIT_IMPL["Stencil"]["Workers"] = function (
-    src, part, splitting_parameters, idx, nbatches, comm::MPI_Comm
+    src, part, splitting_parameters, idx, nbatches, comm
 )
     # TODO: Implement this
 
@@ -235,8 +235,7 @@ MERGE_IMPL["Block"] = Dict{String, Any}()
 MERGE_IMPL["Block"]["Batches"] = default_batches_func
 
 MERGE_IMPL["Block"]["Workers"] = function(
-    src, part, merge_params, comm::MPI_Comm
-)
+    src, part, merge_params, comm
 
     if src == nothing
         # TODO: Implement this case
@@ -253,7 +252,7 @@ MERGE_IMPL["Stencil"] = Dict{String, Any}()
 MERGE_IMPL["Stencil"]["Batches"] = default_batches_func
 
 MERGE_IMPL["Stencil"]["Workers"] = function (
-    src, part, merge_params, comm::MPI_Comm
+    src, part, merge_params, comm
 )
     # TODO: Implement this
 
