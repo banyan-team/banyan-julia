@@ -20,17 +20,17 @@ end
 ##################
 
 default_batches_func = function(
-    src, part, parameters::Vector{Any}, idx, nbatches
+    src, part, parameters, idx, nbatches
 )
 end
 
 default_workers_func = function(
-    src, part, parameters::Vector{Any}, comm
+    src, part, parameters, comm
 )
 end
 
 default_lt_func = function(
-    src, part, parameters::Vector{Any}, idx, nbatches, comm, lt_params
+    src, part, parameters, idx, nbatches, comm, lt_params
 )
 end
 
