@@ -23,10 +23,16 @@ end
 # end
 
 @testset "Simple annotation with Block" begin
-    y = Future(fill(1, 16))
+    y = Future()
 
-    @pa y, Dict(x => "Mut"), pa_noconstraints(Dict(x.value_id => [Block(y)])) begin
+    @pa y, Dict(y => "Mut"), pa_noconstraints(Dict(y.value_id => [Block(1)])) begin
+        y = fill(1, 16)
+    end
+
+    @pa y, Dict(y => "Mut"), pa_noconstraints(Dict(y.value_id => [Block(1)])) begin
         y = y * 2
         println("hello ", y)
     end
+
+    evaluate(y)
 end
