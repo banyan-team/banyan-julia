@@ -1,15 +1,15 @@
-
+using MPI
 
 ############################
 # TEMPORARY TEST FUNCTIONS #
 ############################
 
 function split(pt_name::String, type::String, args...)
-    SPLIT[pt_name][type](args)
+    SPLIT_IMPL[pt_name][type](args)
 end
 
 function merge(pt_name::String, type::String, args...)
-    MERGE[pt_name][type](args)
+    MERGE_IMPL[pt_name][type](args)
 end
 
 # src, part, parameters::Vector{Any}, idx::Int64, nbatches::Int64; comm::MPI.Comm, lt_params
@@ -20,73 +20,79 @@ end
 ##################
 
 default_batches_func = function(
-    src, part, parameters::Vector{Any}, idx, nbatches
+    src, part, parameters, idx, nbatches
 )
 end
 
 default_workers_func = function(
-    src, part, parameters::Vector{Any}, comm::MPI_Comm
+    src, part, parameters, comm
 )
 end
 
 default_lt_func = function(
-    src, part, parameters::Vector{Any}, idx, nbatches, comm, lt_params
+    src, part, parameters, idx, nbatches, comm, lt_params
 )
 end
 
 
 
 ###################
-# SPLIT FUNCTIONS #
+# SPLIT_IMPL FUNCTIONS #
 ###################
 
 # PT Name --> LT_Name/Workers/Batches --> Implementation
-SPLIT = Dict{String, Dict}()
+SPLIT_IMPL = Dict{String, Dict}()
 
-SPLIT["Value"]["Batches"] = function(
+SPLIT_IMPL["Value"] = Dict{String, Any}()
+
+SPLIT_IMPL["Value"]["Batches"] = function(
     src, part, splitting_parameters, idx, nbatches
 )
     part = src
 end
 
-SPLIT["Value"]["Workers"] = function(
-    src, part, splitting_parameters, comm::MPI_Comm
+SPLIT_IMPL["Value"]["Workers"] = function(
+    src, part, splitting_parameters, comm
 )
     part = src
 end
 
-SPLIT["Value"]["None"] = function(
+SPLIT_IMPL["Value"]["None"] = function(
     src, part, splitting_parameters, idx, nbatches, comm, lt_params
 )
     part = splitting_parameters[1]
 end
 
-SPLIT["Div"]["Batches"] = function(
+SPLIT_IMPL["Div"] = Dict{String, Any}()
+
+SPLIT_IMPL["Div"]["Batches"] = function(
     src, part, splitting_parameters, idx, nbatches
 )
     part = fld(src, nbatches)
 end
 
-SPLIT["Div"]["Workers"] = function(
-    src, part, splitting_parameters, comm::MPI_Comm
+SPLIT_IMPL["Div"]["Workers"] = function(
+    src, part, splitting_parameters, comm
 )
     part = fld(src, nbatches)
 end
 
-SPLIT["Div"]["None"] = function(
+SPLIT_IMPL["Div"]["None"] = function(
     src, part, splitting_parameters, idx, nbatches, comm, lt_params
 )
     part = flt(splitting_parameters[1], nbatches)
 end
 
-SPLIT["Replicate"]["Batches"] = function()
+SPLIT_IMPL["Replicate"] = Dict{String, Any}()
+
+SPLIT_IMPL["Replicate"]["Batches"] = function()
 
 end
 
-SPLIT["Replicate"]["Workers"] = function()
+SPLIT_IMPL["Replicate"]["Workers"] = function()
 end
 
-SPLIT["Replicate"]["Client"] = function(
+SPLIT_IMPL["Replicate"]["Client"] = function(
     src, part, splitting_parameters, idx, nbatches, comm, lt_params
 )
 
@@ -112,41 +118,53 @@ SPLIT["Replicate"]["Client"] = function(
 
 end
 
+SPLIT_IMPL["Block"] = Dict{String, Any}()
 
-SPLIT["Block"]["Batches"] = function(
+SPLIT_IMPL["Block"]["Batches"] = function(
     src, part, splitting_parameters, idx, nbatches
 )
-    dim = splitting_parameters[1]
-    partition_length = cld(size(src, dim), nbatches)
 
-    first_idx = min(1 + idx * partition_length, size(src, dim) + 1)
-    last_idx = min((idx + 1) * partition_length, size(src, dim))
-    
-    # part is a view into src
-    part = selectdim(src, dim, first_idx:last_idx)
+    if src[] == nothing
+        part[] = nothing
+    else
+        dim = splitting_parameters[1]
+        partition_length = cld(size(src[], dim), nbatches)
+
+        first_idx = min(1 + idx * partition_length, size(src[], dim) + 1)
+        last_idx = min((idx + 1) * partition_length, size(src[], dim))
+        
+        # part is a view into src
+        part[] = selectdim(src[], dim, first_idx:last_idx)
+    end
 end
 
-# TODO: Make sure this is correct
-SPLIT["Block"]["Workers"] = function(
-    src, part, splitting_parameters, idx, nbatches, comm::MPI_Comm
+SPLIT_IMPL["Block"]["Workers"] = function(
+    src, part, splitting_parameters, idx, nbatches, comm
 )
-    dim = pt.splitting_parameters[1]
-    partition_length = cld(size(src, dim), nbatches)
 
-    # TODO: Scatter or Scatter!
-    # TODO: Or should this be idx == 0? replace 0 below with idx then
-    # if MPI.Comm_rank(comm) == 0
-    #     Scatter!(src, nothing, partition_length, 0, comm)
-    # else
-    #     Scatter!(nothing, buf, partition_length, 0, comm)        
-    # end
-    part = Scatter(src, partition_length, 0, comm)
+    if src[] == nothing
+        part[] = nothing
+    else
+        dim = pt.splitting_parameters[1]
+        partition_length = cld(size(src[], dim), nbatches)
+
+        # TODO: Scatter or Scatter!
+        # TODO: Or should this be idx == 0? replace 0 below with idx then
+        # if MPI.Comm_rank(comm) == 0
+        #     Scatter!(src, nothing, partition_length, 0, comm)
+        # else
+        #     Scatter!(nothing, buf, partition_length, 0, comm)        
+        # end
+        part[] = Scatter(src[], partition_length, 0, comm)
+    end
 
 end
 
-SPLIT["Block"]["None"] = default_lt_func
+SPLIT_IMPL["Block"]["None"] = default_lt_func
 
-SPLIT["Stencil"]["Batches"] = function (
+SPLIT_IMPL["Stencil"] = Dict{String, Any}()
+
+SPLIT_IMPL["Stencil"]["Batches"] = function (
     src, part, splitting_parameters, idx, nbatches
 )
     dim = splitting_parameters[1]
@@ -161,8 +179,8 @@ SPLIT["Stencil"]["Batches"] = function (
     part = selectdim(src, dim, first_idx:last_idx)
 end
 
-SPLIT["Stencil"]["Workers"] = function (
-    src, part, splitting_parameters, idx, nbatches, comm::MPI_Comm
+SPLIT_IMPL["Stencil"]["Workers"] = function (
+    src, part, splitting_parameters, idx, nbatches, comm
 )
     # TODO: Implement this
 
@@ -172,35 +190,41 @@ SPLIT["Stencil"]["Workers"] = function (
 
 end
 
-SPLIT["Stencil"]["None"] = default_lt_func
+SPLIT_IMPL["Stencil"]["None"] = default_lt_func
 
 
 ###################
-# MERGE FUNCTIONS #
+# MERGE_IMPL FUNCTIONS #
 ###################
 
 # PT Name --> LT_Name/Workers/Batches --> Implementation
-MERGE = Dict{String, Dict}()
+MERGE_IMPL = Dict{String, Dict}()
 
-MERGE["Value"]["Workers"] = default_workers_func
+MERGE_IMPL["Value"] = Dict{String, Any}()
 
-MERGE["Value"]["Batches"] = default_batches_func
+MERGE_IMPL["Value"]["Workers"] = default_workers_func
 
-MERGE["Value"]["None"] = default_lt_func
+MERGE_IMPL["Value"]["Batches"] = default_batches_func
 
-MERGE["Div"]["Workers"] = default_workers_func
+MERGE_IMPL["Value"]["None"] = default_lt_func
 
-MERGE["Div"]["Batches"] = default_batches_func
+MERGE_IMPL["Div"] = Dict{String, Any}()
 
-MERGE["Div"]["None"] = default_lt_func
+MERGE_IMPL["Div"]["Workers"] = default_workers_func
 
-MERGE["Replicate"]["Workers"] = function()
+MERGE_IMPL["Div"]["Batches"] = default_batches_func
+
+MERGE_IMPL["Div"]["None"] = default_lt_func
+
+MERGE_IMPL["Replicate"] = Dict{String, Any}()
+
+MERGE_IMPL["Replicate"]["Workers"] = function()
 end
 
-MERGE["Replicate"]["Workers"] = function()
+MERGE_IMPL["Replicate"]["Workers"] = function()
 end
 
-MERGE["Replicate"]["Client"] = function (
+MERGE_IMPL["Replicate"]["Client"] = function (
     src, part, merge_params, idx, nbatches, comm, lt_params
 )
 
@@ -216,26 +240,30 @@ MERGE["Replicate"]["Client"] = function (
     end
 end
 
-MERGE["Block"]["Batches"] = default_batches_func
+MERGE_IMPL["Block"] = Dict{String, Any}()
 
-MERGE["Block"]["Workers"] = function(
-    src, part, merge_params, comm::MPI_Comm
+MERGE_IMPL["Block"]["Batches"] = default_batches_func
+
+MERGE_IMPL["Block"]["Workers"] = function(
+    src, part, merge_params, comm
 )
-
-    if src == nothing
+    if src[] == nothing
+        println("src is nothing in merge block workers")
         # TODO: Implement this case
     else
         # TODO: Allgather or Allgather!
-        src = Allgather(part, comm)
+        src[] = Allgather(part[], comm)
     end
 end
 
-MERGE["Block"]["None"] = default_lt_func
+MERGE_IMPL["Block"]["None"] = default_lt_func
 
-MERGE["Stencil"]["Batches"] = default_batches_func
+MERGE_IMPL["Stencil"] = Dict{String, Any}()
 
-MERGE["Stencil"]["Workers"] = function (
-    src, part, merge_params, comm::MPI_Comm
+MERGE_IMPL["Stencil"]["Batches"] = default_batches_func
+
+MERGE_IMPL["Stencil"]["Workers"] = function (
+    src, part, merge_params, comm
 )
     # TODO: Implement this
 
@@ -254,12 +282,12 @@ MERGE["Stencil"]["Workers"] = function (
     end
 end
 
-MERGE["Stencil"]["None"] = default_lt_func
+MERGE_IMPL["Stencil"]["None"] = default_lt_func
 
 
 ##################
 # CAST FUNCTIONS #
 ##################
 
-# MERGE Name --> Split Name --> Implementation
+# MERGE_IMPL Name --> Split Name --> Implementation
 CAST = Dict{String, Dict}()

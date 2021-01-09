@@ -1,4 +1,4 @@
-const ValueId = Int32
+const ValueId = String
 const MessageId = String
 const ClusterId = String
 const JobId = String
@@ -6,7 +6,7 @@ const JobId = String
 
 function create_value_id()
 	# TODO: Ensure that this works
-	return rand(ValueId)
+	return string(rand(UInt64))
 end
 
 function get_message_id()

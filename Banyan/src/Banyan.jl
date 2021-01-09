@@ -23,7 +23,8 @@ export LocationType
 export Task
      
 export @pa, @lt
-# export None, Copy, Div, New, Value, Block
+export pa_noconstraints
+export Value, Block
 # export Const, Mut
 
 include("id.jl")
@@ -34,7 +35,8 @@ include("futures.jl")
 include("partitions.jl")
 include("queues.jl")
 include("tasks.jl")
-# include("pt_lib_constructors.jl")
+include("pa_constructors.jl")
+include("pt_constructors.jl")
 include("macros.jl")
 include("evaluation.jl")
 
