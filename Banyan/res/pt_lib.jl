@@ -246,7 +246,7 @@ MERGE_IMPL["Block"]["Batches"] = default_batches_func
 
 MERGE_IMPL["Block"]["Workers"] = function(
     src, part, merge_params, comm
-
+)
     if src[] == nothing
         println("src is nothing in merge block workers")
         # TODO: Implement this case
