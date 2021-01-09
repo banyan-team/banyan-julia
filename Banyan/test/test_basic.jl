@@ -6,20 +6,6 @@
 #    destroy_job()
 #end
 
-<<<<<<< HEAD
-@testset "Simple annotation" begin
-    x = Future([1, 2, 3, 4, 5])
-    # @pa x, Dict(x => "Mut"), PartitionAnnotation(Partitions(Dict()), PartitioningConstraints(Set())) begin
-    #     z = 10
-    #     println("hello ", z)
-    # end
-    @pa x, Dict(x => "Mut"), PartitionAnnotation(Partitions(Dict(x.value_id => PartitionType("Block", "Block", [], [], -1))), PartitioningConstraints(Set())) begin
-        z = 10
-        println("hello ", z)
-    end
-    evaluate(x)
-end
-=======
 #@testset "Simple annotation" begin
 #    x = Future(49)
 #    # @pa x, Dict(x => "Mut"), PartitionAnnotation(Partitions(Dict(x.value_id => [Value(x)])), PartitioningConstraints(Set())) begin
@@ -29,7 +15,6 @@ end
 #    end
 #    evaluate(x)
 #end
->>>>>>> 06fad0591e5414d7b8ccd90b9d6d11d6189ad897
 
 # @testset "Location Type" begin
 #     x = Future([1, 2, 3, 4, 5])
