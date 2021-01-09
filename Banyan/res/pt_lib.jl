@@ -123,30 +123,40 @@ SPLIT_IMPL["Block"] = Dict{String, Any}()
 SPLIT_IMPL["Block"]["Batches"] = function(
     src, part, splitting_parameters, idx, nbatches
 )
-    dim = splitting_parameters[1]
-    partition_length = cld(size(src, dim), nbatches)
 
-    first_idx = min(1 + idx * partition_length, size(src, dim) + 1)
-    last_idx = min((idx + 1) * partition_length, size(src, dim))
-    
-    # part is a view into src
-    part = selectdim(src, dim, first_idx:last_idx)
+    if src[] == nothing
+        part[] = nothing
+    else
+        dim = splitting_parameters[1]
+        partition_length = cld(size(src[], dim), nbatches)
+
+        first_idx = min(1 + idx * partition_length, size(src[], dim) + 1)
+        last_idx = min((idx + 1) * partition_length, size(src[], dim))
+        
+        # part is a view into src
+        part[] = selectdim(src[], dim, first_idx:last_idx)
+    end
 end
 
 SPLIT_IMPL["Block"]["Workers"] = function(
     src, part, splitting_parameters, idx, nbatches, comm
 )
-    dim = pt.splitting_parameters[1]
-    partition_length = cld(size(src, dim), nbatches)
 
-    # TODO: Scatter or Scatter!
-    # TODO: Or should this be idx == 0? replace 0 below with idx then
-    # if MPI.Comm_rank(comm) == 0
-    #     Scatter!(src, nothing, partition_length, 0, comm)
-    # else
-    #     Scatter!(nothing, buf, partition_length, 0, comm)        
-    # end
-    part = Scatter(src, partition_length, 0, comm)
+    if src[] == nothing
+        part[] = nothing
+    else
+        dim = pt.splitting_parameters[1]
+        partition_length = cld(size(src[], dim), nbatches)
+
+        # TODO: Scatter or Scatter!
+        # TODO: Or should this be idx == 0? replace 0 below with idx then
+        # if MPI.Comm_rank(comm) == 0
+        #     Scatter!(src, nothing, partition_length, 0, comm)
+        # else
+        #     Scatter!(nothing, buf, partition_length, 0, comm)        
+        # end
+        part[] = Scatter(src[], partition_length, 0, comm)
+    end
 
 end
 
@@ -236,12 +246,13 @@ MERGE_IMPL["Block"]["Batches"] = default_batches_func
 
 MERGE_IMPL["Block"]["Workers"] = function(
     src, part, merge_params, comm
-
-    if src == nothing
+)
+    if src[] == nothing
+        println("src is nothing in merge block workers")
         # TODO: Implement this case
     else
         # TODO: Allgather or Allgather!
-        src = Allgather(part, comm)
+        src[] = Allgather(part[], comm)
     end
 end
 
