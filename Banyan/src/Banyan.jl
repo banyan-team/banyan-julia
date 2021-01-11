@@ -22,9 +22,11 @@ export PartitionAnnotation,
 export LocationType
 export Task
      
-export @pa, @lt
+export @pa, @pp, @lt, @src, @dst
 export pa_noconstraints
-export Value, Block
+export Block
+export HDF5, Value, Client
+export Cross
 # export Const, Mut
 
 include("id.jl")
@@ -37,6 +39,8 @@ include("queues.jl")
 include("tasks.jl")
 include("pa_constructors.jl")
 include("pt_constructors.jl")
+include("lt_constructors.jl")
+include("constraint_constructors.jl")
 include("macros.jl")
 include("evaluation.jl")
 

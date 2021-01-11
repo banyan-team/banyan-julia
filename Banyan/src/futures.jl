@@ -35,7 +35,7 @@ mutable struct Future
         finalizer(destroy_future, new_future)
     end
     function Future(value = nothing)
-        Future(get_job_id(), value, LocationType("None", "None", [], [], 0))
+        Future(get_job_id(), value, LocationType("None", "None", [], [], -1))
     end
 end
 
