@@ -24,7 +24,7 @@ export Task
      
 export @pa, @pp, @lt, @src, @dst
 export pa_noconstraints
-export Block
+export Div, Block, Stencil
 export HDF5, Value, Client
 export Cross
 # export Const, Mut

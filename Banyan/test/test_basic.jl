@@ -42,7 +42,7 @@
     x = Future()
     num = Future(16)
 
-    x_pa = @pa mut x Stencil(1, 1, 1) num y Div(num) where []
+    x_pa = @pa {mut x Stencil(1, 1, 1) num x Div(num)} where []
 
     @pp [x_pa] begin
         x = fill(1, num)
@@ -60,5 +60,6 @@
         end
     end
 
-    evalute(x)
+    println("RIGHT BEFORE EVALUATE")
+    evaluate(x)
 end

@@ -74,6 +74,7 @@ function record_mut(value_id::ValueId)
 end
 
 function evaluate(job_id::String, fut::Future)
+    println("IN EVALUATE")
     global futures
     # Only evaluate if future has been mutated
     if true  #fut.mutated == true

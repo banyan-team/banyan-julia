@@ -10,13 +10,16 @@ macro pa(ex...)
 	end
 
 	i = 1
-	while i < size(variables)[0]
-		if $(string(variables[i])) == "mut"
+	while i < size(variables, 1) - 1
+		if string(variables[i]) == "mut"
 			variable = variables[i + 1]
 			pt = variables[i + 2]
 			parsing_code = quote
 				$parsing_code
-				value_names[$(esc(variable)).value_id] = $(string(variable))
+				fut = $(esc(variable))
+				fut.mutated = true
+				effects[fut.value_id] = "Mut"
+				value_names[fut.value_id] = $(string(variable))
 				push!(get(partitions.pt_stacks, $(esc(variable)).value_id, []), $(esc(pt)))
 			end
 			i += 3
@@ -25,10 +28,13 @@ macro pa(ex...)
 			pt = variables[i + 1]
 			parsing_code = quote
 				$parsing_code
-				value_names[$(esc(variable)).value_id] = $(string(variable))
+				fut = $(esc(variable))
+				effects[fut.value_id] = "Const"
+				value_names[fut.value_id] = $(string(variable))
 				push!(get(partitions.pt_stacks, $(esc(variable)).value_id, []), $(esc(pt)))
 			end
 			i += 2
+		end
 	end
 
 	return quote
@@ -36,7 +42,10 @@ macro pa(ex...)
 		constraints = $(esc(constraints))
 		code = $(string(code))
 
-		pa_union = set([PartitionAnnotation(partitions, constraints)])
+		$parsing_code
+
+		constraints = PartitioningConstraints(Set(constraints))
+		pa_union = Set([PartitionAnnotation(partitions, constraints)])
 		global locations
 
 		task = Task(
@@ -48,7 +57,8 @@ macro pa(ex...)
 		)
 
 		# TODO: Add to requests_list?? no
-
+		println("value names: ", value_names)
+		println("effects: ", effects)
 		return task
 
 	end
@@ -58,8 +68,9 @@ end
 macro pp(ex...)
 	tasks = ex[1]
 	code = ex[end]
-
-	return quote(
+	println("tasks", tasks)
+	println("code", code)
+	return quote
 
 		tasks = $(esc(tasks))
 
@@ -76,9 +87,9 @@ macro pp(ex...)
 
 		# Record request to record code region
 		record_request(RecordTaskRequest(task))
-		
+		println("DONE with pp and returning task")	
 		return task
-	)
+	end
 end
 
 # macro pa(ex...)
