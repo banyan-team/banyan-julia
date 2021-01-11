@@ -182,14 +182,32 @@ SPLIT_IMPL["Stencil"] = Dict{String, Any}()
 SPLIT_IMPL["Stencil"]["Batches"] = function (
     src, part, split_params, idx, nbatches
 )
-    dim = split_params[1]
-    size = split_params[2]
-    stride = split_params[3]
-    @assert length(size) = len(stride)
+    # dim = split_params[1]
+    # size = split_params[2]
+    # stride = split_params[3]
+    # @assert length(size) = len(stride)
 
-    num_blocks = cld(cld(size(src, dim) - size, stride), nbatches)
-    first_idx = 1 + idx * stride * num_blocks
-    last_idx = min(1 + idx * stride * num_blocks + size, size(src, dim))
+    # num_blocks = cld(cld(size(src, dim) - size, stride), nbatches)
+    # first_idx = 1 + idx * stride * num_blocks
+    # last_idx = min(1 + idx * stride * num_blocks + size, size(src, dim))
+
+    # part = selectdim(src, dim, first_idx:last_idx)
+
+    dim = split_params[1]
+    left_overlap = split_params[2]
+    right_overlap = split_params[3]
+
+
+    partition_length = cld(size(src[], dim), nbatches)
+
+    first_idx = max(
+                    min(1 + idx * partition_length, size(src[], dim) + 1) - left_overlap,
+                    0
+                )
+    last_idx = min(
+                    min((idx + 1) * partition_length, size(src[], dim)) + right_overlap,
+                    size(src[], dim)
+                )
 
     part = selectdim(src, dim, first_idx:last_idx)
 end
@@ -358,15 +376,13 @@ MERGE_IMPL["Stencil"]["Workers"] = function (
     if src == nothing
         # TODO: Implement this case
     else
-    #     dim = split_params[1]
-    #     size = split_params[2]
-    #     stride = split_params[3]
-
-    #     overlap = [min(, 0) for s in size]
-
-    # num_blocks = cld(cld(size(src, dim) - size, stride), nbatches)
-    # first_idx = 1 + idx * stride * num_blocks
-    # last_idx = min(1 + idx * stride * num_blocks + size, size(src, dim))
+        dim = split_params[1]
+        left_overlap = split_params[2]
+        right_overlap = split_params[3]
+    
+        part[] = selectdim(part[], dim, (1 + left_overlap):(size(part[], dim) - right_overlap))
+        # TODO: Allgather or Allgather!
+        src[] = Allgather(part[], comm)
     end
 end
 

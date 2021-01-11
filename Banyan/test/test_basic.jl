@@ -22,17 +22,43 @@
 #     println("done")
 # end
 
-@testset "Simple annotation with Block" begin
-    y = Future()
+# @testset "Simple annotation with Block" begin
+#     y = Future()
 
-    @pa y, Dict(y => "Mut"), pa_noconstraints(Dict(y.value_id => [Block(1)])) begin
-        y = fill(1, 16)
+#     @pa y, Dict(y => "Mut"), pa_noconstraints(Dict(y.value_id => [Block(1)])) begin
+#         y = fill(1, 16)
+#     end
+
+#     @pa y, Dict(y => "Mut"), pa_noconstraints(Dict(y.value_id => [Block(1)])) begin
+#         y = y * 2
+#         println("hello ", y)
+#     end
+
+#     evaluate(y)
+# end
+
+
+@testset "Simple annotation with Stencil" begin
+    x = Future()
+    num = Future(16)
+
+    x_pa = @pa mut x Stencil(1, 1, 1) num y Div(num) where []
+
+    @pp [x_pa] begin
+        x = fill(1, num)
     end
 
-    @pa y, Dict(y => "Mut"), pa_noconstraints(Dict(y.value_id => [Block(1)])) begin
-        y = y * 2
-        println("hello ", y)
+    @pp [x_pa] begin
+        for i in 1:size(x, 1)
+            if i == 1
+                x[i] = x[i + 1]
+            elseif i == size(x, 1)
+                x[i] = x[i - 1]
+            else
+                x[i] = x[i - 1] + x[i + 1]
+            end
+        end
     end
 
-    evaluate(y)
+    evalute(x)
 end
