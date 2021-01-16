@@ -1,6 +1,10 @@
 macro pa(ex...)
-	variables = ex[1].args[1].args[1].args
-	constraints = ex[1].args[2]
+	print(dump(ex))
+	#variables = ex[1].args[1].args[1].args
+	#constraints = ex[1].args[2]
+	#code = ex[end]
+	variables = ex[1].args
+	constraints = ex[3]  # TODO: Check if ex[2] is wh
 	code = ex[end]
 
 	parsing_code = quote
@@ -59,6 +63,7 @@ macro pa(ex...)
 		# TODO: Add to requests_list?? no
 		println("value names: ", value_names)
 		println("effects: ", effects)
+		println("code: ", code)
 		return task
 
 	end
