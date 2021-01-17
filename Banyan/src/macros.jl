@@ -1,11 +1,9 @@
 macro pa(ex...)
-	print(dump(ex))
-	#variables = ex[1].args[1].args[1].args
-	#constraints = ex[1].args[2]
-	#code = ex[end]
-	variables = ex[1].args
+        print(dump(ex))
+	variables = ex[1].args[1].args
 	constraints = ex[3]  # TODO: Check if ex[2] is wh
 	code = ex[end]
+	println("start variables ", variables)
 
 	parsing_code = quote
 		value_names = Dict()
@@ -16,26 +14,38 @@ macro pa(ex...)
 	i = 1
 	while i < size(variables, 1) - 1
 		if string(variables[i]) == "mut"
-			variable = variables[i + 1]
+			v = variables[i + 1]
 			pt = variables[i + 2]
 			parsing_code = quote
 				$parsing_code
-				fut = $(esc(variable))
+				fut = $(esc(v))
+				pt = $(esc(pt))
 				fut.mutated = true
+				#print("HERE", fut, pt)
 				effects[fut.value_id] = "Mut"
-				value_names[fut.value_id] = $(string(variable))
-				push!(get(partitions.pt_stacks, $(esc(variable)).value_id, []), $(esc(pt)))
+				value_names[fut.value_id] = $(string(v))
+				if !haskey(partitions.pt_stacks, fut.value_id)
+					partitions.pt_stacks[fut.value_id] = []
+				end
+				push!(partitions.pt_stacks[fut.value_id], pt)
+				println("partitions: ", partitions)
 			end
 			i += 3
 		else
-			variable = variables[i]
+			v = variables[i]
 			pt = variables[i + 1]
 			parsing_code = quote
 				$parsing_code
-				fut = $(esc(variable))
+				fut = $(esc(v))
+				pt = $(esc(pt))
+				#print("HERE", fut, pt)
 				effects[fut.value_id] = "Const"
-				value_names[fut.value_id] = $(string(variable))
-				push!(get(partitions.pt_stacks, $(esc(variable)).value_id, []), $(esc(pt)))
+				value_names[fut.value_id] = $(string(v))
+				if !haskey(partitions.pt_stacks, fut.value_id)
+					partitions.pt_stacks[fut.value_id] = []
+				end
+				push!(pt_stacks[fut.value_id], pt)
+				println("partitions: ", partitions)
 			end
 			i += 2
 		end
@@ -64,7 +74,7 @@ macro pa(ex...)
 		println("value names: ", value_names)
 		println("effects: ", effects)
 		println("code: ", code)
-		return task
+		task
 
 	end
 end
@@ -73,27 +83,27 @@ end
 macro pp(ex...)
 	tasks = ex[1]
 	code = ex[end]
-	println("tasks", tasks)
-	println("code", code)
+	#println("tasks", tasks)
+	#println("code", code)
 	return quote
 
 		tasks = $(esc(tasks))
+		code = $(string(code))
 
 		pas = vcat([collect(task.pa_union) for task in tasks]...)
 		global locations
 
 		task = Task(
 			code,
-			merge([pa.value_names for pa in pas]...),
+			merge([task.value_names for task in tasks]...),
 			locations,
-			merge([pa.effects for pa in pas]...),
+			merge([task.effects for task in tasks]...),
 			Set(pas)
 		)
 
 		# Record request to record code region
-		record_request(RecordTaskRequest(task))
-		println("DONE with pp and returning task")	
-		return task
+		record_request(RecordTaskRequest(task))	
+		task
 	end
 end
 

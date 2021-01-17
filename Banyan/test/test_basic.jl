@@ -43,23 +43,23 @@
     num = Future(16)
 
     x_pa = @pa {mut x Stencil(1, 1, 1) num x Div(num)} wh []
-    println("after x pa")
-    #@pp [x_pa] begin
-    #    x = fill(1, num)
-    #end
+   
+    println("after x pa:", x_pa)
+    @pp [x_pa] begin
+        x = fill(1, num)
+    end
 
-    #@pp [x_pa] begin
-    #    for i in 1:size(x, 1)
-    #        if i == 1
-    #            x[i] = x[i + 1]
-    #        elseif i == size(x, 1)
-    #            x[i] = x[i - 1]
-    #        else
-    #            x[i] = x[i - 1] + x[i + 1]
-    #        end
-    #    end
-    #end
-
-    println("RIGHT BEFORE EVALUATE")
-    evaluate(x)
+    @pp [x_pa] begin
+        for i in 1:size(x, 1)
+            if i == 1
+                x[i] = x[i + 1]
+            elseif i == size(x, 1)
+                x[i] = x[i - 1]
+            else
+                x[i] = x[i - 1] + x[i + 1]
+            end
+        end
+    end
+    #println("RIGHT BEFORE EVALUATE")
+    #evaluate(x)
 end
