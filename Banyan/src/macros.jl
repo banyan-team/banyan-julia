@@ -14,6 +14,7 @@ macro pa(ex...)
 	i = 1
 	while i < size(variables, 1) - 1
 		if string(variables[i]) == "mut"
+			println("IN MUT HERE HERE IN MUT")
 			v = variables[i + 1]
 			pt = variables[i + 2]
 			parsing_code = quote
@@ -34,6 +35,7 @@ macro pa(ex...)
 		else
 			v = variables[i]
 			pt = variables[i + 1]
+			println(i, variables)
 			parsing_code = quote
 				$parsing_code
 				fut = $(esc(v))
@@ -44,7 +46,9 @@ macro pa(ex...)
 				if !haskey(partitions.pt_stacks, fut.value_id)
 					partitions.pt_stacks[fut.value_id] = []
 				end
-				push!(pt_stacks[fut.value_id], pt)
+				println("FUT FUT FUT", fut)
+				println("PT PT PT", pt)
+				push!(partitions.pt_stacks[fut.value_id], pt)
 				println("partitions: ", partitions)
 			end
 			i += 2

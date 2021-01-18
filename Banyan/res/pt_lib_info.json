@@ -6,7 +6,8 @@
             "partition_memory_usage": {"M": {
                 "Value": {"S": "none"},
                 "Replicate": {"S": "all"},
-                "Block": {"S": "div"}
+                "Block": {"S": "div"},
+		"Stencil": {"S": "div"}
             }}
         }
     }

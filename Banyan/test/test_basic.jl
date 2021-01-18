@@ -42,7 +42,7 @@
     x = Future()
     num = Future(16)
 
-    x_pa = @pa {mut x Stencil(1, 1, 1) num x Div(num)} wh []
+    x_pa = @pa {mut x Stencil(1, 1, 1) num Div(num)} wh []
    
     println("after x pa:", x_pa)
     @pp [x_pa] begin
@@ -61,5 +61,5 @@
         end
     end
     #println("RIGHT BEFORE EVALUATE")
-    #evaluate(x)
+    evaluate(x)
 end
