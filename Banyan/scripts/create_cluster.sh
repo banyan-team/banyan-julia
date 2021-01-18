@@ -22,8 +22,8 @@ rm julia-1.5.3-linux-x86_64.tar.gz
 
 # Initialize Julia to use the OpenMPI installation already provided by
 # 	AWS ParallelCluster launched with Slurm.
-julia-1.5.3/bin/julia --project -e 'using Pkg; Pkg.add("AWSCore"); Pkg.add("AWSSQS"); Pkg.add("Dates"); Pkg.add("HTTP"); Pkg.add("JSON"); Pkg.add("MPI"); Pkg.add("Serialization"); ENV["JULIA_MPIEXEC"]="srun"; ENV["JULIA_MPI_LIBRARY"]="/opt/amazon/openmpi/lib64/libmpi"
-julia-1.5.3/bin/julia --project -e 'using Pkg; Pkg.build("MPI"; verbose=true); Pkg.build("HDF5")'
+julia-1.5.3/bin/julia --project -e 'using Pkg; Pkg.add("AWSCore"); Pkg.add("AWSSQS"); Pkg.add("Dates"); Pkg.add("HTTP"); Pkg.add("JSON"); Pkg.add("MPI"); Pkg.add("Serialization")'
+julia-1.5.3/bin/julia --project -e 'using Pkg; ENV["JULIA_MPIEXEC"]="srun"; ENV["JULIA_MPI_LIBRARY"]="/opt/amazon/openmpi/lib64/libmpi; Pkg.build("MPI", verbose=true)'
 
 # Pull code from S3
 aws s3 cp s3://banyan-executor /home/ec2-user --recursive
