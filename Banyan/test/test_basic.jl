@@ -63,3 +63,27 @@
     #println("RIGHT BEFORE EVALUATE")
     evaluate(x)
 end
+
+# @testset "Simple HDF5" begin
+#     using MPI
+#     MPI.Init()
+#     using HDF5
+
+
+#     comm = MPI.COMM_WORLD
+#     info = MPI.Info()
+#     filename = "test_data"
+#     ff = h5open(filename, "w", comm, info)
+
+#     Nproc = MPI.Comm_size(comm)
+#     myrank = MPI.Comm_rank(comm)
+#     M = 10
+#     A = fill(myrank, M)  # local data
+#     dims = (M, Nproc)    # dimensions of global data
+
+#     # Create dataset
+#     dset = create_dataset(ff, "/data", datatype(eltype(A)), dataspace(dims))
+
+#     # Write local data
+#     dset[:, myrank + 1] = A
+# end
