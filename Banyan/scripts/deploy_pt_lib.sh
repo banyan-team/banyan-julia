@@ -1,3 +1,4 @@
+#!/bin/bash
 # Run this script with cluster name
 if [ $# -eq 0 ]; then
 	echo "Please run this script with ./deploy_pt_lib.sh <cluster name> <SSH key pair>";
