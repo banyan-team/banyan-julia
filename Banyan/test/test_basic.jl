@@ -22,47 +22,50 @@
 #     println("done")
 # end
 
-# @testset "Simple annotation with Block" begin
-#     y = Future()
-
-#     @pa y, Dict(y => "Mut"), pa_noconstraints(Dict(y.value_id => [Block(1)])) begin
-#         y = fill(1, 16)
-#     end
-
-#     @pa y, Dict(y => "Mut"), pa_noconstraints(Dict(y.value_id => [Block(1)])) begin
-#         y = y * 2
-#         println("hello ", y)
-#     end
-
-#     evaluate(y)
-# end
-
-
-@testset "Simple annotation with Stencil" begin
-    x = Future()
+@testset "Simple annotation with Block" begin
+    y = Future()
     num = Future(16)
 
-    x_pa = @pa {mut x Stencil(1, 1, 1) num Div(num)} wh []
-   
-    println("after x pa:", x_pa)
-    @pp [x_pa] begin
-        x = fill(1, num)
+    y_pa = @pa {mut y Block(1) num Div(num)} wh []
+
+    @pp [y_pa] begin
+        y = fill(1, 16)
     end
 
-    @pp [x_pa] begin
-        for i in 1:size(x, 1)
-            if i == 1
-                x[i] = x[i + 1]
-            elseif i == size(x, 1)
-                x[i] = x[i - 1]
-            else
-                x[i] = x[i - 1] + x[i + 1]
-            end
-        end
+    @pp [y_pa] begin
+        y = y * 2
+        println("hello ", y)
     end
-    #println("RIGHT BEFORE EVALUATE")
-    evaluate(x)
+
+    evaluate(y)
 end
+
+
+#@testset "Simple annotation with Stencil" begin
+#    x = Future()
+#    num = Future(16)
+#
+#    x_pa = @pa {mut x Stencil(1, 1, 1) num Div(num)} wh []
+#   
+#    println("after x pa:", x_pa)
+#    @pp [x_pa] begin
+#        x = fill(1, num)
+#    end
+#
+#    @pp [x_pa] begin
+#        for i in 1:size(x, 1)
+#            if i == 1
+#                x[i] = x[i + 1]
+#            elseif i == size(x, 1)
+#                x[i] = x[i - 1]
+#            else
+#                x[i] = x[i - 1] + x[i + 1]
+#            end
+#        end
+#    end
+#    println("RIGHT BEFORE EVALUATE")
+#    evaluate(x)
+#end
 
 # @testset "Simple HDF5" begin
 #     using MPI
