@@ -35,7 +35,7 @@ mutable struct Future
         finalizer(destroy_future, new_future)
     end
     function Future(value = nothing)
-        Future(get_job_id(), value, LocationType("None", "None", [], [], 0))
+        Future(get_job_id(), value, LocationType("None", "None", [], [], -1))
     end
 end
 
@@ -74,6 +74,7 @@ function record_mut(value_id::ValueId)
 end
 
 function evaluate(job_id::String, fut::Future)
+    println("IN EVALUATE")
     global futures
     # Only evaluate if future has been mutated
     if true  #fut.mutated == true

@@ -9,7 +9,7 @@ crossed = Cross(data, other)
 crossed = Cross((data, 0), (data, 1))
 
 # Creates a Task
-simple_pa = @pa {mut data Block() x Value()} where [crossed, ordered]
+simple_pa = @pa mut data Block() x Value() wh [crossed, ordered]
 
 # Merges Tasks together by merging their PA unions
 @pp [simple_pa, unsorted_pa] begin

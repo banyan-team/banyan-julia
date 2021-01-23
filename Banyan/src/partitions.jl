@@ -24,26 +24,27 @@ end
 # PARTITION CONSTRAINTS #
 #########################
 
-@enum ConstraintType Co Cross Equal Order Sequential
+#@enum ConstraintType Co Cross Equal Order Sequential
 
-function to_jl(constraint_type::ConstraintType)
-    if constraint_type == Co
-        return "CO"
-    elseif constraint_type == Cross
-        return "CROSS"
-    elseif constraint_type == Equal
-        return "EQUAL"
-    elseif constraint_type == Order
-        return "ORDER"
-    elseif constraint_type == Sequential
-        return "SEQUENTIAL"
-    end
+function to_jl(constraint_type)
+    #if constraint_type == Co
+    #    return "CO"
+    #elseif constraint_type == Cross
+    #    return "CROSS"
+    #elseif constraint_type == Equal
+    #    return "EQUAL"
+    #elseif constraint_type == Order
+    #    return "ORDER"
+    #elseif constraint_type == Sequential
+    #    return "SEQUENTIAL"
+    #end
+    return constraint_type
 end
 
 const PartitionTypeReference = Tuple{ValueId,Int32}
 
 struct PartitioningConstraint
-    type::ConstraintType
+    type::String
     args::Vector{PartitionTypeReference}
 end
 
