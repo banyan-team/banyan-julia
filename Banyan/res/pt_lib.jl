@@ -359,7 +359,9 @@ MERGE_IMPL["Block"]["HDF5"] = function(
         first_idx = min(1 + idx * partition_length, size(dset, dim) + 1)
         last_idx = min((idx + 1) * partition_length, size(dset, dim))
 
-        selectdim(dset, dim, first_idx:last_idx) = part[]
+        #selectdim(dset, dim, first_idx:last_idx) = part[]
+        temp = Ref(selectdim(dset, dim, first_idx:last_idx))
+        temp[] = part[]
 
     end
 end
