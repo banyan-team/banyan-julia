@@ -22,23 +22,23 @@
 #     println("done")
 # end
 
-@testset "Simple annotation with Block" begin
-    y = Future()
-    num = Future(16)
-
-    y_pa = @pa {mut y Block(1) num Div(num)} wh []
-
-    @pp [y_pa] begin
-        y = fill(1, 16)
-    end
-
-    @pp [y_pa] begin
-        y = y * 2
-        println("hello ", y)
-    end
-
-    evaluate(y)
-end
+#@testset "Simple annotation with Block" begin
+#    y = Future()
+#    num = Future(16)
+#
+#    y_pa = @pa {mut y Block(1) num Div(num)} wh []
+#
+#    @pp [y_pa] begin
+#        y = fill(1, 16)
+#    end
+#
+#    @pp [y_pa] begin
+#        y = y * 2
+#        println("hello ", y)
+#    end
+#
+#    evaluate(y)
+#end
 
 
 #@testset "Simple annotation with Stencil" begin
@@ -90,3 +90,11 @@ end
 #     # Write local data
 #     dset[:, myrank + 1] = A
 # end
+
+
+@testset "Testing pcluster" begin
+    cluster_id = "banyantest"
+    set_cluster_id(cluster_id)
+    config = JobConfig(cluster_id, 2)
+    create_job(config, make_current = true)
+end
