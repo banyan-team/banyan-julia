@@ -9,50 +9,51 @@ mutable struct Future
     value::Any
     value_id::ValueId
     mutated::Bool
-    location_type::LocationType
-    function Future(job_id::String, value::Any, lt::LocationType)
+    location::Location
+    
+    function Future(value = nothing, loc=None())
         global futures
 
         # Generate new value id
         value_id = create_value_id()
 
         # Create new Future and add to futures dictionary if lt is Client
-        new_future = new(value, value_id, false, lt)
-        if lt.src_name == "Client"
+        new_future = new(value, value_id, false, loc)
+        if loc.src_name == "Client" || loc.dst_name == "Client"
             futures[value_id] = new_future
         end
 
-        # Update location type
-	global locations
-	locations[value_id] = lt
+        # Update location
+        global locations
+        locations[value_id] = loc
 
         # Create finalizer and register
-        function destroy_future(fut)
+        finalizer(new_future) do fut
             global futures
-            # TODO: Do we need to send eviction request to executor
+            # TODO: Include value ID in a global queue (like locations) of
+            # value IDs to be destroyed on backend
             delete!(futures, fut.value_id)
         end
-        finalizer(destroy_future, new_future)
-    end
-    function Future(value = nothing)
-        Future(get_job_id(), value, LocationType("None", "None", [], [], -1))
+
+        new_future
     end
 end
-
 
 ################
 # Global State #
 ################
 
-# Contains Futures with a LocationType of Client
+# Futures that have location as "Client"
 global futures = Dict{ValueId,Future}()
 
-# Contains all Futures
-global locations = Dict{ValueId,LocationType}()
+# Queue of pending updates to values' locations for sending to backend
+global locations = Dict{ValueId,Location}()
 
 #################
 # Magic Methods #
 #################
+
+# TODO: Implement magic methods
 
 # Assume that this is mutating
 # function Base.getproperty(fut::Future, sym::Symbol)
@@ -63,7 +64,6 @@ global locations = Dict{ValueId,LocationType}()
 # function Base.setproperty!(fut::Future, sym::Symbol, new_value)
 # end
 
-
 #################
 # Basic Methods #
 #################
@@ -73,16 +73,17 @@ function record_mut(value_id::ValueId)
     futures[value_id].mutated = true
 end
 
-function evaluate(job_id::String, fut::Future)
+function evaluate(fut::Future, job_id::JobId)
     println("IN EVALUATE")
     global futures
-    # Only evaluate if future has been mutated
+
+    # TODO: Only evaluate if future has been mutated
     if true  #fut.mutated == true
         println("EVALUATE getting sent")
         fut.mutated = false
 
         # Send evaluate request
-        response = send_evaluation(job_id, fut.value_id)
+        response = send_evaluation(fut.value_id, job_id)
 
         # Get queues
         scatter_queue = get_scatter_queue(job_id)
@@ -120,7 +121,10 @@ function evaluate(job_id::String, fut::Future)
             end
         end
     end
+
     return getfield(fut, :value)
 end
 
-evaluate(fut::Future) = evaluate(get_job_id(), fut)
+evaluate(fut::Future, job::Job) = evaluate(fut, job.job_id)
+
+evaluate(fut::Future) = evaluate(fut, get_job_id())

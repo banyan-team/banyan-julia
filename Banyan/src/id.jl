@@ -1,8 +1,6 @@
+const JobId = String
 const ValueId = String
 const MessageId = String
-const ClusterId = String
-const JobId = String
-
 
 function create_value_id()
 	# TODO: Ensure that this works

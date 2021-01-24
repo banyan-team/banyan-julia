@@ -1,7 +1,7 @@
 #@testset "Create/Destroy jobs" begin
 #    cluster_id = "pcluster-12-23"
 #    set_cluster_id(cluster_id)
-#    config = JobConfig(cluster_id, 2)
+#    config = JobRequest(cluster_id, 2)
 #    create_job(config, make_current = true)
 #    destroy_job()
 #end
@@ -92,9 +92,15 @@
 # end
 
 
-@testset "Testing pcluster" begin
-    cluster_id = "banyantest"
-    set_cluster_id(cluster_id)
-    config = JobConfig(cluster_id, 2)
-    create_job(config, make_current = true)
+# @testset "Testing pcluster" begin
+#     cluster_id = "banyantest"
+#     set_cluster_id(cluster_id)
+#     config = JobRequest(cluster_id, 2)
+#     create_job(config, make_current = true)
+# end
+
+@testset "Level 1, 2 BLAS" begin
+    j = Job("banyantest", 2)
+    data = Future()
+    evaluate(data)
 end

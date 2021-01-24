@@ -1,14 +1,53 @@
 {
-    ":pt_lib_info": {
-        "M": {
-            "in_place_casts": {"M": {}},
-            "shuffling_casts": {"M": {}},
-            "partition_memory_usage": {"M": {
-                "Value": {"S": "none"},
-                "Replicate": {"S": "all"},
-                "Block": {"S": "div"},
-		"Stencil": {"S": "div"}
-            }}
+    "splits": {
+        "BlockBalanced": {
+            "required": {
+                "name": "Block",
+                "balanced": true
+            },
+            "default": {
+                "dim": 1
+            },
+            "partition_memory_usage": "div"
+        },
+        "BlockUnbalanced": {
+            "required": {
+                "name": "Block",
+                "balanced": false
+            },
+            "default": {
+                "dim": 1
+            },
+            "partition_memory_usage": "div"
+        }
+    },
+    "merges": {
+        "BlockBalanced": {
+            "required": {
+                "name": "Block",
+                "balanced": true
+            },
+            "default": {
+                "dim": 1
+            }
+        },
+        "BlockUnbalanced": {
+            "required": {
+                "name": "Block",
+                "balanced": false
+            },
+            "default": {
+                "dim": 1
+            }
+        }
+    },
+    "casts": {
+        "BlockBalance": {
+            "src": "BlockUnbalanced",
+            "dst": "BlockBalanced",
+            "matching": [
+                "dim"
+            ]
         }
     }
 }

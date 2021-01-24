@@ -1,26 +1,25 @@
-global requests_list = Vector{Any}()
+global pending_requests = Vector{Any}()
 
 function record_request(request::Any)
-	global requests_list
-	push!(requests_list, to_jl(request))
+	global pending_requests
+	push!(pending_requests, to_jl(request))
 end
 
-function send_evaluation(job_id::JobId, value_id::ValueId)
+function send_evaluation(value_id::ValueId, job_id::JobId)
 	# TODO: Serialize requests_list to send
-	global requests_list
+	global pending_requests
 	#print("SENDING NOW", requests_list)
 	response = send_request_get_response(
 		:evaluate,
 		Dict{String,Any}(
-			"job_id" => job_id,
 			"value_id" => value_id,
-			"requests_list" => requests_list
+			"job_id" => job_id,
+			"requests" => pending_requests
 		),
 	)
-	empty!(requests_list)
+	empty!(pending_requests)
 	return response
 end
-
 
 ############
 # REQUESTS #
@@ -32,20 +31,12 @@ end
 
 function to_jl(record_task_request::RecordTaskRequest)
 	return Dict(
-		"request_type" => "RECORD_TASK",
+		"type" => "RECORD_TASK",
 		"task" => to_jl(record_task_request.task)
 	)
 end
 
-# struct UpdateLocationType
-# 	value_id::ValueId
-# 	location_type::LocationType
-# end
-
-# function to_jl(update_location_type::UpdateLocationType)
-# 	return Dict(
-# 		"request_type" => "UPDATE_LOCATION_TYPE",
-# 		"value_id" => update_location_type.value_id,
-# 		"location_type" => to_jl(update_location_type.location_type)
-# 	)
-# end
+# NOTE: The sole purpose of the "request" abstraction here is to potentially
+# support additional kinds of requests in the future. Right now, the only thing
+# we send on evaluation is the ID of the value to evaluate and tasks to record
+# in a dependency graph
