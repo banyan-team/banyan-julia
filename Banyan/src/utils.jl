@@ -34,7 +34,11 @@ end
 ################
 
 method_to_string(method) = begin
-    if method == :create_job
+    if method == :create_cluster
+        "create-cluster"
+    elseif method == :destroy_cluster
+        "destroy-cluster"
+    elseif method == :create_job
         "create-job"
     elseif method == :destroy_job
         "destroy-job"
