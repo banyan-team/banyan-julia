@@ -13,7 +13,7 @@ function create_cluster(cluster_id::ClusterId, config_file_path)
     @debug "Creating cluster"
 
     pcluster_config = encode_config_file(config_file_path)
-
+    # TODO: Load pt_lib_info correctly
     send_request_get_response(
         :create_cluster,
 	Dict{String, Any}(
