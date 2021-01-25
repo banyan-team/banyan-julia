@@ -1,13 +1,99 @@
 using MPI
 
-SPLIT = Dict{String, Dict}()
-MERGE = Dict{String, Dict}()
-CAST = Dict{String, Dict}()
+SPLIT = Dict{String,Dict}()
+MERGE = Dict{String,Dict}()
+CAST = Dict{String,Dict}()
 
-# TODO: Implement this
-SPLIT["BlockBalanced"]["None"] = function(src, dst, params)
-    
+function return_nothing(
+    src,
+    dst,
+    params,
+    batch_idx,
+    nbatches,
+    comm,
+    loc_parameters,
+)
+    dst[] = nothing
 end
+
+worker_idx_and_nworkers(comm) = (MPI.Comm_rank(comm) + 1, MPI.Comm_size(comm))
+
+function split_array(src, dst, idx, npartitions, dim)
+    src_len = size(src[], dim)
+    dst_len = cld(src_len, npartitions)
+    dst_start = min((idx - 1) * dst_len + 1, src_len + 1)
+    dst_end = min(idx * dst_len, src_len)
+    dst[] = selectdim(src[], dim, dst_start:dst_end)
+end
+
+# TODO: Make implementations for None read/write from/to disk
+
+SPLIT["BlockBalanced"] = Dict()
+MERGE["BlockBalanced"] = Dict()
+
+SPLIT["BlockBalanced"]["None"] = return_nothing
+
+MERGE["BlockBalanced"]["None"] = return_nothing
+
+SPLIT["BlockBalanced"]["Executor"] =
+    function (src, dst, params, batch_idx, nbatches, comm, loc_parameters)
+        if isnothing(src[])
+            dst[] = nothing
+        else
+            worker_idx, nworkers = worker_idx_and_nworkers(comm)
+            dim = params["dim"]
+
+            split_array(src, dst, worker_idx, nworkers, dim)
+            split_array(src, dst, batch_idx, nbatches, dim)
+        end
+    end
+
+MERGE["BlockBalanced"]["Executor"] =
+    function (src, dst, params, batch_idx, nbatches, comm, loc_parameters)
+        # TODO: Implement this
+
+        # if batch_idx == 1
+        #     src[] = dst[]
+        # else
+        #     append!()
+        # if isnothing(src[])
+        #     src[] = nothing
+        # else
+        #     worker_idx, nworkers = worker_idx_and_nworkers(comm)
+        #     dim = params["dim"]
+
+        #     split_array(src, dst, worker_idx, nworkers, dim)
+        #     split_array(src, dst, batch_idx, nbatches, dim)
+        # end
+    end
+
+SPLIT["BlockUnbalanced"] = Dict()
+MERGE["BlockUnbalanced"] = Dict()
+
+SPLIT["BlockUnbalanced"]["None"] = return_nothing
+
+MERGE["BlockUnbalanced"]["None"] = return_nothing
+
+SPLIT["BlockUnbalanced"]["Executor"] = SPLIT["BlockBalanced"]["Executor"]
+
+MERGE["BlockUnbalanced"]["Executor"] =
+    function (src, dst, params, batch_idx, nbatches, comm, loc_parameters)
+        # TODO: Implement this
+
+        # if batch_idx == 1
+        #     src[] = dst[]
+        # else
+        #     append!()
+        # if isnothing(src[])
+        #     src[] = nothing
+        # else
+        #     worker_idx, nworkers = worker_idx_and_nworkers(comm)
+        #     dim = params["dim"]
+
+        #     split_array(src, dst, worker_idx, nworkers, dim)
+        #     split_array(src, dst, batch_idx, nbatches, dim)
+        # end
+    end
 
 # # using HDF5  # Block-HDF5
 # # using DataFrames
@@ -133,15 +219,15 @@ end
 #         dim = split_params[1]
 #         partition_length = cld(size(src[], dim), nbatches)
 
+#         partition_length = cld(size(src[], dim), nbatches)
+
 #         first_idx = min(1 + idx * partition_length, size(src[], dim) + 1)
 #         last_idx = min((idx + 1) * partition_length, size(src[], dim))
-        
+
 #         # part is a view into src
 #         part[] = selectdim(src[], dim, first_idx:last_idx)
 #     end
-# end
-
-# SPLIT_IMPL["Block"]["Workers"] = function(
+# endIT_IMPL["Block"]["Workers"] = function(
 #     src, part, split_params, idx, nbatches, comm
 # )
 
@@ -225,16 +311,16 @@ end
 # SPLIT_IMPL["Stencil"]["Workers"] = function (
 #     src, part, split_params, idx, nbatches, comm
 # )
+#     src, part, split_params, idx, nbatches, comm
+# )
 #     # TODO: Implement this
 
-    
+
 
 
 # end
 
 # SPLIT_IMPL["Stencil"]["None"] = default_lt_func
-
-
 # SPLIT_IMPL["Bucket"] = Dict()
 
 # SPLIT_IMPL["Bucket"]["Batches"] = function(
@@ -357,15 +443,15 @@ end
 #     # TODO: Implement this
 
 #     dim = split_params[1]
+
+#     dim = split_params[1]
 #     filename = lt_params[2]
 #     path = lt_params[3]
-    
+
 #     h5open(filename, "w", comm) do f
 #         # TODO: vv
 #         # dset = read(f, path, dxpl_mpio=HDF5.H5FD_MPIO_COLLECTIVE)
-#         # dset = create_dataset(ff, "/data", datatype(eltype(A)), dataspace(dims))
-
-#         partition_length = cld(size(dset, dim), nbatches) # TODO: is this nbatches? or nbatches * nworkers?
+#         # dset = create_dataset(ff, "/data", datatype(eltype(A)), dataspace(dims))? or nbatches * nworkers?
 #         first_idx = min(1 + idx * partition_length, size(dset, dim) + 1)
 #         last_idx = min((idx + 1) * partition_length, size(dset, dim))
 
@@ -389,15 +475,15 @@ end
 #         # TODO: Implement this case
 #     else
 #         dim = split_params[1]
+#     else
+#         dim = split_params[1]
 #         left_overlap = split_params[2]
 #         right_overlap = split_params[3]
-    
+
 #         part[] = selectdim(part[], dim, (1 + left_overlap):(size(part[], dim) - right_overlap))
 #         # TODO: Allgather or Allgather!
 #         src[] = Allgather(part[], comm)
 #     end
-# end
-
 # MERGE_IMPL["Stencil"]["None"] = default_lt_func
 
 # MERGE_IMPL["Bucket"] = Dict()

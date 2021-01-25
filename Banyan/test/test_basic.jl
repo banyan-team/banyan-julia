@@ -108,6 +108,13 @@
     mut(data)
 
     @partitioned data begin
+        data = zeros(2 << 16)
+    end
+
+    pt(data, Block())
+    mut(data)
+
+    @partitioned data begin
         data .*= 10
     end
 
