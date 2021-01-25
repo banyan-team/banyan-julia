@@ -1,8 +1,8 @@
 struct Location
     src_name::String
     dst_name::String
-    src_parameters::Vector{Any}
-    dst_parameters::Vector{Any}
+    src_parameters::Dict
+    dst_parameters::Dict
     total_memory_usage::Int64
 end
 
@@ -16,4 +16,4 @@ function to_jl(lt::Location)
     )
 end
 
-None() = Location("None", "None", [], [], 0)
+None() = Location("None", "None", Dict(), Dict(), 0)

@@ -28,8 +28,8 @@ global AWS
 #      PartitioningConstraints,
 #      Partitions
 # export LocationType
-# export Task
-     
+# export BTask
+
 # export @pa, @pp, @lt, @src, @dst
 # export pa_noconstraints
 # export Div, Block, Stencil
@@ -52,16 +52,41 @@ global AWS
 # include("macros.jl")
 # include("evaluation.jl")
 
-export Job, Future, Location, evaluate
+# Basic types
+export Job, create_job, destroy_job
+export Future, evaluate
+export Location, src, dst, loc
+export PartitionType, pt, pc, mut, @partitioned
+
+# Locations
+export None
+
+# Partition types
+export Block
+
+# Constraints
+export Co, Cross, Equals, Sequential, Matches
+
+# Annotations
+export add_pa_to_union, reset_annotation, get_locations, get_mutated, get_pa_union
 
 using AWSCore
 
+# Jobs
 include("id.jl")
 include("utils.jl")
+include("queues.jl")
 include("jobs.jl")
+
+# Futures
 include("locations.jl")
 include("futures.jl")
-include("evaluation.jl")
+
+# Annotation
+include("partitions.jl")
+include("pt_lib_constructors.jl")
+include("tasks.jl")
+include("annotation.jl")
 
 function __init__()
     global BANYAN_API_ENDPOINT
@@ -71,7 +96,7 @@ function __init__()
     BANYAN_API_ENDPOINT = "https://zafyadmsl4.execute-api.us-west-2.amazonaws.com/dev/"
     # TODO: Remove secret token when we implement authentication
     SECRET_TOKEN = "banyan2020pumpkin"
-    AWS = aws_config(region="us-west-2")
+    AWS = aws_config(region = "us-west-2")
 end
 
 end # module

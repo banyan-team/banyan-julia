@@ -10,8 +10,8 @@ mutable struct Future
     value_id::ValueId
     mutated::Bool
     location::Location
-    
-    function Future(value = nothing, loc=None())
+
+    function Future(value = nothing, loc = None())
         global futures
 
         # Generate new value id
@@ -49,6 +49,13 @@ global futures = Dict{ValueId,Future}()
 # Queue of pending updates to values' locations for sending to backend
 global locations = Dict{ValueId,Location}()
 
+function get_locations()
+    global locations
+    locations_copy = deepcopy(locations)
+    empty!(locations)
+    return locations_copy
+end
+
 #################
 # Magic Methods #
 #################
@@ -77,8 +84,7 @@ function evaluate(fut::Future, job_id::JobId)
     println("IN EVALUATE")
     global futures
 
-    # TODO: Only evaluate if future has been mutated
-    if true  #fut.mutated == true
+    if fut.mutated
         println("EVALUATE getting sent")
         fut.mutated = false
 
@@ -99,23 +105,26 @@ function evaluate(fut::Future, job_id::JobId)
                 # Send scatter
                 value_id = message["value_id"]
                 buf = IOBuffer()
-                serialize(buf, futures[value_id].value)
+                serialize(buf, if value_id in keys(futures)
+                    futures[value_id].value
+                else
+                    nothing
+                end)
                 value = take!(buf)
                 send_message(
                     scatter_queue,
-                    JSON.json(Dict{String,Any}("value_id" => value_id, "value" => value))
+                    JSON.json(Dict{String,Any}("value_id" => value_id, "value" => value)),
                 )
             elseif message_type == "GATHER"
                 # Receive gather
                 value_id = message["value_id"]
-                value = deserialize(IOBuffer(convert(
-                    Array{UInt8},
-                    message["value"],
-                )))
+                value = deserialize(IOBuffer(convert(Array{UInt8}, message["value"])))
                 setfield!(futures[value_id], :value, value)
                 # Mark other futures that have been gathered as not mut
                 #   so that we can avoid unnecessarily making a call to AWS
-                futures[value_id].mutated = false
+                if value_id in keys(futures)
+                    futures[value_id].mutated = false
+                end
             elseif message_type == "EVALUATION_END"
                 break
             end
@@ -128,3 +137,40 @@ end
 evaluate(fut::Future, job::Job) = evaluate(fut, job.job_id)
 
 evaluate(fut::Future) = evaluate(fut, get_job_id())
+
+function send_evaluation(value_id::ValueId, job_id::JobId)
+	# TODO: Serialize requests_list to send
+	global pending_requests
+	#print("SENDING NOW", requests_list)
+	response = send_request_get_response(
+		:evaluate,
+		Dict{String,Any}(
+			"value_id" => value_id,
+			"job_id" => job_id,
+			"requests" => [to_jl(req) for req in pending_requests]
+		),
+	)
+	empty!(pending_requests)
+	return response
+end
+
+################################
+# Methods for Setting Location #
+################################
+
+function src(fut::Future, loc::Location)
+    global locations
+    locations[fut.value_id].src_name = loc.src_name
+    locations[fut.value_id].src_parameters = loc.src_parameters
+end
+
+function dst(fut::Future, loc::Location)
+    global locations
+    locations[fut.value_id].dst_name = loc.dst_name
+    locations[fut.value_id].dst_parameters = loc.dst_parameters
+end
+
+function loc(fut::Future, loc::Location)
+    global locations
+    locations[fut.value_id] = loc
+end

@@ -101,6 +101,41 @@
 
 @testset "Level 1, 2 BLAS" begin
     j = Job("banyantest", 2)
+
     data = Future()
+
+    pt(data, Block())
+    mut(data)
+
+    @partitioned data begin
+        data .*= 10
+    end
+
     evaluate(data)
+
+    # data = Future()
+    # # evaluate(data)
+
+    # pt(data, Block())
+
+    # @partitioned data begin
+    #     data .*= 10
+    # end
+
+    # @partitioned data begin
+    #     data .*= 10
+    # end
+
+    # pt(data, [Block(), Block(2)])
+    # mut(data)
+
+    # pt(data, [Block()])
+    # mut(data)
+
+    # @partitioned data begin
+    #     data .*= 10
+    # end
+    
+    # global pending_requests
+    # println(pending_requests)
 end

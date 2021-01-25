@@ -2,46 +2,61 @@
 # PARTITION TYPE #
 ##################
 
+const PartitionTypeParameters = Vector{Dict}
+
 struct PartitionType
-    split_name::String
-    merge_name::String
-    splitting_parameters::Vector{Any}
-    merging_parameters::Vector{Any}
-    max_npartitions::Int32
+    parameters::PartitionTypeParameters
+    max_npartitions::Integer
+    min_partition_size::Integer
+
+    function PartitionType(
+        parameters::Union{String, Dict, PartitionTypeParameters};
+        max_npartitions::Integer = -1,
+        min_partition_size::Integer = -1
+    )
+        new(
+            if parameters isa String
+                [Dict("name" => parameters)]
+            elseif typeof(parameters) <: Dict
+                [parameters]
+            else
+                parameters
+            end,
+            max_npartitions,
+            min_partition_size,
+        )
+    end
 end
 
 function to_jl(pt::PartitionType)
     return Dict(
-        "split_name" => pt.split_name,
-        "merge_name" => pt.merge_name,
-        "splitting_parameters" => pt.splitting_parameters,
-        "merging_parameters" => pt.merging_parameters,
+        "parameters" => pt.parameters,
         "max_npartitions" => pt.max_npartitions,
+        "min_partition_size" => pt.min_partition_size,
     )
 end
 
-######################### 
-# PARTITION CONSTRAINTS #
-#########################
+const PartitionTypeComposition = Union{PartitionType,Vector{PartitionType}}
 
-#@enum ConstraintType Co Cross Equal Order Sequential
+pt_composition_to_jl(pts::PartitionTypeComposition) =
+    if pts isa PartitionType
+        [to_jl(pts)]
+    else
+        [to_jl(pt) for pt in pts]
+    end
 
-function to_jl(constraint_type)
-    #if constraint_type == Co
-    #    return "CO"
-    #elseif constraint_type == Cross
-    #    return "CROSS"
-    #elseif constraint_type == Equal
-    #    return "EQUAL"
-    #elseif constraint_type == Order
-    #    return "ORDER"
-    #elseif constraint_type == Sequential
-    #    return "SEQUENTIAL"
-    #end
-    return constraint_type
-end
+############################
+# PARTITIONING CONSTRAINTS #
+############################
 
-const PartitionTypeReference = Tuple{ValueId,Int32}
+const PartitionTypeReference = Union{Future, Tuple{Future,Integer}}
+
+pt_ref_to_jl(pt_ref::PartitionTypeReference) =
+    if pt_ref isa ValueId
+        (pt_ref.value_id, 0)
+    else
+        (pt_ref[1].value_id, pt_ref[2] - 1)
+    end
 
 struct PartitioningConstraint
     type::String
@@ -50,13 +65,20 @@ end
 
 function to_jl(constraint::PartitioningConstraint)
     return Dict(
-        "type" => to_jl(constraint.type),
-        "args" => args
+        "type" => constraint.type,
+        "args" => [pt_ref_to_jl(arg) for arg in args]
     )
 end
 
+# TODO: Support Ordered
+Co(args...)         = PartitioningConstraint("CO", collect(args))
+Cross(args...)      = PartitioningConstraint("CROSS", collect(args))
+Equals(args...)     = PartitioningConstraint("EQUALS", collect(args))
+Sequential(args...) = PartitioningConstraint("SEQUENTIAL", collect(args))
+Matches(args...)    = PartitioningConstraint("MATCHES", collect(args))
+
 struct PartitioningConstraints
-    constraints::Set{PartitioningConstraint}
+    constraints::Vector{PartitioningConstraint}
 end
 
 function to_jl(constraints::PartitioningConstraints)
@@ -65,17 +87,17 @@ function to_jl(constraints::PartitioningConstraints)
     )
 end
 
-
 ######################## 
 # PARTITION ANNOTATION #
 ########################
+
 struct Partitions
-    pt_stacks::Dict{ValueId, Vector{PartitionType}}
+    pt_stacks::Dict{ValueId, PartitionTypeComposition}
 end
 
 function to_jl(p::Partitions)
     return Dict(
-        "pt_stacks" => Dict(v => [to_jl(pt) for pt in pts] for (v, pts) in p.pt_stacks)
+        "pt_stacks" => Dict(v => pt_composition_to_jl(pts) for (v, pts) in p.pt_stacks)
     )
 end
 

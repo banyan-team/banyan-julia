@@ -1,3 +1,5 @@
+# TODO: Support multi-threaded usage by storing a global array with a job ID
+# for each thread
 global current_job_id = nothing
 
 function get_job_id()::JobId
