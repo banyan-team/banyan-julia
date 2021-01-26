@@ -24,12 +24,10 @@ function create_job(cluster_id::String, num_workers::Integer)::JobId
 	# Store in global state
 	current_job_id = job_id
 
-	# Run bash script to submit slurm job to create job
-	# TODO: Move this functionality directly into create_job Lambda function
-	ssh_key_pair =
-		"SSH_KEY_PAIR" in keys(ENV) ? ENV["SSH_KEY_PAIR"] : "EC2ConnectKeyPair"
-	script_path = joinpath(@__DIR__, "create_job.sh")
-	run(`bash $script_path $cluster_id $ssh_key_pair $job_id $num_workers`)
+	# ssh_key_pair =
+	# 	"SSH_KEY_PAIR" in keys(ENV) ? ENV["SSH_KEY_PAIR"] : "EC2ConnectKeyPair"
+	# script_path = joinpath(@__DIR__, "create_job.sh")
+	# run(`bash $script_path $cluster_id $ssh_key_pair $job_id $num_workers`)
 
 	return job_id
 end
@@ -39,12 +37,12 @@ function destroy_job(j)
 
 	@debug "Destroying job"
 
-	script_path = joinpath(@__DIR__, "destroy_job.sh")
-	cluster_id = j.cluster_id
-	ssh_key_pair =
-		"SSH_KEY_PAIR" in keys(ENV) ? ENV["SSH_KEY_PAIR"] : "EC2ConnectKeyPair"
-	job_id = j.job_id
-	run(`bash $script_path $cluster_id $ssh_key_pair $job_id`)
+	# script_path = joinpath(@__DIR__, "destroy_job.sh")
+	# cluster_id = j.cluster_id
+	# ssh_key_pair =
+	# 	"SSH_KEY_PAIR" in keys(ENV) ? ENV["SSH_KEY_PAIR"] : "EC2ConnectKeyPair"
+	# job_id = j.job_id
+	# run(`bash $script_path $cluster_id $ssh_key_pair $job_id`)
 
 	send_request_get_response(
 		:destroy_job,
