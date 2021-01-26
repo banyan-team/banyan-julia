@@ -9,7 +9,7 @@ function encode_config_file(config_file_path)
     return String(take!(io))
 end
 
-function create_cluster(cluster_id::ClusterId, config_file_path)
+function create_cluster(cluster_id, config_file_path)
     @debug "Creating cluster"
     config_file_path = joinpath(@__DIR__, "../res/pcluster_config2")
     pcluster_config = encode_config_file(config_file_path)
@@ -26,7 +26,7 @@ function create_cluster(cluster_id::ClusterId, config_file_path)
 
 end
 
-function destroy_cluster(cluster_id::ClusterId, config_file_path)
+function destroy_cluster(cluster_id, config_file_path)
     @debug "Destroying cluster"
 
     pcluster_config = encode_config_file(config_file_path)

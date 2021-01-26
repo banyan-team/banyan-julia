@@ -100,7 +100,8 @@
 # end
 
 @testset "Level 1, 2 BLAS" begin
-    j = Job("banyantest", 4)
+    #j = Job("banyantest", 4)
+    j = Job("banyan", 4)
 
     data = Future()
     mem(data, Integer(4 * 50e6), Int)

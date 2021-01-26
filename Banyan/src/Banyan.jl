@@ -54,6 +54,7 @@ global AWS
 
 # Basic types
 export Job, create_job, destroy_job
+export create_cluster
 export Future, evaluate
 export Location, src, dst, loc, mem
 export PartitionType, pt, pc, mut, @partitioned
@@ -77,6 +78,7 @@ include("id.jl")
 include("utils.jl")
 include("queues.jl")
 include("jobs.jl")
+include("clusters.jl")
 
 # Futures
 include("locations.jl")
