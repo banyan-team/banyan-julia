@@ -55,14 +55,14 @@ global AWS
 # Basic types
 export Job, create_job, destroy_job
 export Future, evaluate
-export Location, src, dst, loc, mem
+export Location, src, dst, loc, mem, val
 export PartitionType, pt, pc, mut, @partitioned
 
 # Locations
 export None
 
 # Partition types
-export Block
+export Block, Div, Replicate
 
 # Constraints
 export Co, Cross, Equals, Sequential, Matches

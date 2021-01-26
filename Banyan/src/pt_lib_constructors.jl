@@ -4,3 +4,6 @@ Block(dim = nothing) =
     else
         PartitionType(Dict("name" => "Block", "dim" => dim))
     end
+
+Div() = PartitionType("Div")
+Replicate() = PartitionType("Replicate")

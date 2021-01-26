@@ -100,16 +100,22 @@
 # end
 
 @testset "Level 1, 2 BLAS" begin
-    j = Job("banyantest", 4)
+    j = Job("banyan", 4)
 
+    # Create data
+    n = Future(50e6)
     data = Future()
+
+    # Where the data is located
+    val(n)
     mem(data, Integer(4 * 50e6), Int)
 
+    # How the data is partitioned
     pt(data, Block())
     mut(data)
 
-    @partitioned data begin
-        data = randn(Integer(50e6))  # 200M integers
+    @partitioned data n begin
+        data = randn(Integer(n))  # 200M integers
     end
 
     pt(data, Block())

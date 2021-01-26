@@ -1,22 +1,12 @@
 {
     "splits": {
-        "BlockBalanced": {
+        "Block": {
             "required": {
-                "name": "Block",
+                "name": "Block"
+            },
+            "default": {
+                "dim": 1,
                 "balanced": true
-            },
-            "default": {
-                "dim": 1
-            },
-            "partition_memory_usage": "div"
-        },
-        "BlockUnbalanced": {
-            "required": {
-                "name": "Block",
-                "balanced": false
-            },
-            "default": {
-                "dim": 1
             },
             "partition_memory_usage": "div"
         },
@@ -72,7 +62,7 @@
     "casts": {
         "BlockBalance": {
             "src": "BlockUnbalanced",
-            "dst": "BlockBalanced",
+            "dst": "Block",
             "matching": [
                 "dim"
             ]

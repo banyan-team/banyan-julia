@@ -66,8 +66,8 @@ function mut(fut::Future)
 end
 
 macro partitioned(ex...)
-    variables = ex[1:end-1]
-    variable_names = [string(variable) for variable in variables]
+    variables = [esc(e) for e in ex[1:end-1]]
+    variable_names = [string(e) for e in ex[1:end-1]]
     code = ex[end]
 
     return quote
@@ -77,19 +77,19 @@ macro partitioned(ex...)
         	$(string(code)),
         	Dict(
                 fut.value_id => var_name
-                for (fut, var_name) in zip([$(esc(variables...))], [$(esc(variable_names...))])
+                for (fut, var_name) in zip([$(variables...)], [$(variable_names...)])
             ),
         	get_locations(),
         	Dict(
                 fut.value_id => if get_mutated(fut.value_id) "MUT" else "CONST" end
-                for fut in [$(esc(variables...))]
+                for fut in [$(variables...)]
             ),
             get_pa_union(),
             []
         )
 
         # Set mutated
-        for fut in [$(esc(variables...))]
+        for fut in [$(variables...)]
             if get_mutated(fut.value_id)
                 fut.mutated = true
             end
