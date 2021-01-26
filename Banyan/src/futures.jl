@@ -186,3 +186,5 @@ end
 mem(fut::Future, n::Integer, ty::DataType) = mem(fut, n * sizeof(ty))
 mem(fut::Future, other::Future) = mem(fut, other.location.total_memory_usage)
 mem(fut::Future) = mem(fut, sizeof(fut.value))
+
+val(fut::Future) = loc(fut, Value(fut.value))

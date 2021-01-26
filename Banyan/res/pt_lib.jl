@@ -4,7 +4,7 @@ SPLIT = Dict{String,Dict}()
 MERGE = Dict{String,Dict}()
 CAST = Dict{String,Dict}()
 
-function return_nothing(
+function split_nothing(
     src,
     dst,
     params,
@@ -16,14 +16,38 @@ function return_nothing(
     dst[] = nothing
 end
 
+function merge_nothing(
+    src,
+    dst,
+    params,
+    batch_idx,
+    nbatches,
+    comm,
+    loc_parameters,
+) end
+
 worker_idx_and_nworkers(comm) = (MPI.Comm_rank(comm) + 1, MPI.Comm_size(comm))
+
+function split_len(src_len, idx, npartitions)
+    if npartitions > 1
+        dst_len = cld(src_len, npartitions)
+        dst_start = min((idx - 1) * dst_len + 1, src_len + 1)
+        dst_end = min(idx * dst_len, src_len)
+        (dst_start, dst_end)
+    else
+        (1, src_len)
+    end
+end
+
+function split_and_get_len(src_len, idx, npartitions)
+    dst_len = split_len(src_len, idx, npartitions)
+    length(dst_len[1]:dst_len[2])
+end
 
 function split_array(src, dst, idx, npartitions, dim)
     if npartitions > 1
         src_len = size(src[], dim)
-        dst_len = cld(src_len, npartitions)
-        dst_start = min((idx - 1) * dst_len + 1, src_len + 1)
-        dst_end = min(idx * dst_len, src_len)
+        dst_start, dst_end = split_len(src_len, idx, npartitions)
         dst[] = selectdim(src[], dim, dst_start:dst_end)
     else
         dst[] = src[]
@@ -35,9 +59,9 @@ end
 SPLIT["BlockBalanced"] = Dict()
 MERGE["BlockBalanced"] = Dict()
 
-SPLIT["BlockBalanced"]["None"] = return_nothing
+SPLIT["BlockBalanced"]["None"] = split_nothing
 
-MERGE["BlockBalanced"]["None"] = return_nothing
+MERGE["BlockBalanced"]["None"] = merge_nothing
 
 SPLIT["BlockBalanced"]["Executor"] =
     function (src, dst, params, batch_idx, nbatches, comm, loc_parameters)
@@ -52,55 +76,62 @@ SPLIT["BlockBalanced"]["Executor"] =
         end
     end
 
-MERGE["BlockBalanced"]["Executor"] =
-    function (src, dst, params, batch_idx, nbatches, comm, loc_parameters)
-        # TODO: Implement this
-
-        # if batch_idx == 1
-        #     src[] = dst[]
-        # else
-        #     append!()
-        # if isnothing(src[])
-        #     src[] = nothing
-        # else
-        #     worker_idx, nworkers = worker_idx_and_nworkers(comm)
-        #     dim = params["dim"]
-
-        #     split_array(src, dst, worker_idx, nworkers, dim)
-        #     split_array(src, dst, batch_idx, nbatches, dim)
-        # end
-    end
+# TODO: Implement this
+MERGE["BlockBalanced"]["Executor"] = merge_nothing
 
 SPLIT["BlockUnbalanced"] = Dict()
 MERGE["BlockUnbalanced"] = Dict()
 
-SPLIT["BlockUnbalanced"]["None"] = return_nothing
+# TODO: Remove split_nothing and merge_nothing and instead
+# have pt_lib_info.json specify that the same functions should be used
+SPLIT["BlockUnbalanced"]["None"] = split_nothing
 
-MERGE["BlockUnbalanced"]["None"] = return_nothing
+MERGE["BlockUnbalanced"]["None"] = merge_nothing
 
 SPLIT["BlockUnbalanced"]["Executor"] = SPLIT["BlockBalanced"]["Executor"]
 
-MERGE["BlockUnbalanced"]["Executor"] =
+# TODO: Implement this
+MERGE["BlockUnbalanced"]["Executor"] = merge_nothing
+
+SPLIT["Div"] = Dict()
+MERGE["Div"] = Dict()
+
+SPLIT["Div"]["Value"] =
     function (src, dst, params, batch_idx, nbatches, comm, loc_parameters)
-        # TODO: Implement this
-
-        # if batch_idx == 1
-        #     src[] = dst[]
-        # else
-        #     append!()
-        # if isnothing(src[])
-        #     src[] = nothing
-        # else
-        #     worker_idx, nworkers = worker_idx_and_nworkers(comm)
-        #     dim = params["dim"]
-
-        #     split_array(src, dst, worker_idx, nworkers, dim)
-        #     split_array(src, dst, batch_idx, nbatches, dim)
-        # end
+        worker_idx, nworkers = worker_idx_and_nworkers(comm)
+        dst_len = split_and_get_len(loc_parameters["value"], worker_idx, nworkers)
+        dst_len = split_and_get_len(dst_len, worker_idx, nworkers)
+        dst[] = dst_len
     end
 
-# TODO: Implement Div
-# TODO: Implement Replicate
+SPLIT["Div"]["Executor"] =
+    function (src, dst, params, batch_idx, nbatches, comm, loc_parameters)
+        worker_idx, nworkers = worker_idx_and_nworkers(comm)
+        dst_len = split_and_get_len(src[], worker_idx, nworkers)
+        dst_len = split_and_get_len(dst_len, worker_idx, nworkers)
+        dst[] = dst_len
+    end
+
+MERGE["Div"]["Value"] = merge_nothing
+MERGE["Div"]["Executor"] = merge_nothing
+
+SPLIT["Replicate"] = Dict()
+MERGE["Replicate"] = Dict()
+
+SPLIT["Replicate"]["Value"] =
+    function (src, dst, params, batch_idx, nbatches, comm, loc_parameters)
+        dst[] = loc_parameters["value"]
+    end
+
+SPLIT["Replicate"]["Executor"] =
+    function (src, dst, params, batch_idx, nbatches, comm, loc_parameters)
+        dst[] = src[]
+    end
+
+MERGE["Replicate"]["Value"] = merge_nothing
+MERGE["Replicate"]["Executor"] = merge_nothing
+
+# TODO: Implement Div from Value
 # TODO: Implement Replicate from Value
 # TODO: Implement Overlap
 # TODO: Implement Bucket

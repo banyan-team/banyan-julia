@@ -19,6 +19,20 @@
                 "dim": 1
             },
             "partition_memory_usage": "div"
+        },
+        "Div": {
+            "required": {
+                "name": "Div"
+            },
+            "default": {},
+            "partition_memory_usage": "zero"
+        },
+        "Replicate": {
+            "required": {
+                "name": "Replicate"
+            },
+            "default": {},
+            "partition_memory_usage": "all"
         }
     },
     "merges": {
@@ -39,6 +53,20 @@
             "default": {
                 "dim": 1
             }
+        },
+        "Div": {
+            "required": {
+                "name": "Div"
+            },
+            "default": {},
+            "partition_memory_usage": "zero"
+        },
+        "Replicate": {
+            "required": {
+                "name": "Replicate"
+            },
+            "default": {},
+            "partition_memory_usage": "all"
         }
     },
     "casts": {

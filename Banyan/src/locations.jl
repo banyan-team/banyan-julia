@@ -17,3 +17,4 @@ function to_jl(lt::Location)
 end
 
 None() = Location("None", "None", Dict(), Dict(), 0)
+Value(val) = Location("Value", "Value", Dict("value" => val), Dict("value" => val), 0)
