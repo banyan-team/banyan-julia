@@ -1,7 +1,7 @@
 #@testset "Create/Destroy jobs" begin
 #    cluster_id = "pcluster-12-23"
 #    set_cluster_id(cluster_id)
-#    config = JobConfig(cluster_id, 2)
+#    config = JobRequest(cluster_id, 2)
 #    create_job(config, make_current = true)
 #    destroy_job()
 #end
@@ -92,9 +92,58 @@
 # end
 
 
-@testset "Testing pcluster" begin
-    cluster_id = "banyantest"
-    set_cluster_id(cluster_id)
-    config = JobConfig(cluster_id, 2)
-    create_job(config, make_current = true)
+# @testset "Testing pcluster" begin
+#     cluster_id = "banyantest"
+#     set_cluster_id(cluster_id)
+#     config = JobRequest(cluster_id, 2)
+#     create_job(config, make_current = true)
+# end
+
+@testset "Level 1, 2 BLAS" begin
+    j = Job("banyantest", 4)
+
+    data = Future()
+    mem(data, Integer(4 * 50e6), Int)
+
+    pt(data, Block())
+    mut(data)
+
+    @partitioned data begin
+        data = randn(Integer(50e6))  # 200M integers
+    end
+
+    pt(data, Block())
+    mut(data)
+
+    @partitioned data begin
+        data .*= 10
+    end
+
+    evaluate(data)
+
+    # data = Future()
+    # # evaluate(data)
+
+    # pt(data, Block())
+
+    # @partitioned data begin
+    #     data .*= 10
+    # end
+
+    # @partitioned data begin
+    #     data .*= 10
+    # end
+
+    # pt(data, [Block(), Block(2)])
+    # mut(data)
+
+    # pt(data, [Block()])
+    # mut(data)
+
+    # @partitioned data begin
+    #     data .*= 10
+    # end
+    
+    # global pending_requests
+    # println(pending_requests)
 end

@@ -9,50 +9,58 @@ mutable struct Future
     value::Any
     value_id::ValueId
     mutated::Bool
-    location_type::LocationType
-    function Future(job_id::String, value::Any, lt::LocationType)
+    location::Location
+
+    function Future(value = nothing, loc = None())
         global futures
 
         # Generate new value id
         value_id = create_value_id()
 
         # Create new Future and add to futures dictionary if lt is Client
-        new_future = new(value, value_id, false, lt)
-        if lt.src_name == "Client"
+        new_future = new(value, value_id, false, loc)
+        if loc.src_name == "Client" || loc.dst_name == "Client"
             futures[value_id] = new_future
         end
 
-        # Update location type
-	global locations
-	locations[value_id] = lt
+        # Update location
+        global locations
+        locations[value_id] = loc
 
         # Create finalizer and register
-        function destroy_future(fut)
+        finalizer(new_future) do fut
             global futures
-            # TODO: Do we need to send eviction request to executor
+            # TODO: Include value ID in a global queue (like locations) of
+            # value IDs to be destroyed on backend
             delete!(futures, fut.value_id)
         end
-        finalizer(destroy_future, new_future)
-    end
-    function Future(value = nothing)
-        Future(get_job_id(), value, LocationType("None", "None", [], [], -1))
+
+        new_future
     end
 end
-
 
 ################
 # Global State #
 ################
 
-# Contains Futures with a LocationType of Client
+# Futures that have location as "Client"
 global futures = Dict{ValueId,Future}()
 
-# Contains all Futures
-global locations = Dict{ValueId,LocationType}()
+# Queue of pending updates to values' locations for sending to backend
+global locations = Dict{ValueId,Location}()
+
+function get_locations()
+    global locations
+    locations_copy = deepcopy(locations)
+    empty!(locations)
+    return locations_copy
+end
 
 #################
 # Magic Methods #
 #################
+
+# TODO: Implement magic methods
 
 # Assume that this is mutating
 # function Base.getproperty(fut::Future, sym::Symbol)
@@ -63,7 +71,6 @@ global locations = Dict{ValueId,LocationType}()
 # function Base.setproperty!(fut::Future, sym::Symbol, new_value)
 # end
 
-
 #################
 # Basic Methods #
 #################
@@ -73,16 +80,16 @@ function record_mut(value_id::ValueId)
     futures[value_id].mutated = true
 end
 
-function evaluate(job_id::String, fut::Future)
+function evaluate(fut::Future, job_id::JobId)
     println("IN EVALUATE")
     global futures
-    # Only evaluate if future has been mutated
-    if true  #fut.mutated == true
+
+    if fut.mutated
         println("EVALUATE getting sent")
         fut.mutated = false
 
         # Send evaluate request
-        response = send_evaluation(job_id, fut.value_id)
+        response = send_evaluation(fut.value_id, job_id)
 
         # Get queues
         scatter_queue = get_scatter_queue(job_id)
@@ -98,29 +105,84 @@ function evaluate(job_id::String, fut::Future)
                 # Send scatter
                 value_id = message["value_id"]
                 buf = IOBuffer()
-                serialize(buf, futures[value_id].value)
+                serialize(buf, if value_id in keys(futures)
+                    futures[value_id].value
+                else
+                    nothing
+                end)
                 value = take!(buf)
                 send_message(
                     scatter_queue,
-                    JSON.json(Dict{String,Any}("value_id" => value_id, "value" => value))
+                    JSON.json(Dict{String,Any}("value_id" => value_id, "value" => value)),
                 )
             elseif message_type == "GATHER"
                 # Receive gather
                 value_id = message["value_id"]
-                value = deserialize(IOBuffer(convert(
-                    Array{UInt8},
-                    message["value"],
-                )))
+                value = deserialize(IOBuffer(convert(Array{UInt8}, message["value"])))
                 setfield!(futures[value_id], :value, value)
                 # Mark other futures that have been gathered as not mut
                 #   so that we can avoid unnecessarily making a call to AWS
-                futures[value_id].mutated = false
+                if value_id in keys(futures)
+                    futures[value_id].mutated = false
+                end
             elseif message_type == "EVALUATION_END"
                 break
             end
         end
     end
+
     return getfield(fut, :value)
 end
 
-evaluate(fut::Future) = evaluate(get_job_id(), fut)
+evaluate(fut::Future, job::Job) = evaluate(fut, job.job_id)
+evaluate(fut::Future) = evaluate(fut, get_job_id())
+
+function send_evaluation(value_id::ValueId, job_id::JobId)
+	# TODO: Serialize requests_list to send
+	global pending_requests
+	#print("SENDING NOW", requests_list)
+	response = send_request_get_response(
+		:evaluate,
+		Dict{String,Any}(
+			"value_id" => value_id,
+			"job_id" => job_id,
+			"requests" => [to_jl(req) for req in pending_requests]
+		),
+	)
+	empty!(pending_requests)
+	return response
+end
+
+################################
+# Methods for Setting Location #
+################################
+
+function src(fut::Future, loc::Location)
+    global locations
+    fut.location.src_name = loc.src_name
+    fut.location.src_parameters = loc.src_parameters
+    locations[fut.value_id] = fut.location
+end
+
+function dst(fut::Future, loc::Location)
+    global locations
+    fut.location.dst_name = loc.dst_name
+    fut.location.dst_parameters = loc.dst_parameters
+    locations[fut.value_id] = fut.location
+end
+
+function loc(fut::Future, loc::Location)
+    global locations
+    fut.location = loc
+    locations[fut.value_id] = fut.location
+end
+
+function mem(fut::Future, estimated_total_memory_usage::Integer)
+    global locations
+    fut.location.total_memory_usage = estimated_total_memory_usage
+    locations[fut.value_id] = fut.location
+end
+
+mem(fut::Future, n::Integer, ty::DataType) = mem(fut, n * sizeof(ty))
+mem(fut::Future, other::Future) = mem(fut, other.location.total_memory_usage)
+mem(fut::Future) = mem(fut, sizeof(fut.value))

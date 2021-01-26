@@ -16,7 +16,7 @@ function create_cluster(cluster_id::ClusterId, config_file_path)
     # TODO: Load pt_lib_info correctly
     send_request_get_response(
         :create_cluster,
-	Dict{String, Any}(
+	Dict(
             "cluster_id" => cluster_id,
 	    "language" => "jl",
 	    "pt_lib_info" => Dict(),
@@ -33,7 +33,7 @@ function destroy_cluster(cluster_id::ClusterId, config_file_path)
 
     send_request_get_response(
         :destroy_cluster,
-        Dict{String, Any}(
+        Dict(
             "cluster_id" => cluster_id,
             "pcluster_config" => pcluster_config
 	)

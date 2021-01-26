@@ -8,7 +8,7 @@ res = Future()
 crossed = Cross(data, other)
 crossed = Cross((data, 0), (data, 1))
 
-# Creates a Task
+# Creates a BTask
 simple_pa = @pa mut data Block() x Value() wh [crossed, ordered]
 
 # Merges Tasks together by merging their PA unions
@@ -17,3 +17,14 @@ simple_pa = @pa mut data Block() x Value() wh [crossed, ordered]
 end
 
 @dst data S3(".....")
+
+@pt data Block(0)
+@pt x Replicate()
+@pc Cross(data, other)
+@pa
+
+@partitioned begin
+    
+end
+
+@pa

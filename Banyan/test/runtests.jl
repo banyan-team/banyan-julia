@@ -4,7 +4,7 @@ using Banyan
 # TODO: Uncomment
 #cluster_id = "banyantest"
 #set_cluster_id(cluster_id)
-#config = JobConfig(cluster_id, 2)
+#config = JobRequest(cluster_id, 2)
 #create_job(config, make_current = true)
 
 @testset "Basic Tests" begin

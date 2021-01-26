@@ -66,7 +66,7 @@ macro pa(ex...)
 		pa_union = Set([PartitionAnnotation(partitions, constraints)])
 		global locations
 
-		task = Task(
+		task = BTask(
 			code,
 			value_names,
 			locations,
@@ -97,7 +97,7 @@ macro pp(ex...)
 		pas = vcat([collect(task.pa_union) for task in tasks]...)
 		global locations
 
-		task = Task(
+		task = BTask(
 			code,
 			merge([task.value_names for task in tasks]...),
 			locations,
@@ -193,7 +193,7 @@ end
 # 		println($(string(code_region)))
 
 # 		# Record request to record code region
-# 		record_request(RecordTaskRequest(Task(
+# 		record_request(RecordTaskRequest(BTask(
 # 			$(string(code_region)),
 # 			value_names,
 # 			locations,
