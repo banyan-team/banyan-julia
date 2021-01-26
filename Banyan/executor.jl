@@ -9,7 +9,7 @@ using Serialization
 # GLOBAL VALUES #
 #################
 
-provided = MPI.Init_thread(MPI.THREAD_MULTIPLE)
+MPI.Init()
 
 comm = MPI.COMM_WORLD
 println(MPI.Comm_rank(comm))
@@ -23,10 +23,13 @@ global root = 0
 ####################
 # HELPER FUNCTIONS #
 ####################
-function is_main_node() return MPI.Comm_rank(comm) == root end
+function is_main_node()
+    MPI.Comm_rank(comm) == root
+end
 
-function execute_code(code_region) eval(Meta.parse(code_region)) end
-
+function execute_code(code_region)
+    eval(Meta.parse(code_region))
+end
 
 #######################
 # MAIN EXECUTION LOOP #
@@ -34,29 +37,30 @@ function execute_code(code_region) eval(Meta.parse(code_region)) end
 
 while true
     # Get next message from execution queue if main node and broadcast
-    if is_main_node() == true
-        message = get_next_execution_request()
-    else
-        message = Nothing
+    code = nothing
+    if is_main_node()
+        code = get_next_execution_request()["code"]
     end
-    message = MPI.bcast(message, root, comm)
+    code = MPI.bcast(code, root, comm)
 
     print(MPI.Comm_rank(comm))
     # println(message)
 
     # Execute code
     println("executing code")
-    code = message["code"]
     if is_main_node() == true
         println(code)
     end
-    start_t = Dates.now()
-    execute_code(code)
-    end_t = Dates.now()
-    println(MPI.Comm_rank(comm), " Execution time for code: ", end_t - start_t)
+    # TODO: Figure out if source of overhead is eval
+    for _ in 1:4
+        @time begin
+            execute_code(code)
+        end
+    end
+    # println(MPI.Comm_rank(comm), " Execution time for code: ", end_t - start_t)
 
     # Send evaluation end
-    if is_main_node() == true
+    if is_main_node()
         println("sending evaluation end")
         send_evaluation_end()
     end

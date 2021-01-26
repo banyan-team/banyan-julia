@@ -1,4 +1,4 @@
-struct Location
+mutable struct Location
     src_name::String
     dst_name::String
     src_parameters::Dict

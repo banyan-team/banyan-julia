@@ -19,11 +19,15 @@ end
 worker_idx_and_nworkers(comm) = (MPI.Comm_rank(comm) + 1, MPI.Comm_size(comm))
 
 function split_array(src, dst, idx, npartitions, dim)
-    src_len = size(src[], dim)
-    dst_len = cld(src_len, npartitions)
-    dst_start = min((idx - 1) * dst_len + 1, src_len + 1)
-    dst_end = min(idx * dst_len, src_len)
-    dst[] = selectdim(src[], dim, dst_start:dst_end)
+    if npartitions > 1
+        src_len = size(src[], dim)
+        dst_len = cld(src_len, npartitions)
+        dst_start = min((idx - 1) * dst_len + 1, src_len + 1)
+        dst_end = min(idx * dst_len, src_len)
+        dst[] = selectdim(src[], dim, dst_start:dst_end)
+    else
+        dst[] = src[]
+    end
 end
 
 # TODO: Make implementations for None read/write from/to disk
@@ -94,6 +98,12 @@ MERGE["BlockUnbalanced"]["Executor"] =
         #     split_array(src, dst, batch_idx, nbatches, dim)
         # end
     end
+
+# TODO: Implement Div
+# TODO: Implement Replicate
+# TODO: Implement Replicate from Value
+# TODO: Implement Overlap
+# TODO: Implement Bucket
 
 # # using HDF5  # Block-HDF5
 # # using DataFrames

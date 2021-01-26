@@ -55,7 +55,7 @@ global AWS
 # Basic types
 export Job, create_job, destroy_job
 export Future, evaluate
-export Location, src, dst, loc
+export Location, src, dst, loc, mem
 export PartitionType, pt, pc, mut, @partitioned
 
 # Locations

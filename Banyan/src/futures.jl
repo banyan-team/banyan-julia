@@ -135,7 +135,6 @@ function evaluate(fut::Future, job_id::JobId)
 end
 
 evaluate(fut::Future, job::Job) = evaluate(fut, job.job_id)
-
 evaluate(fut::Future) = evaluate(fut, get_job_id())
 
 function send_evaluation(value_id::ValueId, job_id::JobId)
@@ -160,17 +159,30 @@ end
 
 function src(fut::Future, loc::Location)
     global locations
-    locations[fut.value_id].src_name = loc.src_name
-    locations[fut.value_id].src_parameters = loc.src_parameters
+    fut.location.src_name = loc.src_name
+    fut.location.src_parameters = loc.src_parameters
+    locations[fut.value_id] = fut.location
 end
 
 function dst(fut::Future, loc::Location)
     global locations
-    locations[fut.value_id].dst_name = loc.dst_name
-    locations[fut.value_id].dst_parameters = loc.dst_parameters
+    fut.location.dst_name = loc.dst_name
+    fut.location.dst_parameters = loc.dst_parameters
+    locations[fut.value_id] = fut.location
 end
 
 function loc(fut::Future, loc::Location)
     global locations
-    locations[fut.value_id] = loc
+    fut.location = loc
+    locations[fut.value_id] = fut.location
 end
+
+function mem(fut::Future, estimated_total_memory_usage::Integer)
+    global locations
+    fut.location.total_memory_usage = estimated_total_memory_usage
+    locations[fut.value_id] = fut.location
+end
+
+mem(fut::Future, n::Integer, ty::DataType) = mem(fut, n * sizeof(ty))
+mem(fut::Future, other::Future) = mem(fut, other.location.total_memory_usage)
+mem(fut::Future) = mem(fut, sizeof(fut.value))

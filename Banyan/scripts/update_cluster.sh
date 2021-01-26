@@ -5,6 +5,8 @@ if [ $# -eq 0 ]; then
 	exit 0
 fi
 
+aws s3 cp executor.jl s3://banyan-executor/
+
 pcluster ssh $1 -i $2 /bin/bash << EOF
 
 # Update
