@@ -100,57 +100,61 @@
 # end
 
 @testset "Level 1, 2 BLAS" begin
+    # j = Job("banyan", 4)
+
+    # # Create data
+    # n = Future(50e6)
+    # data = Future()
+
+    # # Where the data is located
+    # val(n)
+    # mem(data, Integer(50e6), Float64)
+
+    # # How the data is partitioned
+    # pt(n, Div())
+    # pt(data, Block())
+    # mut(data)
+
+    # @partitioned data n begin
+    #     data = randn(Integer(n))  # 200M integers
+    # end
+
+    # pt(data, Block())
+    # mut(data)
+
+    # @partitioned data begin
+    #     data .*= 10
+    # end
+
+    # evaluate(data)
+end
+
+@testset "Level 3 BLAS" begin
     j = Job("banyan", 4)
 
     # Create data
-    n = Future(50e6)
+    n = Future(10e3)
+    m = Future(10e3)
     data = Future()
 
     # Where the data is located
     val(n)
-    mem(data, Integer(4 * 50e6), Int)
+    val(m)
+    mem(data, Integer(10e3 ^ 2), Float64)
 
     # How the data is partitioned
-    pt(n, Div())
-    pt(data, Block())
+    pt(n, [Div(), Replicate()])
+    pt(m, [Replicate(), Div()])
+    pt(data, [Block(1), Block(2)])
     mut(data)
 
-    @partitioned data n begin
-        data = randn(Integer(n))  # 200M integers
-    end
+    pc(Cross((data, 1), (data, 2)))
+    # pc(Co((data, 1), (n, 1), (m, 1)))
+    # pc(Co((data, 2), (n, 2), (m, 2)))
 
-    pt(data, Block())
-    mut(data)
-
-    @partitioned data begin
-        data .*= 10
+    @partitioned data n m begin
+        data = randn(Integer(n), Integer(m))  # 200M integers
     end
 
     evaluate(data)
-
-    # data = Future()
-    # # evaluate(data)
-
-    # pt(data, Block())
-
-    # @partitioned data begin
-    #     data .*= 10
-    # end
-
-    # @partitioned data begin
-    #     data .*= 10
-    # end
-
-    # pt(data, [Block(), Block(2)])
-    # mut(data)
-
-    # pt(data, [Block()])
-    # mut(data)
-
-    # @partitioned data begin
-    #     data .*= 10
-    # end
-    
-    # global pending_requests
-    # println(pending_requests)
 end

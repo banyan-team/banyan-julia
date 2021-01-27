@@ -66,7 +66,7 @@ end
 function to_jl(constraint::PartitioningConstraint)
     return Dict(
         "type" => constraint.type,
-        "args" => [pt_ref_to_jl(arg) for arg in args]
+        "args" => [pt_ref_to_jl(arg) for arg in constraint.args]
     )
 end
 

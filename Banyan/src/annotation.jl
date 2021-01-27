@@ -57,7 +57,7 @@ function pt(
 function pc(constraint::PartitioningConstraint)
     global curr_pa_union
     global curr_pa
-    push!(curr_pa.constraints, constraint)
+    push!(curr_pa.constraints.constraints, constraint)
 end
 
 function mut(fut::Future)
