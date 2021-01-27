@@ -111,6 +111,7 @@
     mem(data, Integer(4 * 50e6), Int)
 
     # How the data is partitioned
+    pt(n, Div())
     pt(data, Block())
     mut(data)
 

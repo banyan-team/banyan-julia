@@ -30,9 +30,20 @@ mutable struct Future
         # Create finalizer and register
         finalizer(new_future) do fut
             global futures
-            # TODO: Include value ID in a global queue (like locations) of
-            # value IDs to be destroyed on backend
-            delete!(futures, fut.value_id)
+            global locations_copy
+            # println(fut.value_id)
+            # # TODO: Include value ID in a global queue (like locations) of
+            # # value IDs to be destroyed on backend
+            # println(futures)
+            # println(locations)
+            # println(fut.value_id in keys(futures))
+            # println(fut.value_id in keys(locations))
+            if fut.value_id in keys(futures)
+                delete!(futures, fut.value_id)
+            end
+            if fut.value_id in keys(locations)
+                delete!(locations, fut.value_id)
+            end
         end
 
         new_future

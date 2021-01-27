@@ -61,7 +61,6 @@ MERGE["BlockBalanced"] = Dict()
 MERGE["BlockUnbalanced"] = Dict()
 
 SPLIT["Block"]["None"] = split_nothing
-
 SPLIT["Block"]["Executor"] =
     function (src, dst, params, batch_idx, nbatches, comm, loc_parameters)
         if isnothing(src[])
@@ -76,13 +75,8 @@ SPLIT["Block"]["Executor"] =
     end
 
 MERGE["BlockBalanced"]["None"] = merge_nothing
-
-# TODO: Implement this
 MERGE["BlockBalanced"]["Executor"] = merge_nothing
-
 MERGE["BlockUnbalanced"]["None"] = merge_nothing
-
-# TODO: Implement this
 MERGE["BlockUnbalanced"]["Executor"] = merge_nothing
 
 SPLIT["Div"] = Dict()

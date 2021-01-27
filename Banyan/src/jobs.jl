@@ -32,7 +32,7 @@ function create_job(cluster_id::String, num_workers::Integer)::JobId
 	return job_id
 end
 
-function destroy_job(j)
+function destroy_job(job_id::JobId)
 	global current_job_id
 
 	@debug "Destroying job"
@@ -54,6 +54,8 @@ function destroy_job(j)
 	end
 end
 
+destroy_job() = destroy_job(get_job_id())
+
 mutable struct Job
 	job_id::JobId
 	cluster_id::String
@@ -64,9 +66,12 @@ mutable struct Job
 		new_job = new(new_job_id, cluster_id, num_workers)
 
 		finalizer(new_job) do j
-			destroy_job(j)
+			destroy_job(j.job_id)
 		end
 
 		new_job
 	end
 end
+
+# TODO: Fix bug causing nbatches to be 2 when it should be 25
+# TODO: Fix finalizer of Job
