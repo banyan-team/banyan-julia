@@ -38,9 +38,10 @@ function get_pa_union()
     return curr_pa_union
 end
 
-function pt(fut::Future, pt::PartitionTypeComposition)
+function pt(fut, pt::PartitionTypeComposition)
     global curr_pa_union
     global curr_pa
+    fut = future(fut)
     if fut.value_id in keys(curr_pa.partitions.pt_stacks)
         add_pa_to_union()
     end
@@ -49,7 +50,7 @@ end
 
 # TODO: Implement PT transformations
 function pt(
-    fut::Future,
+    fut,
     pre_pt::PartitionTypeComposition,
     post_pt::PartitionTypeComposition,
 ) end
@@ -60,9 +61,9 @@ function pc(constraint::PartitioningConstraint)
     push!(curr_pa.constraints.constraints, constraint)
 end
 
-function mut(fut::Future)
+function mut(fut)
     global curr_mut
-    push!(curr_mut, fut.value_id)
+    push!(curr_mut, future(fut).value_id)
 end
 
 macro partitioned(ex...)
@@ -76,22 +77,20 @@ macro partitioned(ex...)
         task = BTask(
         	$(string(code)),
         	Dict(
-                fut.value_id => var_name
+                future(fut).value_id => var_name
                 for (fut, var_name) in zip([$(variables...)], [$(variable_names...)])
             ),
-        	get_locations(),
         	Dict(
-                fut.value_id => if get_mutated(fut.value_id) "MUT" else "CONST" end
+                future(fut).value_id => if get_mutated(future(fut).value_id) "MUT" else "CONST" end
                 for fut in [$(variables...)]
             ),
-            get_pa_union(),
-            []
+            get_pa_union()
         )
 
         # Set mutated
         for fut in [$(variables...)]
-            if get_mutated(fut.value_id)
-                fut.mutated = true
+            if get_mutated(future(fut).value_id)
+                future(fut).mutated = true
             end
         end
 

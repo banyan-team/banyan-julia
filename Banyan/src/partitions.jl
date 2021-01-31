@@ -52,7 +52,7 @@ pt_composition_to_jl(pts::PartitionTypeComposition) =
 const PartitionTypeReference = Union{Future, Tuple{Future,Integer}}
 
 pt_ref_to_jl(pt_ref::PartitionTypeReference) =
-    if pt_ref isa ValueId
+    if pt_ref isa Future
         (pt_ref.value_id, 0)
     else
         (pt_ref[1].value_id, pt_ref[2] - 1)
@@ -73,9 +73,9 @@ end
 # TODO: Support Ordered
 Co(args...)         = PartitioningConstraint("CO", collect(args))
 Cross(args...)      = PartitioningConstraint("CROSS", collect(args))
-Equals(args...)     = PartitioningConstraint("EQUALS", collect(args))
+Equal(args...)      = PartitioningConstraint("EQUALS", collect(args))
 Sequential(args...) = PartitioningConstraint("SEQUENTIAL", collect(args))
-Matches(args...)    = PartitioningConstraint("MATCHES", collect(args))
+Match(args...)      = PartitioningConstraint("Match", collect(args))
 
 struct PartitioningConstraints
     constraints::Vector{PartitioningConstraint}
