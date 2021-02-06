@@ -84,10 +84,27 @@ MERGE["Div"] = Dict()
 SPLIT["Replicate"] = Dict()
 MERGE["Replicate"] = Dict()
 
+from_jl_value(val) =
+    if val isa Dict
+        if "banyan_type" in keys(val)
+            if val["banyan_type"] == "value"
+                eval(Meta.parse(val["contents"]))
+            else
+                parse(eval(Meta.parse(val["banyan_type"])), val["contents"])
+            end
+        else
+            Dict(from_jl_value(k) => from_jl_value(v) for (k, v) in val)
+        end
+    elseif val isa Vector
+        [from_jl_value(e) for e in val]
+    else
+        val
+    end
+
 SPLIT["Div"]["Value"] =
     function (src, dst, params, batch_idx, nbatches, comm, loc_parameters)
         worker_idx, nworkers = worker_idx_and_nworkers(comm)
-        dst_len = split_and_get_len(loc_parameters["value"], worker_idx, nworkers)
+        dst_len = split_and_get_len(from_jl_value(loc_parameters["value"]), worker_idx, nworkers)
         dst_len = split_and_get_len(dst_len, worker_idx, nworkers)
         dst[] = dst_len
     end
@@ -100,9 +117,11 @@ SPLIT["Div"]["Executor"] =
         dst[] = dst_len
     end
 
+SPLIT["Replicate"]["None"] = split_nothing
+
 SPLIT["Replicate"]["Value"] =
     function (src, dst, params, batch_idx, nbatches, comm, loc_parameters)
-        dst[] = loc_parameters["value"]
+        dst[] = from_jl_value(loc_parameters["value"])
     end
 
 SPLIT["Replicate"]["Executor"] =
@@ -112,5 +131,6 @@ SPLIT["Replicate"]["Executor"] =
 
 MERGE["Div"]["Value"] = merge_nothing
 MERGE["Div"]["Executor"] = merge_nothing
+MERGE["Replicate"]["None"] = merge_nothing
 MERGE["Replicate"]["Value"] = merge_nothing
 MERGE["Replicate"]["Executor"] = merge_nothing

@@ -55,7 +55,7 @@ global AWS
 # Basic types
 export Job, create_job, destroy_job
 export create_cluster
-export Future, evaluate
+export Future, future, evaluate
 export Location, src, dst, loc, mem, val
 export PartitionType, pt, pc, mut, @partitioned
 
@@ -63,10 +63,10 @@ export PartitionType, pt, pc, mut, @partitioned
 export None
 
 # Partition types
-export Block, Div, Replicate
+export Block, BlockBalanced, Div, Replicate
 
 # Constraints
-export Co, Cross, Equals, Sequential, Matches
+export Co, Cross, Equal, Sequential, Match
 
 # Annotations
 export add_pa_to_union, reset_annotation, get_locations, get_mutated, get_pa_union

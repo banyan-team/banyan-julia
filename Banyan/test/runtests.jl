@@ -7,9 +7,8 @@ using Banyan
 #config = JobRequest(cluster_id, 2)
 #create_job(config, make_current = true)
 
-@testset "Basic Tests" begin
-    include("test_basic.jl")
-end
+include("test_l1_l2.jl")
+include("test_l3.jl")
 
 #@testset "BLAS" begin
 #    include("blas.jl")
