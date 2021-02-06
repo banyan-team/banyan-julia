@@ -256,10 +256,10 @@ end
     e_rt = exp.((-rate) .* t)
 
     call = price .* d1 - e_rt .* strike .* d2
-    put = e_rt .* strike .* (c10 .- d2) - price .* (c10 .- d1)
+    # put = e_rt .* strike .* (c10 .- d2) - price .* (c10 .- d1)
 
     evaluate(call)
-    evaluate(put)
+    # evaluate(put)
 end
 
 # @testset "Black Scholes" begin
