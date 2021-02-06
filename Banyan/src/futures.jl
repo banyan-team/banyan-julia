@@ -42,11 +42,6 @@ function future(value = nothing)::Future
     if value isa Future
         value
     else
-        for field in fieldnames(typeof(value))
-            if getfield(value, field) isa Future
-                return getfield(value, field)
-            end
-        end
         return Future(value)
     end
 end
@@ -206,7 +201,6 @@ function mem(fut, estimated_total_memory_usage::Integer)
 end
 
 mem(fut, n::Integer, ty::DataType) = mem(fut, n * sizeof(ty))
-mem(fut, other) = mem(fut, future(other).location.total_memory_usage)
 mem(fut) = mem(fut, sizeof(future(fut).value))
 mem(futs...) = for fut in futs
     mem(fut, maximum([future(f).location.total_memory_usage for f in futs]))

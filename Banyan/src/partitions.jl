@@ -49,14 +49,16 @@ pt_composition_to_jl(pts::PartitionTypeComposition) =
 # PARTITIONING CONSTRAINTS #
 ############################
 
-const PartitionTypeReference = Union{Future, Tuple{Future,Integer}}
+const PartitionTypeReference = Tuple{ValueId,Integer}
 
-pt_ref_to_jl(pt_ref::PartitionTypeReference) =
-    if pt_ref isa Future
-        (pt_ref.value_id, 0)
+pt_ref_to_jl(pt_ref) =
+    if pt_ref isa Tuple
+        (future(pt_ref[1]).value_id, pt_ref[2] - 1)
     else
-        (pt_ref[1].value_id, pt_ref[2] - 1)
+        (future(pt_ref).value_id, 0)
     end
+
+pt_refs_to_jl(refs) = [pt_ref_to_jl(ref) for ref in refs]
 
 struct PartitioningConstraint
     type::String
@@ -66,16 +68,16 @@ end
 function to_jl(constraint::PartitioningConstraint)
     return Dict(
         "type" => constraint.type,
-        "args" => [pt_ref_to_jl(arg) for arg in constraint.args]
+        "args" => constraint.args
     )
 end
 
 # TODO: Support Ordered
-Co(args...)         = PartitioningConstraint("CO", collect(args))
-Cross(args...)      = PartitioningConstraint("CROSS", collect(args))
-Equal(args...)      = PartitioningConstraint("EQUALS", collect(args))
-Sequential(args...) = PartitioningConstraint("SEQUENTIAL", collect(args))
-Match(args...)      = PartitioningConstraint("Match", collect(args))
+Co(args...)         = PartitioningConstraint("CO", pt_refs_to_jl(args))
+Cross(args...)      = PartitioningConstraint("CROSS", pt_refs_to_jl(args))
+Equal(args...)      = PartitioningConstraint("EQUALS", pt_refs_to_jl(args))
+Sequential(args...) = PartitioningConstraint("SEQUENTIAL", pt_refs_to_jl(args))
+Match(args...)      = PartitioningConstraint("Match", pt_refs_to_jl(args))
 
 struct PartitioningConstraints
     constraints::Vector{PartitioningConstraint}

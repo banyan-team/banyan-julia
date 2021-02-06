@@ -63,7 +63,7 @@ export PartitionType, pt, pc, mut, @partitioned
 export None
 
 # Partition types
-export Block, Div, Replicate
+export Block, BlockBalanced, Div, Replicate
 
 # Constraints
 export Co, Cross, Equal, Sequential, Match
