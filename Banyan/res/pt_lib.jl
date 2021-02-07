@@ -105,7 +105,7 @@ SPLIT["Div"]["Value"] =
     function (src, dst, params, batch_idx, nbatches, comm, loc_parameters)
         worker_idx, nworkers = worker_idx_and_nworkers(comm)
         dst_len = split_and_get_len(from_jl_value(loc_parameters["value"]), worker_idx, nworkers)
-        dst_len = split_and_get_len(dst_len, worker_idx, nworkers)
+        dst_len = split_and_get_len(dst_len, batch_idx, nbatches)
         dst[] = dst_len
     end
 
@@ -113,7 +113,7 @@ SPLIT["Div"]["Executor"] =
     function (src, dst, params, batch_idx, nbatches, comm, loc_parameters)
         worker_idx, nworkers = worker_idx_and_nworkers(comm)
         dst_len = split_and_get_len(src[], worker_idx, nworkers)
-        dst_len = split_and_get_len(dst_len, worker_idx, nworkers)
+        dst_len = split_and_get_len(dst_len, batch_idx, nbatches)
         dst[] = dst_len
     end
 

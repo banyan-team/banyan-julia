@@ -81,19 +81,21 @@ end
 function ones(::Type{T}, len::Integer)::BanyanArray{T, 1} where {T<:Number}
     data = future()
     data_size = future((len))
+    created_size = future(len) # TODO: Support n-dimensional arrays with Match
     ty = future(T)
 
     mem(data, len, Float64)
     val(data_size)
+    val(created_size)
     val(ty)
 
     pt(data, Block())
-    pt(data_size, Replicate())
+    pt(created_size, Div())
     pt(ty, Replicate())
     mut(data)
 
-    @partitioned data data_size ty begin
-        data = ones(ty, tuple(data_size...))
+    @partitioned data created_size ty begin
+        data = ones(ty, created_size)
     end
 
     BanyanArray{T, 1}(data, data_size)
@@ -226,37 +228,77 @@ for op in (:-, :+)
     end
 end
 
-@testset "Black Scholes" begin
-    j = Job("banyan", 4)
-
-    # size = Integer(64e6)
-    size = Integer(1e6)
-
-    # price = ones(Float64, size)
-
+function run_bs(size::Integer)
     price = ones(Float64, size) * 4.0
     strike = ones(Float64, size) * 4.0
     t = ones(Float64, size) * 4.0
     rate = ones(Float64, size) * 4.0
     vol = ones(Float64, size) * 4.0
 
+    # price
+
     c05 = Float64(3.0)
     c10 = Float64(1.5)
     invsqrt2 = 1.0 / sqrt(2.0)
 
-    rsig = rate + (vol.^2) * c05
-    vol_sqrt = vol .* sqrt.(t)
+    # rsig = rate + (vol.^2) * c05
+    rsig = vol .^ 2 # TODO: Fix issue in BanyanArray where operands are same
+    rsig = rsig .* c05
+    rsig = rsig .+ rate
 
-    d1 = (log.(price ./ strike) + rsig .* t) ./ vol_sqrt
-    d2 = d1 - vol_sqrt
+    # rsig
 
-    d1 = c05 .+ c05 .* exp.(d1 .* invsqrt2)
-    d2 = c05 .+ c05 .* exp.(d2 .* invsqrt2)
+    # vol_sqrt = vol .* sqrt.(t)
+    vol_sqrt = sqrt.(t)
+    vol_sqrt = vol_sqrt .* vol
 
-    e_rt = exp.((-rate) .* t)
+    # d1 = (log.(price ./ strike) + rsig .* t) ./ vol_sqrt
+    d1 = price ./ strike
+    d1 = log.(d1)
+    tmp = rsig .* t
+    d1 = d1 .+ tmp
+    d1 = d1 ./ vol_sqrt
 
-    call = price .* d1 - e_rt .* strike .* d2
-    # put = e_rt .* strike .* (c10 .- d2) - price .* (c10 .- d1)
+    # d1
+
+    d2 = d1 .- vol_sqrt
+
+    # d2
+
+    # d1 = c05 .+ c05 .* exp.(d1 .* invsqrt2)
+    # d2 = c05 .+ c05 .* exp.(d2 .* invsqrt2)
+    d1 = d1 * invsqrt2
+    d1 = exp.(d1)
+    d1 = d1 .* c05
+    d1 = d1 .+ c05
+    d2 = d2 .* invsqrt2
+    d2 = exp.(d2)
+    d2 = d2 .* c05
+    d2 = d2 .+ c05
+
+    # e_rt = exp.((-rate) .* t)
+    e_rt = -rate
+    e_rt = e_rt .* t
+    e_rt = exp.(e_rt)
+
+    # call = price .* d1 - e_rt .* strike .* d2
+    call = price .* d1
+    tmp = e_rt .* strike
+    tmp = tmp .* d2
+    call = call .- tmp
+
+    put = e_rt .* strike .* (c10 .- d2) - price .* (c10 .- d1)
+
+    call
+end
+
+@testset "Black Scholes" begin
+    j = Job("banyan", 16)
+
+    # size = Integer(64e6)
+    size = Integer(1e6)
+
+    call = run_bs(size)
 
     evaluate(call)
     # evaluate(put)
@@ -265,29 +307,35 @@ end
 # @testset "Black Scholes" begin
 #     j = Job("banyan", 4)
 
-#     # Create data
-#     n = Future(50e6)
-#     data = Future()
+#     # size = Integer(64e6)
+#     size = Integer(1e6)
 
-#     # Where the data is located
-#     val(n)
-#     mem(data, Integer(50e6), Float64)
+#     price = ones(Float64, size) * 4.0
+#     strike = ones(Float64, size) * 4.0
+#     t = ones(Float64, size) * 4.0
+#     rate = ones(Float64, size) * 4.0
+#     vol = ones(Float64, size) * 4.0
 
-#     # How the data is partitioned
-#     pt(n, Div())
-#     pt(data, Block())
-#     mut(data)
+#     # evaluate(price)
 
-#     @partitioned data n begin
-#         data = randn(Integer(n))  # 200M integers
-#     end
+#     c05 = Float64(3.0)
+#     c10 = Float64(1.5)
+#     invsqrt2 = 1.0 / sqrt(2.0)
 
-#     pt(data, Block())
-#     mut(data)
+#     rsig = rate + (vol.^2) * c05
+#     vol_sqrt = vol .* sqrt.(t)
 
-#     @partitioned data begin
-#         data .*= 10
-#     end
+#     d1 = (log.(price ./ strike) + rsig .* t) ./ vol_sqrt
+#     d2 = d1 - vol_sqrt
 
-#     evaluate(data)
+#     d1 = c05 .+ c05 .* exp.(d1 .* invsqrt2)
+#     d2 = c05 .+ c05 .* exp.(d2 .* invsqrt2)
+
+#     e_rt = exp.((-rate) .* t)
+
+#     call = price .* d1 - e_rt .* strike .* d2
+#     put = e_rt .* strike .* (c10 .- d2) - price .* (c10 .- d1)
+
+#     evaluate(call)
+#     # evaluate(put)
 # end
