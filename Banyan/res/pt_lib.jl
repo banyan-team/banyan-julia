@@ -6,14 +6,13 @@ CAST = Dict{String,Dict}()
 
 function split_nothing(
     src,
-    dst,
     params,
     batch_idx,
     nbatches,
     comm,
     loc_parameters,
 )
-    dst[] = nothing
+    nothing
 end
 
 function merge_nothing(
@@ -24,7 +23,9 @@ function merge_nothing(
     nbatches,
     comm,
     loc_parameters,
-) end
+)
+    src
+end
 
 worker_idx_and_nworkers(comm) = (MPI.Comm_rank(comm) + 1, MPI.Comm_size(comm))
 
@@ -44,13 +45,13 @@ function split_and_get_len(src_len, idx, npartitions)
     length(dst_len[1]:dst_len[2])
 end
 
-function split_array(src, dst, idx, npartitions, dim)
+function split_array(src, idx, npartitions, dim)
     if npartitions > 1
-        src_len = size(src[], dim)
+        src_len = size(src, dim)
         dst_start, dst_end = split_len(src_len, idx, npartitions)
-        dst[] = selectdim(src[], dim, dst_start:dst_end)
+        selectdim(src, dim, dst_start:dst_end)
     else
-        dst[] = src[]
+        src
     end
 end
 
@@ -62,15 +63,16 @@ MERGE["BlockUnbalanced"] = Dict()
 
 SPLIT["Block"]["None"] = split_nothing
 SPLIT["Block"]["Executor"] =
-    function (src, dst, params, batch_idx, nbatches, comm, loc_parameters)
-        if isnothing(src[])
-            dst[] = nothing
+    function (src, params, batch_idx, nbatches, comm, loc_parameters)
+        if isnothing(src)
+            nothing
         else
             worker_idx, nworkers = worker_idx_and_nworkers(comm)
             dim = params["dim"]
 
-            split_array(src, dst, worker_idx, nworkers, dim)
-            split_array(src, dst, batch_idx, nbatches, dim)
+            dst = split_array(src, worker_idx, nworkers, dim)
+            dst = split_array(dst, batch_idx, nbatches, dim)
+            dst
         end
     end
 
@@ -102,31 +104,31 @@ from_jl_value(val) =
     end
 
 SPLIT["Div"]["Value"] =
-    function (src, dst, params, batch_idx, nbatches, comm, loc_parameters)
+    function (src, params, batch_idx, nbatches, comm, loc_parameters)
         worker_idx, nworkers = worker_idx_and_nworkers(comm)
         dst_len = split_and_get_len(from_jl_value(loc_parameters["value"]), worker_idx, nworkers)
         dst_len = split_and_get_len(dst_len, batch_idx, nbatches)
-        dst[] = dst_len
+        dst_len
     end
 
 SPLIT["Div"]["Executor"] =
-    function (src, dst, params, batch_idx, nbatches, comm, loc_parameters)
+    function (src, params, batch_idx, nbatches, comm, loc_parameters)
         worker_idx, nworkers = worker_idx_and_nworkers(comm)
-        dst_len = split_and_get_len(src[], worker_idx, nworkers)
+        dst_len = split_and_get_len(src, worker_idx, nworkers)
         dst_len = split_and_get_len(dst_len, batch_idx, nbatches)
-        dst[] = dst_len
+        dst_len
     end
 
 SPLIT["Replicate"]["None"] = split_nothing
 
 SPLIT["Replicate"]["Value"] =
-    function (src, dst, params, batch_idx, nbatches, comm, loc_parameters)
-        dst[] = from_jl_value(loc_parameters["value"])
+    function (src, params, batch_idx, nbatches, comm, loc_parameters)
+        from_jl_value(loc_parameters["value"])
     end
 
 SPLIT["Replicate"]["Executor"] =
-    function (src, dst, params, batch_idx, nbatches, comm, loc_parameters)
-        dst[] = src[]
+    function (src, params, batch_idx, nbatches, comm, loc_parameters)
+        src
     end
 
 MERGE["Div"]["Value"] = merge_nothing
