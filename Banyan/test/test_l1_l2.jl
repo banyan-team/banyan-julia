@@ -97,7 +97,6 @@ function ones(::Type{T}, len::Integer)::BanyanArray{T, 1} where {T<:Number}
 
     @partitioned data created_size ty begin
         data = ones(ty, created_size)
-        println(created_size)
     end
 
     BanyanArray{T, 1}(data, data_size)
@@ -295,10 +294,10 @@ function run_bs(size::Integer)
 end
 
 @testset "Black Scholes" begin
-    j = Job("banyan", 4)
+    j = Job("banyan", 8)
 
     # size = Integer(64e6)
-    size = Integer(1e6)
+    size = Integer(1e9)
 
     call = run_bs(size)
 

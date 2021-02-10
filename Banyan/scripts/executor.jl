@@ -6,6 +6,8 @@ include("queues.jl")
 using MPI
 using Dates
 using Serialization
+using BenchmarkTools
+using InteractiveUtils
 
 #################
 # GLOBAL VALUES #
@@ -33,13 +35,12 @@ end
 # MAIN EXECUTION LOOP #
 #######################
 
+# TODO: Try using a returned closure
+
 # TODO: Maybe use let here to achieve the same goal of introducing local scope
 for _ in 1:1
 
-comms_with_cart = Dict{Tuple{Int32, Int32, Int32}, MPI.Comm}()
-comms_spanned = Dict{Tuple{Int32, Int32, Int32}, MPI.Comm}()
-comms_not_spanned = Dict{Tuple{Int32, Int32, Int32}, MPI.Comm}()
-data = Dict() # TODO: Make this more restrictive than Any
+local data = Dict() # TODO: Make this more restrictive than Any
 
 while true
     # Get next message from execution queue if main node and broadcast
@@ -57,15 +58,18 @@ while true
     end
 
     # Execute code
-    for _ in 1:4
-        include_string(Main, code)
-        function exec()
+    include_string(Main, code)
+    function exec()
+        for iter in 1:4
             @time begin
                 exec_code(data)
             end
         end
-        exec()
     end
+    # TODO: Un-comment for multiple evaluations
+    # exec()
+    # @btime begin @code_warntype exec_code($data) end samples=1 evals=1
+    @btime exec_code($data) samples=1 evals=1
 
     # Send evaluation end
     if is_main_node()
