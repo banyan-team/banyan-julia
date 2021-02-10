@@ -1,3 +1,5 @@
+AlmostAny = Union{Nothing, String, Bool, Int64, Float64}
+
 include("pt_lib.jl")
 include("queues.jl")
 
@@ -31,12 +33,13 @@ end
 # MAIN EXECUTION LOOP #
 #######################
 
+# TODO: Maybe use let here to achieve the same goal of introducing local scope
 for _ in 1:1
 
 comms_with_cart = Dict{Tuple{Int32, Int32, Int32}, MPI.Comm}()
 comms_spanned = Dict{Tuple{Int32, Int32, Int32}, MPI.Comm}()
 comms_not_spanned = Dict{Tuple{Int32, Int32, Int32}, MPI.Comm}()
-data = Dict()
+data = Dict() # TODO: Make this more restrictive than Any
 
 while true
     # Get next message from execution queue if main node and broadcast
@@ -58,12 +61,7 @@ while true
         include_string(Main, code)
         function exec()
             @time begin
-                exec_code(
-                    data,
-                    comms_with_cart,
-                    comms_spanned,
-                    comms_not_spanned,
-                )
+                exec_code(data)
             end
         end
         exec()
