@@ -1,5 +1,5 @@
 @testset "Matrix multiplication" begin
-    j = Job("banyan", 4)
+    j = Job("banyan", 8)
 
     # Create data
     n = future(Int32(15e2))
@@ -21,12 +21,12 @@
     pt(p, Div())
     pt(A, Block(1))
     pt(B, Block(2))
-    mut(A)
-    mut(B)
-
     pc(Cross(A, B))
     pc(Co(A, n))
     pc(Co(B, p))
+
+    mut(A)
+    mut(B)
 
     @partitioned A B n m p begin
         # A = randn(Int64(n), Int64(m))
@@ -41,13 +41,13 @@
     pt(A, Block(1))
     pt(B, Block(2))
     pt(C, [Block(1), Block(2)])
-    mut(C)
-
     pc(Cross(A, B))
-    pc(Cross((C, 1), (C, 2)))
+    pc(Cross((C, 1), (C, 2))) # Redundant but currently required to assert order of splitting
     pc(Equal((C, 1), (C, 2)))
     pc(Co((C, 1), A))
     pc(Co((C, 2), B))
+
+    mut(C)
 
     @partitioned A B C begin
         C = A * B
