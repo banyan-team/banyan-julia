@@ -3,8 +3,8 @@
 
     # Create data
     n = future(Int32(15e2))
-    m = future(Int32(10e2))
-    p = future(Int32(5e2))
+    m = future(Int32(10e3))
+    p = future(Int32(5e3))
     A = future() # n x m
     B = future() # m x p
 
@@ -43,6 +43,7 @@
     pt(C, [Block(1), Block(2)])
     mut(C)
 
+    pc(Cross(A, B))
     pc(Cross((C, 1), (C, 2)))
     pc(Equal((C, 1), (C, 2)))
     pc(Co((C, 1), A))
