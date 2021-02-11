@@ -53,7 +53,7 @@ global AWS
 # include("evaluation.jl")
 
 # Basic types
-export Job, create_job, destroy_job
+export Job, create_job, destroy_job, clear_jobs
 export create_cluster
 export Future, future, evaluate
 export Location, src, dst, loc, mem, val

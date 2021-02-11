@@ -73,5 +73,10 @@ mutable struct Job
 	end
 end
 
+function clear_jobs()
+	global pending_requests
+	empty!(pending_requests)
+end
+
 # TODO: Fix bug causing nbatches to be 2 when it should be 25
 # TODO: Fix finalizer of Job

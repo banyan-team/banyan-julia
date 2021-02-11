@@ -54,6 +54,7 @@ function partitioned_vector_by_scalar(ba::BanyanArray{T, 1}, other::T) where {T}
     res_data = future()
     res_size = future()
     target_size = ba.size
+    # TODO: See whether ba.size is keeping arrays around for longer
 
     mem(ba, res_data)
     val(other)
@@ -292,17 +293,17 @@ function run_bs(size::Integer)
     call
 end
 
-@testset "Black Scholes" begin
-    j = Job("banyan", 16)
+# @testset "Black Scholes" begin
+#     j = Job("banyan", 8)
 
-    # size = Integer(64e6)
-    size = Integer(1e6)
+#     # size = Integer(64e6)
+#     size = Integer(1e9)
 
-    call = run_bs(size)
+#     call = run_bs(size)
 
-    evaluate(call)
-    # evaluate(put)
-end
+#     evaluate(call)
+#     # evaluate(put)
+# end
 
 # @testset "Black Scholes" begin
 #     j = Job("banyan", 4)
