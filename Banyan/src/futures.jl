@@ -4,7 +4,7 @@ using Serialization
 #########
 # Types #
 #########
-
+global future_count = 0
 mutable struct Future
     value
     value_id::ValueId
@@ -13,6 +13,8 @@ mutable struct Future
 
     # NOTE: This should not be called in application code; use `fut` instead.
     function Future(value = nothing)
+        global future_count
+        future_count += 1
         # Generate new value id
         value_id = create_value_id()
 
@@ -27,6 +29,7 @@ mutable struct Future
                 delete!(futures, fut.value_id)
             end
             record_request(DestroyRequest(value_id))
+            #println(value_id)
         end
 
         new_future
@@ -74,9 +77,26 @@ global futures = Dict{ValueId,Future}()
 
 function evaluate(fut, job_id::JobId)
     # Finalize all Futures that can be destroyed
-    GC.gc()
-
     println("IN EVALUATE")
+    global pending_requests
+    global future_count
+    GC.gc()
+    #all_values = Set()
+    #destroyed_values = Set()
+    #for req in pending_requests
+    #    if typeof(req) == RecordTaskRequest
+    #        for key in keys(req.task.value_names)
+    #            push!(all_values, key)
+    #        end
+    #    elseif typeof(req) == DestroyRequest
+    #        push!(destroyed_values, req.value_id)
+    #    end
+    #end
+    #println("futures created ", future_count)
+    #println("all in task ", length(all_values))
+    #println("destroyed ", length(destroyed_values))
+    #println("intersection ", length(intersect(all_values, destroyed_values)))
+
     global futures
     fut = future(fut)
 
