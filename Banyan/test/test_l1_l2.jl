@@ -293,17 +293,17 @@ function run_bs(size::Integer)
     call
 end
 
-@testset "Black Scholes" begin
-    j = Job("banyan", 8)
+# @testset "Black Scholes" begin
+#     j = Job("banyan", 8)
 
-    # size = Integer(64e6)
-    size = Integer(1e9)
+#     # size = Integer(64e6)
+#     size = Integer(1e9)
 
-    call = run_bs(size)
+#     call = run_bs(size)
 
-    evaluate(call)
-    # evaluate(put)
-end
+#     evaluate(call)
+#     # evaluate(put)
+# end
 
 # @testset "Black Scholes" begin
 #     j = Job("banyan", 4)

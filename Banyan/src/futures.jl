@@ -147,7 +147,7 @@ function send_evaluation(value_id::ValueId, job_id::JobId)
             # TODO: Remove requests
             # TODO: Modify requests
 		),
-	)
+    )
 	empty!(pending_requests)
 	return response
 end
