@@ -2,14 +2,6 @@
 
 ## Black Scholes
 
-With Banyan
-- 1
-  - size=1e9, 
-  - dim_0=9, dim_1=1
-  - 42.442 s (10716 allocations: 33.53 GiB)
-  - slurm job 584
-
-
 The following table shows the runtime for Black Scholes, averaged over 5 trials, using input data size of 1e9.
 
 | Num Workers | Sequential | Parallelized Without Cache Optimization | Parallelized With Cache Optimization |
@@ -20,7 +12,10 @@ The following table shows the runtime for Black Scholes, averaged over 5 trials,
 | 8 | __ | 42.892 | 21.776 |
 | 16 | __ | 22.544 | 10.871 |
 
-The following table shows the slurm job id, for reference.
+
+![alt text](blackscholes_runtime.png)
+
+<!-- The following table shows the slurm job id, for reference.
 
 | Num Workers | Parallelized Without Cache Optimization | Parallelized With Cache Optimization |
 | :---: | :---: | :---: |
@@ -28,7 +23,7 @@ The following table shows the slurm job id, for reference.
 | 2 | 615 | 610 |
 | 4 | 614 | 609 |
 | 8 | 613 | 608 |
-| 16 | 612 | 607 |
+| 16 | 612 | 607 | -->
 
 
 ## Matrix Multiplication
@@ -44,7 +39,7 @@ The following table shows the runtime (s) for matrix multiplication A x B, avera
 | 16 | __ | 3.964 | 3.951 |
 
 
-The following table shows the slurm job id, for reference.
+<!-- The following table shows the slurm job id, for reference.
 
 | Num Workers | Parallelized Without Cache Optimization | Parallelized With Cache Optimization |
 | :---: | :---: | :---: |
@@ -59,7 +54,7 @@ The following table shows the slurm job id, for reference.
 
 
 
-jobs 619 (4), 620 (2), 621 (1)
+jobs 619 (4), 620 (2), 621 (1) -->
 
 
 
