@@ -10,15 +10,25 @@ With Banyan
   - slurm job 584
 
 
-The following table shows the runtime for Black Scholes.
+The following table shows the runtime for Black Scholes, averaged over 5 trials, using input data size of 1e9.
 
 | Num Workers | Sequential | Parallelized Without Cache Optimization | Parallelized With Cache Optimization |
 | :---: | :---: | :---: | :---: |
-| 1 |  |  | | |
-| 2 | __ |  | | | 
-| 4 | __ |  | | |
-| 8 | __ |  | | |
-| 16 | __ |  | |
+| 1 | 232.878 | 237.947 | 103.526 |
+| 2 | __ | 163.376 | 83.300 | 
+| 4 | __ | 85.370 | 41.891 |
+| 8 | __ | 42.892 | 21.776 |
+| 16 | __ | 22.544 | 10.871 |
+
+The following table shows the slurm job id, for reference.
+
+| Num Workers | Parallelized Without Cache Optimization | Parallelized With Cache Optimization |
+| :---: | :---: | :---: |
+| 1 | 616 | 611 |
+| 2 | 615 | 610 |
+| 4 | 614 | 609 |
+| 8 | 613 | 608 |
+| 16 | 612 | 607 |
 
 
 ## Matrix Multiplication
@@ -43,4 +53,13 @@ The following table shows the slurm job id, for reference.
 | 4 | 596 | 601 |
 | 8 | 593 | 600 |
 | 16 | 592 | 599 |
+
+597 - 1, 3, 1, 1  
+602 - 1, 3, 8, 8  
+
+
+
+jobs 619 (4), 620 (2), 621 (1)
+
+
 
