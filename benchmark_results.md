@@ -36,7 +36,7 @@ The following table shows the runtime (s) for matrix multiplication A x B, avera
 
 The following table shows the slurm job id, for reference.
 
-| Num Workers | Sequential | Parallelized Without Cache Optimization | Parallelized With Cache Optimization |
+| Num Workers | Parallelized Without Cache Optimization | Parallelized With Cache Optimization |
 | :---: | :---: | :---: |
 | 1 | 598 | 603 |
 | 2 | 597 | 602 |
