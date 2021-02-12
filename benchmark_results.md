@@ -33,3 +33,14 @@ The following table shows the runtime (s) for matrix multiplication A x B, avera
 | 8 | __ | 7.380 | 6.829 |
 | 16 | __ | 3.964 | 3.951 |
 
+
+The following table shows the slurm job id, for reference.
+
+| Num Workers | Sequential | Parallelized Without Cache Optimization | Parallelized With Cache Optimization |
+| :---: | :---: | :---: |
+| 1 | 598 | 603 |
+| 2 | 597 | 602 |
+| 4 | 596 | 601 |
+| 8 | 593 | 600 |
+| 16 | 592 | 599 |
+
