@@ -9,7 +9,7 @@ using Banyan
 
 clear_jobs()
 
-include("test_l1_l2.jl")
+#include("test_l1_l2.jl")
 include("test_l3.jl")
 
 #@testset "BLAS" begin

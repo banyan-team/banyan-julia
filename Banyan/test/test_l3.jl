@@ -4,9 +4,9 @@
 function matmul()
 
     # Create data
-    n = future(Int32(20e3))
+    n = future(Int32(15e2))
     m = future(Int32(10e3))
-    p = future(Int32(15e3))
+    p = future(Int32(5e3))
     A = future() # n x m
     B = future() # m x p
 
@@ -31,10 +31,11 @@ function matmul()
     mut(B)
 
     @partitioned A B n m p begin
-        # A = randn(Int64(n), Int64(m))
-        # B = randn(Int64(m), Int64(p))
-        A = fill(1, (Int64(n), Int64(m)))
-        B = fill(2, (Int64(m), Int64(p)))
+        ## A = randn(Int64(n), Int64(m))
+        ## B = randn(Int64(m), Int64(p))
+        #A = fill(1, (Int64(n), Int64(m)))
+        #B = fill(2, (Int64(m), Int64(p)))
+        ##println("SIZE OF A ", size(A))
     end
 
     C = future()
@@ -52,8 +53,8 @@ function matmul()
     mut(C)
 
     @partitioned A B C begin
-        C = A * B
-        # println(C[1])
+        #C = A * B
+        ## println(C[1])
     end
 
     # C_new = future()
@@ -74,8 +75,9 @@ end
 
 @testset "Matrix multiplication" begin
     #for num_workers in [16, 8, 4, 2, 1]
-    for num_workers in [8, 4, 2, 1]
-        j = Job("banyan", num_workers)
-        matmul()
-    end
+    #    j = Job("banyan", num_workers)
+    #    matmul()
+    #end
+    j = Job("banyan", 4)
+    matmul()
 end
