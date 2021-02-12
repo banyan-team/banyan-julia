@@ -1,10 +1,12 @@
-@testset "Matrix multiplication" begin
-    j = Job("banyan", 8)
+#@testset "Matrix multiplication" begin
+    #j = Job("banyan", 8)
+
+function matmul()
 
     # Create data
-    n = future(Int32(15e2))
+    n = future(Int32(20e3))
     m = future(Int32(10e3))
-    p = future(Int32(5e3))
+    p = future(Int32(15e3))
     A = future() # n x m
     B = future() # m x p
 
@@ -68,4 +70,12 @@
     # C = C_new
 
     evaluate(C)
+end
+
+@testset "Matrix multiplication" begin
+    #for num_workers in [16, 8, 4, 2, 1]
+    for num_workers in [8, 4, 2, 1]
+        j = Job("banyan", num_workers)
+        matmul()
+    end
 end
