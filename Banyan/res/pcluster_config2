@@ -22,8 +22,6 @@ s3_read_resource = arn:aws:s3:::banyan-executor*
 [vpc default]
 vpc_id = vpc-1c1b6564
 master_subnet_id = subnet-0cd1ccc619cdaa69a
-compute_subnet_id = subnet-0d07e28c9217819cc
-use_public_ips = true
 
 [queue compute]
 enable_efa = false

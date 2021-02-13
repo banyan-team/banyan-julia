@@ -295,7 +295,7 @@ end
 
 @testset "Black Scholes" begin
     for num_workers in [16, 8, 4, 2, 1]
-        j = Job("banyan", num_workers)
+        j = Job("testjob", num_workers)
         size = Integer(1e9)
         call = run_bs(size)
         evaluate(call)
