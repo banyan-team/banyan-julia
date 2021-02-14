@@ -67,8 +67,7 @@ function matmul()
 end
 
 @testset "Matrix multiplication" begin
-    for num_workers in [16, 8, 4, 2, 1]
-       j = Job("testjob", num_workers)
-       matmul()
-    end
+    runtest("Matrix Multiplication", j -> begin
+        matmul()
+    end)
 end

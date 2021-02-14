@@ -294,47 +294,10 @@ function run_bs(size::Integer)
 end
 
 @testset "Black Scholes" begin
-    for num_workers in [16, 8, 4, 2, 1]
-        j = Job("testjob", num_workers)
+    runtest("Black Scholes", j -> begin
         size = Integer(1e9)
         call = run_bs(size)
         evaluate(call)
         # evaluate(put)
-    end
+    end)
 end
-
-# @testset "Black Scholes" begin
-#     j = Job("banyan", 4)
-
-#     # size = Integer(64e6)
-#     size = Integer(1e6)
-
-#     price = ones(Float64, size) * 4.0
-#     strike = ones(Float64, size) * 4.0
-#     t = ones(Float64, size) * 4.0
-#     rate = ones(Float64, size) * 4.0
-#     vol = ones(Float64, size) * 4.0
-
-#     # evaluate(price)
-
-#     c05 = Float64(3.0)
-#     c10 = Float64(1.5)
-#     invsqrt2 = 1.0 / sqrt(2.0)
-
-#     rsig = rate + (vol.^2) * c05
-#     vol_sqrt = vol .* sqrt.(t)
-
-#     d1 = (log.(price ./ strike) + rsig .* t) ./ vol_sqrt
-#     d2 = d1 - vol_sqrt
-
-#     d1 = c05 .+ c05 .* exp.(d1 .* invsqrt2)
-#     d2 = c05 .+ c05 .* exp.(d2 .* invsqrt2)
-
-#     e_rt = exp.((-rate) .* t)
-
-#     call = price .* d1 - e_rt .* strike .* d2
-#     put = e_rt .* strike .* (c10 .- d2) - price .* (c10 .- d1)
-
-#     evaluate(call)
-#     # evaluate(put)
-# end

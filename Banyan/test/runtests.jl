@@ -9,11 +9,21 @@ using Banyan
 
 clear_jobs()
 
-#include("test_l1_l2.jl")
+enabled_tests = lowercase.(ARGS)
+
+function runtest(name, test_fn)
+    if isempty(enabled_tests) || any([occursin(t, lowercase(name)) for t in enabled_tests])
+        if "NWORKERS_ALL" in keys(ENV) && ENV["NWORKERS_ALL"] == "true"
+            for nworkers in [16, 8, 4, 2, 1]
+                j = Job("banyan", nworkers)
+                test_fn(j)
+            end
+        else
+            j = Job("banyan", parse(Int32, ENV["NWORKERS"]))
+            test_fn(j)
+        end
+    end
+end
+
+include("test_l1_l2.jl")
 include("test_l3.jl")
-
-#@testset "BLAS" begin
-#    include("blas.jl")
-#end
-
-#destroy_job()

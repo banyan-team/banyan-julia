@@ -67,7 +67,7 @@ function send_request_get_response(method, content::Dict{String,Any})
         if isa(e, HTTP.ExceptionRequest.StatusError)
             println(e.response["error"])
             println("continuing...")
-            #throw(ErrorException(e.response["error"]))
+            throw(ErrorException(e.response["error"]))
         end
     end
 end
