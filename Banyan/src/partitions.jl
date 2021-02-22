@@ -75,9 +75,9 @@ end
 # TODO: Support Ordered
 Co(args...)         = PartitioningConstraint("CO", pt_refs_to_jl(args))
 Cross(args...)      = PartitioningConstraint("CROSS", pt_refs_to_jl(args))
-Equal(args...)      = PartitioningConstraint("EQUALS", pt_refs_to_jl(args))
+Equal(args...)      = PartitioningConstraint("EQUAL", pt_refs_to_jl(args))
 Sequential(args...) = PartitioningConstraint("SEQUENTIAL", pt_refs_to_jl(args))
-Match(args...)      = PartitioningConstraint("Match", pt_refs_to_jl(args))
+Match(args...)      = PartitioningConstraint("MATCH", pt_refs_to_jl(args))
 
 struct PartitioningConstraints
     constraints::Vector{PartitioningConstraint}
