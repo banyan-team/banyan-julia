@@ -22,7 +22,7 @@ reset_annotation()
 function duplicate_args(
     args::Vector{PartitionTypeReference},
     pa::PartitionAnnotation
-)::args::Vector{PartitionTypeReference}
+)::Vector{PartitionTypeReference}
     [
         (v, idx + div(length(pa.partitions.pt_stacks[v]), 2))
         for (v, idx) in args
@@ -69,12 +69,12 @@ function duplicate_for_batching!(pa::PartitionAnnotation)
         end
     end
     for c in pa.constraints.constraints
-        if c.type == "CO" || c.type == "EQUAL"
+        if c.type == "CO" || c.type == "EQUAL" || startswith(c.type, "MIN_PARTITION_SIZE")
             push!(
                 pa.constraints.constraints,
                 PartitioningConstraint(c.type, duplicate_args(c.args))
             )
-        elseif c.type == "CROSS"
+        elseif c.type == "CROSS" || startswith(c.type, "MAX_NPARTITIONS")
             append!(c.args, duplicate_args(c.args))
         end
     end

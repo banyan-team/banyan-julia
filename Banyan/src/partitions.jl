@@ -78,6 +78,10 @@ Cross(args...)      = PartitioningConstraint("CROSS", pt_refs_to_jl(args))
 Equal(args...)      = PartitioningConstraint("EQUAL", pt_refs_to_jl(args))
 Sequential(args...) = PartitioningConstraint("SEQUENTIAL", pt_refs_to_jl(args))
 Match(args...)      = PartitioningConstraint("MATCH", pt_refs_to_jl(args))
+MaxNPartitions(npartitions, args...) =
+    PartitioningConstraint("MAX_NPARTITIONS=$npartitions", pt_refs_to_jl(args))
+MinPartitionSize(size, args...) =
+    PartitioningConstraint("MIN_PARTITION_SIZE=$size", pt_refs_to_jl(args))
 
 struct PartitioningConstraints
     constraints::Vector{PartitioningConstraint}
