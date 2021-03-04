@@ -30,7 +30,8 @@ function duplicate_args(
 end
 
 function apply_default_constraints!(pa::PartitionAnnotation)
-    pt_refs_in_cross_or_co = []
+    # TODO: Fix this
+    unconstrained::Vector{PartitionTypeReference} = []
     for (v, pt_stack) in pa.partitions.pt_stacks
         for i in 1:length(pt_stack)
             in_cross_or_co = any([
@@ -42,14 +43,14 @@ function apply_default_constraints!(pa::PartitionAnnotation)
                     pa.constraints.constraints,
                     Cross((v, i))
                 )
-            else
-                push!(pt_refs_in_cross_or_co, (v, i))
+                push!(unconstrained, (v, i))
             end
         end
     end
+    # TODO: Determine whether Cross constraints should be Co-ed in some way
     push!(
         pa.constraints.constraints,
-        PartitioningConstraint("CO", pt_refs_in_cross_or_co)
+        PartitioningConstraint("CO", unconstrained)
     )
 end
 
@@ -69,13 +70,13 @@ function duplicate_for_batching!(pa::PartitionAnnotation)
         end
     end
     for c in pa.constraints.constraints
-        if c.type == "CO" || c.type == "EQUAL" || startswith(c.type, "MIN_PARTITION_SIZE")
+        if c.type == "CO" || c.type == "EQUAL"
             push!(
                 pa.constraints.constraints,
-                PartitioningConstraint(c.type, duplicate_args(c.args))
+                PartitioningConstraint(c.type, duplicate_args(c.args, pa))
             )
-        elseif c.type == "CROSS" || startswith(c.type, "MAX_NPARTITIONS")
-            append!(c.args, duplicate_args(c.args))
+        elseif c.type == "CROSS" || startswith(c.type, "AT_MOST")
+            append!(c.args, duplicate_args(c.args, pa))
         end
     end
 end
