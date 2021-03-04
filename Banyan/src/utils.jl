@@ -65,9 +65,18 @@ function send_request_get_response(method, content::Dict{String,Any})
         return JSON.parse(String(response.body))
     catch e
         if isa(e, HTTP.ExceptionRequest.StatusError)
-            println(e.response["error"])
-            println("continuing...")
-            throw(ErrorException(e.response["error"]))
+            if (e.response.status != 504)
+                throw(ErrorException(JSON.parse(String(e.response.body))))
+            elseif method == :create_cluster
+                println("Cluster creation in progress. Please check dashboard to view status.")
+            elseif method == :create_job
+                println("Job creation in progress. Please check dashboard to view status.")
+            elseif method == :evaluate
+                println("Evaluation is in progress. Please check dashboard to view status.")
+            end
+        else
+            rethrow()
         end
     end
+
 end
