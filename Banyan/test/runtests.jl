@@ -1,11 +1,11 @@
 using Test
 using Banyan
 
-# TODO: Uncomment
-#cluster_id = "banyantest"
-#set_cluster_id(cluster_id)
-#config = JobRequest(cluster_id, 2)
-#create_job(config, make_current = true)
+username = "BanyanTest"
+cluster_id = "banyancluster"
+
+# Don't rerun this.
+#create_cluster(cluster_id)
 
 clear_jobs()
 
@@ -15,11 +15,11 @@ function runtest(name, test_fn)
     if isempty(enabled_tests) || any([occursin(t, lowercase(name)) for t in enabled_tests])
         if "NWORKERS_ALL" in keys(ENV) && ENV["NWORKERS_ALL"] == "true"
             for nworkers in [16, 8, 4, 2, 1]
-                j = Job("banyan", nworkers)
+                j = Job(username, cluster_id, nworkers)
                 test_fn(j)
             end
         else
-            j = Job("banyan", parse(Int32, ENV["NWORKERS"]))
+            j = Job(username, cluster_id, parse(Int32, ENV["NWORKERS"]))
             test_fn(j)
         end
     end

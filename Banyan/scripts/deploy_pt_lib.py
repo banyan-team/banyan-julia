@@ -29,6 +29,6 @@ with open('res/pt_lib_info.json') as pt_lib_info_file:
     )
 
 # Download pt_lib.jl from S3 to the cluster
-commands = ["\"cd /home/ec2-user\"", "\"sudo yum update -y\"", "\"aws s3 cp s3://banyan-executor /home/ec2-user --recursive\""]
-for cmd in commands:
-    subprocess.Popen("pcluster ssh {n} -i {f} {cmd}".format(n=sys.argv[1], f=sys.argv[2], cmd=cmd), shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE).communicate()
+#commands = ["\"cd /home/ec2-user\"", "\"sudo yum update -y\"", "\"aws s3 cp s3://banyan-executor /home/ec2-user --recursive\""]
+#for cmd in commands:
+#    subprocess.Popen("pcluster ssh {n} -i {f} {cmd}".format(n=sys.argv[1], f=sys.argv[2], cmd=cmd), shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE).communicate()
