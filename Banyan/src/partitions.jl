@@ -6,13 +6,9 @@ const PartitionTypeParameters = Vector{Dict}
 
 struct PartitionType
     parameters::PartitionTypeParameters
-    max_npartitions::Integer
-    min_partition_size::Integer
 
     function PartitionType(
         parameters::Union{String, Dict, PartitionTypeParameters};
-        max_npartitions::Integer = -1,
-        min_partition_size::Integer = -1
     )
         new(
             if parameters isa String
@@ -21,9 +17,7 @@ struct PartitionType
                 [parameters]
             else
                 parameters
-            end,
-            max_npartitions,
-            min_partition_size,
+            end
         )
     end
 end
@@ -31,8 +25,6 @@ end
 function to_jl(pt::PartitionType)
     return Dict(
         "parameters" => pt.parameters,
-        "max_npartitions" => pt.max_npartitions,
-        "min_partition_size" => pt.min_partition_size,
     )
 end
 
@@ -75,9 +67,11 @@ end
 # TODO: Support Ordered
 Co(args...)         = PartitioningConstraint("CO", pt_refs_to_jl(args))
 Cross(args...)      = PartitioningConstraint("CROSS", pt_refs_to_jl(args))
-Equal(args...)      = PartitioningConstraint("EQUALS", pt_refs_to_jl(args))
+Equal(args...)      = PartitioningConstraint("EQUAL", pt_refs_to_jl(args))
 Sequential(args...) = PartitioningConstraint("SEQUENTIAL", pt_refs_to_jl(args))
-Match(args...)      = PartitioningConstraint("Match", pt_refs_to_jl(args))
+Match(args...)      = PartitioningConstraint("MATCH", pt_refs_to_jl(args))
+AtMost(npartitions, args...) =
+    PartitioningConstraint("AT_MOST=$npartitions", pt_refs_to_jl(args))
 
 struct PartitioningConstraints
     constraints::Vector{PartitioningConstraint}

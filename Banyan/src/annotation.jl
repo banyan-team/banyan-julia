@@ -19,11 +19,75 @@ end
 
 reset_annotation()
 
+function duplicate_args(
+    args::Vector{PartitionTypeReference},
+    pa::PartitionAnnotation
+)::Vector{PartitionTypeReference}
+    [
+        (v, idx + div(length(pa.partitions.pt_stacks[v]), 2))
+        for (v, idx) in args
+    ]
+end
+
+function apply_default_constraints!(pa::PartitionAnnotation)
+    # TODO: Fix this
+    unconstrained::Vector{PartitionTypeReference} = []
+    for (v, pt_stack) in pa.partitions.pt_stacks
+        for i in 1:length(pt_stack)
+            in_cross_or_co = any([
+                (c.type == "CROSS" || c.type == "CO") && (v, i) in c.args
+                for c in pa.constraints.constraints
+            ])
+            if !in_cross_or_co
+                push!(
+                    pa.constraints.constraints,
+                    Cross((v, i))
+                )
+                push!(unconstrained, (v, i))
+            end
+        end
+    end
+    # TODO: Determine whether Cross constraints should be Co-ed in some way
+    push!(
+        pa.constraints.constraints,
+        PartitioningConstraint("CO", unconstrained)
+    )
+end
+
+function duplicate_for_batching!(pa::PartitionAnnotation)
+    for (v, pt_stack) in pa.partitions.pt_stacks
+        append!(pt_stack, pt_stack)
+        for i in 1:div(length(pt_stack), 2)
+            dupi = i + div(length(pt_stack), 2)
+            push!(
+                pa.constraints.constraints,
+                Sequential((v, dupi))
+            )
+            push!(
+                pa.constraints.constraints,
+                Match((v, i), (v, dupi))
+            )
+        end
+    end
+    for c in pa.constraints.constraints
+        if c.type == "CO" || c.type == "EQUAL"
+            push!(
+                pa.constraints.constraints,
+                PartitioningConstraint(c.type, duplicate_args(c.args, pa))
+            )
+        elseif c.type == "CROSS" || startswith(c.type, "AT_MOST")
+            append!(c.args, duplicate_args(c.args, pa))
+        end
+    end
+end
+
 function add_pa_to_union()
     global curr_pa_union
     global curr_pa
     # TODO: Ensure this actually copies over the PA and doesn't just
     # copy over a reference that then gets reset
+    apply_default_constraints!(curr_pa)
+    duplicate_for_batching!(curr_pa)
     push!(curr_pa_union, curr_pa)
     reset_pa()
 end

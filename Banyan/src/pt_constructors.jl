@@ -1,10 +1,9 @@
-function pt(name, parameters, max_npartitions)
+function pt(name, parameters)
     pt = PartitionType(
         name,
         name,
         parameters,
-        parameters,
-        max_npartitions
+        parameters
     )
     return pt
 end
