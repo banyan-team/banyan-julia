@@ -36,5 +36,10 @@ To configure AWS credentials as environment variables:
 
 To SSH into pcluster:
 ```cmd
+> pcluster ssh CLUSTER_ID -i /PATH/TO/SSH_KEY_PAIR
+```
+
+For the current running cluster,
+```cmd
 > pcluster ssh banyancluster -i /PATH/TO/EC2ConnectKeyPairTest
 ```
