@@ -30,6 +30,13 @@ end
 
 const PartitionTypeComposition = Union{PartitionType,Vector{PartitionType}}
 
+pt_composition_from_pts(pt_composition::PartitionTypeComposition)::Vector{PartitionType} =
+    if pt_composition isa Vector
+        pt_composition
+    else
+        [pt_composition]
+    end
+
 pt_composition_to_jl(pts::PartitionTypeComposition) =
     if pts isa PartitionType
         [to_jl(pts)]

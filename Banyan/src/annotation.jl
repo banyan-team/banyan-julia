@@ -35,15 +35,17 @@ function apply_default_constraints!(pa::PartitionAnnotation)
     for (v, pt_stack) in pa.partitions.pt_stacks
         for i in 1:length(pt_stack)
             in_cross_or_co = any([
-                (c.type == "CROSS" || c.type == "CO") && (v, i) in c.args
+                (c.type == "CROSS" || c.type == "CO") &&
+                (v, i-1) in c.args
+                # TODO: Use PArtitioningConstraint everywhereCross()
                 for c in pa.constraints.constraints
             ])
             if !in_cross_or_co
                 push!(
                     pa.constraints.constraints,
-                    Cross((v, i))
+                    PartitioningConstraint("CROSS", [(v, i-1)])
                 )
-                push!(unconstrained, (v, i))
+                push!(unconstrained, (v, i-1))
             end
         end
     end
@@ -56,29 +58,31 @@ end
 
 function duplicate_for_batching!(pa::PartitionAnnotation)
     for (v, pt_stack) in pa.partitions.pt_stacks
-        append!(pt_stack, pt_stack)
+        append!(pt_stack, copy(pt_stack))
         for i in 1:div(length(pt_stack), 2)
             dupi = i + div(length(pt_stack), 2)
             push!(
                 pa.constraints.constraints,
-                Sequential((v, dupi))
+                PartitioningConstraint("SEQUENTIAL", [(v, dupi - 1)])
             )
             push!(
                 pa.constraints.constraints,
-                Match((v, i), (v, dupi))
+                PartitioningConstraint("MATCH", [(v, i - 1), (v, dupi - 1)])
             )
         end
     end
+    new_constraints = []
     for c in pa.constraints.constraints
         if c.type == "CO" || c.type == "EQUAL"
             push!(
-                pa.constraints.constraints,
+                new_constraints,
                 PartitioningConstraint(c.type, duplicate_args(c.args, pa))
             )
         elseif c.type == "CROSS" || startswith(c.type, "AT_MOST")
             append!(c.args, duplicate_args(c.args, pa))
         end
-    end
+    end 
+    append!(pa.constraints.constraints, new_constraints)
 end
 
 function add_pa_to_union()
@@ -109,7 +113,7 @@ function pt(fut, pt::PartitionTypeComposition)
     if fut.value_id in keys(curr_pa.partitions.pt_stacks)
         add_pa_to_union()
     end
-    curr_pa.partitions.pt_stacks[fut.value_id] = pt
+    curr_pa.partitions.pt_stacks[fut.value_id] = pt_composition_from_pts(pt)
 end
 
 # TODO: Implement PT transformations

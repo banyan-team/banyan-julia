@@ -24,6 +24,7 @@ function partitioned_vector(ba::BanyanArray{T, 1}) where {T}
     pt(target_size, Replicate())
 
     pc(Match(ba, res_data))
+    pc(Match(res_size, target_size))
     mut(res_data)
     mut(res_size)
 
@@ -43,6 +44,7 @@ function partitioned_vector_by_vector(ba::BanyanArray{T, 1}, other::BanyanArray{
     pt(target_size, Replicate())
 
     pc(Match(ba, other, res_data))
+    pc(Match(res_size, target_size))
     mut(res_data)
     mut(res_size)
 
@@ -66,6 +68,7 @@ function partitioned_vector_by_scalar(ba::BanyanArray{T, 1}, other::T) where {T}
     pt(target_size, Replicate())
 
     pc(Match(ba, res_data))
+    pc(Match(res_size, target_size))
     mut(res_data)
     mut(res_size)
 

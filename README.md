@@ -3,11 +3,11 @@
 ## Testing
 
 ```cmd
-NWORKERS=4 SSH_KEY_PAIR=~/Downloads/EC2ConnectKeyPair.pem julia --project=.
+NWORKERS=4 SSH_KEY_PAIR=~/Downloads/EC2ConnectKeyPairTest.pem julia --project=.
 ```
 
 ```cmd
-NWORKERS_ALL=true SSH_KEY_PAIR=~/Downloads/EC2ConnectKeyPair.pem julia --project=.
+NWORKERS_ALL=true SSH_KEY_PAIR=~/Downloads/EC2ConnectKeyPairTest.pem julia --project=.
 ```
 
 ```julia
