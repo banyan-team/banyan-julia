@@ -61,7 +61,7 @@ pt_refs_to_jl(refs) = [pt_ref_to_jl(ref) for ref in refs]
 
 struct PartitioningConstraint
     type::String
-    args::Vector{PartitionTypeReference}
+    args::Union{Vector{PartitionTypeReference}, Vector{Vector{PartitionTypeReference}}}
 end
 
 function to_jl(constraint::PartitioningConstraint)
@@ -71,8 +71,27 @@ function to_jl(constraint::PartitioningConstraint)
     )
 end
 
+arg_to_jl_for_co(arg) =
+    if arg isa Vector
+        pt_refs_to_jl(arg)
+    else
+        [pt_ref_to_jl(arg)]
+    end
+
+function constraint_for_co(args)::PartitioningConstraint
+    if any(arg isa Vector for arg in args)
+        args = [arg_to_jl_for_co(arg) for arg in args]
+        PartitioningConstraint(
+            "CO_GROUP",
+            args,
+        )
+    else
+        PartitioningConstraint("CO", pt_refs_to_jl(args))
+    end
+end
+
 # TODO: Support Ordered
-Co(args...)         = PartitioningConstraint("CO", pt_refs_to_jl(args))
+Co(args...)         = constraint_for_co(args)
 Cross(args...)      = PartitioningConstraint("CROSS", pt_refs_to_jl(args))
 Equal(args...)      = PartitioningConstraint("EQUAL", pt_refs_to_jl(args))
 Sequential(args...) = PartitioningConstraint("SEQUENTIAL", pt_refs_to_jl(args))

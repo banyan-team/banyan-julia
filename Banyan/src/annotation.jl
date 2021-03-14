@@ -31,28 +31,44 @@ end
 
 function apply_default_constraints!(pa::PartitionAnnotation)
     # TODO: Fix this
-    unconstrained::Vector{PartitionTypeReference} = []
+    unconstrained::Vector{Vector{PartitionTypeReference}} = []
     for (v, pt_stack) in pa.partitions.pt_stacks
         for i in 1:length(pt_stack)
-            in_cross_or_co = any([
-                (c.type == "CROSS" || c.type == "CO") &&
-                (v, i-1) in c.args
-                # TODO: Use PArtitioningConstraint everywhereCross()
-                for c in pa.constraints.constraints
-            ])
+            # Check if in_cross_or_co
+            in_cross_or_co = false
+            for c in pa.constraints.constraints
+                if (c.type == "CROSS" || c.type == "CO") && (v, i - 1) in c.args
+                    in_cross_or_co = true
+                elseif c.type == "CO_GROUP" && any((v, i - 1) for group in c.args)
+                    in_cross_or_co = true
+                end
+            end
+
+            # Add Cross constraint for those not constrained in any way
             if !in_cross_or_co
                 push!(
                     pa.constraints.constraints,
                     PartitioningConstraint("CROSS", [(v, i-1)])
                 )
-                push!(unconstrained, (v, i-1))
             end
         end
     end
-    # TODO: Determine whether Cross constraints should be Co-ed in some way
+    for c in pa.constraints.constraints
+        if c.type == "CROSS"
+        # TODO: If the c.args are already used in some Co (and maybe also some
+        # CoGroup), don't add constraint to force to be equal
+        #     && not any([
+        #     (c.type == "CO") &&
+        #     (v, i-1) in c.args
+        #     # TODO: Use PArtitioningConstraint everywhereCross()
+        #     for c in pa.constraints.constraints
+        # ])
+            push!(unconstrained, c.args)
+        end
+    end
     push!(
         pa.constraints.constraints,
-        PartitioningConstraint("CO", unconstrained)
+        PartitioningConstraint("CO_GROUP", unconstrained)
     )
 end
 
@@ -80,6 +96,10 @@ function duplicate_for_batching!(pa::PartitionAnnotation)
             )
         elseif c.type == "CROSS" || startswith(c.type, "AT_MOST")
             append!(c.args, duplicate_args(c.args, pa))
+        elseif c.type == "CO_GROUP"
+            for group in c.args
+                append!(group, duplicate_args(group, pa))
+            end
         end
     end 
     append!(pa.constraints.constraints, new_constraints)
