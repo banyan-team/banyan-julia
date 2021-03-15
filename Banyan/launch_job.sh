@@ -1,7 +1,5 @@
 #!/bin/bash
-
 # Usage: Run this script from the environment manager to submit the Slurm job.
-
 # Get user-provided information
 if [ $# -eq 0 ]; then
 	echo "To see options, run init_executor.sh --help";
@@ -29,7 +27,6 @@ while [ $# -gt 0 ]; do
 	esac
 	shift
 done
-
 # Submit Slurm job
 touch srun_command_${job_id}.sh
 echo '#!/bin/bash' > srun_command_${job_id}.sh

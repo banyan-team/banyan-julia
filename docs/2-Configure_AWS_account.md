@@ -1,21 +1,23 @@
 # Configure AWS account
 
-To use Banyan, you must grant Banyan permission to create and manage compute resources. **Banyan can use either a cross-account role or access keys???or just cross-account role...**. For either method, you must configure settings in the AWS Management Console and the Banyan Dashboard. This document describes both methods. While both methods are supported, we recommend that you use a cross-account role.
+To use Banyan, you must grant Banyan permission to create and manage compute resources. Banyan can use either a cross-account role ~~or access keys~~. ~~For either method,~~ you must configure settings in the AWS Management Console and the Banyan Dashboard. ~~This document describes both methods. While both methods are supported, we recommend that you use a cross-account role.~~
 
 ## Use a cross-account role
 
 ### Step 1: Configure Banyan to use a cross-account role
 1. Sign into your Banyan account and go to the Banyan Dashboard.
-2. ...
+2. Click on **Configure AWS Account**
 3. Copy the external ID for later use in Step 2.
 
 ### Step 2: Configure AWS IAM role settings
 
 1. Sign into your AWS account and go to the IAM service in the AWS Management Console.
 2. Click the **Policies** tab in the sidebar.
-3. Click **Create Policy** to create a new IAM policy.
+3. Click **Create Policy** to create a new IAM policy.  
     a. Click the **JSON** tab.  
-    b. Paste the following policy into the editor, replacing <account-id> with your account id.  
+    b. Paste the following policy into the editor, replacing \<account-id\> with your account id.  
+    <details>
+    <summary>Expand to view policy.</summary>
     ```json
         {
             "Version": "2012-10-17",
@@ -289,9 +291,11 @@ To use Banyan, you must grant Banyan permission to create and manage compute res
             ]
         }
     ```
+    </details>  
+
     c. Click **Review Policy**.  
     d. In the **Name** field, enter `BanyanAccessPolicy` or a different name for the IAM policy.  
-    e. Click **Create Policy**.
+    e. Click **Create Policy**.  
 3. Return to the IAM service in the AWS Management Console.
 4. Click on the **Roles** tab in the sidebar.
 5. Select **Create Role** to create a new IAM role.
@@ -307,10 +311,12 @@ To use Banyan, you must grant Banyan permission to create and manage compute res
 
 ### Step 3: Configure the cross-account role in your Banyan account
 
-1. Enter in role ARN
+1. Return to the form from Step 1
+2. Enter in role ARN you copied from Step 2
+3. Enter in your default aws-region
+4. Click submit
 
 
 
 
 
-## Use access keys
