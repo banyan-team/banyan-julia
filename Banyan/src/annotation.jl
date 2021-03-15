@@ -30,8 +30,7 @@ function duplicate_args(
 end
 
 function apply_default_constraints!(pa::PartitionAnnotation)
-    # TODO: Fix this
-    unconstrained::Vector{Vector{PartitionTypeReference}} = []
+    # Add Cross constraints for all unconstrained PTs
     for (v, pt_stack) in pa.partitions.pt_stacks
         for i in 1:length(pt_stack)
             # Check if in_cross_or_co
@@ -53,26 +52,17 @@ function apply_default_constraints!(pa::PartitionAnnotation)
             end
         end
     end
-    for c in pa.constraints.constraints
-        if c.type == "CROSS"
-        # TODO: If the c.args are already used in some Co (and maybe also some
-        # CoGroup), don't add constraint to force to be equal
-        #     && not any([
-        #     (c.type == "CO") &&
-        #     (v, i-1) in c.args
-        #     # TODO: Use PArtitioningConstraint everywhereCross()
-        #     for c in pa.constraints.constraints
-        # ])
-            push!(unconstrained, c.args)
-        end
-    end
+
+    # Add Co constraint for all Cross-ed PTs
     push!(
         pa.constraints.constraints,
-        PartitioningConstraint("CO_GROUP", unconstrained)
+        PartitioningConstraint("CO_GROUP", [c.args for c in pa.constraints.constraints if c.type == "CROSS"])
     )
 end
 
 function duplicate_for_batching!(pa::PartitionAnnotation)
+    # Duplicate PT stacks with second half being Sequential and Match-ing the
+    # first half
     for (v, pt_stack) in pa.partitions.pt_stacks
         append!(pt_stack, copy(pt_stack))
         for i in 1:div(length(pt_stack), 2)
@@ -87,6 +77,8 @@ function duplicate_for_batching!(pa::PartitionAnnotation)
             )
         end
     end
+
+    # Duplicate constraints for Co, Equal, Cross, AtMost
     new_constraints = []
     for c in pa.constraints.constraints
         if c.type == "CO" || c.type == "EQUAL"
