@@ -1,0 +1,15 @@
+{
+    "include": [],
+    "require": {
+        "language": "jl",
+        "cluster": {
+            "files": [],
+            "packages": ["DataFrames"],
+            "pt_lib_info": "~/banyan-julia/Banyan/res/pt_lib_info.json",
+            "pt_lib": ""
+        },
+        "job": []
+    }
+}
+
+
