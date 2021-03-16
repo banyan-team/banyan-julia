@@ -1,0 +1,5 @@
+{
+    "username": "BanyanTest",
+    "ec2_key_pair": "EC2ConnectKeyPairTest",
+    "pcluster_additional_policy": "arn:aws:iam::338603620317:policy/pcluster-additional-policy"
+}

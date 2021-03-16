@@ -18,7 +18,9 @@ function create_job(username::String, cluster_id::String, num_workers::Integer):
 			"cluster_id" => cluster_id,
 			"num_workers" => num_workers,
 		),
-	)["job_id"]
+	)
+        print(job_id)
+        job_id = job_id["job_id"]
 
 	println("Creating job $job_id")
 
