@@ -1,16 +1,21 @@
 # Create a cluster
 
-“include” - list of other Banyanfile’s to include, i.e., other “banyanfile” dicts
-“banyanfile”
-“language” - “jl” or “py”
-“cluster”
-“scripts” - list of strings where each string is a command to execute on the cluster
-“packages” - list of packages to Pkg.install
-“pt_lib_info” - dict
-“pt_lib” - path name for pt_lib.jl
-“job”
-“code” - list of strings to insert at start
+## Parameters for Cluster Creation
 
+To create a cluster, you must provide the following information:  
+* `cluster_id` - name of cluster to create
+* `username` - username already registered with Banyan
+* `ec2_key_pair` - name of AWS EC2 Key Pair to SSH into the head node of the cluster
+* `pcluster_additional_policy` - name of AWS IAM Policy that user created for the cluster
+* `num_nodes` - maximu number of nodes in cluster
+* `instance_type` - AWS EC2 instance type (one of `t3.large`, `t3.xlarge`, `t3.2xlarge`, `m4.4xlarge`, `m4.10xlarge`, `c5.2xlarge`, `c5.4xlarge`)
+* `banyanfile` - Banyanfile describing how to set up cluster and jobs (format described below)
+* `s3_read_write_resource` [optional] - ARN of AWS S3 bucket in user account that cluster can access (e.g., to pull source code from or write logs/results back to)
+
+
+## Format of Banyanfile
+
+The format of a Banyanfile is as follows:
 ```json
 {
     "include": [],
