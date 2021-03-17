@@ -27,7 +27,9 @@ The format of a Banyanfile is as follows:
             "pt_lib_info": "string",
             "pt_lib": "string"
         },
-        "job": []
+        "job": {
+          "code": ["string"]
+        }
     }
 }
 ```
@@ -45,5 +47,6 @@ List of paths to other Banyanfiles to include, or the actual Banyanfile dictiona
     Path to pt_lib_info json file or actual pt_lib_info dict
     * **pt_lib** (string)  
     Optional path to pt_lib
-  * **jobs** (list)  
-  List of lines to code to be executed on creation of a job in this cluster
+  * **jobs** (dict)  
+    * **code** (list)  
+    List of lines to code to be executed on creation of a job in this cluster
