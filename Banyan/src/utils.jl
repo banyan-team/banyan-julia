@@ -62,7 +62,15 @@ function send_request_get_response(method, content::Dict{String,Any})
     # Post and return response
     try
         response = HTTP.post(url, headers, JSON.json(content))
-        return JSON.parse(String(response.body))
+	body = String(response.body)
+	println(body)
+	#return JSON.parse(body)["body"]
+	#println("HEHREHREHREH")
+	#x = String(response.body)
+	#println(x)
+	#println(JSON.parse(x))
+	#println(JSON.parse(x)["body"])
+        return JSON.parse(JSON.parse(body)["body"])
     catch e
         if isa(e, HTTP.ExceptionRequest.StatusError)
             if (e.response.status != 504)
