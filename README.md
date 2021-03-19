@@ -2,6 +2,7 @@
 
 ## Testing
 
+<!--
 ```cmd
 NWORKERS=4 SSH_KEY_PAIR=~/Downloads/EC2ConnectKeyPairTest.pem julia --project=.
 ```
@@ -12,6 +13,15 @@ NWORKERS_ALL=true SSH_KEY_PAIR=~/Downloads/EC2ConnectKeyPairTest.pem julia --pro
 
 ```julia
 using Pkg; Pkg.test("Banyan", test_args=["scholes"])
+```
+-->
+
+```cmd
+cd Banyan
+
+aws configure import --csv file://~/Downloads/BanyanTestCaleb_credentials.csv &&
+  NWORKERS=2 SSH_KEY_PAIR=~/Downloads/EC2ConnectKeyPairTest.pem
+  julia --project=. -e "using Pkg; Pkg.test(\"Banyan\", test_args=[\"scholes\"])"
 ```
 
 ### Configure AWS Credentials
