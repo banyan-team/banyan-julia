@@ -38,7 +38,7 @@ function apply_default_constraints!(pa::PartitionAnnotation)
             for c in pa.constraints.constraints
                 if (c.type == "CROSS" || c.type == "CO") && (v, i - 1) in c.args
                     in_cross_or_co = true
-                elseif c.type == "CO_GROUP" && any((v, i - 1) for group in c.args)
+                elseif c.type == "CO_GROUP" && any((v, i - 1) in group for group in c.args)
                     in_cross_or_co = true
                 end
             end
@@ -54,10 +54,14 @@ function apply_default_constraints!(pa::PartitionAnnotation)
     end
 
     # Add Co constraint for all Cross-ed PTs
-    push!(
-        pa.constraints.constraints,
-        PartitioningConstraint("CO_GROUP", [c.args for c in pa.constraints.constraints if c.type == "CROSS"])
-    )
+    # TODO: Only add if there is at least one Cross
+    co_group_args = [c.args for c in pa.constraints.constraints if c.type == "CROSS"]
+    if length(co_group_args) > 0
+        push!(
+            pa.constraints.constraints,
+            PartitioningConstraint("CO_GROUP", co_group_args)
+        )
+    end
 end
 
 function duplicate_for_batching!(pa::PartitionAnnotation)
