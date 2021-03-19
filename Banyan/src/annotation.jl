@@ -54,12 +54,35 @@ function apply_default_constraints!(pa::PartitionAnnotation)
     end
 
     # Add Co constraint for all Cross-ed PTs
-    # TODO: Only add if there is at least one Cross
-    co_group_args = [c.args for c in pa.constraints.constraints if c.type == "CROSS"]
+
+    # Find all co-partitioned PTs
+    # inv: Every PT has been Cross-ed
+    co_args = []
+    co_group_args = []
+    for c in pa.constraints.constraints
+        if c.type == "CROSS"
+            if length(c.args) == 1
+                push!(co_args, c.args[1])
+            elseif length(c.args) > 1
+                push!(co_group_args, copy(c.args))
+            end
+        end
+    end
+    if length(co_group_args) == 1 && length(co_args) > 0
+        push!(co_group_args, [co_args[1]])
+    end
+
+    # Add constraints
+    if length(co_args) > 0
+        push!(
+            pa.constraints.constraints,
+            PartitioningConstraint("CO", co_args)
+        )
+    end
     if length(co_group_args) > 0
         push!(
             pa.constraints.constraints,
-            PartitioningConstraint("CO_GROUP", co_group_args)
+            PartitioningConstraintOverGroups("CO_GROUP", co_group_args)
         )
     end
 end
@@ -91,7 +114,11 @@ function duplicate_for_batching!(pa::PartitionAnnotation)
                 PartitioningConstraint(c.type, duplicate_args(c.args, pa))
             )
         elseif c.type == "CROSS" || startswith(c.type, "AT_MOST")
+            println("before:")
+            println(c.args)
             append!(c.args, duplicate_args(c.args, pa))
+            println("after:")
+            println(c.args)
         elseif c.type == "CO_GROUP"
             for group in c.args
                 append!(group, duplicate_args(group, pa))
@@ -107,7 +134,23 @@ function add_pa_to_union()
     # TODO: Ensure this actually copies over the PA and doesn't just
     # copy over a reference that then gets reset
     apply_default_constraints!(curr_pa)
+    println("here")
+    for constraint in curr_pa.constraints.constraints
+        println(constraint.type)
+        if constraint.type == "CROSS"
+            println("CROSS constraint args:")
+            println(constraint.args)
+        end
+    end
     duplicate_for_batching!(curr_pa)
+    println("here")
+    for constraint in curr_pa.constraints.constraints
+        println(constraint.type)
+        if constraint.type == "CROSS"
+            println("CROSS constraint args:")
+            println(constraint.args)
+        end
+    end
     push!(curr_pa_union, curr_pa)
     reset_pa()
 end

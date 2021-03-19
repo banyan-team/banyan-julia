@@ -11,8 +11,8 @@ function load_banyanfile(banyanfile_path::String)
     end
     # Load all included banyanfiles
     include = []
-    for inc in banyanfile["include"]:
-        if typeof(inc) == String)
+    for inc in banyanfile["include"]
+        if inc isa String
             # TODO: Determine wheter to download or is local path
             # download(inc)
             open(inc, "r") do f
@@ -110,7 +110,7 @@ function update_cluster(
     pcluster_additional_policy::String,
     s3_read_write_resource::String,
     max_nodes::Int,
-    banyanfile_path::String
+    banyanfile_path::String,
     configfile_path::String
     )
     @debug "Updating cluster"

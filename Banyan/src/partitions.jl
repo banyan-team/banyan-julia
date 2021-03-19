@@ -61,10 +61,15 @@ pt_refs_to_jl(refs) = [pt_ref_to_jl(ref) for ref in refs]
 
 struct PartitioningConstraint
     type::String
-    args::Union{Vector{PartitionTypeReference}, Vector{Vector{PartitionTypeReference}}}
+    args::Vector{PartitionTypeReference}
 end
 
-function to_jl(constraint::PartitioningConstraint)
+struct PartitioningConstraintOverGroups
+    type::String
+    args::Vector{Vector{PartitionTypeReference}}
+end
+
+function to_jl(constraint::Union{PartitioningConstraint, PartitioningConstraintOverGroups})
     return Dict(
         "type" => constraint.type,
         "args" => constraint.args
@@ -78,15 +83,15 @@ arg_to_jl_for_co(arg) =
         [pt_ref_to_jl(arg)]
     end
 
-function constraint_for_co(args)::PartitioningConstraint
+function constraint_for_co(args)::PartitioningConstraintOverGroups
     if any(arg isa Vector for arg in args)
         args = [arg_to_jl_for_co(arg) for arg in args]
-        PartitioningConstraint(
+        PartitioningConstraintOverGroups(
             "CO_GROUP",
             args,
         )
     else
-        PartitioningConstraint("CO", pt_refs_to_jl(args))
+        PartitioningConstraintOverGroups("CO", pt_refs_to_jl(args))
     end
 end
 
@@ -100,7 +105,7 @@ AtMost(npartitions, args...) =
     PartitioningConstraint("AT_MOST=$npartitions", pt_refs_to_jl(args))
 
 struct PartitioningConstraints
-    constraints::Vector{PartitioningConstraint}
+    constraints::Vector{Union{PartitioningConstraint, PartitioningConstraintOverGroups}}
 end
 
 function to_jl(constraints::PartitioningConstraints)
