@@ -2,16 +2,13 @@
 
 ## Testing
 
-```cmd
-NWORKERS=4 SSH_KEY_PAIR=~/Downloads/EC2ConnectKeyPairTest.pem julia --project=.
-```
+Either use your default AWS profile or [create on](https://stackoverflow.com/questions/593334/how-to-use-multiple-aws-accounts-from-the-command-line).
 
 ```cmd
-NWORKERS_ALL=true SSH_KEY_PAIR=~/Downloads/EC2ConnectKeyPairTest.pem julia --project=.
-```
+cd Banyan
 
-```julia
-using Pkg; Pkg.test("Banyan", test_args=["scholes"])
+AWS_DEFAULT_PROFILE=banyan-testing NWORKERS=2 SSH_KEY_PAIR=~/Downloads/EC2ConnectKeyPairTest.pem
+  julia --project=. -e "using Pkg; Pkg.test(\"Banyan\", test_args=[\"scholes\"])"
 ```
 
 ### Configure AWS Credentials
