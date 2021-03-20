@@ -53,7 +53,7 @@ global AWS
 # include("evaluation.jl")
 
 # Basic types
-export Job, create_job, destroy_job, clear_jobs
+export Job, create_job, destroy_job, clear_jobs, use
 export create_cluster
 export Future, future, evaluate
 export Location, src, dst, loc, mem, val
@@ -96,7 +96,6 @@ function __init__()
     global AWS
 
     BANYAN_API_ENDPOINT = "https://hcohsbhhzf.execute-api.us-west-2.amazonaws.com/dev/"
-    #BANYAN_API_ENDPOINT = "https://zafyadmsl4.execute-api.us-west-2.amazonaws.com/dev/"
     # TODO: Remove secret token when we implement authentication
     SECRET_TOKEN = "banyan2020pumpkin"
     AWS = aws_config(region = "us-west-2")

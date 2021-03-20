@@ -17,10 +17,12 @@ function runtest(name, test_fn)
             for nworkers in [16, 8, 4, 2, 1]
                 j = Job(username, cluster_id, nworkers)
                 test_fn(j)
+	        use(j)
             end
         else
             j = Job(username, cluster_id, parse(Int32, ENV["NWORKERS"]))
             test_fn(j)
+            use(j)
         end
     end
 end
