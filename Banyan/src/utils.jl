@@ -52,31 +52,24 @@ Sends given request with given content
 """
 function send_request_get_response(method, content::Dict{String,Any})
     # Prepare request
-    # TODO: Remove adding secret token
-    content["secret_token"] = SECRET_TOKEN
     content["debug"] = is_debug_on()
     # TODO: Use something other than delayedrequest.com
     url = string(BANYAN_API_ENDPOINT, method_to_string(method))
-    headers = (("content-type", "application/json"))
+    # TODO: Remove hardcoding the Username-APIKey header
+    headers = (("content-type", "application/json"), ("Username-APIKey", "BanyanTest-7FBKWAv3ld0eOfghSwhX_g"))
 
     # Post and return response
     try
         response = HTTP.post(url, headers, JSON.json(content))
 	body = String(response.body)
-	#println(body)
-	#println(JSON.parse(body))
 	return JSON.parse(body)
-	#println("HEHREHREHREH")
-	#x = String(response.body)
-	#println(x)
-	#println(JSON.parse(x))
-	#println(JSON.parse(x)["body"])
         #return JSON.parse(JSON.parse(body)["body"])
     catch e
         if isa(e, HTTP.ExceptionRequest.StatusError)
+	    if (e.response.status == 403)
+                throw(ErrorException("Please set a valid api_key. Sign in to the dashboard to retrieve your api key."))
+            end
             if (e.response.status != 504)
-		#println(e.response.body)
-		#println(String(take!(IOBuffer(e.response.body))))
                 throw(ErrorException(String(take!(IOBuffer(e.response.body)))))
             elseif method == :create_cluster
                 println("Cluster creation in progress. Please check dashboard to view status.")
