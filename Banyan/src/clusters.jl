@@ -3,6 +3,9 @@ using JSON
 
 
 function load_banyanfile(banyanfile_path::String)
+    # TODO: Implement this to load Banyanfile, referenced pt_lib_info, pt_lib,
+    # code files
+
     banyanfile_path = "res/Banyanfile.json"  # TODO: Remove this
     banyanfile = Dict()
     open(banyanfile_path, "r") do f
@@ -70,7 +73,7 @@ function create_cluster(
     )
     if !isnothing(banyanfile_path)
         # TODO: Load Banyanfile
-        banyanfile = load_banyanfile(banyanfile_path)
+        cluster_config["banyanfile"] = load_banyanfile(banyanfile_path)
     end
     if !isnothing(iam_policy_arn)
         cluster_config["additional_policy"] = iam_policy_arn # "arn:aws:s3:::banyanexecutor*"
@@ -95,36 +98,43 @@ function destroy_cluster(name::String; kwargs...)
     )
 end
 
-# TODO: Make parameters optional
+# TODO: Update website display
+# TODO: Implement load_banyanfile
 function update_cluster(
-    cluster_id::String,
-    pcluster_additional_policy::String,
-    s3_read_write_resource::String,
-    max_nodes::Int,
-    banyanfile_path::String,
-    configfile_path::String
+    ;name::String = nothing,
+    max_num_nodes::Int = nothing,
+    banyanfile_path::String = nothing,
+    iam_policy_arn::String = nothing,
+    s3_bucket_arn::String = nothing;
+    kwargs...
 )
     @debug "Updating cluster"
+
+    # Configure
+	configure(;kwargs...)
+	cluster_name = if isnothing(cluster_name) first(keys(list_clusters())) else cluster_name end
 
      # Require restart: pcluster_additional_policy, s3_read_write_resource, num_nodes
      # No restart: Banyanfile
 
-    configfile = load_configfile(configfile_path)
-
-    username = configfile["username"]
-
-    banyanfile = load_banyanfile(banyanfile_path)
+    cluster_config = Dict("cluster_id" => cluster_name)
+    if !isnothing(max_num_nodes)
+        cluster_config["max_num_nodes"] = max_num_nodes
+    end
+    if !isnothing(banyanfile_path)
+        # TODO: Load Banyanfile
+        cluster_config["banyanfile"] = load_banyanfile(banyanfile_path)
+    end
+    if !isnothing(iam_policy_arn)
+        cluster_config["additional_policy"] = iam_policy_arn # "arn:aws:s3:::banyanexecutor*"
+    end
+    if !isnothing(s3_bucket_arn)
+        cluster_config["s3_read_write_resource"] = s3_bucket_arn
+    end
 
     send_request_get_response(
         :update_cluster,
-	    Dict(
-            "cluster_id" => cluster_id,
-            "username" => username,
-            "pcluster_additional_policy" => pcluster_additional_policy,
-            "s3_read_write_resource" => s3_read_write_resource,
-            "max_nodes" => max_nodes,
-            "banyanfile" => banyanfile
-        )
+        cluster_config
     )
 end
 
