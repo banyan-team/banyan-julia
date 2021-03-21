@@ -62,9 +62,10 @@ function merge_banyanfile_with!(banyanfile_so_far::Dict, banyanfile_path::String
             b -> b["require"]["cluster"]["packages"],
         )
 
-        # Merge pt_lib_info and pt_lib
-        keep_same(banyanfile_so_far, banyanfile, b->b["require"]["cluster"]["pt_lib_info"])
-        keep_same(banyanfile_so_far, banyanfile, b->b["require"]["cluster"]["pt_lib"])
+        # NOTE: We use whatever the top-level value of pt_lib_info and pt_lib are
+        # # Merge pt_lib_info and pt_lib
+        # keep_same(banyanfile_so_far, banyanfile, b->b["require"]["cluster"]["pt_lib_info"])
+        # keep_same(banyanfile_so_far, banyanfile, b->b["require"]["cluster"]["pt_lib"])
     elseif for_cluster_or_job == :job
         # Merge code
         banyanfile_so_far["require"]["cluster"]["packages"] = merge_with(
