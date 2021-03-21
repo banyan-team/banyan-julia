@@ -39,6 +39,19 @@ function merge_with(banyanfile_so_far::Dict, banyanfile::Dict, selector::Functio
     collect(union(Set(so_far), Set(curr)))
 end
 
+function merge_paths_with(banyanfile_so_far::Dict, banyanfile::Dict, selector::Function)
+    # Merge where we combine arrays by taking unions of their unique elements
+    so_far = selector(banyanfile_so_far)
+    curr = selector(banyanfile)
+    deduplicated_absolute_locations = collect(union(Set(so_far), Set(curr)))
+    deduplicated_relative_locations = unique(loc->basename(loc), vcat(so_far, curr))
+    if deduplicated_relative_locations < deduplicated_absolute_locations
+        error("Files and scripts must have unique base names: $so_far and $curr have the same base name")
+    else
+        deduplicated_absolute_locations
+    end
+end
+
 function keep_same(banyanfile_so_far::Dict, banyanfile::Dict, selector::Function)
     so_far = selector(banyanfile_so_far)
     curr = selector(banyanfile)
@@ -63,12 +76,12 @@ function merge_banyanfile_with!(banyanfile_so_far::Dict, banyanfile_path::String
         keep_same(banyanfile_so_far, banyanfile, b->b["require"]["language"])
 
         # Merge files, scripts, packages
-        banyanfile_so_far["require"]["cluster"]["files"] = merge_with(
+        banyanfile_so_far["require"]["cluster"]["files"] = merge_paths_with(
             banyanfile_so_far,
             banyanfile,
             b -> b["require"]["cluster"]["files"],
         )
-        banyanfile_so_far["require"]["cluster"]["scripts"] = merge_with(
+        banyanfile_so_far["require"]["cluster"]["scripts"] = merge_paths_with(
             banyanfile_so_far,
             banyanfile,
             b -> b["require"]["cluster"]["scripts"],
@@ -79,15 +92,16 @@ function merge_banyanfile_with!(banyanfile_so_far::Dict, banyanfile_path::String
             b -> b["require"]["cluster"]["packages"],
         )
 
-        # Merge pt_lib_info and pt_lib
-        keep_same(banyanfile_so_far, banyanfile, b->b["require"]["cluster"]["pt_lib_info"])
-        keep_same(banyanfile_so_far, banyanfile, b->b["require"]["cluster"]["pt_lib"])
+        # NOTE: We use whatever the top-level value of pt_lib_info and pt_lib are
+        # # Merge pt_lib_info and pt_lib
+        # keep_same(banyanfile_so_far, banyanfile, b->b["require"]["cluster"]["pt_lib_info"])
+        # keep_same(banyanfile_so_far, banyanfile, b->b["require"]["cluster"]["pt_lib"])
     elseif for_cluster_or_job == :job
         # Merge code
-        banyanfile_so_far["require"]["cluster"]["packages"] = merge_with(
+        banyanfile_so_far["require"]["job"]["code"] = merge_with(
             banyanfile_so_far,
             banyanfile,
-            b->b["require"]["cluster"]["packages"]
+            b->b["require"]["job"]["code"]
         )
     else
         error("Expected for_cluster_or_job to be either :cluster or :job")
