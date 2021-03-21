@@ -30,33 +30,66 @@ function duplicate_args(
 end
 
 function apply_default_constraints!(pa::PartitionAnnotation)
-    # TODO: Fix this
-    unconstrained::Vector{PartitionTypeReference} = []
+    # Add Cross constraints for all unconstrained PTs
     for (v, pt_stack) in pa.partitions.pt_stacks
         for i in 1:length(pt_stack)
-            in_cross_or_co = any([
-                (c.type == "CROSS" || c.type == "CO") &&
-                (v, i-1) in c.args
-                # TODO: Use PArtitioningConstraint everywhereCross()
-                for c in pa.constraints.constraints
-            ])
+            # Check if in_cross_or_co
+            in_cross_or_co = false
+            for c in pa.constraints.constraints
+                if (c.type == "CROSS" || c.type == "CO") && (v, i - 1) in c.args
+                    in_cross_or_co = true
+                elseif c.type == "CO_GROUP" && any((v, i - 1) in group for group in c.args)
+                    in_cross_or_co = true
+                end
+            end
+
+            # Add Cross constraint for those not constrained in any way
             if !in_cross_or_co
                 push!(
                     pa.constraints.constraints,
                     PartitioningConstraint("CROSS", [(v, i-1)])
                 )
-                push!(unconstrained, (v, i-1))
             end
         end
     end
-    # TODO: Determine whether Cross constraints should be Co-ed in some way
-    push!(
-        pa.constraints.constraints,
-        PartitioningConstraint("CO", unconstrained)
-    )
+
+    # Add Co constraint for all Cross-ed PTs
+
+    # Find all co-partitioned PTs
+    # inv: Every PT has been Cross-ed
+    co_args = []
+    co_group_args = []
+    for c in pa.constraints.constraints
+        if c.type == "CROSS"
+            if length(c.args) == 1
+                push!(co_args, c.args[1])
+            elseif length(c.args) > 1
+                push!(co_group_args, copy(c.args))
+            end
+        end
+    end
+    if length(co_group_args) == 1 && length(co_args) > 0
+        push!(co_group_args, [co_args[1]])
+    end
+
+    # Add constraints
+    if length(co_args) > 0
+        push!(
+            pa.constraints.constraints,
+            PartitioningConstraint("CO", co_args)
+        )
+    end
+    if length(co_group_args) > 0
+        push!(
+            pa.constraints.constraints,
+            PartitioningConstraintOverGroups("CO_GROUP", co_group_args)
+        )
+    end
 end
 
 function duplicate_for_batching!(pa::PartitionAnnotation)
+    # Duplicate PT stacks with second half being Sequential and Match-ing the
+    # first half
     for (v, pt_stack) in pa.partitions.pt_stacks
         append!(pt_stack, copy(pt_stack))
         for i in 1:div(length(pt_stack), 2)
@@ -71,6 +104,8 @@ function duplicate_for_batching!(pa::PartitionAnnotation)
             )
         end
     end
+
+    # Duplicate constraints for Co, Equal, Cross, AtMost
     new_constraints = []
     for c in pa.constraints.constraints
         if c.type == "CO" || c.type == "EQUAL"
@@ -80,6 +115,10 @@ function duplicate_for_batching!(pa::PartitionAnnotation)
             )
         elseif c.type == "CROSS" || startswith(c.type, "AT_MOST")
             append!(c.args, duplicate_args(c.args, pa))
+        elseif c.type == "CO_GROUP"
+            for group in c.args
+                append!(group, duplicate_args(group, pa))
+            end
         end
     end 
     append!(pa.constraints.constraints, new_constraints)
