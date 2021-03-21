@@ -4,6 +4,7 @@
         "language": "jl",
         "cluster": {
             "files": [],
+            "scripts": [],
             "packages": ["DataFrames"],
             "pt_lib_info": "~/banyan-julia/Banyan/res/pt_lib_info.json",
             "pt_lib": ""
