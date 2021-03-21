@@ -1,13 +1,95 @@
 using Base64
 using JSON
+using HTTP
+using FileIO
+
+function load_json(path::String)
+    if startswith(path, "file://")
+        JSON.parsefile(path[8:end])
+    elseif startswith(path, "s3://")
+        # TODO: Implement parsing JSON from S3
+    elseif startswith(path, "http://") || startswith(path, "https://")
+        JSON.parse(HTTP.get(path))
+    else
+        error("Path must start with \"file://\", \"s3://\", or \"http(s)://\"")
+    end
+end
+
+function merge_with(banyanfile_so_far::Dict, banyanfile::Dict, selector::Function)
+    # Merge where we combine arrays by taking unions of their unique elements
+    so_far = selector(banyanfile_so_far)
+    curr = selector(banyanfile)
+    collect(union(Set(so_far), Set(curr)))
+end
+
+function keep_same(banyanfile_so_far::Dict, banyanfile::Dict, selector::Function)
+    so_far = selector(banyanfile_so_far)
+    curr = selector(banyanfile)
+    if so_far != curr
+        error("$so_far does not match $curr in included Banyanfiles")
+    end
+end
+
+function merge_banyanfile_with!(banyanfile_so_far::Dict, banyanfile_path::String, for_cluster_or_job::Symbol)
+    banyanfile = load_json(banyanfile_path)
+
+    # Merge with all included
+    for included in banyanfile["include"]
+        merge_banyanfile_with!(banyanfile_so_far, included, for_cluster_or_job)
+    end
+    banyanfile_so_far["include"] = []
+
+    # Merge with rest of what is in this banyanfile
+
+    if for_cluster_or_job == :cluster
+        # Merge language
+        keep_same(banyanfile_so_far, banyanfile, b->b["require"]["language"])
+
+        # Merge files, scripts, packages
+        banyanfile_so_far["require"]["cluster"]["files"] = merge_with(
+            banyanfile_so_far,
+            banyanfile,
+            b -> b["require"]["cluster"]["files"],
+        )
+        banyanfile_so_far["require"]["cluster"]["scripts"] = merge_with(
+            banyanfile_so_far,
+            banyanfile,
+            b -> b["require"]["cluster"]["scripts"],
+        )
+        banyanfile_so_far["require"]["cluster"]["packages"] = merge_with(
+            banyanfile_so_far,
+            banyanfile,
+            b -> b["require"]["cluster"]["packages"],
+        )
+
+        # Merge pt_lib_info and pt_lib
+        keep_same(banyanfile_so_far, banyanfile, b->b["require"]["cluster"]["pt_lib_info"])
+        keep_same(banyanfile_so_far, banyanfile, b->b["require"]["cluster"]["pt_lib"])
+    elseif for_cluster_or_job == :job
+        # Merge code
+        banyanfile_so_far["require"]["cluster"]["packages"] = merge_with(
+            banyanfile_so_far,
+            banyanfile,
+            b->b["require"]["cluster"]["packages"]
+        )
+    else
+        error("Expected for_cluster_or_job to be either :cluster or :job")
+    end
+end
 
 
-function load_banyanfile(banyanfile_path::String)
+function load_banyanfile(banyanfile_path::String = "res/Banyanfile.json")
     # TODO: Implement this to load Banyanfile, referenced pt_lib_info, pt_lib,
     # code files
 
-    banyanfile_path = "res/Banyanfile.json"  # TODO: Remove this
-    banyanfile = Dict()
+    # Load Banyanfile and merge with all included
+    banyanfile = load_json(banyanfile_path)
+    for included in banyanfile["included"]
+        merge_banyanfile_with!(banyanfile, included, :cluster)
+    end
+
+    # TODO: Use single Banyanfile to upload to S3 and prepare for upload
+
     open(banyanfile_path, "r") do f
        global banyanfile
        banyanfile = JSON.parse(read(f, String))
