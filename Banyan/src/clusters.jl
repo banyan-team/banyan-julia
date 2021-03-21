@@ -10,9 +10,23 @@ function load_json(path::String)
     if startswith(path, "file://")
         JSON.parsefile(path[8:end])
     elseif startswith(path, "s3://")
-        JSON.parsefile(S3Path(path, config=get_aws_config()))
+        error("S3 path not currently supported")
+        # JSON.parsefile(S3Path(path, config=get_aws_config()))
     elseif startswith(path, "http://") || startswith(path, "https://")
-        JSON.parse(HTTP.get(path))
+        JSON.parse(HTTP.get(path).body)
+    else
+        error("Path must start with \"file://\", \"s3://\", or \"http(s)://\"")
+    end
+end
+
+# Loads file into String and returns
+function load_file(path::String)
+    if startswith(path, "file://")
+        String(read(open(path[8:end])))
+    elseif startswith(path, "s3://")
+        String(read(S3Path(path)))
+    elseif startswith(path, "http://") || startswith(path, "https://")
+        String(HTTP.get(path).body)
     else
         error("Path must start with \"file://\", \"s3://\", or \"http(s)://\"")
     end
@@ -93,52 +107,65 @@ function load_banyanfile(banyanfile_path::String = "res/Banyanfile.json",
         merge_banyanfile_with!(banyanfile, included, :cluster)
     end
 
-    # Create S3 bucket if user did not provide one
-    if s3_bucket_arn == nothing
-        s3_bucket_arn = "banyan-cluster-scripts-" + name + 
-
-    # Create post-install script with base commands
-
-    # Upload all files and scripts to s3_bucket_arn bucket
-
-    open(banyanfile_path, "r") do f
-       global banyanfile
-       banyanfile = JSON.parse(read(f, String))
-    end
-    # Load all included banyanfiles
-    include = []
-    for inc in banyanfile["include"]
-        if inc isa String
-            # TODO: Determine wheter to download or is local path
-            # download(inc)
-            open(inc, "r") do f
-                append!(include, JSON.parse(read(f, String)))
-            end
-        else
-            append(!include, inc)
-        end
-    end
     # Load pt_lib_info if path provided
     pt_lib_info = banyanfile["require"]["cluster"]["pt_lib_info"]
     if pt_lib_info isa String
-        # TODO: Determine whether to download or is local path
-            # download(pt_lib_info)
-        open(pt_lib_info, "r") do f
-            banyanfile["require"]["cluster"]["pt_lib_info"] = JSON.parse(read(f, String))
-        end
+        banyanfile["require"]["cluster"]["pt_lib_info"] = load_json(pt_lib_info)
     end
+
+    files = banyanfile["require"]["cluster"]["files"]
+    scripts = banyanfile["require"]["cluster"]["scripts"]
+    packages = banyanfile["require"]["cluster"]["packages"]
+    pt_lib = banyanfile["require"]["cluster"]["pt_lib"]
+
+    # Get bucket name
+    # Create S3 bucket if user did not provide one
+    s3_bucket_name = ""
+    if s3_bucket_arn == nothing
+        s3_bucket_name = "banyan-cluster-data-" + name
+        s3_create_bucket(get_aws_config(), s3_bucket_name)
+    else
+        s3_bucket_name = last(split(s3_bucket_arn, ":"))
+    end
+
+    # Upload all files, scripts, and pt_lib to s3 bucket
+    for f in vcat(files, scripts, pt_lib)
+        s3_put(get_aws_config(), s3_bucket_name, basename(file), load_file(file))
+    end
+
+    # Create post-install script with base commands
+    code = """
+#!/bin/bash
+sudo yum update -y &>> setup_log.txt
+wget https://julialang-s3.julialang.org/bin/linux/x64/1.5/julia-1.5.3-linux-x86_64.tar.gz &>> setup_log.txt
+tar zxvf julia-1.5.3-linux-x86_64.tar.gz &>> setup_log.txt
+rm julia-1.5.3-linux-x86_64.tar.gz &>> setup_log.txt
+julia-1.5.3/bin/julia --project -e "using Pkg; Pkg.add([\"AWSCore\", \"AWSSQS\", \"HTTP\", \"Dates\", \"JSON\", \"MPI\", \"Serialization\"]); ENV[\"JULIA_MPIEXEC\"]=\"srun\"; ENV[\"JULIA_MPI_LIBRARY\"]=\"/opt/amazon/openmpi/lib64/libmpi\"; Pkg.build(\"MPI\"; verbose=true)" &>> setup_log.txt
+aws s3 cp s3://banyanexecutor /home/ec2-user --recursive
+    """
+
+    # Append to post-install script downloading files, scripts, pt_lib onto cluster
+    for f in vcat(files, scripts, pt_lib)
+        code *= "aws s3 cp s3://s3_bucket_name/" * basename(f) * " /home/ec2-user/" * basename(f) * "\n"
+    end
+
+    # Append to post-install script running scripts onto cluster
+    for script in scripts
+        fname = basename(f)
+        code *= "bash /home/ec2-user/$fname\n"
+    end
+
+    # Append to post-install script installing Julia dependencies
+    for pkg in packages:
+        code *= "julia-1.5.3/bin/julia --project -e 'using Pkg; Pkg.add([\"$pkg\"])' &>> setup_log.txt\n"
+    end
+
+    # Upload post_install script to s3 bucket
+    post_install_script = "banyan_$cluster_id" * "_script.sh"
+    s3_put(get_aws_config(), s3_bucket_name, post_install_script, code)
+
     return banyanfile
 end
-
-# function load_configfile(configfile_path::String)
-#     configfile_path = "res/BanyanConfig.json"  # TODO: Remove this
-#     configfile = Dict()
-#     open(configfile_path, "r") do f
-#         global configfile
-#         configfile = JSON.parse(read(f, String))
-#     end
-#     return configfile
-# end
 
 
 # Required: cluster_id, num_nodes
