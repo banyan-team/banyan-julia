@@ -1,14 +1,11 @@
 # Configure AWS account
 
-To use Banyan, you must grant Banyan permission to create and manage compute resources. Banyan can use either a cross-account role ~~or access keys~~. ~~For either method,~~ you must configure settings in the AWS Management Console and the Banyan Dashboard. ~~This document describes both methods. While both methods are supported, we recommend that you use a cross-account role.~~
-Once you have configured your account, you cannot associate your Banyan account with a different AWS account.
+To use Banyan, you must first grant Banyan sufficient permissions to create an manage compute resources in your account. Banyan uses a cross-account role for this. You must configure settings both in the AWS Management Console and in the Banyan Dashboard. Once you have configured your account, you cannot associate your Banyan account with a different AWS account.
 
-## Use a cross-account role
-
-### Step 1: Configure Banyan to use a cross-account role
+## Step 1: Configure Banyan to use a cross-account role
 1. Sign into your Banyan account and go to the Banyan Dashboard.
-2. Click on **Configure AWS Account**
-3. Copy the external ID for later use in Step 2.
+2. Click on **Account**
+3. Copy the External ID for later use in Step 2.
 
 ### Step 2: Configure AWS IAM role settings
 
@@ -25,17 +22,95 @@ Once you have configured your account, you cannot associate your Banyan account 
             "Statement": [
                 {
                     "Action": [
-                        "ec2:*"
+                        "ec2:DescribeKeyPairs",
+                        "ec2:DescribeRegions",
+                        "ec2:DescribeVpcs",
+                        "ec2:DescribeSubnets",
+                        "ec2:DescribeSecurityGroups",
+                        "ec2:DescribePlacementGroups",
+                        "ec2:DescribeImages",
+                        "ec2:DescribeInstances",
+                        "ec2:DescribeInstanceStatus",
+                        "ec2:DescribeInstanceTypes",
+                        "ec2:DescribeInstanceTypeOfferings",
+                        "ec2:DescribeSnapshots",
+                        "ec2:DescribeVolumes",
+                        "ec2:DescribeVpcAttribute",
+                        "ec2:DescribeAddresses",
+                        "ec2:CreateTags",
+                        "ec2:DescribeNetworkInterfaces",
+                        "ec2:DescribeAvailabilityZones"
                     ],
                     "Resource": "*",
                     "Effect": "Allow",
-                    "Sid": "EC2"
+                    "Sid": "EC2Describe"
+                },
+                {
+                    "Action": [
+                        "ec2:CreateVpc",
+                        "ec2:ModifyVpcAttribute",
+                        "ec2:DescribeNatGateways",
+                        "ec2:CreateNatGateway",
+                        "ec2:DescribeInternetGateways",
+                        "ec2:CreateInternetGateway",
+                        "ec2:AttachInternetGateway",
+                        "ec2:DescribeRouteTables",
+                        "ec2:CreateRoute",
+                        "ec2:CreateRouteTable",
+                        "ec2:AssociateRouteTable",
+                        "ec2:CreateSubnet",
+                        "ec2:ModifySubnetAttribute"
+                    ],
+                    "Resource": "*",
+                    "Effect": "Allow",
+                    "Sid": "NetworkingEasyConfig"
+                },
+                {
+                    "Action": [
+                        "ec2:CreateVolume",
+                        "ec2:RunInstances",
+                        "ec2:AllocateAddress",
+                        "ec2:AssociateAddress",
+                        "ec2:AttachNetworkInterface",
+                        "ec2:AuthorizeSecurityGroupEgress",
+                        "ec2:AuthorizeSecurityGroupIngress",
+                        "ec2:CreateNetworkInterface",
+                        "ec2:CreateSecurityGroup",
+                        "ec2:ModifyVolumeAttribute",
+                        "ec2:ModifyNetworkInterfaceAttribute",
+                        "ec2:DeleteNetworkInterface",
+                        "ec2:DeleteVolume",
+                        "ec2:TerminateInstances",
+                        "ec2:DeleteSecurityGroup",
+                        "ec2:DisassociateAddress",
+                        "ec2:RevokeSecurityGroupIngress",
+                        "ec2:RevokeSecurityGroupEgress",
+                        "ec2:ReleaseAddress",
+                        "ec2:CreatePlacementGroup",
+                        "ec2:DeletePlacementGroup"
+                    ],
+                    "Resource": "*",
+                    "Effect": "Allow",
+                    "Sid": "EC2Modify"
                 },
                 {
                     "Action": [
                         "autoscaling:DescribeAutoScalingGroups",
-                        "autoscaling:DescribeAutoScalingInstances",
+                        "autoscaling:DescribeAutoScalingInstances"
+                    ],
+                    "Resource": "*",
+                    "Effect": "Allow",
+                    "Sid": "AutoScalingDescribe"
+                },
+                {
+                    "Action": [
                         "autoscaling:CreateAutoScalingGroup",
+                        "ec2:CreateLaunchTemplate",
+                        "ec2:CreateLaunchTemplateVersion",
+                        "ec2:ModifyLaunchTemplate",
+                        "ec2:DeleteLaunchTemplate",
+                        "ec2:DescribeLaunchTemplates",
+                        "ec2:DescribeLaunchTemplateVersions",
                         "autoscaling:PutNotificationConfiguration",
                         "autoscaling:UpdateAutoScalingGroup",
                         "autoscaling:PutScalingPolicy",
@@ -47,12 +122,19 @@ Once you have configured your account, you cannot associate your Banyan account 
                     ],
                     "Resource": "*",
                     "Effect": "Allow",
-                    "Sid": "AutoScaling"
+                    "Sid": "AutoScalingModify"
                 },
                 {
                     "Action": [
                         "dynamodb:DescribeTable",
-                        "dynamodb:ListTagsOfResource",
+                        "dynamodb:ListTagsOfResource"
+                    ],
+                    "Resource": "*",
+                    "Effect": "Allow",
+                    "Sid": "DynamoDBDescribe"
+                },
+                {
+                    "Action": [
                         "dynamodb:CreateTable",
                         "dynamodb:DeleteTable",
                         "dynamodb:GetItem",
@@ -62,7 +144,7 @@ Once you have configured your account, you cannot associate your Banyan account 
                     ],
                     "Resource": "*",
                     "Effect": "Allow",
-                    "Sid": "DynamoDB"
+                    "Sid": "DynamoDBModify"
                 },
                 {
                     "Action": [
@@ -81,19 +163,47 @@ Once you have configured your account, you cannot associate your Banyan account 
                 },
                 {
                     "Action": [
-                        "sqs:*"
+                        "sqs:GetQueueAttributes"
                     ],
                     "Resource": "*",
                     "Effect": "Allow",
-                    "Sid": "SQS"
+                    "Sid": "SQSDescribe"
                 },
                 {
                     "Action": [
-                        "sns:*"
+                        "sqs:CreateQueue",
+                        "sqs:DeleteMessage",
+                        "sqs:DeleteQueue",
+                        "sqs:GetQueueUrl",
+                        "sqs:ListQueues",
+                        "sqs:ReceiveMessage",
+                        "sqs:SendMessage",
+                        "sqs:SetQueueAttributes",
+                        "sqs:TagQueue"
                     ],
                     "Resource": "*",
                     "Effect": "Allow",
-                    "Sid": "SNS"
+                    "Sid": "SQSModify"
+                },
+                {
+                    "Action": [
+                        "sns:ListTopics",
+                        "sns:GetTopicAttributes"
+                    ],
+                    "Resource": "*",
+                    "Effect": "Allow",
+                    "Sid": "SNSDescribe"
+                },
+                {
+                    "Action": [
+                        "sns:CreateTopic",
+                        "sns:Subscribe",
+                        "sns:Unsubscribe",
+                        "sns:DeleteTopic"
+                    ],
+                    "Resource": "*",
+                    "Effect": "Allow",
+                    "Sid": "SNSModify"
                 },
                 {
                     "Action": [
@@ -102,21 +212,28 @@ Once you have configured your account, you cannot associate your Banyan account 
                         "cloudformation:DescribeStackResources",
                         "cloudformation:DescribeStacks",
                         "cloudformation:ListStacks",
-                        "cloudformation:GetTemplate",
+                        "cloudformation:GetTemplate"
+                    ],
+                    "Resource": "*",
+                    "Effect": "Allow",
+                    "Sid": "CloudFormationDescribe"
+                },
+                {
+                    "Action": [
                         "cloudformation:CreateStack",
                         "cloudformation:DeleteStack",
                         "cloudformation:UpdateStack"
                     ],
-                    "Resource": "*",
                     "Effect": "Allow",
-                    "Sid": "CloudFormation"
+                    "Resource": "*",
+                    "Sid": "CloudFormationModify"
                 },
                 {
                     "Action": [
                         "s3:*"
                     ],
                     "Resource": [
-                        "arn:aws:s3:::parallelcluster-*"
+                        "arn:aws:s3:::<RESOURCES S3 BUCKET>"
                     ],
                     "Effect": "Allow",
                     "Sid": "S3ResourcesBucket"
@@ -127,7 +244,7 @@ Once you have configured your account, you cannot associate your Banyan account 
                         "s3:List*"
                     ],
                     "Resource": [
-                        "arn:aws:s3:::us-west-2-aws-parallelcluster*"
+                        "arn:aws:s3:::<REGION>-aws-parallelcluster*"
                     ],
                     "Effect": "Allow",
                     "Sid": "S3ParallelClusterReadOnly"
@@ -139,7 +256,7 @@ Once you have configured your account, you cannot associate your Banyan account 
                         "s3:DeleteObjectVersion"
                     ],
                     "Resource": [
-                        "arn:aws:s3:::parallelcluster-*"
+                        "arn:aws:s3:::<RESOURCES S3 BUCKET>"
                     ],
                     "Effect": "Allow",
                     "Sid": "S3Delete"
@@ -155,9 +272,9 @@ Once you have configured your account, you cannot associate your Banyan account 
                         "iam:SimulatePrincipalPolicy"
                     ],
                     "Resource": [
-                        "arn:aws:iam::338603620317:role/<PARALLELCLUSTER EC2 ROLE NAME>",
-                        "arn:aws:iam::338603620317:role/parallelcluster-*",
-                        "arn:aws:iam::338603620317:role/aws-service-role/*"
+                        "arn:aws:iam::<AWS ACCOUNT ID>:role/<PARALLELCLUSTER EC2 ROLE NAME>",
+                        "arn:aws:iam::<AWS ACCOUNT ID>:role/parallelcluster-*",
+                        "arn:aws:iam::<AWS ACCOUNT ID>:role/aws-service-role/*"
                     ],
                     "Effect": "Allow",
                     "Sid": "IAMModify"
@@ -167,7 +284,7 @@ Once you have configured your account, you cannot associate your Banyan account 
                         "iam:CreateInstanceProfile",
                         "iam:DeleteInstanceProfile"
                     ],
-                    "Resource": "arn:aws:iam::338603620317:instance-profile/*",
+                    "Resource": "arn:aws:iam::<AWS ACCOUNT ID>:instance-profile/*",
                     "Effect": "Allow",
                     "Sid": "IAMCreateInstanceProfile"
                 },
@@ -203,36 +320,6 @@ Once you have configured your account, you cannot associate your Banyan account 
                     "Resource": "*",
                     "Effect": "Allow",
                     "Sid": "SSMDescribe"
-                },
-                {
-                    "Effect": "Allow",
-                    "Action": [
-                        "ssm:SendCommand"
-                    ],
-                    "Resource": [
-                        "arn:aws:ec2:us-west-2:338603620317:instance/*",
-                        "arn:aws:ssm:us-west-2::document/AWS-RunShellScript",
-                        "arn:aws:s3:::pcluster-data/ssm"
-                    ]
-                },
-                {
-                    "Effect": "Allow",
-                    "Action": [
-                        "ssm:GetCommandInvocation"
-                    ],
-                    "Resource": [
-                        "arn:aws:ssm:us-west-2:338603620317:*"
-                    ]
-                },
-                {
-                    "Effect": "Allow",
-                    "Action": [
-                        "s3:*"
-                    ],
-                    "Resource": [
-                        "arn:aws:s3:::pcluster-data",
-                        "arn:aws:s3:::pcluster-data/*"
-                    ]
                 },
                 {
                     "Action": [
@@ -272,8 +359,8 @@ Once you have configured your account, you cannot associate your Banyan account 
                         "lambda:RemovePermission"
                     ],
                     "Resource": [
-                        "arn:aws:lambda:us-west-2:338603620317:function:parallelcluster-*",
-                        "arn:aws:lambda:us-west-2:338603620317:function:pcluster-*"
+                        "arn:aws:lambda:<REGION>:<AWS ACCOUNT ID>:function:parallelcluster-*",
+                        "arn:aws:lambda:<REGION>:<AWS ACCOUNT ID>:function:pcluster-*"
                     ],
                     "Effect": "Allow",
                     "Sid": "Lambda"
@@ -282,12 +369,70 @@ Once you have configured your account, you cannot associate your Banyan account 
                     "Sid": "CloudWatch",
                     "Effect": "Allow",
                     "Action": [
-                    "cloudwatch:PutDashboard",
-                    "cloudwatch:ListDashboards",
-                    "cloudwatch:DeleteDashboards",
-                    "cloudwatch:GetDashboard"
+                        "cloudwatch:PutDashboard",
+                        "cloudwatch:ListDashboards",
+                        "cloudwatch:DeleteDashboards",
+                        "cloudwatch:GetDashboard"
                     ],
                     "Resource": "*"
+                },
+                {
+                    "Sid": "BanyanParallelCluster",
+                    "Effect": "Allow",
+                    "Action": [
+
+
+                        "autoscaling:DescribeAutoScalingGroups",
+                        "autoscaling:DescribeTags",
+                        "autoscaling:SetDesiredCapacity",
+                        "autoscaling:SetInstanceHealth",
+                        "autoscaling:TerminateInstanceInAutoScalingGroup",
+                        "autoScaling:UpdateAutoScalingGroup",
+                        "cloudformation:DescribeStacks"
+                        "dynamodb:DescribeTable",
+                        "dynamodb:DeleteItem",
+                        "dynamodb:GetItem",
+                        "dynamodb:ListTables",
+                        "dynamodb:PutItem",
+                        "dynamodb:Query",
+                        "ec2:AttachVolume",
+                        "ec2:DescribeInstanceAttribute",
+                        "ec2:DescribeInstances",
+                        "ec2:DescribeInstanceStatus",
+                        "ec2:DescribeRegions",
+                        "ec2:DescribeVolumes",
+                        "ec2messages:AcknowledgeMessage",
+                        "ec2messages:DeleteMessage",
+                        "ec2messages:FailMessage",
+                        "ec2messages:GetEndpoint",
+                        "ec2messages:GetMessages",
+                        "ec2messages:SendReply",
+                        "s3:*",
+                        "sqs:ChangeMessageVisibility",
+                        "sqs:DeleteMessage",
+                        "sqs:GetQueueUrl",
+                        "sqs:ReceiveMessage",
+                        "sqs:SendMessage",
+                        "ssm:ListInstanceAssociations",
+                        "ssm:PutComplianceItems",
+                        "ssm:DescribeAssociation",
+                        "ssm:DescribeDocument",
+                        "ssm:GetDocument",
+                        "ssm:ListAssociations",
+                        "ssm:GetDeployablePatchSnapshotForInstance",
+                        "ssm:GetManifest",
+                        "ssm:GetParameter",
+                        "ssm:GetParameters",
+                        "ssm:UpdateAssociationStatus",
+                        "ssm:UpdateInstanceAssociationStatus"
+                        "ssm:UpdateInstanceInformation",
+                        "ssm:PutConfigurePackageResult",
+                        "ssm:PutInventory",
+                        "ssmmessages:CreateControlChannel",
+                        "ssmmessages:CreateDataChannel",
+                        "ssmmessages:OpenControlChannel",
+                        "ssmmessages:OpenDataChannel",
+                    ]
                 }
             ]
         }
@@ -301,7 +446,7 @@ Once you have configured your account, you cannot associate your Banyan account 
 4. Click on the **Roles** tab in the sidebar.
 5. Select **Create Role** to create a new IAM role.
     a. Under **Select type of trusted entity**, select **Another AWS account**.  
-    b. In the **Account ID** field, enter the Banyan account ID `<account-id>`.  
+    b. In the **Account ID** field, enter the Banyan account ID `<account-id>`TODO:put our account id.  
     c. Select **Require external ID**.  
     d. In the **External ID** field, enter the external id you acquired from the Banyan Dashboard in Step 1.  
     e. Search for `BanyanAccessPolicy` or the name you gave the policy you just created, and select it.  
@@ -316,8 +461,5 @@ Once you have configured your account, you cannot associate your Banyan account 
 2. Enter in role ARN you copied from Step 2
 3. Enter in your default aws-region
 4. Click submit
-
-
-
 
 
