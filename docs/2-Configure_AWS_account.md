@@ -16,6 +16,7 @@ To use Banyan, you must first grant Banyan sufficient permissions to create an m
     b. Paste the following policy into the editor, replacing \<account-id\> with your account id.  
     <details>
     <summary>Expand to view policy.</summary>
+    
     ```json
         {
             "Version": "2012-10-17",
@@ -388,7 +389,7 @@ To use Banyan, you must first grant Banyan sufficient permissions to create an m
                         "autoscaling:SetInstanceHealth",
                         "autoscaling:TerminateInstanceInAutoScalingGroup",
                         "autoScaling:UpdateAutoScalingGroup",
-                        "cloudformation:DescribeStacks"
+                        "cloudformation:DescribeStacks",
                         "dynamodb:DescribeTable",
                         "dynamodb:DeleteItem",
                         "dynamodb:GetItem",
@@ -424,7 +425,7 @@ To use Banyan, you must first grant Banyan sufficient permissions to create an m
                         "ssm:GetParameter",
                         "ssm:GetParameters",
                         "ssm:UpdateAssociationStatus",
-                        "ssm:UpdateInstanceAssociationStatus"
+                        "ssm:UpdateInstanceAssociationStatus",
                         "ssm:UpdateInstanceInformation",
                         "ssm:PutConfigurePackageResult",
                         "ssm:PutInventory",
@@ -432,7 +433,8 @@ To use Banyan, you must first grant Banyan sufficient permissions to create an m
                         "ssmmessages:CreateDataChannel",
                         "ssmmessages:OpenControlChannel",
                         "ssmmessages:OpenDataChannel",
-                    ]
+                    ],
+                    "Resource": "*"
                 }
             ]
         }

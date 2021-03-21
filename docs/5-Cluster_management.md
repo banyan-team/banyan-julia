@@ -24,8 +24,7 @@ Updating a cluster will fail under the following scenarios.
 To destroy a cluster, you must provide the following information:
 * `cluster_id` - name of cluster to delete
 * `username` - username under which this cluster was created
-* `force` - specifies whether to delete forcefully
 
-Cluster destruction will fail under the following scenarios. To force delete a cluster, even in the following scenarios, set `force=True`.
+<!-- Cluster destruction will fail under the following scenarios. To force delete a cluster, even in the following scenarios, set `force=True`.
 * Cluster is not currently in the `running` state
-* Cluster has jobs currently running
+* Cluster has jobs currently running -->
