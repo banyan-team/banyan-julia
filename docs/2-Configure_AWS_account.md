@@ -1,6 +1,7 @@
 # Configure AWS account
 
 To use Banyan, you must grant Banyan permission to create and manage compute resources. Banyan can use either a cross-account role ~~or access keys~~. ~~For either method,~~ you must configure settings in the AWS Management Console and the Banyan Dashboard. ~~This document describes both methods. While both methods are supported, we recommend that you use a cross-account role.~~
+Once you have configured your account, you cannot associate your Banyan account with a different AWS account.
 
 ## Use a cross-account role
 

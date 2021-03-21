@@ -30,14 +30,14 @@ function create_job(username::String, cluster_id::String, num_workers::Integer):
 	return job_id
 end
 
-function destroy_job(job_id::JobId)
+function destroy_job(job_id::JobId, username::String)
 	global current_job_id
 
 	@debug "Destroying job"
-
+	#println("destroying job ", job_id, " now?")
 	send_request_get_response(
 		:destroy_job,
-		Dict{String,Any}("job_id" => job_id),
+		Dict{String,Any}("job_id" => job_id, "username" => username),
 	)
 
 	if current_job_id == job_id
@@ -58,7 +58,7 @@ mutable struct Job
 		new_job = new(new_job_id, username, cluster_id, num_workers)
 
 		finalizer(new_job) do j
-			destroy_job(j.job_id)
+			destroy_job(j.job_id, j.username)
 		end
 
 		new_job
@@ -68,6 +68,10 @@ end
 function clear_jobs()
 	global pending_requests
 	empty!(pending_requests)
+end
+
+function use(j::Job)
+    j
 end
 
 # TODO: Fix bug causing nbatches to be 2 when it should be 25
