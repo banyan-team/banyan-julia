@@ -59,12 +59,12 @@ function merge_banyanfile_with!(banyanfile_so_far::Dict, banyanfile_path::String
         keep_same(banyanfile_so_far, banyanfile, b->b["require"]["language"])
 
         # Merge files, scripts, packages
-        banyanfile_so_far["require"]["cluster"]["files"] = merge_with(
+        banyanfile_so_far["require"]["cluster"]["files"] = merge_paths_with(
             banyanfile_so_far,
             banyanfile,
             b -> b["require"]["cluster"]["files"],
         )
-        banyanfile_so_far["require"]["cluster"]["scripts"] = merge_with(
+        banyanfile_so_far["require"]["cluster"]["scripts"] = merge_paths_with(
             banyanfile_so_far,
             banyanfile,
             b -> b["require"]["cluster"]["scripts"],
@@ -81,10 +81,10 @@ function merge_banyanfile_with!(banyanfile_so_far::Dict, banyanfile_path::String
         # keep_same(banyanfile_so_far, banyanfile, b->b["require"]["cluster"]["pt_lib"])
     elseif for_cluster_or_job == :job
         # Merge code
-        banyanfile_so_far["require"]["cluster"]["packages"] = merge_with(
+        banyanfile_so_far["require"]["job"]["code"] = merge_with(
             banyanfile_so_far,
             banyanfile,
-            b->b["require"]["cluster"]["packages"]
+            b->b["require"]["job"]["code"]
         )
     else
         error("Expected for_cluster_or_job to be either :cluster or :job")
