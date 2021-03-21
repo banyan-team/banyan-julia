@@ -1,3 +1,6 @@
+using AWSS3
+using AWS
+using FilePathsBase
 using Base64
 using JSON
 using HTTP
@@ -7,7 +10,7 @@ function load_json(path::String)
     if startswith(path, "file://")
         JSON.parsefile(path[8:end])
     elseif startswith(path, "s3://")
-        # TODO: Implement parsing JSON from S3
+        JSON.parsefile(S3Path(path, config=get_aws_config()))
     elseif startswith(path, "http://") || startswith(path, "https://")
         JSON.parse(HTTP.get(path))
     else
@@ -78,7 +81,9 @@ function merge_banyanfile_with!(banyanfile_so_far::Dict, banyanfile_path::String
 end
 
 
-function load_banyanfile(banyanfile_path::String = "res/Banyanfile.json")
+function load_banyanfile(banyanfile_path::String = "res/Banyanfile.json",
+                         name::String,
+                         s3_bucket_arn::String = nothing)
     # TODO: Implement this to load Banyanfile, referenced pt_lib_info, pt_lib,
     # code files
 
@@ -88,7 +93,13 @@ function load_banyanfile(banyanfile_path::String = "res/Banyanfile.json")
         merge_banyanfile_with!(banyanfile, included, :cluster)
     end
 
-    # TODO: Use single Banyanfile to upload to S3 and prepare for upload
+    # Create S3 bucket if user did not provide one
+    if s3_bucket_arn == nothing
+        s3_bucket_arn = "banyan-cluster-scripts-" + name + 
+
+    # Create post-install script with base commands
+
+    # Upload all files and scripts to s3_bucket_arn bucket
 
     open(banyanfile_path, "r") do f
        global banyanfile
@@ -155,7 +166,11 @@ function create_cluster(
     )
     if !isnothing(banyanfile_path)
         # TODO: Load Banyanfile
-        cluster_config["banyanfile"] = load_banyanfile(banyanfile_path)
+        cluster_config["banyanfile"] = load_banyanfile(
+            banyanfile_path,
+            name,
+            s3_bucket_arn
+        )
     end
     if !isnothing(iam_policy_arn)
         cluster_config["additional_policy"] = iam_policy_arn # "arn:aws:s3:::banyanexecutor*"
