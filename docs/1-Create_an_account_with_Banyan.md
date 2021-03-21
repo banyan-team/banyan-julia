@@ -1,11 +1,11 @@
 # Create an account with Banyan
 
 ## Step 1: Sign up on AWS Marketplace
-1. Find ___ on the AWS Marketplace service in the AWS Management Console and subscribe. You will be redirected to the Banyan website. Do not close your browser or the web page, and immediately enter in the sign up information (described in Step 2).
-
+1. Create an AWS account or sign into an existing AWS account.
+2. Visit banyancomputing.com and click ... You will be redirected to the registration page in AWS Marketplace. Be sure to sign into AWS. Alternatively, you can directly visit the registration page in AWS Marketplace.
+3. Subscribe. You will be redirected to the Banyan sign up page.
 
 ## Step 2: Sign up on Banyan website
-1. After Step 1, you will be redirected to the Banyan registration page.
-2. Enter your email address, password, contact email, and contact phone.
-3. You will receive an verification code at the email you provided. Enter this in. (TODO: we may not do this)
-4. You have now created a Banyan account. After verifying your account, you will be asked to configure your AWS account.
+4. Fill out the fields with your information (username, email address) and check the box for accepting terms. Click sign up.
+5. Important: Do not close your browser or the web page.
+6. You will receive an activation link in your email. Open that email and click on the activation link. Reset your password and sign in....
