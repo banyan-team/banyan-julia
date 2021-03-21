@@ -22,6 +22,19 @@ function merge_with(banyanfile_so_far::Dict, banyanfile::Dict, selector::Functio
     collect(union(Set(so_far), Set(curr)))
 end
 
+function merge_paths_with(banyanfile_so_far::Dict, banyanfile::Dict, selector::Function)
+    # Merge where we combine arrays by taking unions of their unique elements
+    so_far = selector(banyanfile_so_far)
+    curr = selector(banyanfile)
+    deduplicated_absolute_locations = collect(union(Set(so_far), Set(curr)))
+    deduplicated_relative_locations = unique(loc->basename(loc), vcat(so_far, curr))
+    if deduplicated_relative_locations < deduplicated_absolute_locations
+        error("Files and scripts must have unique base names: $so_far and $curr have the same base name")
+    else
+        deduplicated_absolute_locations
+    end
+end
+
 function keep_same(banyanfile_so_far::Dict, banyanfile::Dict, selector::Function)
     so_far = selector(banyanfile_so_far)
     curr = selector(banyanfile)
