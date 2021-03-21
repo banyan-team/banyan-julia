@@ -2,11 +2,11 @@ using AWSCore
 using AWSSQS
 
 function get_scatter_queue(job_id::JobId)
-	return sqs_get_queue(AWS, string("banyan_", job_id, "_scatter.fifo"))
+	return sqs_get_queue(get_aws_config(), string("banyan_", job_id, "_scatter.fifo"))
 end
 
 function get_gather_queue(job_id::JobId)
-	return sqs_get_queue(AWS, string("banyan_", job_id, "_gather.fifo"))
+	return sqs_get_queue(get_aws_config(), string("banyan_", job_id, "_gather.fifo"))
 end
 
 function receive_next_message(queue_name)

@@ -114,11 +114,7 @@ function duplicate_for_batching!(pa::PartitionAnnotation)
                 PartitioningConstraint(c.type, duplicate_args(c.args, pa))
             )
         elseif c.type == "CROSS" || startswith(c.type, "AT_MOST")
-            println("before:")
-            println(c.args)
             append!(c.args, duplicate_args(c.args, pa))
-            println("after:")
-            println(c.args)
         elseif c.type == "CO_GROUP"
             for group in c.args
                 append!(group, duplicate_args(group, pa))
@@ -134,23 +130,7 @@ function add_pa_to_union()
     # TODO: Ensure this actually copies over the PA and doesn't just
     # copy over a reference that then gets reset
     apply_default_constraints!(curr_pa)
-    println("here")
-    for constraint in curr_pa.constraints.constraints
-        println(constraint.type)
-        if constraint.type == "CROSS"
-            println("CROSS constraint args:")
-            println(constraint.args)
-        end
-    end
     duplicate_for_batching!(curr_pa)
-    println("here")
-    for constraint in curr_pa.constraints.constraints
-        println(constraint.type)
-        if constraint.type == "CROSS"
-            println("CROSS constraint args:")
-            println(constraint.args)
-        end
-    end
     push!(curr_pa_union, curr_pa)
     reset_pa()
 end

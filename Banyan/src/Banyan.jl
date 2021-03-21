@@ -8,7 +8,6 @@
 module Banyan
 
 global BANYAN_API_ENDPOINT
-global AWS
 
 # TODO: Remove this
 # export create_job,
@@ -52,6 +51,7 @@ global AWS
 # include("evaluation.jl")
 
 # Basic types
+export configure
 export Job, create_job, destroy_job, clear_jobs, use
 export create_cluster
 export Future, future, evaluate
@@ -90,11 +90,18 @@ include("tasks.jl")
 include("annotation.jl")
 
 function __init__()
-    global BANYAN_API_ENDPOINT
-    global AWS
+    # The user must provide the following for authentication:
+    # - Username
+    # - API key
+    # - AWS credentials
+    # - SSH key pair (used in cluster creation)
 
+    global BANYAN_API_ENDPOINT
     BANYAN_API_ENDPOINT = "https://hcohsbhhzf.execute-api.us-west-2.amazonaws.com/dev/"
-    AWS = aws_config(region = "us-west-2")
+
+    load_config()
+
+    # AWS = aws_config(region = "us-west-2")
 end
 
 end # module
