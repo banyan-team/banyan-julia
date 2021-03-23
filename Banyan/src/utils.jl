@@ -69,11 +69,11 @@ function configure(;kwargs...)
     end
 
     # Check for changes in required
-    if username != banyan_config["banyan"]["username"]
+    if !isnothing(username) && (username != banyan_config["banyan"]["username"])
         banyan_config["banyan"]["username"] = username
         is_modified = true
     end
-    if api_key != banyan_config["banyan"]["api_key"]
+    if !isnothing(api_key) && (api_key != banyan_config["banyan"]["api_key"])
         banyan_config["banyan"]["api_key"] = api_key
         is_modified = true
     end
