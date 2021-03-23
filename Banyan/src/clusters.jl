@@ -109,7 +109,7 @@ function merge_banyanfile_with!(banyanfile_so_far::Dict, banyanfile_path::String
 end
 
 
-function load_banyanfile(banyanfile_path::String = "res/Banyanfile.json",
+function upload_banyanfile(banyanfile_path::String = "res/Banyanfile.json",
                          name::String = nothing,
                          s3_bucket_arn::String = nothing)
     # TODO: Implement this to load Banyanfile, referenced pt_lib_info, pt_lib,
@@ -123,9 +123,7 @@ function load_banyanfile(banyanfile_path::String = "res/Banyanfile.json",
 
     # Load pt_lib_info if path provided
     pt_lib_info = banyanfile["require"]["cluster"]["pt_lib_info"]
-    if pt_lib_info isa String
-        banyanfile["require"]["cluster"]["pt_lib_info"] = load_json(pt_lib_info)
-    end
+    pt_lib_info = if pt_lib_info isa String load_json(pt_lib_info) else pt_lib_info end
 
     files = banyanfile["require"]["cluster"]["files"]
     scripts = banyanfile["require"]["cluster"]["scripts"]
@@ -135,7 +133,7 @@ function load_banyanfile(banyanfile_path::String = "res/Banyanfile.json",
     # Get bucket name
     # Create S3 bucket if user did not provide one
     s3_bucket_name = ""
-    if s3_bucket_arn == nothing
+    if isnothing(s3_bucket_arn)
         s3_bucket_name = "banyan-cluster-data-" + name
         s3_create_bucket(get_aws_config(), s3_bucket_name)
     else
@@ -178,7 +176,7 @@ aws s3 cp s3://banyanexecutor /home/ec2-user --recursive
     post_install_script = "banyan_$cluster_id" * "_script.sh"
     s3_put(get_aws_config(), s3_bucket_name, post_install_script, code)
 
-    return banyanfile
+    return pt_lib_info
 end
 
 
@@ -207,7 +205,7 @@ function create_cluster(
     )
     if !isnothing(banyanfile_path)
         # TODO: Load Banyanfile
-        cluster_config["banyanfile"] = load_banyanfile(
+        cluster_config["pt_lib_info"] = upload_banyanfile(
             banyanfile_path,
             name,
             s3_bucket_arn
@@ -240,10 +238,7 @@ end
 # TODO: Implement load_banyanfile
 function update_cluster(
     ;name::String = nothing,
-    max_num_nodes::Int = nothing,
     banyanfile_path::String = nothing,
-    iam_policy_arn::String = nothing,
-    s3_bucket_arn::String = nothing,
     kwargs...
 )
     @debug "Updating cluster"
@@ -255,24 +250,11 @@ function update_cluster(
      # Require restart: pcluster_additional_policy, s3_read_write_resource, num_nodes
      # No restart: Banyanfile
 
-    cluster_config = Dict("cluster_id" => cluster_name)
-    if !isnothing(max_num_nodes)
-        cluster_config["max_num_nodes"] = max_num_nodes
-    end
-    if !isnothing(banyanfile_path)
-        # TODO: Load Banyanfile
-        cluster_config["banyanfile"] = load_banyanfile(banyanfile_path)
-    end
-    if !isnothing(iam_policy_arn)
-        cluster_config["additional_policy"] = iam_policy_arn # "arn:aws:s3:::banyanexecutor*"
-    end
-    if !isnothing(s3_bucket_arn)
-        cluster_config["s3_read_write_resource"] = s3_bucket_arn
-    end
+    pt_lib_info = upload_banyanfile(banyanfile_path)
 
     send_request_get_response(
         :update_cluster,
-        cluster_config
+        Dict("pt_lib_info" => pt_lib_info)
     )
 end
 
