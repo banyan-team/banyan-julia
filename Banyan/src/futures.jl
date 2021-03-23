@@ -227,3 +227,7 @@ mem(futs...) = for fut in futs
 end
 
 val(fut) = loc(fut, Value(future(fut).value))
+
+function use(f::Future)
+    f
+end

@@ -27,5 +27,6 @@ function runtest(name, test_fn)
     end
 end
 
-include("test_l1_l2.jl")
-include("test_l3.jl")
+include("test_basic.jl")
+#include("test_l1_l2.jl")
+#include("test_l3.jl")

@@ -239,8 +239,9 @@ function run_bs(size::Integer)
     rate = ones(Float64, size) * 4.0
     vol = ones(Float64, size) * 4.0
 
-    # price
-
+    price
+end
+function put_me_back(size::Integer)
     c05 = Float64(3.0)
     c10 = Float64(1.5)
     invsqrt2 = 1.0 / sqrt(2.0)

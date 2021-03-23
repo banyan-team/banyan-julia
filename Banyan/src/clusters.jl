@@ -110,7 +110,7 @@ end
 
 
 function load_banyanfile(banyanfile_path::String = "res/Banyanfile.json",
-                         name::String,
+                         name::String = nothing,
                          s3_bucket_arn::String = nothing)
     # TODO: Implement this to load Banyanfile, referenced pt_lib_info, pt_lib,
     # code files
@@ -154,7 +154,7 @@ sudo yum update -y &>> setup_log.txt
 wget https://julialang-s3.julialang.org/bin/linux/x64/1.5/julia-1.5.3-linux-x86_64.tar.gz &>> setup_log.txt
 tar zxvf julia-1.5.3-linux-x86_64.tar.gz &>> setup_log.txt
 rm julia-1.5.3-linux-x86_64.tar.gz &>> setup_log.txt
-julia-1.5.3/bin/julia --project -e "using Pkg; Pkg.add([\"AWSCore\", \"AWSSQS\", \"HTTP\", \"Dates\", \"JSON\", \"MPI\", \"Serialization\"]); ENV[\"JULIA_MPIEXEC\"]=\"srun\"; ENV[\"JULIA_MPI_LIBRARY\"]=\"/opt/amazon/openmpi/lib64/libmpi\"; Pkg.build(\"MPI\"; verbose=true)" &>> setup_log.txt
+julia-1.5.3/bin/julia --project -e 'using Pkg; Pkg.add([\"AWSCore\", \"AWSSQS\", \"HTTP\", \"Dates\", \"JSON\", \"MPI\", \"Serialization\"]); ENV[\"JULIA_MPIEXEC\"]=\"srun\"; ENV[\"JULIA_MPI_LIBRARY\"]=\"/opt/amazon/openmpi/lib64/libmpi\"; Pkg.build(\"MPI\"; verbose=true)' &>> setup_log.txt
 aws s3 cp s3://banyanexecutor /home/ec2-user --recursive
     """
 
@@ -170,7 +170,7 @@ aws s3 cp s3://banyanexecutor /home/ec2-user --recursive
     end
 
     # Append to post-install script installing Julia dependencies
-    for pkg in packages:
+    for pkg in packages
         code *= "julia-1.5.3/bin/julia --project -e 'using Pkg; Pkg.add([\"$pkg\"])' &>> setup_log.txt\n"
     end
 
@@ -189,7 +189,7 @@ function create_cluster(
     max_num_nodes::Int = 8,
     banyanfile_path::String = nothing,
     iam_policy_arn::String = nothing,
-    s3_bucket_arn::String = nothing;
+    s3_bucket_arn::String = nothing,
     kwargs...
 )
     @debug "Creating cluster"
@@ -243,7 +243,7 @@ function update_cluster(
     max_num_nodes::Int = nothing,
     banyanfile_path::String = nothing,
     iam_policy_arn::String = nothing,
-    s3_bucket_arn::String = nothing;
+    s3_bucket_arn::String = nothing,
     kwargs...
 )
     @debug "Updating cluster"

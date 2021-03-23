@@ -34,13 +34,14 @@ function write_config()
     global banyan_config
 
     # Write to banyanconfig.toml
-    mkpath(banyanconfig_path)
-    f = open(mkpath, write = true)
+    banyanconfig_path = joinpath(homedir(), ".banyan", "banyanconfig.toml")
+    mkpath(joinpath(homedir(), ".banyan"))
+    f = open(banyanconfig_path, "w")
     TOML.print(f, banyan_config)
     close(f)
 end
 
-if_in_or(key, obj, el=nothing) = if key in keys(obj) obj[key] else el
+if_in_or(key, obj, el=nothing) = if key in keys(obj) obj[key] else el end
 
 function configure(;kwargs...)
     # Load arguments
@@ -81,7 +82,7 @@ function configure(;kwargs...)
 
     # aws.ec2_key_pair_name
     if !isnothing(ec2_key_pair_name) && (
-        !("ec2_key_pair_name" in banyan_config["aws"]) ||
+        !(haskey(banyan_config["aws"], "ec2_key_pair_name")) ||
         ec2_key_pair_name != banyan_config["aws"]["ec2_key_pair_name"]
     )
         banyan_config["aws"]["ec2_key_pair_name"] = ec2_key_pair_name
@@ -93,7 +94,7 @@ function configure(;kwargs...)
 
     # aws.region
     if !isnothing(region) && (
-        !("region" in banyan_config["aws"]) ||
+        !(haskey(banyan_config["aws"], "region")) ||
         region != banyan_config["aws"]["region"]
     )
         banyan_config["aws"]["region"] = region
@@ -102,7 +103,7 @@ function configure(;kwargs...)
 
     # Update config file if it was modified
     if is_modified
-        update_config()
+        write_config()  #update_config()
     end
     
     return banyan_config

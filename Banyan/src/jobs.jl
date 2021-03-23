@@ -86,9 +86,6 @@ function use(j::Job)
     j
 end
 
-function use(f::Future)
-	f
-end
 
 # TODO: Fix bug causing nbatches to be 2 when it should be 25
 # TODO: Fix finalizer of Job
