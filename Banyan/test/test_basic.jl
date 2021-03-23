@@ -8,3 +8,10 @@
 	region="us-west-2"
     )
 end
+
+@testset "Create/Destroy Job" begin
+    j = Job(;
+        cluster_name="banyancluster",
+        nworkers=2
+    ) 
+end

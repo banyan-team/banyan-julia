@@ -7,7 +7,7 @@ function get_job_id()::JobId
     current_job_id
 end
 
-function create_job(;cluster_name::String = nothing, nworkers::Integer = 2, banyanfile_path::String = nothing, kwargs...)::JobId
+function create_job(;cluster_name::String = nothing, nworkers::Integer = 2, banyanfile_path::String = nothing, kwargs...)
 	global current_job_id
 
 	# Configure
@@ -67,8 +67,8 @@ mutable struct Job
 
 	function Job(;kwargs...)
 		new_job_id = create_job(;kwargs...)
+		#new_job_id = create_job(;cluster_name="banyancluster", nworkers=2)
 		new_job = new(new_job_id)
-
 		finalizer(new_job) do j
 			destroy_job(j.job_id)
 		end
