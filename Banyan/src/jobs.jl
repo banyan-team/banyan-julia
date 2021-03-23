@@ -7,8 +7,15 @@ function get_job_id()::JobId
     current_job_id
 end
 
-function create_job(;cluster_name::String=nothing, nworkers::Integer=2, banyanfile_path::String=nothing, kwargs...)
+function create_job(;cluster_name::String="", nworkers::Integer=2, banyanfile_path::String="", kwargs...)
 	global current_job_id
+
+	if cluster_name == ""
+	    cluster_name = nothing
+	end
+	if banyanfile_path == ""
+	    banyanfile_path = nothing
+	end
 
 	# Configure
 	configure(;kwargs...)
@@ -21,7 +28,7 @@ function create_job(;cluster_name::String=nothing, nworkers::Integer=2, banyanfi
 	)
 	if !isnothing(banyanfile_path)
 		banyanfile = load_json(banyanfile_path)
-		for included in banyanfile["included"]
+		for included in banyanfile["include"]
 			merge_banyanfile_with!(banyanfile, included, :code)
 		end
 		job_configuration["banyanfile"] = banyanfile

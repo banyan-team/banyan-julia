@@ -172,7 +172,7 @@ Sends given request with given content
 """
 function send_request_get_response(method, content::Dict{String,Any})
     # Prepare request
-    configuration = config()
+    configuration = load_config()
     username = configuration["banyan"]["username"]
     api_key = configuration["banyan"]["api_key"]
     content["debug"] = is_debug_on()
