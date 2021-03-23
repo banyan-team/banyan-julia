@@ -7,7 +7,7 @@ function get_job_id()::JobId
     current_job_id
 end
 
-function create_job(;cluster_name::String = nothing, nworkers::Integer = 2, banyanfile_path::String = nothing, kwargs...)
+function create_job(;cluster_name::String=nothing, nworkers::Integer=2, banyanfile_path::String=nothing, kwargs...)
 	global current_job_id
 
 	# Configure

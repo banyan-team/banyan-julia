@@ -28,5 +28,6 @@ function runtest(name, test_fn)
 end
 
 include("test_basic.jl")
+#include("test_cluster.jl")
 #include("test_l1_l2.jl")
 #include("test_l3.jl")

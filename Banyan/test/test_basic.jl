@@ -10,6 +10,7 @@
 end
 
 @testset "Create/Destroy Job" begin
+    #j = Job()
     j = Job(;
         cluster_name="banyancluster",
         nworkers=2
