@@ -1,5 +1,4 @@
 using AWSS3
-using AWS
 using FilePathsBase
 using Base64
 using JSON
@@ -281,6 +280,11 @@ function update_cluster(;
         # Retrieve the location of the current post_install script in S3 and upload
         # the updated version to the same location
         s3_bucket_arn = get_cluster(name).s3_bucket_arn
+        if endswith(s3_bucket_arn, "/")
+            s3_bucket_arn = s3_bucket_arn[1:end-1]
+        elseif endswith(s3_bucket_arn, "/*")
+            s3_bucket_arn = s3_bucket_arn[1:end-2]
+        end
 
         # Upload to S3
         pt_lib_info = upload_banyanfile(banyanfile_path, s3_bucket_arn)

@@ -135,7 +135,8 @@ function get_aws_config()
     try
         get_aws_config(configure()["aws"]["region"])
     catch e
-        configure(region = aws_config()[:region])
+        @warn "Using default AWS region of us-west-2"
+        configure(region = "us-west-2")
         get_aws_config(configure()["aws"]["region"])
     end
 end
