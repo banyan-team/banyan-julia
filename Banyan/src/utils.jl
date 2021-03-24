@@ -204,6 +204,7 @@ function send_request_get_response(method, content::Dict)
     # Post and return response
     try
         println(headers)
+	println(content)
         response = HTTP.post(url, headers, JSON.json(content))
         println(response)
         body = String(response.body)

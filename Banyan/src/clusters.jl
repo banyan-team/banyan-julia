@@ -178,11 +178,9 @@ aws s3 cp s3://banyanexecutor /home/ec2-user --recursive
     # Append to post-install script downloading files, scripts, pt_lib onto cluster
     for f in vcat(files, scripts, pt_lib)
         code *=
-            "aws s3 cp s3://s3_bucket_name/" *
+            "aws s3 cp s3://" * s3_bucket_name * "/" *
             basename(f) *
-            " /home/ec2-user/" *
-            basename(f) *
-            "\n"
+            " /home/ec2-user/\n"
     end
 
     # Append to post-install script running scripts onto cluster
@@ -195,6 +193,8 @@ aws s3 cp s3://banyanexecutor /home/ec2-user --recursive
     for pkg in packages
         code *= "julia-1.5.3/bin/julia --project -e 'using Pkg; Pkg.add([\"$pkg\"])' &>> setup_log.txt\n"
     end
+
+    println(code)
 
     # Upload post_install script to s3 bucket
     post_install_script = "banyan_$cluster_id" * "_script.sh"
