@@ -293,11 +293,16 @@ function update_cluster(;
 
         # Upload to S3
         pt_lib_info = upload_banyanfile(banyanfile_path, s3_bucket_arn, cluster_name)
+        println("pt_lib_info:")
+        println(pt_lib_info)
 
         # Upload pt_lib_info
         send_request_get_response(
             :update_cluster,
-            Dict("pt_lib_info" => pt_lib_info),
+            Dict(
+                "cluster_id" => name,
+                "pt_lib_info" => pt_lib_info
+            ),
         )
     end
 end

@@ -179,18 +179,22 @@ method_to_string(method) = begin
         "destroy-job"
     elseif method == :evaluate
         "evaluate"
+    elseif method == :update_cluster
+        "update-cluster"
     end
 end
 
 """
 Sends given request with given content
 """
-function send_request_get_response(method, content::Dict{String,Any})
+function send_request_get_response(method, content::Dict)
     # Prepare request
+    # content = convert(Dict{Any, Any}, content)
     configuration = load_config()
     username = configuration["banyan"]["username"]
     api_key = configuration["banyan"]["api_key"]
-    content["debug"] = is_debug_on()
+    # TODO: Allow content["debug"]
+    # content["debug"] = is_debug_on()
     url = string(BANYAN_API_ENDPOINT, method_to_string(method))
     headers = (
         ("content-type", "application/json"),
@@ -199,20 +203,22 @@ function send_request_get_response(method, content::Dict{String,Any})
 
     # Post and return response
     try
+        println(headers)
         response = HTTP.post(url, headers, JSON.json(content))
+        println(response)
         body = String(response.body)
         return JSON.parse(body)
         #return JSON.parse(JSON.parse(body)["body"])
     catch e
-        if isa(e, HTTP.ExceptionRequest.StatusError)
-            if (e.response.status == 403)
+        if e isa HTTP.ExceptionRequest.StatusError
+            if e.response.status == 403
                 throw(
                     ErrorException(
                         "Please set a valid api_key. Sign in to the dashboard to retrieve your api key.",
                     ),
                 )
             end
-            if (e.response.status != 504)
+            if e.response.status != 504
                 throw(ErrorException(String(take!(IOBuffer(e.response.body)))))
             elseif method == :create_cluster
                 println(
