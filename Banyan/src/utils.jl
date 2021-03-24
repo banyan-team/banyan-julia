@@ -41,16 +41,22 @@ function write_config()
     close(f)
 end
 
-if_in_or(key, obj, el=nothing) = if key in keys(obj) obj[key] else el end
+if_in_or(key, obj, el = nothing) =
+    if key in keys(obj)
+        obj[key]
+    else
+        el
+    end
 
-function configure(;kwargs...)
+function configure(; kwargs...)
     # Load arguments
     kwargs = Dict(kwargs)
     username = if_in_or(:username, kwargs)
     api_key = if_in_or(:api_key, kwargs)
     ec2_key_pair_name = if_in_or(:ec2_key_pair_name, kwargs)
     region = if_in_or(:region, kwargs)
-    require_ec2_key_pair_name = if_in_or(:require_ec2_key_pair_name, kwargs, false)
+    require_ec2_key_pair_name =
+        if_in_or(:require_ec2_key_pair_name, kwargs, false)
 
     # Initialize
     global banyan_config
@@ -61,7 +67,11 @@ function configure(;kwargs...)
     # return nothing
     if isnothing(banyan_config)
         if !isnothing(username) && !isnothing(api_key)
-            banyan_config = Dict("banyan" => Dict("username" => username, "api_key" => api_key), "aws" => Dict())
+            banyan_config = Dict(
+                "banyan" =>
+                    Dict("username" => username, "api_key" => api_key),
+                "aws" => Dict(),
+            )
             is_modified = true
         else
             error("Username and API key not provided")
@@ -69,7 +79,8 @@ function configure(;kwargs...)
     end
 
     # Check for changes in required
-    if !isnothing(username) && (username != banyan_config["banyan"]["username"])
+    if !isnothing(username) &&
+       (username != banyan_config["banyan"]["username"])
         banyan_config["banyan"]["username"] = username
         is_modified = true
     end
@@ -88,7 +99,8 @@ function configure(;kwargs...)
         banyan_config["aws"]["ec2_key_pair_name"] = ec2_key_pair_name
         is_modified = true
     end
-    if require_ec2_key_pair_name && !("ec2_key_pair_name" in banyan_config["aws"])
+    if require_ec2_key_pair_name &&
+       !("ec2_key_pair_name" in banyan_config["aws"])
         error("Name of an EC2 key pair required but not provided")
     end
 
@@ -105,15 +117,15 @@ function configure(;kwargs...)
     if is_modified
         write_config()  #update_config()
     end
-    
+
     return banyan_config
 end
 
 function get_aws_config(region::String)
     global aws_config_by_region
-    configure(region=region)
-    if !(region in aws_config_by_region)
-        aws_config_by_region[region] = aws_config(region=region)
+    configure(region = region)
+    if !(region in keys(aws_config_by_region))
+        aws_config_by_region[region] = aws_config(region = region)
     end
     aws_config_by_region[region]
 end
@@ -123,7 +135,7 @@ function get_aws_config()
     try
         get_aws_config(configure()["aws"]["region"])
     catch e
-        configure(region=aws_config()[:region])
+        configure(region = aws_config()[:region])
         get_aws_config(configure()["aws"]["region"])
     end
 end
@@ -148,7 +160,6 @@ macro delete_in_env(key)
     return :(delete!(ENV, string("BANYAN_", getpid(), "_", $key)))
 end
 
-
 ################
 # API REQUESTS #
 ################
@@ -158,6 +169,8 @@ method_to_string(method) = begin
         "create-cluster"
     elseif method == :destroy_cluster
         "destroy-cluster"
+    elseif method == :describe_clusters
+        "describe-clusters"
     elseif method == :create_job
         "create-job"
     elseif method == :destroy_job
@@ -177,7 +190,10 @@ function send_request_get_response(method, content::Dict{String,Any})
     api_key = configuration["banyan"]["api_key"]
     content["debug"] = is_debug_on()
     url = string(BANYAN_API_ENDPOINT, method_to_string(method))
-    headers = (("content-type", "application/json"), ("Username-APIKey", "$username-$api_key"))
+    headers = (
+        ("content-type", "application/json"),
+        ("Username-APIKey", "$username-$api_key"),
+    )
 
     # Post and return response
     try
@@ -203,5 +219,4 @@ function send_request_get_response(method, content::Dict{String,Any})
             rethrow()
         end
     end
-
 end

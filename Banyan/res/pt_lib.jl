@@ -53,7 +53,9 @@ function split_array(src::Array, idx::Int64, npartitions::Int64, dim::Int8)
     end
 end
 
-function SplitBlockNone(args...) split_nothing(args...) end
+function SplitBlockNone(args...)
+    split_nothing(args...)
+end
 function SplitBlockExecutor(
     src,
     params,
@@ -74,10 +76,18 @@ function SplitBlockExecutor(
     end
 end
 
-function MergeBlockBalancedNone(args...) merge_nothing(args...) end
-function MergeBlockBalancedExecutor(args...) merge_nothing(args...) end
-function MergeBlockUnbalancedNone(args...) merge_nothing(args...) end
-function MergeBlockUnbalancedExecutor(args...) merge_nothing(args...) end
+function MergeBlockBalancedNone(args...)
+    merge_nothing(args...)
+end
+function MergeBlockBalancedExecutor(args...)
+    merge_nothing(args...)
+end
+function MergeBlockUnbalancedNone(args...)
+    merge_nothing(args...)
+end
+function MergeBlockUnbalancedExecutor(args...)
+    merge_nothing(args...)
+end
 
 function from_jl_value(val::Dict)
     # parse(include_string(Main, "Int64"), "1000000")
@@ -94,7 +104,9 @@ end
 function from_jl_value(val::Vector)
     return [from_jl_value(e) for e in val]
 end
-function from_jl_value(val::Any) val end
+function from_jl_value(val::Any)
+    val
+end
 
 function SplitDivValue(
     src,
@@ -105,7 +117,11 @@ function SplitDivValue(
     loc_parameters,
 )
     worker_idx, nworkers = worker_idx_and_nworkers(comm)
-    dst_len = split_and_get_len(from_jl_value(loc_parameters["value"]), worker_idx, nworkers)
+    dst_len = split_and_get_len(
+        from_jl_value(loc_parameters["value"]),
+        worker_idx,
+        nworkers,
+    )
     dst_len = split_and_get_len(dst_len, batch_idx, nbatches)
     dst_len
 end
@@ -124,7 +140,9 @@ function SplitDivExecutor(
     dst_len
 end
 
-function SplitReplicateNone(args...) split_nothing(args...) end
+function SplitReplicateNone(args...)
+    split_nothing(args...)
+end
 
 function SplitReplicateValue(
     src,
@@ -148,8 +166,18 @@ function SplitReplicateExecutor(
     src
 end
 
-function MergeDivValue(args...) merge_nothing(args...) end
-function MergeDivExecutor(args...) merge_nothing(args...) end
-function MergeReplicateNone(args...) merge_nothing(args...) end
-function MergeReplicateValue(args...) merge_nothing(args...) end
-function MergeReplicateExecutor(args...) merge_nothing(args...) end
+function MergeDivValue(args...)
+    merge_nothing(args...)
+end
+function MergeDivExecutor(args...)
+    merge_nothing(args...)
+end
+function MergeReplicateNone(args...)
+    merge_nothing(args...)
+end
+function MergeReplicateValue(args...)
+    merge_nothing(args...)
+end
+function MergeReplicateExecutor(args...)
+    merge_nothing(args...)
+end

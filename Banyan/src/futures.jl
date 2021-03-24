@@ -6,7 +6,7 @@ using Serialization
 #########
 global future_count = 0
 mutable struct Future
-    value
+    value::Any
     value_id::ValueId
     mutated::Bool
     location::Location
@@ -129,12 +129,18 @@ function evaluate(fut, job_id::JobId)
                 value = take!(buf)
                 send_message(
                     scatter_queue,
-                    JSON.json(Dict{String,Any}("value_id" => value_id, "value" => value)),
+                    JSON.json(Dict{String,Any}(
+                        "value_id" => value_id,
+                        "value" => value,
+                    )),
                 )
             elseif message_type == "GATHER"
                 # Receive gather
                 value_id = message["value_id"]
-                value = deserialize(IOBuffer(convert(Array{UInt8}, message["value"])))
+                value = deserialize(IOBuffer(convert(
+                    Array{UInt8},
+                    message["value"],
+                )))
                 setfield!(futures[value_id], :value, value)
                 # Mark other futures that have been gathered as not mut
                 #   so that we can avoid unnecessarily making a call to AWS
@@ -154,22 +160,22 @@ evaluate(fut, job::Job) = evaluate(fut, job.job_id)
 evaluate(fut) = evaluate(fut, get_job_id())
 
 function send_evaluation(value_id::ValueId, job_id::JobId)
-	# TODO: Serialize requests_list to send
-	global pending_requests
+    # TODO: Serialize requests_list to send
+    global pending_requests
     #print("SENDING NOW", requests_list)
-	response = send_request_get_response(
-		:evaluate,
-		Dict{String,Any}(
-			"value_id" => value_id,
-			"job_id" => job_id,
-            "requests" => [to_jl(req) for req in pending_requests]
+    response = send_request_get_response(
+        :evaluate,
+        Dict{String,Any}(
+            "value_id" => value_id,
+            "job_id" => job_id,
+            "requests" => [to_jl(req) for req in pending_requests],
             # TODO: Add locations and deleted
             # TODO: Remove requests
             # TODO: Modify requests
-		),
+        ),
     )
-	empty!(pending_requests)
-	return response
+    empty!(pending_requests)
+    return response
 end
 
 ################################
@@ -222,9 +228,13 @@ end
 
 mem(fut, n::Integer, ty::DataType) = mem(fut, n * sizeof(ty))
 mem(fut) = mem(fut, sizeof(future(fut).value))
-mem(futs...) = for fut in futs
-    mem(fut, maximum([future(f).location.total_memory_usage for f in futs]))
-end
+mem(futs...) =
+    for fut in futs
+        mem(
+            fut,
+            maximum([future(f).location.total_memory_usage for f in futs]),
+        )
+    end
 
 val(fut) = loc(fut, Value(future(fut).value))
 

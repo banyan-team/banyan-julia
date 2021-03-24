@@ -6,7 +6,8 @@ global curr_mut = nothing
 
 function reset_pa()
     global curr_pa
-    curr_pa = PartitionAnnotation(Partitions(Dict()), PartitioningConstraints([]))
+    curr_pa =
+        PartitionAnnotation(Partitions(Dict()), PartitioningConstraints([]))
 end
 
 function reset_annotation()
@@ -21,7 +22,7 @@ reset_annotation()
 
 function duplicate_args(
     args::Vector{PartitionTypeReference},
-    pa::PartitionAnnotation
+    pa::PartitionAnnotation,
 )::Vector{PartitionTypeReference}
     [
         (v, idx + div(length(pa.partitions.pt_stacks[v]), 2))
@@ -32,13 +33,15 @@ end
 function apply_default_constraints!(pa::PartitionAnnotation)
     # Add Cross constraints for all unconstrained PTs
     for (v, pt_stack) in pa.partitions.pt_stacks
-        for i in 1:length(pt_stack)
+        for i = 1:length(pt_stack)
             # Check if in_cross_or_co
             in_cross_or_co = false
             for c in pa.constraints.constraints
-                if (c.type == "CROSS" || c.type == "CO") && (v, i - 1) in c.args
+                if (c.type == "CROSS" || c.type == "CO") &&
+                   (v, i - 1) in c.args
                     in_cross_or_co = true
-                elseif c.type == "CO_GROUP" && any((v, i - 1) in group for group in c.args)
+                elseif c.type == "CO_GROUP" &&
+                       any((v, i - 1) in group for group in c.args)
                     in_cross_or_co = true
                 end
             end
@@ -47,7 +50,7 @@ function apply_default_constraints!(pa::PartitionAnnotation)
             if !in_cross_or_co
                 push!(
                     pa.constraints.constraints,
-                    PartitioningConstraint("CROSS", [(v, i-1)])
+                    PartitioningConstraint("CROSS", [(v, i - 1)]),
                 )
             end
         end
@@ -76,13 +79,13 @@ function apply_default_constraints!(pa::PartitionAnnotation)
     if length(co_args) > 0
         push!(
             pa.constraints.constraints,
-            PartitioningConstraint("CO", co_args)
+            PartitioningConstraint("CO", co_args),
         )
     end
     if length(co_group_args) > 0
         push!(
             pa.constraints.constraints,
-            PartitioningConstraintOverGroups("CO_GROUP", co_group_args)
+            PartitioningConstraintOverGroups("CO_GROUP", co_group_args),
         )
     end
 end
@@ -92,15 +95,15 @@ function duplicate_for_batching!(pa::PartitionAnnotation)
     # first half
     for (v, pt_stack) in pa.partitions.pt_stacks
         append!(pt_stack, copy(pt_stack))
-        for i in 1:div(length(pt_stack), 2)
+        for i = 1:div(length(pt_stack), 2)
             dupi = i + div(length(pt_stack), 2)
             push!(
                 pa.constraints.constraints,
-                PartitioningConstraint("SEQUENTIAL", [(v, dupi - 1)])
+                PartitioningConstraint("SEQUENTIAL", [(v, dupi - 1)]),
             )
             push!(
                 pa.constraints.constraints,
-                PartitioningConstraint("MATCH", [(v, i - 1), (v, dupi - 1)])
+                PartitioningConstraint("MATCH", [(v, i - 1), (v, dupi - 1)]),
             )
         end
     end
@@ -111,7 +114,7 @@ function duplicate_for_batching!(pa::PartitionAnnotation)
         if c.type == "CO" || c.type == "EQUAL"
             push!(
                 new_constraints,
-                PartitioningConstraint(c.type, duplicate_args(c.args, pa))
+                PartitioningConstraint(c.type, duplicate_args(c.args, pa)),
             )
         elseif c.type == "CROSS" || startswith(c.type, "AT_MOST")
             append!(c.args, duplicate_args(c.args, pa))
@@ -120,7 +123,7 @@ function duplicate_for_batching!(pa::PartitionAnnotation)
                 append!(group, duplicate_args(group, pa))
             end
         end
-    end 
+    end
     append!(pa.constraints.constraints, new_constraints)
 end
 
@@ -182,16 +185,22 @@ macro partitioned(ex...)
         # Create task
         add_pa_to_union()
         task = BTask(
-        	$(string(code)),
-        	Dict(
+            $(string(code)),
+            Dict(
                 future(fut).value_id => var_name
-                for (fut, var_name) in zip([$(variables...)], [$(variable_names...)])
+                for
+                (fut, var_name) in
+                zip([$(variables...)], [$(variable_names...)])
             ),
-        	Dict(
-                future(fut).value_id => if get_mutated(future(fut).value_id) "MUT" else "CONST" end
-                for fut in [$(variables...)]
+            Dict(
+                future(fut).value_id =>
+                    if get_mutated(future(fut).value_id)
+                        "MUT"
+                    else
+                        "CONST"
+                    end for fut in [$(variables...)]
             ),
-            get_pa_union()
+            get_pa_union(),
         )
 
         # Set mutated

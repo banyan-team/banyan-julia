@@ -23,8 +23,7 @@ end
 @pc Cross(data, other)
 @pa
 
-@partitioned begin
-    
+@partitioned begin 
 end
 
 @pa

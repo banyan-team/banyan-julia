@@ -10,34 +10,24 @@ AWS = aws_config(region = "us-west-2")
 
 function get_execution_queue()
     global job_id
-    return sqs_get_queue(
-        AWS,
-        string("banyan_", job_id, "_execution.fifo"),
-    )
+    return sqs_get_queue(AWS, string("banyan_", job_id, "_execution.fifo"))
 end
 
 function get_scatter_queue()
     global job_id
-    return sqs_get_queue(
-        AWS,
-        string("banyan_", job_id, "_scatter.fifo"),
-    )
+    return sqs_get_queue(AWS, string("banyan_", job_id, "_scatter.fifo"))
 end
 
 function get_gather_queue()
     global job_id
-    return sqs_get_queue(
-        AWS,
-        string("banyan_", job_id, "_gather.fifo"),
-    )
+    return sqs_get_queue(AWS, string("banyan_", job_id, "_gather.fifo"))
 end
-
 
 ###########################
 # GET MESSAGES FROM QUEUE #
 ###########################
 
-function get_next_message(queue; delete=true)
+function get_next_message(queue; delete = true)
     m = sqs_receive_message(queue)
     while (isnothing(m))
         m = sqs_receive_message(queue)
@@ -53,7 +43,6 @@ function get_next_execution_request()
     return get_next_message(get_execution_queue())
 end
 
-
 ##########################
 # SEND MESSAGES TO QUEUE #
 ##########################
@@ -68,12 +57,9 @@ end
 function send_scatter_request(value_id)
     sqs_send_message(
         get_gather_queue(),
-        JSON.json(Dict(
-            "kind" => "SCATTER_REQUEST",
-            "value_id" => value_id
-        )),
+        JSON.json(Dict("kind" => "SCATTER_REQUEST", "value_id" => value_id)),
         (:MessageGroupId, "1"),
-        (:MessageDeduplicationId, get_message_id())
+        (:MessageDeduplicationId, get_message_id()),
     )
 end
 
@@ -83,10 +69,10 @@ function send_gather(value_id, value)
         JSON.json(Dict(
             "kind" => "GATHER",
             "value_id" => value_id,
-            "value" => value
+            "value" => value,
         )),
         (:MessageGroupId, "1"),
-        (:MessageDeduplicationId, get_message_id())
+        (:MessageDeduplicationId, get_message_id()),
     )
 end
 

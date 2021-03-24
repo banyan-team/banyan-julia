@@ -53,7 +53,8 @@ global BANYAN_API_ENDPOINT
 # Basic types
 export configure
 export Job, create_job, destroy_job, clear_jobs, use
-export create_cluster
+export create_cluster,
+    update_cluster, destroy_cluster, get_clusters, get_cluster
 export Future, future, evaluate
 export Location, src, dst, loc, mem, val
 export PartitionType, pt, pc, mut, @partitioned
@@ -68,7 +69,8 @@ export Block, BlockBalanced, Div, Replicate
 export Co, Cross, Equal, Sequential, Match
 
 # Annotations
-export add_pa_to_union, reset_annotation, get_locations, get_mutated, get_pa_union
+export add_pa_to_union,
+    reset_annotation, get_locations, get_mutated, get_pa_union
 
 using AWSCore
 

@@ -7,7 +7,11 @@ Either use your default AWS profile or [create on](https://stackoverflow.com/que
 ```cmd
 cd Banyan
 
-AWS_DEFAULT_PROFILE=banyan-testing NWORKERS=2 SSH_KEY_PAIR=~/Downloads/EC2ConnectKeyPairTest.pem
+AWS_DEFAULT_PROFILE=banyan-testing
+  BANYAN_CLUSTER_NAME=banyancluster
+  BANYAN_NWORKERS=2
+  BANYAN_USERNAME=pumpkin-at-pie.com
+  BANYAN_API_KEY=7FBKWAv3ld0eOfghSwhX_g
   julia --project=. -e "using Pkg; Pkg.test(\"Banyan\", test_args=[\"scholes\"])"
 ```
 

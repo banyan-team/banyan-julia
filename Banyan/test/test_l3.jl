@@ -57,7 +57,7 @@ function matmul()
     # pt(C, [Block(1), Block(2)])
     # pc(Cross((C, 1), (C, 2)))
     # pt(C_new, BlockMulti([1, 2]))
-    
+
     # @partitioned C C_new begin
     #     C_new = C
     # end

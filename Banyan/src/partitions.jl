@@ -8,29 +8,27 @@ struct PartitionType
     parameters::PartitionTypeParameters
 
     function PartitionType(
-        parameters::Union{String, Dict, PartitionTypeParameters};
+        parameters::Union{String,Dict,PartitionTypeParameters}
     )
-        new(
-            if parameters isa String
-                [Dict("name" => parameters)]
-            elseif typeof(parameters) <: Dict
-                [parameters]
-            else
-                parameters
-            end
-        )
+        new(if parameters isa String
+            [Dict("name" => parameters)]
+        elseif typeof(parameters) <: Dict
+            [parameters]
+        else
+            parameters
+        end)
     end
 end
 
 function to_jl(pt::PartitionType)
-    return Dict(
-        "parameters" => pt.parameters,
-    )
+    return Dict("parameters" => pt.parameters)
 end
 
 const PartitionTypeComposition = Union{PartitionType,Vector{PartitionType}}
 
-pt_composition_from_pts(pt_composition::PartitionTypeComposition)::Vector{PartitionType} =
+pt_composition_from_pts(
+    pt_composition::PartitionTypeComposition,
+)::Vector{PartitionType} =
     if pt_composition isa Vector
         pt_composition
     else
@@ -69,11 +67,10 @@ struct PartitioningConstraintOverGroups
     args::Vector{Vector{PartitionTypeReference}}
 end
 
-function to_jl(constraint::Union{PartitioningConstraint, PartitioningConstraintOverGroups})
-    return Dict(
-        "type" => constraint.type,
-        "args" => constraint.args
-    )
+function to_jl(
+    constraint::Union{PartitioningConstraint,PartitioningConstraintOverGroups},
+)
+    return Dict("type" => constraint.type, "args" => constraint.args)
 end
 
 arg_to_jl_for_co(arg) =
@@ -86,31 +83,31 @@ arg_to_jl_for_co(arg) =
 function constraint_for_co(args)::PartitioningConstraintOverGroups
     if any(arg isa Vector for arg in args)
         args = [arg_to_jl_for_co(arg) for arg in args]
-        PartitioningConstraintOverGroups(
-            "CO_GROUP",
-            args,
-        )
+        PartitioningConstraintOverGroups("CO_GROUP", args)
     else
         PartitioningConstraintOverGroups("CO", pt_refs_to_jl(args))
     end
 end
 
 # TODO: Support Ordered
-Co(args...)         = constraint_for_co(args)
-Cross(args...)      = PartitioningConstraint("CROSS", pt_refs_to_jl(args))
-Equal(args...)      = PartitioningConstraint("EQUAL", pt_refs_to_jl(args))
+Co(args...) = constraint_for_co(args)
+Cross(args...) = PartitioningConstraint("CROSS", pt_refs_to_jl(args))
+Equal(args...) = PartitioningConstraint("EQUAL", pt_refs_to_jl(args))
 Sequential(args...) = PartitioningConstraint("SEQUENTIAL", pt_refs_to_jl(args))
-Match(args...)      = PartitioningConstraint("MATCH", pt_refs_to_jl(args))
+Match(args...) = PartitioningConstraint("MATCH", pt_refs_to_jl(args))
 AtMost(npartitions, args...) =
     PartitioningConstraint("AT_MOST=$npartitions", pt_refs_to_jl(args))
 
 struct PartitioningConstraints
-    constraints::Vector{Union{PartitioningConstraint, PartitioningConstraintOverGroups}}
+    constraints::Vector{
+        Union{PartitioningConstraint,PartitioningConstraintOverGroups},
+    }
 end
 
 function to_jl(constraints::PartitioningConstraints)
     return Dict(
-        "constraints" => [to_jl(constraint) for constraint in constraints.constraints]
+        "constraints" =>
+            [to_jl(constraint) for constraint in constraints.constraints],
     )
 end
 
@@ -119,12 +116,13 @@ end
 ########################
 
 struct Partitions
-    pt_stacks::Dict{ValueId, PartitionTypeComposition}
+    pt_stacks::Dict{ValueId,PartitionTypeComposition}
 end
 
 function to_jl(p::Partitions)
     return Dict(
-        "pt_stacks" => Dict(v => pt_composition_to_jl(pts) for (v, pts) in p.pt_stacks)
+        "pt_stacks" =>
+            Dict(v => pt_composition_to_jl(pts) for (v, pts) in p.pt_stacks),
     )
 end
 
@@ -136,7 +134,6 @@ end
 function to_jl(pa::PartitionAnnotation)
     return Dict(
         "partitions" => to_jl(pa.partitions),
-        "constraints" =>
-        to_jl(pa.constraints)
+        "constraints" => to_jl(pa.constraints),
     )
 end

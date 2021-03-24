@@ -6,8 +6,8 @@
             "files": [],
             "scripts": [],
             "packages": ["DataFrames"],
-            "pt_lib_info": "file://banyan-julia/Banyan/res/pt_lib_info.json",
-            "pt_lib": ""
+            "pt_lib_info": "file://res/pt_lib_info.json",
+            "pt_lib": "file://res/pt_lib.jl"
         },
         "job": {
             "code": []
