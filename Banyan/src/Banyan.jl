@@ -73,6 +73,16 @@ export add_pa_to_union,
     reset_annotation, get_locations, get_mutated, get_pa_union
 
 using AWSCore
+using AWSS3
+using AWSSQS
+using Base64
+using FileIO
+using FilePathsBase
+using HTTP
+using JSON
+using Random
+using Serialization
+using TOML
 
 # Jobs
 include("id.jl")
@@ -103,7 +113,7 @@ function __init__()
 
     load_config()
 
-    # AWS = aws_config(region = "us-west-2")
+    AWS = aws_config(region = "us-west-2")
 end
 
 end # module

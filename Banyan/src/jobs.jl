@@ -24,11 +24,11 @@ function create_job(;
 
     # Configure
     configure(; kwargs...)
-	cluster_name = if isnothing(cluster_name)
-		clusters = list_clusters()
-		if length(clusters) == 0
-			error("Failed to create job: you don't have any clusters created")
-		end
+    cluster_name = if isnothing(cluster_name)
+        clusters = list_clusters()
+        if length(clusters) == 0
+            error("Failed to create job: you don't have any clusters created")
+        end
         first(keys(clusters))
     else
         cluster_name

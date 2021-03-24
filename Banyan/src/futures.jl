@@ -1,5 +1,5 @@
-using JSON
-using Serialization
+#using JSON
+#using Serialization
 
 #########
 # Types #
@@ -129,18 +129,19 @@ function evaluate(fut, job_id::JobId)
                 value = take!(buf)
                 send_message(
                     scatter_queue,
-                    JSON.json(Dict{String,Any}(
-                        "value_id" => value_id,
-                        "value" => value,
-                    )),
+                    JSON.json(
+                        Dict{String,Any}(
+                            "value_id" => value_id,
+                            "value" => value,
+                        ),
+                    ),
                 )
             elseif message_type == "GATHER"
                 # Receive gather
                 value_id = message["value_id"]
-                value = deserialize(IOBuffer(convert(
-                    Array{UInt8},
-                    message["value"],
-                )))
+                value = deserialize(
+                    IOBuffer(convert(Array{UInt8}, message["value"])),
+                )
                 setfield!(futures[value_id], :value, value)
                 # Mark other futures that have been gathered as not mut
                 #   so that we can avoid unnecessarily making a call to AWS

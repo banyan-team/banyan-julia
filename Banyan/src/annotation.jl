@@ -25,8 +25,8 @@ function duplicate_args(
     pa::PartitionAnnotation,
 )::Vector{PartitionTypeReference}
     [
-        (v, idx + div(length(pa.partitions.pt_stacks[v]), 2))
-        for (v, idx) in args
+        (v, idx + div(length(pa.partitions.pt_stacks[v]), 2)) for
+        (v, idx) in args
     ]
 end
 
@@ -187,9 +187,7 @@ macro partitioned(ex...)
         task = BTask(
             $(string(code)),
             Dict(
-                future(fut).value_id => var_name
-                for
-                (fut, var_name) in
+                future(fut).value_id => var_name for (fut, var_name) in
                 zip([$(variables...)], [$(variable_names...)])
             ),
             Dict(

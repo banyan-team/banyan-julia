@@ -66,11 +66,9 @@ end
 function send_gather(value_id, value)
     sqs_send_message(
         get_gather_queue(),
-        JSON.json(Dict(
-            "kind" => "GATHER",
-            "value_id" => value_id,
-            "value" => value,
-        )),
+        JSON.json(
+            Dict("kind" => "GATHER", "value_id" => value_id, "value" => value),
+        ),
         (:MessageGroupId, "1"),
         (:MessageDeduplicationId, get_message_id()),
     )

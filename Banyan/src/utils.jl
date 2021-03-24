@@ -1,6 +1,6 @@
-using HTTP
-using JSON
-using TOML
+#using HTTP
+#using JSON
+#using TOML
 
 ##############
 # CONVERSION #
@@ -125,6 +125,7 @@ function get_aws_config(region::String)
     global aws_config_by_region
     configure(region = region)
     if !(region in keys(aws_config_by_region))
+        println("region = ", region)
         aws_config_by_region[region] = aws_config(region = region)
     end
     aws_config_by_region[region]
@@ -204,16 +205,26 @@ function send_request_get_response(method, content::Dict{String,Any})
     catch e
         if isa(e, HTTP.ExceptionRequest.StatusError)
             if (e.response.status == 403)
-                throw(ErrorException("Please set a valid api_key. Sign in to the dashboard to retrieve your api key."))
+                throw(
+                    ErrorException(
+                        "Please set a valid api_key. Sign in to the dashboard to retrieve your api key.",
+                    ),
+                )
             end
             if (e.response.status != 504)
                 throw(ErrorException(String(take!(IOBuffer(e.response.body)))))
             elseif method == :create_cluster
-                println("Cluster creation in progress. Please check dashboard to view status.")
+                println(
+                    "Cluster creation in progress. Please check dashboard to view status.",
+                )
             elseif method == :create_job
-                println("Job creation in progress. Please check dashboard to view status.")
+                println(
+                    "Job creation in progress. Please check dashboard to view status.",
+                )
             elseif method == :evaluate
-                println("Evaluation is in progress. Please check dashboard to view status.")
+                println(
+                    "Evaluation is in progress. Please check dashboard to view status.",
+                )
             end
         else
             rethrow()
