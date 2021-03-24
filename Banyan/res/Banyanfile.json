@@ -10,7 +10,7 @@
             "pt_lib": "file://res/pt_lib.jl"
         },
         "job": {
-            "code": []
+            "code": ["using DataFrames"]
         }
     }
 }

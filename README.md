@@ -15,6 +15,12 @@ AWS_DEFAULT_PROFILE=banyan-testing
   julia --project=. -e "using Pkg; Pkg.test(\"Banyan\", test_args=[\"scholes\"])"
 ```
 
+In a single line:
+
+```cmd
+AWS_DEFAULT_PROFILE=banyan-testing BANYAN_CLUSTER_NAME=banyancluster BANYAN_NWORKERS=2 BANYAN_USERNAME=pumpkin-at-pie.com BANYAN_API_KEY=7FBKWAv3ld0eOfghSwhX_g julia --project=. -e "using Pkg; Pkg.test(\"Banyan\", test_args=[\"scholes\"])"
+```
+
 ### Configure AWS Credentials
 
 Since AWS Parallel Cluster is launched in BanyanTestUser account, you will need
