@@ -76,11 +76,11 @@ global futures = Dict{ValueId,Future}()
 #################
 
 function evaluate(fut, job_id::JobId)
+
     # Finalize all Futures that can be destroyed
     # println("IN EVALUATE")
     global pending_requests
     global future_count
-    GC.gc()
     #all_values = Set()
     #destroyed_values = Set()
     #for req in pending_requests
@@ -101,6 +101,8 @@ function evaluate(fut, job_id::JobId)
     fut = future(fut)
 
     if fut.mutated
+        GC.gc()
+
         # println("EVALUATE getting sent")
         fut.mutated = false
 
@@ -114,6 +116,7 @@ function evaluate(fut, job_id::JobId)
         # Read instructions from gather queue
         # println("job id: ", job_id)
         # print("LISTENING ON: ", gather_queue)
+        @debug "Waiting on running job $job_id"
         while true
             message = receive_next_message(gather_queue)
             message_type = message["kind"]
@@ -149,6 +152,7 @@ function evaluate(fut, job_id::JobId)
                     futures[value_id].mutated = false
                 end
             elseif message_type == "EVALUATION_END"
+                @debug "Received evaluation end"
                 break
             end
         end
@@ -161,6 +165,7 @@ evaluate(fut, job::Job) = evaluate(fut, job.job_id)
 evaluate(fut) = evaluate(fut, get_job_id())
 
 function send_evaluation(value_id::ValueId, job_id::JobId)
+    @debug "Sending evaluation request"
     # TODO: Serialize requests_list to send
     global pending_requests
     #print("SENDING NOW", requests_list)

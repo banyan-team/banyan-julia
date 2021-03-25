@@ -267,7 +267,7 @@ function update_cluster(;
     banyanfile_path::String = nothing,
     kwargs...,
 )
-    @debug "Updating cluster"
+    @info "Updating cluster"
 
     # Configure
     configure(; kwargs...)

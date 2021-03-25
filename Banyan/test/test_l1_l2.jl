@@ -103,6 +103,7 @@ function ones(::Type{T}, len::Integer)::BanyanArray{T,1} where {T<:Number}
 
     @partitioned data created_size ty begin
         data = ones(ty, created_size)
+        x = DataFrame()
     end
 
     BanyanArray{T,1}(data, data_size)
