@@ -12,13 +12,14 @@ AWS_DEFAULT_PROFILE=banyan-testing \
   BANYAN_NWORKERS=2 \
   BANYAN_USERNAME=pumpkin-at-pie.com \
   BANYAN_API_KEY=7FBKWAv3ld0eOfghSwhX_g \
+  JULIA_DEBUG=Banyan \
   julia --project=. -e "using Pkg; Pkg.test(\"Banyan\", test_args=[\"scholes\"])"
 ```
 
 In a single line:
 
 ```cmd
-AWS_DEFAULT_PROFILE=banyan-testing BANYAN_CLUSTER_NAME=banyancluster BANYAN_NWORKERS=2 BANYAN_USERNAME=pumpkin-at-pie.com BANYAN_API_KEY=7FBKWAv3ld0eOfghSwhX_g julia --project=. -e "using Pkg; Pkg.test(\"Banyan\", test_args=[\"scholes\"])"
+AWS_DEFAULT_PROFILE=banyan-testing BANYAN_CLUSTER_NAME=banyancluster BANYAN_NWORKERS=2 BANYAN_USERNAME=pumpkin-at-pie.com BANYAN_API_KEY=7FBKWAv3ld0eOfghSwhX_g JULIA_DEBUG=Banyan julia --project=. -e "using Pkg; Pkg.test(\"Banyan\", test_args=[\"scholes\"])"
 ```
 
 ### Configure AWS Credentials
