@@ -1,5 +1,5 @@
-using AWSCore
-using AWSSQS
+#using AWSCore
+#using AWSSQS
 
 function get_scatter_queue(job_id::JobId)
     return sqs_get_queue(
@@ -22,7 +22,7 @@ function receive_next_message(queue_name)
     end
     message = JSON.parse(m[:message])
     sqs_delete_message(queue_name, m)
-    println(message)
+    # println(message)
     return message
 end
 

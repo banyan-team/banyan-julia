@@ -8,7 +8,7 @@ struct PartitionType
     parameters::PartitionTypeParameters
 
     function PartitionType(
-        parameters::Union{String,Dict,PartitionTypeParameters}
+        parameters::Union{String,Dict,PartitionTypeParameters},
     )
         new(if parameters isa String
             [Dict("name" => parameters)]

@@ -1,0 +1,63 @@
+{
+    "splits": {
+        "Block": {
+            "required": {
+                "name": "Block"
+            },
+            "default": {
+                "dim": 1,
+                "balanced": true
+            },
+            "partition_memory_usage": "div"
+        },
+        "Div": {
+            "required": {
+                "name": "Div"
+            },
+            "default": {},
+            "partition_memory_usage": "zero"
+        },
+        "Replicate": {
+            "required": {
+                "name": "Replicate"
+            },
+            "default": {},
+            "partition_memory_usage": "all"
+        }
+    },
+    "merges": {
+        "BlockBalanced": {
+            "required": {
+                "name": "Block",
+                "balanced": true
+            },
+            "default": {
+                "dim": 1
+            }
+        },
+        "BlockUnbalanced": {
+            "required": {
+                "name": "Block",
+                "balanced": false
+            },
+            "default": {
+                "dim": 1
+            }
+        },
+        "Div": {
+            "required": {
+                "name": "Div"
+            },
+            "default": {},
+            "partition_memory_usage": "zero"
+        },
+        "Replicate": {
+            "required": {
+                "name": "Replicate"
+            },
+            "default": {},
+            "partition_memory_usage": "all"
+        }
+    },
+    "casts": {}
+}

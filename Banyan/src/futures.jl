@@ -1,5 +1,5 @@
-using JSON
-using Serialization
+#using JSON
+#using Serialization
 
 #########
 # Types #
@@ -76,11 +76,11 @@ global futures = Dict{ValueId,Future}()
 #################
 
 function evaluate(fut, job_id::JobId)
+
     # Finalize all Futures that can be destroyed
-    println("IN EVALUATE")
+    # println("IN EVALUATE")
     global pending_requests
     global future_count
-    GC.gc()
     #all_values = Set()
     #destroyed_values = Set()
     #for req in pending_requests
@@ -101,7 +101,9 @@ function evaluate(fut, job_id::JobId)
     fut = future(fut)
 
     if fut.mutated
-        println("EVALUATE getting sent")
+        GC.gc()
+
+        # println("EVALUATE getting sent")
         fut.mutated = false
 
         # Send evaluate request
@@ -112,8 +114,9 @@ function evaluate(fut, job_id::JobId)
         gather_queue = get_gather_queue(job_id)
 
         # Read instructions from gather queue
-        println("job id: ", job_id)
-        print("LISTENING ON: ", gather_queue)
+        # println("job id: ", job_id)
+        # print("LISTENING ON: ", gather_queue)
+        @debug "Waiting on running job $job_id"
         while true
             message = receive_next_message(gather_queue)
             message_type = message["kind"]
@@ -129,18 +132,19 @@ function evaluate(fut, job_id::JobId)
                 value = take!(buf)
                 send_message(
                     scatter_queue,
-                    JSON.json(Dict{String,Any}(
-                        "value_id" => value_id,
-                        "value" => value,
-                    )),
+                    JSON.json(
+                        Dict{String,Any}(
+                            "value_id" => value_id,
+                            "value" => value,
+                        ),
+                    ),
                 )
             elseif message_type == "GATHER"
                 # Receive gather
                 value_id = message["value_id"]
-                value = deserialize(IOBuffer(convert(
-                    Array{UInt8},
-                    message["value"],
-                )))
+                value = deserialize(
+                    IOBuffer(convert(Array{UInt8}, message["value"])),
+                )
                 setfield!(futures[value_id], :value, value)
                 # Mark other futures that have been gathered as not mut
                 #   so that we can avoid unnecessarily making a call to AWS
@@ -148,6 +152,7 @@ function evaluate(fut, job_id::JobId)
                     futures[value_id].mutated = false
                 end
             elseif message_type == "EVALUATION_END"
+                @debug "Received evaluation end"
                 break
             end
         end
@@ -160,6 +165,7 @@ evaluate(fut, job::Job) = evaluate(fut, job.job_id)
 evaluate(fut) = evaluate(fut, get_job_id())
 
 function send_evaluation(value_id::ValueId, job_id::JobId)
+    @debug "Sending evaluation request"
     # TODO: Serialize requests_list to send
     global pending_requests
     #print("SENDING NOW", requests_list)

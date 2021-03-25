@@ -1,11 +1,3 @@
-using AWSS3
-# using AWS
-using FilePathsBase
-using Base64
-using JSON
-using HTTP
-using FileIO
-using Random
 
 function load_json(path::String)
     if startswith(path, "file://")
@@ -16,7 +8,9 @@ function load_json(path::String)
     elseif startswith(path, "http://") || startswith(path, "https://")
         JSON.parse(HTTP.get(path).body)
     else
-        error("Path $path must start with \"file://\", \"s3://\", or \"http(s)://\"")
+        error(
+            "Path $path must start with \"file://\", \"s3://\", or \"http(s)://\"",
+        )
     end
 end
 
@@ -29,7 +23,9 @@ function load_file(path::String)
     elseif startswith(path, "http://") || startswith(path, "https://")
         String(HTTP.get(path).body)
     else
-        error("Path $path must start with \"file://\", \"s3://\", or \"http(s)://\"")
+        error(
+            "Path $path must start with \"file://\", \"s3://\", or \"http(s)://\"",
+        )
     end
 end
 
@@ -56,7 +52,9 @@ function merge_paths_with(
     deduplicated_relative_locations =
         unique(loc -> basename(loc), vcat(so_far, curr))
     if deduplicated_relative_locations < deduplicated_absolute_locations
-        error("Files and scripts must have unique base names: $so_far and $curr have the same base name")
+        error(
+            "Files and scripts must have unique base names: $so_far and $curr have the same base name",
+        )
     else
         deduplicated_absolute_locations
     end
@@ -78,20 +76,25 @@ function merge_banyanfile_with!(
     banyanfile_so_far::Dict,
     banyanfile_path::String,
     for_cluster_or_job::Symbol,
+    for_creation_or_update::Symbol,
 )
     banyanfile = load_json(banyanfile_path)
 
     # Merge with all included
     for included in banyanfile["include"]
-        merge_banyanfile_with!(banyanfile_so_far, included, for_cluster_or_job)
+        merge_banyanfile_with!(banyanfile_so_far, included, for_cluster_or_job, for_creation_or_update)
     end
     banyanfile_so_far["include"] = []
 
     # Merge with rest of what is in this banyanfile
 
     if for_cluster_or_job == :cluster
-        # Merge language
-        keep_same(banyanfile_so_far, banyanfile, b -> b["require"]["language"])
+        if for_creation_or_update == :creation
+            # Merge language
+            keep_same(banyanfile_so_far, banyanfile, b -> b["require"]["language"])
+        else
+            @warn "Ignoring language"
+        end
 
         # Merge files, scripts, packages
         banyanfile_so_far["require"]["cluster"]["files"] = merge_paths_with(
@@ -126,17 +129,14 @@ function merge_banyanfile_with!(
     end
 end
 
-function upload_banyanfile(
-    banyanfile_path::String,
-    s3_bucket_arn::String,
-)
+function upload_banyanfile(banyanfile_path::String, s3_bucket_arn::String, cluster_id::String, for_creation_or_update::Symbol)
     # TODO: Implement this to load Banyanfile, referenced pt_lib_info, pt_lib,
     # code files
 
     # Load Banyanfile and merge with all included
     banyanfile = load_json(banyanfile_path)
     for included in banyanfile["include"]
-        merge_banyanfile_with!(banyanfile, included, :cluster)
+        merge_banyanfile_with!(banyanfile, included, :cluster, for_creation_or_update)
     end
 
     # Load pt_lib_info if path provided
@@ -154,37 +154,35 @@ function upload_banyanfile(
 
     # Upload all files, scripts, and pt_lib to s3 bucket
     s3_bucket_name = last(split(s3_bucket_arn, ":"))
-    AWSCore.set_debug_level(4)
+    if endswith(s3_bucket_name, "/")
+        s3_bucket_name = s3_bucket_name[1:end-1]
+    elseif endswith(s3_bucket_name, "/*")
+        s3_bucket_name = s3_bucket_name[1:end-2]
+    elseif endswith(s3_bucket_name, "*")
+        s3_bucket_name = s3_bucket_name[1:end-1]
+    end
     for f in vcat(files, scripts, pt_lib)
-        println(s3_bucket_name)
-        println(basename(f))
-        s3_put(
-            get_aws_config(),
-            s3_bucket_name,
-            basename(f),
-            load_file(f),
-        )
+        s3_put(get_aws_config(), s3_bucket_name, basename(f), load_file(f))
     end
 
     # Create post-install script with base commands
-    code = """
-#!/bin/bash
-sudo yum update -y &>> setup_log.txt
-wget https://julialang-s3.julialang.org/bin/linux/x64/1.5/julia-1.5.3-linux-x86_64.tar.gz &>> setup_log.txt
-tar zxvf julia-1.5.3-linux-x86_64.tar.gz &>> setup_log.txt
-rm julia-1.5.3-linux-x86_64.tar.gz &>> setup_log.txt
-julia-1.5.3/bin/julia --project -e 'using Pkg; Pkg.add([\"AWSCore\", \"AWSSQS\", \"HTTP\", \"Dates\", \"JSON\", \"MPI\", \"Serialization\"]); ENV[\"JULIA_MPIEXEC\"]=\"srun\"; ENV[\"JULIA_MPI_LIBRARY\"]=\"/opt/amazon/openmpi/lib64/libmpi\"; Pkg.build(\"MPI\"; verbose=true)' &>> setup_log.txt
-aws s3 cp s3://banyanexecutor /home/ec2-user --recursive
-    """
+    code = "#!/bin/bash\n"
+    code *= "mv setup_log.txt /tmp\n"
+    code *= "sudo yum update -y &>> setup_log.txt\n"
+    if for_creation_or_update == :creation
+        code *= "wget https://julialang-s3.julialang.org/bin/linux/x64/1.5/julia-1.5.3-linux-x86_64.tar.gz &>> setup_log.txt\n"
+        code *= "tar zxvf julia-1.5.3-linux-x86_64.tar.gz &>> setup_log.txt\n"
+        code *= "rm julia-1.5.3-linux-x86_64.tar.gz &>> setup_log.txt\n"
+        code *= "julia-1.5.3/bin/julia --project -e 'using Pkg; Pkg.add([\"AWSCore\", \"AWSSQS\", \"HTTP\", \"Dates\", \"JSON\", \"MPI\", \"Serialization\"]); ENV[\"JULIA_MPIEXEC\"]=\"srun\"; ENV[\"JULIA_MPI_LIBRARY\"]=\"/opt/amazon/openmpi/lib64/libmpi\"; Pkg.build(\"MPI\"; verbose=true)' &>> setup_log.txt\n"
+    end
+    code *= "aws s3 cp s3://banyanexecutor /home/ec2-user --recursive\n"
 
     # Append to post-install script downloading files, scripts, pt_lib onto cluster
     for f in vcat(files, scripts, pt_lib)
         code *=
-            "aws s3 cp s3://s3_bucket_name/" *
+            "aws s3 cp s3://" * s3_bucket_name * "/" *
             basename(f) *
-            " /home/ec2-user/" *
-            basename(f) *
-            "\n"
+            " /home/ec2-user/\n"
     end
 
     # Append to post-install script running scripts onto cluster
@@ -200,14 +198,18 @@ aws s3 cp s3://banyanexecutor /home/ec2-user --recursive
 
     # Upload post_install script to s3 bucket
     post_install_script = "banyan_$cluster_id" * "_script.sh"
+    code *=
+        "touch /home/ec2-user/update_finished\n" *
+        "aws s3 cp /home/ec2-user/update_finished " *
+        "s3://" * s3_bucket_name * "/\n"
     s3_put(get_aws_config(), s3_bucket_name, post_install_script, code)
 
     return pt_lib_info
 end
 
 # Required: cluster_id, num_nodes
-function create_cluster(
-    ;name::String = nothing,
+function create_cluster(;
+    name::String = nothing,
     instance_type::String = "m4.4xlarge",
     max_num_nodes::Int = 8,
     banyanfile_path::String = nothing,
@@ -219,7 +221,11 @@ function create_cluster(
 
     # Configure using parameters
     c = configure(; require_ec2_key_pair_name = true, kwargs...)
-    name = if !isnothing(name) name else "banyan-cluster-" * randstring(6) end
+    name = if !isnothing(name)
+        name
+    else
+        "banyan-cluster-" * randstring(6)
+    end
     if isnothing(s3_bucket_arn)
         s3_bucket_arn = "arn:aws:s3:::banyan-cluster-data-" * name
         s3_bucket_name = last(split(s3_bucket_arn, ":"))
@@ -233,10 +239,10 @@ function create_cluster(
         "num_nodes" => max_num_nodes,
         "ec2_key_pair" => c["aws"]["ec2_key_pair_name"],
         "aws_region" => get_aws_config_region(),
-        "s3_read_write_resource" => s3_bucket_arn
+        "s3_read_write_resource" => s3_bucket_arn,
     )
     if !isnothing(banyanfile_path)
-        pt_lib_info = upload_banyanfile(banyanfile_path, s3_bucket_arn)
+        pt_lib_info = upload_banyanfile(banyanfile_path, s3_bucket_arn, name, :creation)
         cluster_config["pt_lib_info"] = pt_lib_info
     end
     if !isnothing(iam_policy_arn)
@@ -260,7 +266,7 @@ function update_cluster(;
     banyanfile_path::String = nothing,
     kwargs...,
 )
-    @debug "Updating cluster"
+    @info "Updating cluster"
 
     # Configure
     configure(; kwargs...)
@@ -281,14 +287,24 @@ function update_cluster(;
         # Retrieve the location of the current post_install script in S3 and upload
         # the updated version to the same location
         s3_bucket_arn = get_cluster(name).s3_bucket_arn
+	if endswith(s3_bucket_arn, "/")
+            s3_bucket_arn = s3_bucket_arn[1:end-1]
+        elseif endswith(s3_bucket_arn, "/*")
+            s3_bucket_arn = s3_bucket_arn[1:end-2]
+        elseif endswith(s3_bucket_arn, "*")
+	    s3_bucket_arn = s3_bucket_arn[1:end-1]
+	end
 
         # Upload to S3
-        pt_lib_info = upload_banyanfile(banyanfile_path, s3_bucket_arn)
+        pt_lib_info = upload_banyanfile(banyanfile_path, s3_bucket_arn, cluster_name, :update)
 
         # Upload pt_lib_info
         send_request_get_response(
             :update_cluster,
-            Dict("pt_lib_info" => pt_lib_info),
+            Dict(
+                "cluster_id" => name,
+                "pt_lib_info" => pt_lib_info
+            ),
         )
     end
 end
@@ -322,12 +338,17 @@ parsestatus(status) =
 function get_clusters(; kwargs...)
     @debug "Destroying cluster"
     configure(; kwargs...)
-    response = send_request_get_response(:describe_clusters, Dict{String,Any}())
+    response =
+        send_request_get_response(:describe_clusters, Dict{String,Any}())
     clusters = []
     Dict(
-        name => Cluster(name, parsestatus(c["status"]), c["num_jobs"], c["s3_read_write_resource"])
-        for (name, c) in response["clusters"]
+        name => Cluster(
+            name,
+            parsestatus(c["status"]),
+            c["num_jobs"],
+            c["s3_read_write_resource"],
+        ) for (name, c) in response["clusters"]
     )
 end
 
-get_cluster(name::String; kwargs...) = get_clusters(;kwargs...)[name]
+get_cluster(name::String; kwargs...) = get_clusters(; kwargs...)[name]

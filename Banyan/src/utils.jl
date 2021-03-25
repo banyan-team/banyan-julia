@@ -1,6 +1,6 @@
-using HTTP
-using JSON
-using TOML
+#using HTTP
+#using JSON
+#using TOML
 
 ##############
 # CONVERSION #
@@ -125,6 +125,7 @@ function get_aws_config(region::String)
     global aws_config_by_region
     configure(region = region)
     if !(region in keys(aws_config_by_region))
+        # println("region = ", region)
         aws_config_by_region[region] = aws_config(region = region)
     end
     aws_config_by_region[region]
@@ -135,7 +136,8 @@ function get_aws_config()
     try
         get_aws_config(configure()["aws"]["region"])
     catch e
-        configure(region = aws_config()[:region])
+        @warn "Using default AWS region of us-west-2"
+        configure(region = "us-west-2")
         get_aws_config(configure()["aws"]["region"])
     end
 end
@@ -177,18 +179,22 @@ method_to_string(method) = begin
         "destroy-job"
     elseif method == :evaluate
         "evaluate"
+    elseif method == :update_cluster
+        "update-cluster"
     end
 end
 
 """
 Sends given request with given content
 """
-function send_request_get_response(method, content::Dict{String,Any})
+function send_request_get_response(method, content::Dict)
     # Prepare request
+    # content = convert(Dict{Any, Any}, content)
     configuration = load_config()
     username = configuration["banyan"]["username"]
     api_key = configuration["banyan"]["api_key"]
-    content["debug"] = is_debug_on()
+    # TODO: Allow content["debug"]
+    # content["debug"] = is_debug_on()
     url = string(BANYAN_API_ENDPOINT, method_to_string(method))
     headers = (
         ("content-type", "application/json"),
@@ -197,23 +203,36 @@ function send_request_get_response(method, content::Dict{String,Any})
 
     # Post and return response
     try
+        # println(headers)
+	    # println(content)
         response = HTTP.post(url, headers, JSON.json(content))
+        # println(response)
         body = String(response.body)
         return JSON.parse(body)
         #return JSON.parse(JSON.parse(body)["body"])
     catch e
-        if isa(e, HTTP.ExceptionRequest.StatusError)
-            if (e.response.status == 403)
-                throw(ErrorException("Please set a valid api_key. Sign in to the dashboard to retrieve your api key."))
+        if e isa HTTP.ExceptionRequest.StatusError
+            if e.response.status == 403
+                throw(
+                    ErrorException(
+                        "Please set a valid api_key. Sign in to the dashboard to retrieve your api key.",
+                    ),
+                )
             end
-            if (e.response.status != 504)
+            if e.response.status != 504
                 throw(ErrorException(String(take!(IOBuffer(e.response.body)))))
             elseif method == :create_cluster
-                println("Cluster creation in progress. Please check dashboard to view status.")
+                # println(
+                #     "Cluster creation in progress. Please check dashboard to view status.",
+                # )
             elseif method == :create_job
-                println("Job creation in progress. Please check dashboard to view status.")
+                # println(
+                #     "Job creation in progress. Please check dashboard to view status.",
+                # )
             elseif method == :evaluate
-                println("Evaluation is in progress. Please check dashboard to view status.")
+                # println(
+                #     "Evaluation is in progress. Please check dashboard to view status.",
+                # )
             end
         else
             rethrow()

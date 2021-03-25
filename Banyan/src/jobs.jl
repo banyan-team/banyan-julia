@@ -13,7 +13,9 @@ function create_job(;
     banyanfile_path::String = "",
     kwargs...,
 )
+
     global current_job_id
+    @debug "Creating job"
 
     if cluster_name == ""
         cluster_name = nothing
@@ -24,11 +26,11 @@ function create_job(;
 
     # Configure
     configure(; kwargs...)
-	cluster_name = if isnothing(cluster_name)
-		clusters = list_clusters()
-		if length(clusters) == 0
-			error("Failed to create job: you don't have any clusters created")
-		end
+    cluster_name = if isnothing(cluster_name)
+        clusters = list_clusters()
+        if length(clusters) == 0
+            error("Failed to create job: you don't have any clusters created")
+        end
         first(keys(clusters))
     else
         cluster_name
@@ -48,24 +50,26 @@ function create_job(;
     end
 
     # Create the job
+    @debug "Sending request for job creation"
     job_id = send_request_get_response(:create_job, job_configuration)
 
-    print(job_id)
+    # print(job_id)
     job_id = job_id["job_id"]
-    println("Creating job $job_id")
+    # println("Creating job $job_id")
 
     # Store in global state
     current_job_id = job_id
 
+    @debug "Finished creating job $job_id"
     return job_id
 end
 
 function destroy_job(job_id::JobId; kwargs...)
     global current_job_id
 
-    configure(; kwargs...)
+    # configure(; kwargs...)
 
-    @debug "Destroying job"
+    # @debug "Destroying job"
     #println("destroying job ", job_id, " now?")
     send_request_get_response(
         :destroy_job,
