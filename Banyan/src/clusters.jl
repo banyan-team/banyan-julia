@@ -1,5 +1,5 @@
 using AWSS3
-using AWS
+# using AWS
 using FilePathsBase
 using Base64
 using JSON
