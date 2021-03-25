@@ -39,7 +39,7 @@ end
 # TODO: Maybe use let here to achieve the same goal of introducing local scope
 for _ = 1:1
     local data = Dict() # TODO: Make this more restrictive than Any
-
+    local initialized = false
     while true
         # Get next message from execution queue if main node and broadcast
         code = nothing
@@ -70,9 +70,11 @@ for _ = 1:1
         @btime exec_code($data) samples = 1 evals = 1
 
         # Send evaluation end
-        if is_main_node()
+        if is_main_node() && initialized
             println("sending evaluation end")
             send_evaluation_end()
         end
+
+        initialized = true
     end
 end

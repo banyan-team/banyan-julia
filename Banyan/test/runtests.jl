@@ -34,6 +34,7 @@ function run_with_job(name, test_fn)
                     api_key = api_key,
                     cluster_name = cluster_name,
                     nworkers = parse(Int32, nworkers),
+                    banyanfile_path = "file://res/Banyanfile.json",
                 )
                 test_fn(j)
                 use(j)
@@ -44,6 +45,7 @@ function run_with_job(name, test_fn)
                 api_key = api_key,
                 cluster_name = cluster_name,
                 nworkers = parse(Int32, nworkers),
+                banyanfile_path = "file://res/Banyanfile.json",
             )
             test_fn(j)
             use(j)
@@ -62,6 +64,5 @@ function run(name, test_fn)
     end
 end
 
-include("test_l1_l2.jl")
-include("test_basic.jl")
 include("test_cluster.jl")
+include("test_l1_l2.jl")

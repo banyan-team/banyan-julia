@@ -77,7 +77,7 @@ global futures = Dict{ValueId,Future}()
 
 function evaluate(fut, job_id::JobId)
     # Finalize all Futures that can be destroyed
-    println("IN EVALUATE")
+    # println("IN EVALUATE")
     global pending_requests
     global future_count
     GC.gc()
@@ -101,7 +101,7 @@ function evaluate(fut, job_id::JobId)
     fut = future(fut)
 
     if fut.mutated
-        println("EVALUATE getting sent")
+        # println("EVALUATE getting sent")
         fut.mutated = false
 
         # Send evaluate request
@@ -112,8 +112,8 @@ function evaluate(fut, job_id::JobId)
         gather_queue = get_gather_queue(job_id)
 
         # Read instructions from gather queue
-        println("job id: ", job_id)
-        print("LISTENING ON: ", gather_queue)
+        # println("job id: ", job_id)
+        # print("LISTENING ON: ", gather_queue)
         while true
             message = receive_next_message(gather_queue)
             message_type = message["kind"]

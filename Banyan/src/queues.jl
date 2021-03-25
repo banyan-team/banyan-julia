@@ -22,7 +22,7 @@ function receive_next_message(queue_name)
     end
     message = JSON.parse(m[:message])
     sqs_delete_message(queue_name, m)
-    println(message)
+    # println(message)
     return message
 end
 

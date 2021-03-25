@@ -50,9 +50,9 @@ function create_job(;
     # Create the job
     job_id = send_request_get_response(:create_job, job_configuration)
 
-    print(job_id)
+    # print(job_id)
     job_id = job_id["job_id"]
-    println("Creating job $job_id")
+    # println("Creating job $job_id")
 
     # Store in global state
     current_job_id = job_id

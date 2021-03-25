@@ -1,6 +1,6 @@
-@testset "Advanced Cluster Management" begin
+@testset "Cluster Management" begin
     run(
-        "Advanced Configuration",
+        "Configuration",
         () -> begin
             configure(;
                 username = "BanyanTest",
@@ -11,12 +11,18 @@
         end,
     )
 
+    # TODO: Add tests for creating, destroying cluster and updating with more
+    # complex Banyanfiles. The point of additional tests for updating is to
+    # ensure that we parse, merge, and load Banyanfiles correctly and such
+    # tests should cover all the different fields in a Banyanfile including
+    # `includes` for example.
+
     run(
         "Updating Cluster",
         () -> begin
-            update_cluster(;
+            update_cluster(
                 name = "banyancluster",
-                banyanfile_path = "banyan-julia/Banyan/res/banyanfile.json",
+                banyanfile_path = "file://res/Banyanfile.json",
             )
         end,
     )
