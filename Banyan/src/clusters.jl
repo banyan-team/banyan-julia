@@ -1,5 +1,4 @@
 
-
 function load_json(path::String)
     if startswith(path, "file://")
         JSON.parsefile(path[8:end])
@@ -198,7 +197,7 @@ function upload_banyanfile(banyanfile_path::String, s3_bucket_arn::String, clust
     end
 
     # Upload post_install script to s3 bucket
-    post_install_script = "banyan_$cluster_id" * "_script.sh"
+    post_install_script = "banyan_" * cluster_id * "_script.sh"
     code *=
         "touch /home/ec2-user/update_finished\n" *
         "aws s3 cp /home/ec2-user/update_finished " *
