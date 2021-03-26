@@ -121,6 +121,7 @@ function evaluate(fut, job_id::JobId)
             message = receive_next_message(gather_queue)
             message_type = message["kind"]
             if message_type == "SCATTER_REQUEST"
+                @debug "Received scatter request"
                 # Send scatter
                 value_id = message["value_id"]
                 buf = IOBuffer()
@@ -140,6 +141,7 @@ function evaluate(fut, job_id::JobId)
                     ),
                 )
             elseif message_type == "GATHER"
+                @debug "Received gather request"
                 # Receive gather
                 value_id = message["value_id"]
                 value = deserialize(
@@ -152,7 +154,7 @@ function evaluate(fut, job_id::JobId)
                     futures[value_id].mutated = false
                 end
             elseif message_type == "EVALUATION_END"
-                @debug "Received evaluation end"
+                @debug "Received evaluation"
                 break
             end
         end

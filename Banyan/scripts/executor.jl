@@ -9,6 +9,8 @@ using Serialization
 using BenchmarkTools
 using InteractiveUtils
 
+job_id = ARGS[1]
+
 #################
 # GLOBAL VALUES #
 #################
@@ -72,7 +74,7 @@ for _ = 1:1
         # Send evaluation end
         if is_main_node() && initialized
             println("sending evaluation end")
-            send_evaluation_end()
+            send_evaluation_end(job_id)
         end
 
         initialized = true

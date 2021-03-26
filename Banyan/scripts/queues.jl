@@ -74,10 +74,15 @@ function send_gather(value_id, value)
     )
 end
 
-function send_evaluation_end()
+function send_evaluation_end(job_id)
+    output = read("banyan-log-for-job-$job_id", String)
+    open("banyan-log-for-job-$job_id", "w") do io
+        write(io, "")
+    end
+
     sqs_send_message(
         get_gather_queue(),
-        JSON.json(Dict{String,Any}("kind" => "EVALUATION_END")),
+        "EVALUATION_END" * output,
         (:MessageGroupId, "1"),
         (:MessageDeduplicationId, get_message_id()),
     )
