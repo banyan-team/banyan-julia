@@ -1,11 +1,11 @@
-struct BanyanDataFrame
+struct FutureDataFrame
     data::Future
     length::Future
     data_sampled::DataFrame
 end
 
 function length(df::BanyanDataFrame)
-    
+
 end
 
 function run_iris()
