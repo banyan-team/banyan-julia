@@ -133,6 +133,8 @@ function upload_banyanfile(banyanfile_path::String, s3_bucket_arn::String, clust
     # TODO: Implement this to load Banyanfile, referenced pt_lib_info, pt_lib,
     # code files
 
+    # TODO: Validate that s3_bucket_arn exists
+
     # Load Banyanfile and merge with all included
     banyanfile = load_json(banyanfile_path)
     for included in banyanfile["include"]
