@@ -1,5 +1,5 @@
-# TODO: Make BanyanArray a subtype of AbstractArray
-struct BanyanArray{T,N}
+# TODO: Make FutureArray a subtype of AbstractArray
+struct FutureArray{T,N}
     data::Future
     size::Future
 end
@@ -9,9 +9,9 @@ end
 # a custom future function may be defined but users of this data type must
 # be sure to first call future on their data type before calling
 # annotations functions like `mem`/`val`/`pt`/`pc`/`mut`/`loc`/`src`/`dst`.
-Banyan.future(ba::T) where {T<:BanyanArray} = ba.data
+Banyan.future(ba::T) where {T<:FutureArray} = ba.data
 
-function partitioned_vector(ba::BanyanArray{T,1}) where {T}
+function partitioned_vector(ba::FutureArray{T,1}) where {T}
     res_data = future()
     res_size = future()
     target_size = ba.size
@@ -32,8 +32,8 @@ function partitioned_vector(ba::BanyanArray{T,1}) where {T}
 end
 
 function partitioned_vector_by_vector(
-    ba::BanyanArray{T,1},
-    other::BanyanArray{T,1},
+    ba::FutureArray{T,1},
+    other::FutureArray{T,1},
 ) where {T}
     res_data = future()
     res_size = future()
@@ -54,7 +54,7 @@ function partitioned_vector_by_vector(
     return ba, other, res_data, res_size, target_size
 end
 
-function partitioned_vector_by_scalar(ba::BanyanArray{T,1}, other::T) where {T}
+function partitioned_vector_by_scalar(ba::FutureArray{T,1}, other::T) where {T}
     other = future(other)
     res_data = future()
     res_size = future()
@@ -85,7 +85,7 @@ function partitioned_replicated_value(x)
     return x
 end
 
-function ones(::Type{T}, len::Integer)::BanyanArray{T,1} where {T<:Number}
+function ones(::Type{T}, len::Integer)::FutureArray{T,1} where {T<:Number}
     data = future()
     data_size = future((len))
     created_size = future(len) # TODO: Support n-dimensional arrays with Match
@@ -106,16 +106,16 @@ function ones(::Type{T}, len::Integer)::BanyanArray{T,1} where {T<:Number}
         x = DataFrame()
     end
 
-    BanyanArray{T,1}(data, data_size)
+    FutureArray{T,1}(data, data_size)
 end
 
 # Binary vector-vector operations
 for op in (:+, :-)
     @eval begin
         function Base.$op(
-            ba::BanyanArray{T,1},
-            other::BanyanArray{T,1},
-        )::BanyanArray{T,1} where {T}
+            ba::FutureArray{T,1},
+            other::FutureArray{T,1},
+        )::FutureArray{T,1} where {T}
             ba, other, res_data, res_size, target_size =
                 partitioned_vector_by_vector(ba, other)
             op = partitioned_replicated_value($op)
@@ -124,7 +124,7 @@ for op in (:+, :-)
                 res_size = target_size
             end
 
-            BanyanArray{T,1}(res_data, res_size)
+            FutureArray{T,1}(res_data, res_size)
         end
     end
 end
@@ -134,9 +134,9 @@ end
 for op in (:*, :/)
     @eval begin
         function Base.$op(
-            ba::BanyanArray{T,1},
+            ba::FutureArray{T,1},
             other::T,
-        )::BanyanArray{T,1} where {T}
+        )::FutureArray{T,1} where {T}
             ba, other, res_data, res_size, target_size =
                 partitioned_vector_by_scalar(ba, other)
             op = partitioned_replicated_value($op)
@@ -145,7 +145,7 @@ for op in (:*, :/)
                 res_size = target_size
             end
 
-            BanyanArray{T,1}(res_data, res_size)
+            FutureArray{T,1}(res_data, res_size)
         end
     end
 end
@@ -154,8 +154,8 @@ for op in (:*,)
     @eval begin
         function Base.$op(
             other::T,
-            ba::BanyanArray{T,1},
-        )::BanyanArray{T,1} where {T}
+            ba::FutureArray{T,1},
+        )::FutureArray{T,1} where {T}
             ba, other, res_data, res_size, target_size =
                 partitioned_vector_by_scalar(ba, other)
             op = partitioned_replicated_value($op)
@@ -164,7 +164,7 @@ for op in (:*,)
                 res_size = target_size
             end
 
-            BanyanArray{T,1}(res_data, res_size)
+            FutureArray{T,1}(res_data, res_size)
         end
     end
 end
@@ -172,9 +172,9 @@ end
 # Broadcasting vector-vector operations
 function Base.broadcasted(
     op,
-    ba::BanyanArray{T,1},
-    other::BanyanArray{T,1},
-)::BanyanArray{T,1} where {T}
+    ba::FutureArray{T,1},
+    other::FutureArray{T,1},
+)::FutureArray{T,1} where {T}
     ba, other, res_data, res_size, target_size =
         partitioned_vector_by_vector(ba, other)
     op = partitioned_replicated_value(op)
@@ -183,16 +183,16 @@ function Base.broadcasted(
         res_size = target_size
     end
 
-    BanyanArray{T,1}(res_data, res_size)
+    FutureArray{T,1}(res_data, res_size)
 end
 
 # Broadcasting vector-scalar operations
 
 function broadcasted(
     op,
-    ba::BanyanArray{T,1},
+    ba::FutureArray{T,1},
     other::T,
-)::BanyanArray{T,1} where {T}
+)::FutureArray{T,1} where {T}
     ba, other, res_data, res_size, target_size =
         partitioned_vector_by_scalar(ba, other)
     op = partitioned_replicated_value(op)
@@ -201,24 +201,24 @@ function broadcasted(
         res_size = target_size
     end
 
-    BanyanArray{T,1}(res_data, res_size)
+    FutureArray{T,1}(res_data, res_size)
 end
 
-broadcasted(op, ba::BanyanArray{T,1}, ::Val{V}) where {T,V} =
+broadcasted(op, ba::FutureArray{T,1}, ::Val{V}) where {T,V} =
     broadcasted(op, ba, T(V))
 
-Base.broadcasted(op, ba::BanyanArray, other) where {T} =
+Base.broadcasted(op, ba::FutureArray, other) where {T} =
     broadcasted(op, ba, other)
 
 # specialized_wrapper might be Base.literal_pow
-Base.broadcasted(specialized_wrapper, op, ba::BanyanArray, other) =
+Base.broadcasted(specialized_wrapper, op, ba::FutureArray, other) =
     broadcasted(op, ba, other)
 
 function Base.broadcasted(
     op,
     other::T,
-    ba::BanyanArray{T,1},
-)::BanyanArray{T,1} where {T}
+    ba::FutureArray{T,1},
+)::FutureArray{T,1} where {T}
     ba, other, res_data, res_size, target_size =
         partitioned_vector_by_scalar(ba, other)
     op = partitioned_replicated_value(op)
@@ -227,10 +227,10 @@ function Base.broadcasted(
         res_size = target_size
     end
 
-    BanyanArray{T,1}(res_data, res_size)
+    FutureArray{T,1}(res_data, res_size)
 end
 
-function Base.broadcasted(op, ba::BanyanArray{T,1})::BanyanArray{T,1} where {T}
+function Base.broadcasted(op, ba::FutureArray{T,1})::FutureArray{T,1} where {T}
     ba, res_data, res_size, target_size = partitioned_vector(ba)
     op = partitioned_replicated_value(op)
     @partitioned op ba res_data res_size target_size begin
@@ -238,13 +238,13 @@ function Base.broadcasted(op, ba::BanyanArray{T,1})::BanyanArray{T,1} where {T}
         res_size = target_size
     end
 
-    BanyanArray{T,1}(res_data, res_size)
+    FutureArray{T,1}(res_data, res_size)
 end
 
 # Unary operators
 for op in (:-, :+)
     @eval begin
-        function Base.$op(ba::BanyanArray{T,1})::BanyanArray{T,1} where {T}
+        function Base.$op(ba::FutureArray{T,1})::FutureArray{T,1} where {T}
             ba, res_data, res_size, target_size = partitioned_vector(ba)
             op = partitioned_replicated_value($op)
             @partitioned op ba res_data res_size target_size begin
@@ -252,7 +252,7 @@ for op in (:-, :+)
                 res_size = target_size
             end
 
-            BanyanArray{T,1}(res_data, res_size)
+            FutureArray{T,1}(res_data, res_size)
         end
     end
 end
@@ -271,7 +271,7 @@ function run_bs(size::Integer)
     # invsqrt2 = 1.0 / sqrt(2.0)
 
     # # rsig = rate + (vol.^2) * c05
-    # rsig = vol .^ 2 # TODO: Fix issue in BanyanArray where operands are same
+    # rsig = vol .^ 2 # TODO: Fix issue in FutureArray where operands are same
     # rsig = rsig .* c05
     # rsig = rsig .+ rate
 

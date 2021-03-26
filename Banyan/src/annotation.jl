@@ -119,9 +119,13 @@ function duplicate_for_batching!(pa::PartitionAnnotation)
         elseif c.type == "CROSS" || startswith(c.type, "AT_MOST")
             append!(c.args, duplicate_args(c.args, pa))
         elseif c.type == "CO_GROUP"
-            for group in c.args
-                append!(group, duplicate_args(group, pa))
-            end
+            push!(
+                new_constraints,
+                PartitioningConstraint(c.type, [duplicate_args(group, pa) for group in c.args]),
+            )
+            # for group in c.args
+            #     append!(group, duplicate_args(group, pa))
+            # end
         end
     end
     append!(pa.constraints.constraints, new_constraints)
