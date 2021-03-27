@@ -133,6 +133,8 @@ function upload_banyanfile(banyanfile_path::String, s3_bucket_arn::String, clust
     # TODO: Implement this to load Banyanfile, referenced pt_lib_info, pt_lib,
     # code files
 
+    # TODO: Validate that s3_bucket_arn exists
+
     # Load Banyanfile and merge with all included
     banyanfile = load_json(banyanfile_path)
     for included in banyanfile["include"]
@@ -168,6 +170,7 @@ function upload_banyanfile(banyanfile_path::String, s3_bucket_arn::String, clust
     # Create post-install script with base commands
     code = "#!/bin/bash\n"
     code *= "mv setup_log.txt /tmp\n"
+    code *= "cd /home/ec2-user\n"
     code *= "sudo yum update -y &>> setup_log.txt\n"
     if for_creation_or_update == :creation
         code *= "wget https://julialang-s3.julialang.org/bin/linux/x64/1.5/julia-1.5.3-linux-x86_64.tar.gz &>> setup_log.txt\n"
