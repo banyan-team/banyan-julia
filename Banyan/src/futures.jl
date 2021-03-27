@@ -162,8 +162,6 @@ function evaluate(fut, job_id::JobId)
 
     return getfield(fut, :value)
 end
-
-evaluate(fut, job::Job) = evaluate(fut, job.job_id)
 evaluate(fut) = evaluate(fut, get_job_id())
 
 function send_evaluation(value_id::ValueId, job_id::JobId)
