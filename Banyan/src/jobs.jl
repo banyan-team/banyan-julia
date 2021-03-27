@@ -86,25 +86,30 @@ end
 mutable struct Job
     job_id::JobId
 
-    function Job(; kwargs...)
-        new_job_id = create_job(; kwargs...)
-        #new_job_id = create_job(;cluster_name="banyancluster", nworkers=2)
-        new_job = new(new_job_id)
-        finalizer(new_job) do j
-            destroy_job(j.job_id)
-        end
+    # function Job(; kwargs...)
+    #     new_job_id = create_job(; kwargs...)
+    #     #new_job_id = create_job(;cluster_name="banyancluster", nworkers=2)
+    #     new_job = new(new_job_id)
+    #     finalizer(new_job) do j
+    #         destroy_job(j.job_id)
+    #     end
 
-        new_job
+    #     new_job
+    # end
+end
+
+function Job(f::Function; kwargs...)
+    j = create_job(;kwargs...)
+    try
+        f(j)
+    finally
+        destroy_job(j)
     end
 end
 
 function clear_jobs()
     global pending_requests
     empty!(pending_requests)
-end
-
-function use(j::Job)
-    j
 end
 
 # TODO: Fix bug causing nbatches to be 2 when it should be 25

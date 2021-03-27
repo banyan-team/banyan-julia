@@ -341,7 +341,7 @@ parsestatus(status) =
     end
 
 function get_clusters(; kwargs...)
-    @debug "Destroying cluster"
+    @debug "Downloading descriptin of clusters"
     configure(; kwargs...)
     response =
         send_request_get_response(:describe_clusters, Dict{String,Any}())

@@ -29,26 +29,26 @@ function run_with_job(name, test_fn)
        any([occursin(t, lowercase(name)) for t in enabled_tests])
         if get(ENV, "BANYAN_NWORKERS_ALL", "false") == "true"
             for nworkers in [16, 8, 4, 2, 1]
-                j = Job(
+                Job(
                     username = username,
                     api_key = api_key,
                     cluster_name = cluster_name,
                     nworkers = parse(Int32, nworkers),
                     banyanfile_path = "file://res/Banyanfile.json",
-                )
-                test_fn(j)
-                use(j)
+                ) do
+                    test_fn(j)
+                end
             end
         elseif !isnothing(nworkers)
-            j = Job(
+            Job(
                 username = username,
                 api_key = api_key,
                 cluster_name = cluster_name,
                 nworkers = parse(Int32, nworkers),
                 banyanfile_path = "file://res/Banyanfile.json",
-            )
-            test_fn(j)
-            use(j)
+            ) do j
+                test_fn(j)
+            end
         end
     end
 end

@@ -104,6 +104,7 @@ function ones(::Type{T}, len::Integer)::FutureArray{T,1} where {T<:Number}
     @partitioned data created_size ty begin
         data = ones(ty, created_size)
         x = DataFrame()
+        # error("Hello!")
     end
 
     FutureArray{T,1}(data, data_size)
