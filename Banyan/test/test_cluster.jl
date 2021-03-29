@@ -55,7 +55,7 @@ end
             )
             test_create_cluster(
                 false,
-                "",
+                "";
                 name = "badcluster",
                 instance_type = "t3.large",
                 banyanfile_path = "file://res/Banyanfile.json",
@@ -73,7 +73,7 @@ end
             )
             test_create_cluster(
                 false,
-                "",
+                "";
                 name = "badcluster",
                 instance_type = "t3.large",
                 banyanfile_path = "file://res/Banyanfile.json",
@@ -91,7 +91,7 @@ end
             )
             test_create_cluster(
                 false,
-                "",
+                "";
                 name = "badcluster",
                 instance_type = "t3.large",
                 banyanfile_path = "file://res/Banyanfile.json",
@@ -109,7 +109,7 @@ end
             )
             test_create_cluster(
                 false,
-                "",
+                "";
                 name = "badcluster",
                 instance_type = "t3.large",
                 banyanfile_path = "file://res/Banyanfile.json",
@@ -127,7 +127,7 @@ end
             )
             test_create_cluster(
                 false,
-                "",
+                "";
                 name = "badcluster",
                 instance_type = "a1.metal",
                 banyanfile_path = "file://res/Banyanfile.json",
@@ -145,7 +145,7 @@ end
             )
             test_create_cluster(
                 false,
-                "",
+                "";
                 name = "badcluster",
                 instance_type = "t3.large",
                 banyanfile_path = "file://res/banyanfile_badcluster.json",
@@ -167,7 +167,7 @@ end
             )
             test_create_cluster(
                 true,
-                :creating,
+                :creating;
                 name = "cluster_useast1",
                 instance_type = "t3.large",
                 banyanfile_path = "file://res/Banyanfile.json",
@@ -204,11 +204,11 @@ end
             )
             test_create_cluster(
                 true,
-                :creating,
+                :creating;
                 name = "cluster_useast1",
                 instance_type = "t3.large",
                 banyanfile_path = "file://res/Banyanfile.json",
-                s3_bucket_arn::String = "TODOTODOTODTODOTO",
+                # s3_bucket_arn::String = "TODOTODOTODTODOTO",
             )
         end,
     )

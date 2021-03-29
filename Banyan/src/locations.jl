@@ -1,9 +1,33 @@
+#################
+# Location type #
+#################
+
 mutable struct Location
     src_name::String
     dst_name::String
     src_parameters::Dict
     dst_parameters::Dict
     total_memory_usage::Int64
+
+    function Location(name::String, parameters::Dict, total_memory_usage::Int64)
+        new(name, name, parameters, parameters, total_memory_usage)
+    end
+
+    function Location(
+        src_name::String,
+        dst_name::String,
+        src_parameters::Dict,
+        dst_parameters::Dict,
+        total_memory_usage::Int64,
+    )
+        new(
+            src_name,
+            dst_name,
+            src_parameters,
+            dst_parameters,
+            total_memory_usage,
+        )
+    end
 end
 
 function to_jl(lt::Location)
@@ -16,14 +40,12 @@ function to_jl(lt::Location)
     )
 end
 
-None() = Location("None", "None", Dict(), Dict(), 0)
-Value(val) = Location(
-    "Value",
-    "Value",
-    Dict("value" => to_jl_value(val)),
-    Dict("value" => to_jl_value(val)),
-    0,
-)
+####################
+# Simple locations #
+####################
+
+None() = Location("None", Dict(), 0)
+Value(val) = Location("Value", Dict("value" => to_jl_value(val)), 0)
 
 to_jl_value(jl) =
     if jl isa Dict
@@ -46,45 +68,88 @@ to_jl_value(jl) =
         Dict("banyan_type" => "value", "contents" => string(jl))
     end
 
-# TODO: Implement locations for s3:// and http(s)://
+# NOTE: Currently, we only support s3:// or http(s):// and only either a
+# single file or a directory containing files that comprise the dataset.
 
-# struct S3Path
-#     bucket::String
-#     key::String
-# end
+###############################
+# Metadata for location paths #
+###############################
 
-# function parse_datasource_names(datasource_name::String)
-#     if startswith(datasource_name, "s3://")
-#         datasource_path = Path(datasource_name)
-#         bucket, key = datasource_path.bucket, datasource_path.key
-#         dirname, filename = splitdir(key)
-#         if '*' in filename
-#             [S3Path(bucket, p) for p in readdir(path) if occursin(Regex(filename), p)]
-#         elseif length(filename) > 0
-#             [path]
-#         else
-#             error("Expected either a single file or a glob of files")
-#         end
-#     elseif startswith(datasource_name, "http://") || startswith(datasource_name, "https://")
-#         return [Path(datasource_name)]
-#     else
-#         error("Expected s3:// or http:// or https://")
-#     end
-# end
+struct S3Metadata
+    bucket::String
+    key::String
+end
 
-# parse_datasource_names(datasource_names::Vector{String}) =
-#     vcat([parse_datasource_names(dsn for dsn in datasource_names)])
+function s3_path_to_metadata(pathname::String)::Vector{S3Metadata}
+    metadata = []
+    path = Path(pathname)
+    if isdir(path)
+        for filename in sort(readdir(path))
+            joinedpath = joinpath(path, filename)
+            push!(metadata, S3Metadata(joinedpath.bucket, joinedpath.key))
+        end
+    else
+        push!(metadata, S3Metadata(path.bucket, path.key))
+    end
+    metadata
+end
 
-# read_datasources(datasource_names) =
-#     [
-#         begin
-#             dsn_str = string(dsn)
-#             if startswith(dsn_str, "file://")
-#             elseif startswith(dsn_str, "s3://")
-#         end
-#         for dsn in datasource_names
-#     ]
+####################################
+# Metadata for location data types #
+####################################
 
-# function CSV(filename::String)
-#     Location("CSV", "CSV", Dict())
-# end
+struct CSVMetadata
+    nrows::Int64
+    ncolumns::Int64
+    nbytes::Int64
+end
+
+function get_csv_metadata(io::IOBuffer)::CSVMetadata
+    rows = CSV.Rows(io, reusebuffer=true)
+    ncolumns = length(rows.columns)
+    nrows = 1
+    nbytes = 0
+    for row in rows
+        for i in 1:ncolumns
+            nbytes += sizeof(CSV.detect(row, i))
+        end
+        nrows += 1
+    end
+    CSVMetadata(nrows, ncolumns, nbytes)
+end
+
+get_csv_metadata(m::S3Metadata)::CSVMetadata = get_csv_metadata(s3_get(m.bucket, m.key))
+
+get_csv_metadata_from_url(url::String)::CSVMetadata = get_csv_metadata(HTTP.get(url))
+
+####################
+# Remote locations #
+####################
+
+function CSV(pathname::String)
+    if startswith(path, "s3://")
+        files_metadata = []
+        nbytes = 0
+        nrows = 0
+        for s3_metadata in s3_path_to_metadata(pathname)
+            csv_metadata = get_csv_metadata(s3_metadata)
+            push!(files_metadata, Dict(
+                "s3_bucket" => s3_metadata.bucket,
+                "s3_key" => s3_metadata.key,
+                "nrows" => csv_metadata.nrows
+            ))
+            nbytes += csv_metadata.nbytes
+            nrows += csv_metadata.nrows
+        end
+        Location("CSV", Dict("files" => files_metadata, "nrows" => nrows), nbytes)
+    elseif startswith(path, "http://") || startswith(path, "https://")
+        metadata = get_csv_metadata_from_url(pathname)
+        Location(
+            "CSV",
+            Dict("url" => pathname, "nrows" => metadata.nrows),
+            metadata.nbytes,
+        )
+    else
+        error("Expected either s3:// or http(s)://")
+    end
+end

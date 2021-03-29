@@ -188,6 +188,10 @@ end
 # Methods for Setting Location #
 ################################
 
+# TODO: Refactor src and dst
+# TODO: Make working with Locations more efficient by ensuring that we don't
+# needlessly make copies
+
 function src(fut, loc::Location)
     global futures
     fut = future(fut)
@@ -243,7 +247,3 @@ mem(futs...) =
     end
 
 val(fut) = loc(fut, Value(future(fut).value))
-
-function use(f::Future)
-    f
-end

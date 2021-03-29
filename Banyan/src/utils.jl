@@ -136,7 +136,7 @@ function get_aws_config()
     try
         get_aws_config(configure()["aws"]["region"])
     catch e
-        @warn "Using default AWS region of us-west-2"
+        @warn "Using default AWS region of us-west-2 in \$HOME/.banyan/banyanconfig.toml"
         configure(region = "us-west-2")
         get_aws_config(configure()["aws"]["region"])
     end

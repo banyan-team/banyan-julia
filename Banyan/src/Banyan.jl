@@ -55,8 +55,8 @@ export configure
 export Job, create_job, destroy_job, clear_jobs
 export create_cluster,
     update_cluster, destroy_cluster, get_clusters, get_cluster
-export Future, future, evaluate, use
-export Location, src, dst, loc, mem, val
+export Future, future, evaluate
+export Location, src, dst, mem, val
 export PartitionType, pt, pc, mut, @partitioned
 
 # Locations
@@ -76,13 +76,15 @@ using AWSCore
 using AWSS3
 using AWSSQS
 using Base64
-using FileIO
-using FilePathsBase
 using HTTP
 using JSON
 using Random
 using Serialization
 using TOML
+
+using FileIO
+using FilePathsBase
+using CSV
 
 # Jobs
 include("id.jl")

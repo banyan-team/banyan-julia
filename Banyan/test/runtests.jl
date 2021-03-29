@@ -35,7 +35,7 @@ function run_with_job(name, test_fn)
                     cluster_name = cluster_name,
                     nworkers = parse(Int32, nworkers),
                     banyanfile_path = "file://res/Banyanfile.json",
-                ) do
+                ) do j
                     test_fn(j)
                 end
             end
