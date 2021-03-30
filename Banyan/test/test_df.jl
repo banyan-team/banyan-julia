@@ -1,6 +1,6 @@
 struct FutureDataFrame
     data::Future
-    length::Future
+    # length::Future
     # data_sampled::DataFrame
 end
 
@@ -12,11 +12,11 @@ function read_csv(pathname)
     src(data, location)
     val(length, location.nrows)
 
-    pt(data, BlockBalanced())
-    pt(len, Div())
+    pt(data, Block())
+    # pt(len, Div())
     mut(data)
 
-    @partitioned begin end
+    @partitioned data begin end
 
     FutureDataFrame(data, length)
 end
@@ -29,7 +29,7 @@ function run_iris()
     # TODO: Read in iris
     # TODO: Conver petal length units
     # TODO: Average the petal length
-    read_csv("s3://banyanexecutor/iris.csv")
+    df = read_csv("s3://banyanexecutor/iris.csv")
 end
 
 @testset "Black Scholes" begin

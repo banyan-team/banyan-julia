@@ -6,6 +6,7 @@ function split_nothing(
     batch_idx::Int64,
     nbatches::Int64,
     comm::MPI.Comm,
+    loc_name,
     loc_parameters,
 )::Nothing
     nothing
@@ -18,166 +19,141 @@ function merge_nothing(
     batch_idx::Int64,
     nbatches::Int64,
     comm::MPI.Comm,
+    loc_name,
     loc_parameters,
 )
     src
 end
 
-function worker_idx_and_nworkers(comm::MPI.Comm)
-    (MPI.Comm_rank(comm) + 1, MPI.Comm_size(comm))
-end
+get_worker_idx(comm::MPI.Comm) = MPI.Comm_rank(comm) + 1
+get_nworkers(comm::MPI.Comm) = MPI.Comm_size(comm)
 
-function split_len(src_len::Int64, idx::Int64, npartitions::Int64)
+split_len(src_len::Int64, idx::Int64, npartitions::Int64) =
     if npartitions > 1
         dst_len = Int64(cld(src_len, npartitions))
         dst_start = min((idx - 1) * dst_len + 1, src_len + 1)
         dst_end = min(idx * dst_len, src_len)
-        (dst_start, dst_end)
+        dst_start:dst_end
     else
-        (1, src_len)
+        1:src_len
     end
-end
 
-function split_and_get_len(src_len::Int64, idx::Int64, npartitions::Int64)
-    dst_len = split_len(src_len, idx, npartitions)
-    length(dst_len[1]:dst_len[2])
-end
+split_len(src_len, comm::MPI.Comm) =
+    split_len(src_len, worker_idx(comm), nworkers(comm))
 
-function split_array(src::Array, idx::Int64, npartitions::Int64, dim::Int8)
+split_len(
+    src_len,
+    batch_idx::Int64,
+    nbatches::Int64,
+    worker_idx::Int64,
+    nworkers::Int64,
+) = split_len(
+    src_len,
+    (worker_idx - 1) * nworkers + batch_idx,
+    nworkers * nbatches,
+)
+
+split_len(src_len, batch_idx::Int64, nbatches::Int64, comm::MPI.Comm) =
+    split_len(src_len, batch_idx, nbatches, worker_idx(comm), nworkers(comm))
+
+split_array(src::Array, dim::Int8, args...) =
     if npartitions > 1
-        src_len = size(src, dim)
-        dst_start, dst_end = split_len(src_len, idx, npartitions)
+        src_len = dst_start, dst_end = split_len(size(src, dim), arg...)
         selectdim(src, dim, dst_start:dst_end)
     else
         src
     end
-end
 
-function SplitBlockNone(args...)
-    split_nothing(args...)
-end
-function SplitBlockExecutor(
+isoverlapping(a::AbstractRange, b::AbstractRAnge) =
+    a.start ≤ b.stop && b.start ≤ a.stop
+
+function ReadCSV(
     src,
     params,
     batch_idx::Int64,
     nbatches::Int64,
     comm::MPI.Comm,
+    loc_name,
     loc_parameters,
 )
-    if isnothing(src)
-        nothing
-    else
-        worker_idx, nworkers = worker_idx_and_nworkers(comm)
-        dim = params["dim"]
+    nrows = loc_parameters["nrow"]
+    rowrange = split_len(nrows, batch_idx, nbatches, comm)
 
-        dst = split_array(src, worker_idx, nworkers, dim)
-        dst = split_array(dst, batch_idx, nbatches, dim)
-        dst
-    end
-end
-
-function MergeBlockBalancedNone(args...)
-    merge_nothing(args...)
-end
-function MergeBlockBalancedExecutor(args...)
-    merge_nothing(args...)
-end
-function MergeBlockUnbalancedNone(args...)
-    merge_nothing(args...)
-end
-function MergeBlockUnbalancedExecutor(args...)
-    merge_nothing(args...)
-end
-
-function from_jl_value(val::Dict)
-    # parse(include_string(Main, "Int64"), "1000000")
-    if "banyan_type" in keys(val)
-        if val["banyan_type"] == "value"
-            include_string(Main, val["contents"])
-        else
-            parse(include_string(Main, val["banyan_type"]), val["contents"])
+    rowsscanned = 0
+    if haskey(loc_parameters, "files")
+        dfs = DataFrame()
+        for file in loc_parameters["files"]
+            newrowsscanned = rowsscanned + file["nrows"]
+            filerowrange = (rowsscanned+1):newrowsscanned
+            if isoverlapping(filerowrange, rowrange)
+                readrange = filerowrange
+                if rowrange.start > filerowrange.start
+                    readrange.start = rowrange.start
+                end
+                if rowrange.stop < filerowrange.stop
+                    readrange.stop = rowrange.stop
+                end
+                push!(dfs, DataFrame(
+                    if haskey(file, "s3_bucket")
+                        CSV.File(
+                            s3_get(file["s3_bucket"], file["s3_key"]),
+                            skipto = readrange.start - filerowrange.start + 1,
+                            footerskip = filerowrange.stop - readrange.stop,
+                        ) |> Arrow.Table
+                    elseif haskey(file, "path")
+                        CSV.File(
+                            file["path"],
+                            skipto = readrange.start - filerowrange.start + 1,
+                            footerskip = filerowrange.stop - readrange.stop,
+                        ) |> Arrow.Table
+                    else
+                        error("Expected file with s3_bucket or local path")
+                    end,
+                ))
+            end
+            rowsscanned = newrowsscanned
         end
+        vcat(dfs...)
+    elseif haskey(loc_parameters, "url")
+        error("Reading CSV file from URL is not currently supported")
     else
-        Dict(from_jl_value(k) => from_jl_value(v) for (k, v) in val)
+        error("Expected either files or a URL to download CSV dataset from")
     end
 end
-function from_jl_value(val::Vector)
-    return [from_jl_value(e) for e in val]
-end
-function from_jl_value(val::Any)
-    val
-end
 
-function SplitDivValue(
+function ReadCachedCSV(
     src,
     params,
     batch_idx::Int64,
     nbatches::Int64,
     comm::MPI.Comm,
+    loc_name,
     loc_parameters,
 )
-    worker_idx, nworkers = worker_idx_and_nworkers(comm)
-    dst_len = split_and_get_len(
-        from_jl_value(loc_parameters["value"]),
-        worker_idx,
-        nworkers,
-    )
-    dst_len = split_and_get_len(dst_len, batch_idx, nbatches)
-    dst_len
+    name = loc_parameters["name"]
+    if isdir(name)
+        ReadCSV(src, params, batch_idx, batches, comm, "CSV", Dict("files" => [
+            Dict("path" => joinpath(name, f))
+            for f in readdir(name)
+        ]))
+    else
+        nothing
+    end
 end
 
-function SplitDivExecutor(
+function WriteCSV(
     src,
+    dst,
     params,
     batch_idx::Int64,
     nbatches::Int64,
     comm::MPI.Comm,
+    loc_name,
     loc_parameters,
 )
-    worker_idx, nworkers = worker_idx_and_nworkers(comm)
-    dst_len = split_and_get_len(src, worker_idx, nworkers)
-    dst_len = split_and_get_len(dst_len, batch_idx, nbatches)
-    dst_len
-end
-
-function SplitReplicateNone(args...)
-    split_nothing(args...)
-end
-
-function SplitReplicateValue(
-    src,
-    params,
-    batch_idx::Int64,
-    nbatches::Int64,
-    comm::MPI.Comm,
-    loc_parameters,
-)
-    from_jl_value(loc_parameters["value"])
-end
-
-function SplitReplicateExecutor(
-    src,
-    params,
-    batch_idx::Int64,
-    nbatches::Int64,
-    comm::MPI.Comm,
-    loc_parameters,
-)
-    src
-end
-
-function MergeDivValue(args...)
-    merge_nothing(args...)
-end
-function MergeDivExecutor(args...)
-    merge_nothing(args...)
-end
-function MergeReplicateNone(args...)
-    merge_nothing(args...)
-end
-function MergeReplicateValue(args...)
-    merge_nothing(args...)
-end
-function MergeReplicateExecutor(args...)
-    merge_nothing(args...)
+    if haskey(loc_parameters, "s3_bucket")
+        s3_bucket = loc_parameters["s3_bucket"]
+    else
+        error("Expected S3 bucket to write CSV to")
+    end
 end

@@ -193,6 +193,10 @@ end
 # needlessly make copies
 
 function src(fut, loc::Location)
+    if isnothing(loc.src_name)
+        error("Location cannot be used as a source")
+    end
+
     global futures
     fut = future(fut)
 
@@ -206,6 +210,10 @@ function src(fut, loc::Location)
 end
 
 function dst(fut, loc::Location)
+    if isnothing(loc.dst_name)
+        error("Location cannot be used as a destination")
+    end
+    
     global futures
     fut = future(fut)
 

@@ -3,14 +3,27 @@
 #################
 
 mutable struct Location
-    src_name::String
-    dst_name::String
+    # A location may be usable as either a source or destination for data or
+    # both.
+
+    src_name::Union{String}
+    dst_name::Union{String}
     src_parameters::Dict
     dst_parameters::Dict
     total_memory_usage::Int64
 
     function Location(name::String, parameters::Dict, total_memory_usage::Int64)
         new(name, name, parameters, parameters, total_memory_usage)
+    end
+
+    function Location(name::String, parameters::Dict, total_memory_usage::Int64, purpose::Symbol)
+        if purpose == :src
+            new(name, nothing, parameters, Dict(), total_memory_usage)
+        elseif purpose == :dst
+            new(nothing, name, Dict(), parameters, total_memory_usage)
+        else
+            error("Expected location to have purpose of either source or destination")
+        end
     end
 
     function Location(
@@ -80,9 +93,12 @@ struct S3Metadata
     key::String
 end
 
-function s3_path_to_metadata(pathname::String)::Vector{S3Metadata}
+function s3_path_to_metadata(path::S3Path)::Vector{S3Metadata}
+    if !s3_exists(path.bucket, path.key)
+        return []
+    end
+
     metadata = []
-    path = Path(pathname)
     if isdir(path)
         for filename in sort(readdir(path))
             joinedpath = joinpath(path, filename)
@@ -120,18 +136,28 @@ end
 
 get_csv_metadata(m::S3Metadata)::CSVMetadata = get_csv_metadata(s3_get(m.bucket, m.key))
 
-get_csv_metadata_from_url(url::String)::CSVMetadata = get_csv_metadata(HTTP.get(url))
+get_csv_metadata_from_url(url::String)::CSVMetadata =
+    try
+        get_csv_metadata(HTTP.get(url))
+    catch e
+        error("Unable to download CSV file at $url")
+    end
 
 ####################
 # Remote locations #
 ####################
 
 function CSV(pathname::String)
+    # This function constructs a Location for reading from and/or writing to
+    # with CSV.
+
     if startswith(path, "s3://")
+        # Collect information about the location in S3 if it already exists
         files_metadata = []
         nbytes = 0
         nrows = 0
-        for s3_metadata in s3_path_to_metadata(pathname)
+        p = S3Path(pathname)
+        for s3_metadata in s3_path_to_metadata(p)
             csv_metadata = get_csv_metadata(s3_metadata)
             push!(files_metadata, Dict(
                 "s3_bucket" => s3_metadata.bucket,
@@ -141,13 +167,27 @@ function CSV(pathname::String)
             nbytes += csv_metadata.nbytes
             nrows += csv_metadata.nrows
         end
-        Location("CSV", Dict("files" => files_metadata, "nrows" => nrows), nbytes)
+
+        # Construct metadata storing the location in S3 so that it can be
+        # written to if it exists at run time
+        metadata = Dict("files" => files_metadata, "nrows" => nrows)
+        metadata["s3_bucket"] = p.bucket
+        if isfile(p)
+            metadata["s3_key_file"] = p.key
+        elseif isdir(p)
+            metadata["s3_key_dir"] = p.key
+        else
+            error("Expected either file or directory in S3")
+        end
+
+        Location("CSV", metadata, nbytes)
     elseif startswith(path, "http://") || startswith(path, "https://")
         metadata = get_csv_metadata_from_url(pathname)
         Location(
             "CSV",
             Dict("url" => pathname, "nrows" => metadata.nrows),
             metadata.nbytes,
+            :src
         )
     else
         error("Expected either s3:// or http(s)://")

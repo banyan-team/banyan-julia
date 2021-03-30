@@ -1,62 +1,28 @@
 {
     "splits": {
-        "Block": {
-            "required": {
-                "name": "Block"
-            },
-            "default": {
-                "dim": 1,
-                "balanced": true
-            },
+        "ReadCSV": {
+            "required": {"name": "Block", "dim": 1},
+            "default": {},
+            "location_names": ["CSV"],
             "partition_memory_usage": "div"
         },
-        "Div": {
-            "required": {
-                "name": "Div"
-            },
+        "ReadCachedCSV": {
+            "required": {"name": "Block", "dim": 1},
             "default": {},
-            "partition_memory_usage": "zero"
-        },
-        "Replicate": {
-            "required": {
-                "name": "Replicate"
-            },
-            "default": {},
-            "partition_memory_usage": "all"
+            "location_names": ["None"],
+            "partition_memory_usage": "div"
         }
     },
     "merges": {
-        "BlockBalanced": {
-            "required": {
-                "name": "Block",
-                "balanced": true
-            },
-            "default": {
-                "dim": 1
-            }
-        },
-        "BlockUnbalanced": {
-            "required": {
-                "name": "Block",
-                "balanced": false
-            },
-            "default": {
-                "dim": 1
-            }
-        },
-        "Div": {
-            "required": {
-                "name": "Div"
-            },
+        "WriteCSV": {
+            "required": {"name": "Block", "dim": 1},
             "default": {},
-            "partition_memory_usage": "zero"
+            "location_names": ["CSV"]
         },
-        "Replicate": {
-            "required": {
-                "name": "Replicate"
-            },
+        "WriteCachedCSV": {
+            "required": {"name": "Block", "dim": 1},
             "default": {},
-            "partition_memory_usage": "all"
+            "location_names": ["None"]
         }
     },
     "casts": {}
