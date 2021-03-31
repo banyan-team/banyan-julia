@@ -63,5 +63,6 @@ echo 'aws sqs send-message --queue-url=$QUEUE_URL --message-body="$OUTPUT" --mes
 # TODO: Make this more robust by handling the case where the cluster name is provided and the output even with --parsable is semicolon-seperated
 ENV["JULIA_MPIEXEC"]="srun" && ENV["JULIA_MPI_LIBRARY"]="/opt/amazon/openmpi/lib64/libmpi" && LAUNCHED_JOB_ID=$(sbatch --job-name=${job_id} --output=banyan-log-for-job-${job_id} --parsable srun_command_${job_id}.sh)
 sbatch --job-name=${job_id}-on-return --dependency=afternotok:$LAUNCHED_JOB_ID srun_command_${job_id}_return.sh
-rm srun_command_${job_id}.sh
-rm srun_command_${job_id}_return.sh
+rm -f srun_command_${job_id}.sh
+rm -f srun_command_${job_id}_return.sh
+rm -rf job_${job_id}*
