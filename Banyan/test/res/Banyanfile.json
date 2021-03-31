@@ -5,12 +5,12 @@
         "cluster": {
             "files": [],
             "scripts": [],
-            "packages": ["DataFrames"],
+            "packages": ["AWSS3", "Arrow", "CSV", "DataFrames"],
             "pt_lib_info": "file://res/pt_lib_info.json",
             "pt_lib": "file://res/pt_lib.jl"
         },
         "job": {
-            "code": ["using DataFrames; println(\"using DataFrames\")"]
+            "code": ["using DataFrames; using CSV; using Arrow; using AWSS3"]
         }
     }
 }

@@ -246,12 +246,14 @@ end
 
 mem(fut, n::Integer, ty::DataType) = mem(fut, n * sizeof(ty))
 mem(fut) = mem(fut, sizeof(future(fut).value))
-mem(futs...) =
+
+function mem(futs...)
     for fut in futs
         mem(
             fut,
             maximum([future(f).location.total_memory_usage for f in futs]),
         )
     end
+end
 
 val(fut) = loc(fut, Value(future(fut).value))

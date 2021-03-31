@@ -60,7 +60,7 @@ export Location, src, dst, mem, val
 export PartitionType, pt, pc, mut, @partitioned
 
 # Locations
-export None
+export None, CSVPath
 
 # Partition types
 export Block, BlockBalanced, Div, Replicate

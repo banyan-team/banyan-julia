@@ -20,6 +20,20 @@ struct PartitionType
     end
 end
 
+function Base.getproperty(pt::PartitionType, name::Symbol)
+    if hasfield(PartitionType, name)
+        return getfield(pt, name)
+    end
+
+    n = string(name)
+    for parameters in pt.parameters
+        if haskey(parameters, n)
+            return parameters[n]
+        end
+    end
+    error("$name not found in location parameters")
+end
+
 function to_jl(pt::PartitionType)
     return Dict("parameters" => pt.parameters)
 end

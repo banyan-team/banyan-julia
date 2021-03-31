@@ -6,8 +6,8 @@ mutable struct Location
     # A location may be usable as either a source or destination for data or
     # both.
 
-    src_name::Union{String}
-    dst_name::Union{String}
+    src_name::Union{String, Nothing}
+    dst_name::Union{String, Nothing}
     src_parameters::Dict
     dst_parameters::Dict
     total_memory_usage::Int64
@@ -27,9 +27,9 @@ mutable struct Location
     end
 
     function Location(
-        src_name::String,
-        dst_name::String,
+        src_name::Union{String, Nothing},
         src_parameters::Dict,
+        dst_name::Union{String, Nothing},
         dst_parameters::Dict,
         total_memory_usage::Int64,
     )
@@ -40,6 +40,21 @@ mutable struct Location
             dst_parameters,
             total_memory_usage,
         )
+    end
+end
+
+function Base.getproperty(l::Location, name::Symbol)
+    if hasfield(Location, name)
+        return getfield(l, name)
+    end
+
+    n = string(name)
+    if !isnothing(l.src_name) && haskey(l.src_parameters, n)
+        l.src_parameters[n]
+    elseif !isnothing(l.dst_name) && haskey(l.dst_parameters, n)
+        l.dst_parameters[n]
+    else
+        error("$name not found in location parameters")
     end
 end
 
@@ -134,54 +149,67 @@ function get_csv_metadata(io::IOBuffer)::CSVMetadata
     CSVMetadata(nrows, ncolumns, nbytes)
 end
 
-get_csv_metadata(m::S3Metadata)::CSVMetadata = get_csv_metadata(s3_get(m.bucket, m.key))
+get_csv_metadata(m::S3Metadata)::CSVMetadata =
+    get_csv_metadata(IOBuffer(s3_get(m.bucket, m.key)))
 
 get_csv_metadata_from_url(url::String)::CSVMetadata =
     try
         get_csv_metadata(HTTP.get(url))
     catch e
-        error("Unable to download CSV file at $url")
+        error("Failed to download and parse CSV file at $url")
     end
 
 ####################
 # Remote locations #
 ####################
 
-function CSV(pathname::String)
+function CSVPath(pathname::String)
     # This function constructs a Location for reading from and/or writing to
     # with CSV.
 
-    if startswith(path, "s3://")
-        # Collect information about the location in S3 if it already exists
+    if startswith(pathname, "s3://")
+        # Metadata for reading
         files_metadata = []
         nbytes = 0
         nrows = 0
         p = S3Path(pathname)
         for s3_metadata in s3_path_to_metadata(p)
             csv_metadata = get_csv_metadata(s3_metadata)
-            push!(files_metadata, Dict(
-                "s3_bucket" => s3_metadata.bucket,
-                "s3_key" => s3_metadata.key,
-                "nrows" => csv_metadata.nrows
-            ))
+            push!(
+                files_metadata,
+                Dict(
+                    "s3_bucket" => s3_metadata.bucket,
+                    "s3_key" => s3_metadata.key,
+                    "nrows" => csv_metadata.nrows
+                )
+            )
             nbytes += csv_metadata.nbytes
             nrows += csv_metadata.nrows
         end
+        loc_for_reading, metadata_for_reading =
+            if !isempty(files_metadata)
+                ("CSV", Dict("files" => files_metadata, "nrows" => nrows))
+            else
+                (nothing, Dict())
+            end
 
-        # Construct metadata storing the location in S3 so that it can be
-        # written to if it exists at run time
-        metadata = Dict("files" => files_metadata, "nrows" => nrows)
-        metadata["s3_bucket"] = p.bucket
-        if isfile(p)
-            metadata["s3_key_file"] = p.key
-        elseif isdir(p)
-            metadata["s3_key_dir"] = p.key
+        # Metadata for writing
+        loc_for_writing, metadata_for_writing = if isdir(p)
+            (
+                "CSV",
+                Dict(
+                    "s3_bucket" => p.bucket,
+                    "s3_key" => p.key,
+                    "s3_bucket_exists" => s3_exists(p.bucket, ""),
+                    "nrows" => 0,
+                ),
+            )
         else
-            error("Expected either file or directory in S3")
+            (nothing, Dict())
         end
 
-        Location("CSV", metadata, nbytes)
-    elseif startswith(path, "http://") || startswith(path, "https://")
+        Location(loc_for_reading, metadata_for_reading, loc_for_writing, metadata_for_writing, nbytes)
+    elseif startswith(pathname, "http://") || startswith(pathname, "https://")
         metadata = get_csv_metadata_from_url(pathname)
         Location(
             "CSV",

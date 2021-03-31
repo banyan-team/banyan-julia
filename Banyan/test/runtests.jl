@@ -66,3 +66,4 @@ end
 
 include("test_cluster.jl")
 include("test_l1_l2.jl")
+include("test_df.jl")
