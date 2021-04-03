@@ -14,7 +14,10 @@
         },
         "SplitBlock": {
             "required": {"name": "Block"},
-            "default": {"dim": 1},
+            "default": {
+                "dim": 1,
+                "balanced": true
+            },
             "location_names": ["Executor"],
             "partition_memory_usage": "div"
         }
@@ -32,7 +35,10 @@
         },
         "MergeBlock": {
             "required": {"name": "Block"},
-            "default": {"dim": 1},
+            "default": {
+                "dim": 1,
+                "balanced": true
+            },
             "location_names": ["Executor"]
         }
     },

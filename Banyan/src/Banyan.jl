@@ -114,8 +114,6 @@ function __init__()
     BANYAN_API_ENDPOINT = "https://hcohsbhhzf.execute-api.us-west-2.amazonaws.com/dev/"
 
     load_config()
-
-    AWS = aws_config(region = "us-west-2")
 end
 
 end # module

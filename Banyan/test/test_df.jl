@@ -16,24 +16,31 @@ function read_csv(pathname)
     val(len)
 
     pt(data, Block())
-    # pt(len, Div())
-
-    mut(data)
+    # pt(len, Replicate())
 
     @partitioned data begin end
 
     FutureDataFrame(data, len)
 end
 
-function length(df::FutureDataFrame)
-
+function write_csv(df::FutureDataFrame, pathname)
+    dst(df, CSVPath(pathname))
+    pt(df, Block())
+    mut(df)
+    @partitioned df begin end
 end
+
+length(df::FutureDataFrame) = evaluate(df.len)
+
+# function select()
 
 function run_iris()
     # TODO: Read in iris
     # TODO: Conver petal length units
     # TODO: Average the petal length
-    df = read_csv("s3://banyanexecutor/iris.csv")
+    # df = read_csv("s3://banyanexecutor/iris.csv")
+    df = read_csv("s3://banyan-cluster-data-mycluster/datasets/input/")
+    write_csv(df, "s3://banyan-cluster-data-mycluster/datasets/output/")
     println(evaluate(df.len))
 
     evaluate(df)

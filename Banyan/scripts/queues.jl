@@ -2,25 +2,23 @@ using AWSCore
 using AWSSQS
 using JSON
 
-AWS = aws_config(region = "us-west-2")
-
 ##################
 # GET QUEUE URLS #
 ##################
 
 function get_execution_queue()
     global job_id
-    return sqs_get_queue(AWS, string("banyan_", job_id, "_execution.fifo"))
+    return sqs_get_queue(string("banyan_", job_id, "_execution.fifo"))
 end
 
 function get_scatter_queue()
     global job_id
-    return sqs_get_queue(AWS, string("banyan_", job_id, "_scatter.fifo"))
+    return sqs_get_queue(string("banyan_", job_id, "_scatter.fifo"))
 end
 
 function get_gather_queue()
     global job_id
-    return sqs_get_queue(AWS, string("banyan_", job_id, "_gather.fifo"))
+    return sqs_get_queue(string("banyan_", job_id, "_gather.fifo"))
 end
 
 ###########################

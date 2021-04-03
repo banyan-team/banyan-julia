@@ -33,6 +33,10 @@ mutable struct Location
         dst_parameters::Dict,
         total_memory_usage::Int64,
     )
+        if isnothing(src_name) && isnothing(dst_name)
+            error("Location must either be usable as a source or as a destination for data")
+        end
+
         new(
             src_name,
             dst_name,
@@ -135,10 +139,13 @@ struct CSVMetadata
     nbytes::Int64
 end
 
-function get_csv_metadata(io::IOBuffer)::CSVMetadata
+function get_csv_metadata(io::Union{IOBuffer, AbstractVector{UInt8}})::CSVMetadata
     rows = CSV.Rows(io, reusebuffer=true)
     ncolumns = length(rows.columns)
-    nrows = 1
+    # TODO: Figure out why this is 153 not 150
+    # TODO: Figure out how to set skipto and footerskip to not include the header
+    # but to treat the row as header so the column schema is inferred
+    nrows = 0
     nbytes = 0
     for row in rows
         for i in 1:ncolumns
@@ -150,7 +157,7 @@ function get_csv_metadata(io::IOBuffer)::CSVMetadata
 end
 
 get_csv_metadata(m::S3Metadata)::CSVMetadata =
-    get_csv_metadata(IOBuffer(s3_get(m.bucket, m.key)))
+    get_csv_metadata(s3_get(m.bucket, m.key, raw=true))
 
 get_csv_metadata_from_url(url::String)::CSVMetadata =
     try

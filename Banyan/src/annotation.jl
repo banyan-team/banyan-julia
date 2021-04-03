@@ -162,7 +162,29 @@ function pt(fut, pt::PartitionTypeComposition)
     curr_pa.partitions.pt_stacks[fut.value_id] = pt_composition_from_pts(pt)
 end
 
-# TODO: Implement PT transformations
+# TODO: Implement PT reinterpretation
+
+# function reinterpret(fut)
+#     # Wee store newfut for generating assignment of newfut to fut in code
+#     # region and fut to nothing. We also set location of newfut to that of fut
+#     # but change its src to be None. The user is expected to add PCs to ensure
+#     # newfut and fut match or are co-partitioned as needed. The user is also
+#     # expected to ensure that fut is GC-able after this code region and newfut
+#     # is being used instead
+
+#     global curr_pa
+
+#     # Create reinterpreted future with location
+#     newfut = Future()
+#     loc(newfut, fut)
+#     src(newfut, None())
+
+#     # Store for reinterpretation
+#     curr_pa
+
+#     newfut
+# end
+
 function pt(
     fut,
     pre_pt::PartitionTypeComposition,

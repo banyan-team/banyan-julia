@@ -238,6 +238,16 @@ function loc(fut, loc::Location)
     record_request(RecordLocationRequest(fut.value_id, fut.location))
 end
 
+function loc(futs...)
+    maxindfuts = argmax([future(f).location.total_memory_usage for f in futs])
+    for fut in futs
+        loc(
+            fut,
+            future(futs[maxindfuts]).location,
+        )
+    end
+end
+
 function mem(fut, estimated_total_memory_usage::Integer)
     fut = future(fut)
     fut.location.total_memory_usage = estimated_total_memory_usage
