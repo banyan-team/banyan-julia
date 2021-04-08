@@ -180,6 +180,8 @@ function upload_banyanfile(banyanfile_path::String, s3_bucket_arn::String, clust
         code *= "rm julia-1.5.3-linux-x86_64.tar.gz &>> setup_log.txt\n"
         code *= "sudo su - ec2-user -c \"julia-1.5.3/bin/julia --project -e 'using Pkg; Pkg.add([\"AWSCore\", \"AWSSQS\", \"HTTP\", \"Dates\", \"JSON\", \"MPI\", \"Serialization\", \"BenchmarkTools\"]); ENV[\"JULIA_MPIEXEC\"]=\"srun\"; ENV[\"JULIA_MPI_LIBRARY\"]=\"/opt/amazon/openmpi/lib64/libmpi\"; Pkg.build(\"MPI\"; verbose=true)' &>> setup_log.txt\"\n"
     end
+    code *= "sudo amazon-linux-extras install epel\n"
+    code *= "sudo yum install s3fs-fuse\n"
     code *= "aws s3 cp s3://banyanexecutor /home/ec2-user --recursive\n"
     coe *= "aws configure set region $region"
 
