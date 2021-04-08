@@ -129,7 +129,7 @@ function merge_banyanfile_with!(
     end
 end
 
-function upload_banyanfile(banyanfile_path::String, s3_bucket_arn::String, cluster_id::String, for_creation_or_update::Symbol)
+function upload_banyanfile(banyanfile_path::String, s3_bucket_arn::String, cluster_name::String, for_creation_or_update::Symbol)
     # TODO: Implement this to load Banyanfile, referenced pt_lib_info, pt_lib,
     # code files
 
@@ -203,7 +203,7 @@ function upload_banyanfile(banyanfile_path::String, s3_bucket_arn::String, clust
     end
 
     # Upload post_install script to s3 bucket
-    post_install_script = "banyan_" * cluster_id * "_script.sh"
+    post_install_script = "banyan_" * cluster_name * "_script.sh"
     code *=
         "touch /home/ec2-user/update_finished\n" *
         "aws s3 cp /home/ec2-user/update_finished " *
@@ -213,7 +213,7 @@ function upload_banyanfile(banyanfile_path::String, s3_bucket_arn::String, clust
     return pt_lib_info
 end
 
-# Required: cluster_id, num_nodes
+# Required: cluster_name
 function create_cluster(;
     name::String = nothing,
     instance_type::String = "m4.4xlarge",
@@ -242,7 +242,7 @@ function create_cluster(;
 
     # Construct cluster creation
     cluster_config = Dict(
-        "cluster_id" => name,
+        "cluster_name" => name,
         "instance_type" => instance_type, #"t3.large", "c5.2xlarge"
         "num_nodes" => max_num_nodes,
         "ec2_key_pair" => c["aws"]["ec2_key_pair_name"],
@@ -264,7 +264,7 @@ end
 function destroy_cluster(name::String; kwargs...)
     @debug "Destroying cluster"
     configure(; kwargs...)
-    send_request_get_response(:destroy_cluster, Dict("cluster_id" => name))
+    send_request_get_response(:destroy_cluster, Dict("cluster_name" => name))
 end
 
 # TODO: Update website display
@@ -310,7 +310,7 @@ function update_cluster(;
         send_request_get_response(
             :update_cluster,
             Dict(
-                "cluster_id" => name,
+                "cluster_name" => name,
                 "pt_lib_info" => pt_lib_info
             ),
         )

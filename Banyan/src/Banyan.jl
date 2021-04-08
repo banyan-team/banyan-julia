@@ -52,7 +52,7 @@ global BANYAN_API_ENDPOINT
 
 # Basic types
 export configure
-export Job, create_job, destroy_job, clear_jobs
+export Job, create_job, destroy_job, destroy_all_jobs, clear_jobs, get_jobs
 export create_cluster,
     update_cluster, destroy_cluster, get_clusters, get_cluster
 export Future, future, evaluate

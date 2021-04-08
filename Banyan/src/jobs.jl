@@ -38,7 +38,7 @@ function create_job(;
 
     # Merge Banyanfile if provided
     job_configuration = Dict{String,Any}(
-        "cluster_id" => cluster_name,
+        "cluster_name" => cluster_name,
         "num_workers" => nworkers,
     )
     if !isnothing(banyanfile_path)
@@ -78,6 +78,23 @@ function destroy_job(job_id::JobId; kwargs...)
 
     if current_job_id == job_id
         current_job_id = nothing
+    end
+end
+
+function get_jobs(; kwargs...)
+    @debug "Downloading description of jobs in each cluster"
+    configure(; kwargs...)
+    response =
+        send_request_get_response(:describe_jobs, Dict{String,Any}())
+    response["jobs"]
+end
+
+function destroy_all_jobs(cluster_name::String; kwargs...)
+    @debug "Destroying all jobs for cluster"
+    configure(; kwargs...)
+    jobs = get_jobs()[cluster_name]
+    for (job_id, job) in jobs
+        destroy_job(job_id; kwargs...)
     end
 end
 
