@@ -223,6 +223,8 @@ function create_cluster(;
     banyanfile_path::String = nothing,
     iam_policy_arn::String = nothing,
     s3_bucket_arn::String = nothing,
+    vpc_id = nothing,
+    subnet_id = nothing,
     kwargs...,
 )
     @debug "Creating cluster"
@@ -257,6 +259,12 @@ function create_cluster(;
     end
     if !isnothing(iam_policy_arn)
         cluster_config["additional_policy"] = iam_policy_arn # "arn:aws:s3:::banyanexecutor*"
+    end
+    if !isnothing(vpc_id)
+        cluster_config["vpc_id"] = vpc_id
+    end
+    if !isnothing(subnet_id)
+        cluster_config["subnet_id"] = subnet_id
     end
 
     # Send request to create cluster
