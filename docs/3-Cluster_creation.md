@@ -5,7 +5,7 @@
 To create a cluster, you must provide the following information:
 
 Required Paramters
-* `cluster_id` - name of cluster to create
+* `cluster_name` - name of cluster to create
 * `username` - username already registered with Banyan
 * `ec2_key_pair` - name of AWS EC2 Key Pair to SSH into the head node of the cluster
 * `num_nodes` - maximu number of nodes in cluster
