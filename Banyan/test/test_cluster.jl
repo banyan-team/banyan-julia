@@ -3,8 +3,8 @@
         "Configuration",
         () -> begin
             configure(;
-                username = "BanyanTest",
-                api_key = "7FBKWAv3ld0eOfghSwhX_g",
+                username = "adminuser",
+                api_key = "a41ef8a693682dd93189e71676b2cdc9",
                 ec2_key_pair_name = "EC2ConnectKeyPairTest",
                 region = "us-west-2",
             )
@@ -21,7 +21,7 @@
         "Updating Cluster",
         () -> begin
             update_cluster(
-                name = "mycluster",
+                name = "c0416",
                 banyanfile_path = "file://res/Banyanfile.json",
             )
         end,

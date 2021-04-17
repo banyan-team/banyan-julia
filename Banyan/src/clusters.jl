@@ -167,6 +167,7 @@ function upload_banyanfile(banyanfile_path::String, s3_bucket_arn::String, clust
         s3_put(get_aws_config(), s3_bucket_name, basename(f), load_file(f))
     end
 
+    bucket = s3_bucket_name
     region = get_aws_config_region()
 
     # Create post-install script with base commands
@@ -181,9 +182,12 @@ function upload_banyanfile(banyanfile_path::String, s3_bucket_arn::String, clust
         code *= "sudo su - ec2-user -c \"julia-1.5.3/bin/julia --project -e 'using Pkg; Pkg.add([\"AWSCore\", \"AWSSQS\", \"HTTP\", \"Dates\", \"JSON\", \"MPI\", \"Serialization\", \"BenchmarkTools\"]); ENV[\"JULIA_MPIEXEC\"]=\"srun\"; ENV[\"JULIA_MPI_LIBRARY\"]=\"/opt/amazon/openmpi/lib64/libmpi\"; Pkg.build(\"MPI\"; verbose=true)' &>> setup_log.txt\"\n"
     end
     code *= "sudo amazon-linux-extras install epel\n"
-    code *= "sudo yum install s3fs-fuse\n"
+    code *= "sudo yum -y install s3fs-fuse\n"
     code *= "aws s3 cp s3://banyanexecutor /home/ec2-user --recursive\n"
-    coe *= "aws configure set region $region"
+    code *= "mkdir /home/ec2-user/mount\n"
+    code *= "s3fs $bucket /home/ec2-user/mount -o iam_role=auto\n"
+    code *= "cp -r mount/. ./\n"
+    code *= "aws configure set region $region\n"
 
     # Append to post-install script downloading files, scripts, pt_lib onto cluster
     for f in vcat(files, scripts, pt_lib)
@@ -201,7 +205,7 @@ function upload_banyanfile(banyanfile_path::String, s3_bucket_arn::String, clust
 
     # Append to post-install script installing Julia dependencies
     for pkg in packages
-        code *= "sudo su - ec2-user -c \"julia-1.5.3/bin/julia --project -e 'using Pkg; Pkg.add([\"$pkg\"])' &>> setup_log.txt \"\n"
+        code *= "sudo su - ec2-user -c \"julia-1.5.3/bin/julia --project -e 'using Pkg; Pkg.add([\\\"$pkg\\\"])' &>> setup_log.txt \"\n"
     end
 
     # Upload post_install script to s3 bucket
@@ -211,7 +215,7 @@ function upload_banyanfile(banyanfile_path::String, s3_bucket_arn::String, clust
         "aws s3 cp /home/ec2-user/update_finished " *
         "s3://" * s3_bucket_name * "/\n"
     s3_put(get_aws_config(), s3_bucket_name, post_install_script, code)
-
+    @debug code
     return pt_lib_info
 end
 
@@ -320,6 +324,7 @@ function update_cluster(;
         send_request_get_response(
             :update_cluster,
             Dict(
+		"user_id" => "02740a7c225cd64f42930c8ad5b19916",
                 "cluster_name" => name,
                 "pt_lib_info" => pt_lib_info
             ),

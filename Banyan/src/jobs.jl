@@ -49,6 +49,8 @@ function create_job(;
         job_configuration["banyanfile"] = banyanfile
     end
 
+    job_configuration["user_id"] = "02740a7c225cd64f42930c8ad5b19916"
+
     # Create the job
     @debug "Sending request for job creation"
     job_id = send_request_get_response(:create_job, job_configuration)
@@ -73,7 +75,7 @@ function destroy_job(job_id::JobId; kwargs...)
     #println("destroying job ", job_id, " now?")
     send_request_get_response(
         :destroy_job,
-        Dict{String,Any}("job_id" => job_id),
+        Dict{String,Any}("user_id" => "02740a7c225cd64f42930c8ad5b19916", "job_id" => job_id),
     )
 
     if current_job_id == job_id
