@@ -69,8 +69,7 @@ function destroy_job(job_id::JobId; kwargs...)
 
     # configure(; kwargs...)
 
-    # @debug "Destroying job"
-    #println("destroying job ", job_id, " now?")
+    @debug "Destroying job $job_id"
     send_request_get_response(
         :destroy_job,
         Dict{String,Any}("job_id" => job_id),
