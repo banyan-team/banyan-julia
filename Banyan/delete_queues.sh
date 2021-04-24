@@ -1,5 +1,5 @@
 #!/bin/bash
-prefix="banyan_e"
+prefix="banyan_"
 queues=$(aws sqs list-queues --queue-name-prefix $prefix)
 for q in ${queues[@]}
 do

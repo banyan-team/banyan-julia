@@ -324,9 +324,9 @@ function update_cluster(;
         send_request_get_response(
             :update_cluster,
             Dict(
-		"user_id" => "02740a7c225cd64f42930c8ad5b19916",
                 "cluster_name" => name,
                 "pt_lib_info" => pt_lib_info
+                # TODO: Send banyanfile here
             ),
         )
     end
