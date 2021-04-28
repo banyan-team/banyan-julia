@@ -1,6 +1,7 @@
 # TODO: Support multi-threaded usage by storing a global array with a job ID
 # for each thread
 global current_job_id = nothing
+global current_job_status = nothing
 
 function get_job_id()::JobId
     global current_job_id
@@ -11,17 +12,21 @@ function create_job(;
     cluster_name::String = "",
     nworkers::Integer = 2,
     banyanfile_path::String = "",
+    logs_location::String = "",
     kwargs...,
 )
 
     global current_job_id
+    global current_job_status
     @debug "Creating job"
-
     if cluster_name == ""
         cluster_name = nothing
     end
     if banyanfile_path == ""
         banyanfile_path = nothing
+    end
+    if logs_location == ""
+        logs_location = "client"
     end
 
     # Configure
@@ -40,6 +45,7 @@ function create_job(;
     job_configuration = Dict{String,Any}(
         "cluster_name" => cluster_name,
         "num_workers" => nworkers,
+	"logs_location" => "s3",  #logs_location,
     )
     if !isnothing(banyanfile_path)
         banyanfile = load_json(banyanfile_path)
@@ -55,24 +61,32 @@ function create_job(;
 
     # print(job_id)
     job_id = job_id["job_id"]
-    # println("Creating job $job_id")
+    @debug "Creating job $job_id"
 
     # Store in global state
     current_job_id = job_id
+    current_job_status = "running"
 
     @debug "Finished creating job $job_id"
     return job_id
 end
 
-function destroy_job(job_id::JobId; kwargs...)
+function destroy_job(job_id::JobId; failed = false, kwargs...)
     global current_job_id
+    global current_job_status
+
+    failed = false
+    if current_job_status == "failed"
+    	failed = true
+    end
+
 
     # configure(; kwargs...)
 
     @debug "Destroying job $job_id"
     send_request_get_response(
         :destroy_job,
-        Dict{String,Any}("job_id" => job_id),
+        Dict{String,Any}("job_id" => job_id, "failed" => failed),
     )
 
     if current_job_id == job_id
@@ -101,6 +115,7 @@ end
 
 mutable struct Job
     job_id::JobId
+    failed::Bool
 
     # function Job(; kwargs...)
     #     new_job_id = create_job(; kwargs...)
@@ -119,7 +134,7 @@ function Job(f::Function; kwargs...)
     try
         f(j)
     finally
-        destroy_job(j)
+    	destroy_job(j)
     end
 end
 

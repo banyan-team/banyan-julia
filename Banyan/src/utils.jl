@@ -64,13 +64,14 @@ function configure(; kwargs...)
     is_modified = false
     is_valid = true
 
+
     # Ensure a configuration has been created or can be created. Otherwise,
     # return nothing
     if isnothing(banyan_config)
         if !isnothing(user_id) && !isnothing(api_key)
             banyan_config = Dict(
                 "banyan" =>
-                    Dict("user_id" => user_id, "api_key" => api_key),
+                    Dict("username" => username, "user_id" => user_id, "api_key" => api_key),
                 "aws" => Dict(),
             )
             is_modified = true

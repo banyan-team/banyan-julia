@@ -183,7 +183,7 @@ function upload_banyanfile(banyanfile_path::String, s3_bucket_arn::String, clust
     end
     code *= "sudo amazon-linux-extras install epel\n"
     code *= "sudo yum -y install s3fs-fuse\n"
-    code *= "aws s3 cp s3://banyanexecutor /home/ec2-user --recursive\n"
+    code *= "aws s3 cp s3://banyan-executor /home/ec2-user --recursive\n"
     code *= "mkdir /home/ec2-user/mount\n"
     code *= "s3fs $bucket /home/ec2-user/mount -o iam_role=auto\n"
     code *= "cp -r mount/. ./\n"

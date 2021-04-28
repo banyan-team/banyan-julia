@@ -98,6 +98,7 @@ function evaluate(fut, job_id::JobId)
     #println("intersection ", length(intersect(all_values, destroyed_values)))
 
     global futures
+    global current_job_status
     fut = future(fut)
 
     if fut.mutated
@@ -107,7 +108,12 @@ function evaluate(fut, job_id::JobId)
         fut.mutated = false
 
         # Send evaluate request
-        response = send_evaluation(fut.value_id, job_id)
+        try
+            response = send_evaluation(fut.value_id, job_id)
+        catch
+            current_job_status = "failed"
+            rethrow()
+        end
 
         # Get queues
         scatter_queue = get_scatter_queue(job_id)
