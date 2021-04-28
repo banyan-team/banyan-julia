@@ -7,6 +7,7 @@ enabled_tests = lowercase.(ARGS)
 # NOTE: For testing, please provide the following:
 # - AWS_DEFAULT_PROFILE (if you don't already have the desired default AWS account)
 # - BANYAN_USERNAME
+# - BANYAN_USER_ID
 # - BANYAN_API_KEY
 # - BANYAN_CLUSTER_NAME
 # - BANYAN_NWORKERS
@@ -21,6 +22,7 @@ function run_with_job(name, test_fn)
     # how to authenticate and what cluster to run on
 
     username = get(ENV, "BANYAN_USERNAME", nothing)
+    user_id = get(ENV, "BANYAN_USER_ID", nothing)
     api_key = get(ENV, "BANYAN_API_KEY", nothing)
     cluster_name = get(ENV, "BANYAN_CLUSTER_NAME", nothing)
     nworkers = get(ENV, "BANYAN_NWORKERS", nothing)
@@ -31,6 +33,7 @@ function run_with_job(name, test_fn)
             for nworkers in [16, 8, 4, 2, 1]
                 Job(
                     username = username,
+		    user_id = user_id,
                     api_key = api_key,
                     cluster_name = cluster_name,
                     nworkers = parse(Int32, nworkers),
@@ -46,6 +49,7 @@ function run_with_job(name, test_fn)
                 cluster_name = cluster_name,
                 nworkers = parse(Int32, nworkers),
                 banyanfile_path = "file://res/Banyanfile.json",
+		user_id = user_id,
             ) do j
                 test_fn(j)
             end
