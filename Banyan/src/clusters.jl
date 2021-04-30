@@ -241,7 +241,7 @@ function create_cluster(;
         "banyan-cluster-" * randstring(6)
     end
     if isnothing(s3_bucket_arn)
-        s3_bucket_arn = "arn:aws:s3:::banyan-cluster-data-" * name
+        s3_bucket_arn = "arn:aws:s3:::banyan-cluster-data-" * name * bytes2hex(rand(UInt8, 16))
         s3_bucket_name = last(split(s3_bucket_arn, ":"))
         s3_create_bucket(get_aws_config(), s3_bucket_name)
     elseif !(s3_bucket_arn in s3_list_buckets(get_aws_config()))
