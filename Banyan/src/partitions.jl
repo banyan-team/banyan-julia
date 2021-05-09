@@ -2,7 +2,7 @@
 # PARTITION TYPE #
 ##################
 
-const PartitionTypeParameters = Vector{Dict}
+const PartitionTypeParameters = Dict
 
 struct PartitionType
     parameters::PartitionTypeParameters
@@ -11,9 +11,7 @@ struct PartitionType
         parameters::Union{String,Dict,PartitionTypeParameters},
     )
         new(if parameters isa String
-            [Dict("name" => parameters)]
-        elseif typeof(parameters) <: Dict
-            [parameters]
+            Dict("name" => parameters)
         else
             parameters
         end)
@@ -26,10 +24,8 @@ function Base.getproperty(pt::PartitionType, name::Symbol)
     end
 
     n = string(name)
-    for parameters in pt.parameters
-        if haskey(parameters, n)
-            return parameters[n]
-        end
+    if haskey(pt.parameters, n)
+        return pt.parameters[n]
     end
     error("$name not found in location parameters")
 end
@@ -64,14 +60,14 @@ const PartitionTypeReference = Tuple{ValueId,Integer}
 
 pt_ref_to_jl(pt_ref) =
     if pt_ref isa Tuple
-        (future(pt_ref[1]).value_id, pt_ref[2] - 1)
+        (convert(Future, pt_ref[1]).value_id, pt_ref[2] - 1)
     else
-        (future(pt_ref).value_id, 0)
+        (convert(Future, pt_ref).value_id, 0)
     end
 
 pt_refs_to_jl(refs) = [pt_ref_to_jl(ref) for ref in refs]
 
-struct PartitioningConstraint
+struct PartitioningConstraintOverGroup
     type::String
     args::Vector{PartitionTypeReference}
 end
@@ -81,8 +77,10 @@ struct PartitioningConstraintOverGroups
     args::Vector{Vector{PartitionTypeReference}}
 end
 
+const PartitioningConstraint = Union{PartitioningConstraintOverGroup, PartitioningConstraintOverGroups}
+
 function to_jl(
-    constraint::Union{PartitioningConstraint,PartitioningConstraintOverGroups},
+    constraint::PartitioningConstraint,
 )
     return Dict("type" => constraint.type, "args" => constraint.args)
 end
@@ -105,17 +103,31 @@ end
 
 # TODO: Support Ordered
 Co(args...) = constraint_for_co(args)
-Cross(args...) = PartitioningConstraint("CROSS", pt_refs_to_jl(args))
-Equal(args...) = PartitioningConstraint("EQUAL", pt_refs_to_jl(args))
-Sequential(args...) = PartitioningConstraint("SEQUENTIAL", pt_refs_to_jl(args))
-Match(args...) = PartitioningConstraint("MATCH", pt_refs_to_jl(args))
-AtMost(npartitions, args...) =
-    PartitioningConstraint("AT_MOST=$npartitions", pt_refs_to_jl(args))
+Cross(args...) = PartitioningConstraintOverGroup("CROSS", pt_refs_to_jl(args))
+Equal(args...) = PartitioningConstraintOverGroup("EQUAL", pt_refs_to_jl(args))
+Sequential(args...) =
+    PartitioningConstraintOverGroup("SEQUENTIAL", pt_refs_to_jl(args))
+Match(args...) = PartitioningConstraintOverGroup("MATCH", pt_refs_to_jl(args))
+MatchOn(args...) = PartitioningConstraintOverGroup(
+    "MATCH_ON=" * string(args[end]),
+    pt_refs_to_jl(args[1:end-1]),
+)
+AtMost(npartitions, args...) = PartitioningConstraintOverGroup(
+    "AT_MOST=$npartitions",
+    pt_refs_to_jl(args)
+)
+# TODO: Remove above and implement the below
+MaxNPartitions(npartitions, args...) = PartitioningConstraintOverGroup(
+    "MAX_NPARTITIONS=$npartitions",
+    pt_refs_to_jl(args)
+)
+MaxMemoryUsage(fut::AbstractFuture, memory_usage::Int64) = PartitioningConstraintOverGroup(
+    "MAX_MEMORY_USAGE=$memory_usage",
+    pt_refs_to_jl([(fut, 1)])
+)
 
-struct PartitioningConstraints
-    constraints::Vector{
-        Union{PartitioningConstraint,PartitioningConstraintOverGroups},
-    }
+mutable struct PartitioningConstraints
+    constraints::Vector{Delayed{PartitioningConstraint}}
 end
 
 function to_jl(constraints::PartitioningConstraints)
@@ -129,18 +141,20 @@ end
 # PARTITION ANNOTATION #
 ########################
 
-struct Partitions
-    pt_stacks::Dict{ValueId,PartitionTypeComposition}
+mutable struct Partitions
+    pt_stacks::Dict{ValueId,Delayed{PartitionTypeComposition}}
 end
 
 function to_jl(p::Partitions)
+    # NOTE: This assumes that the PT compositions in `p.pt_stacks` are _not_
+    # delayed
     return Dict(
         "pt_stacks" =>
-            Dict(v => pt_composition_to_jl(pts) for (v, pts) in p.pt_stacks),
+            Dict(v => pts |> pt_composition_from_pts |> pt_composition_to_jl for (v, pts) in p.pt_stacks),
     )
 end
 
-struct PartitionAnnotation
+mutable struct PartitionAnnotation
     partitions::Partitions
     constraints::PartitioningConstraints
 end

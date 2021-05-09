@@ -1,28 +1,70 @@
-# TODO: Support multi-threaded usage by storing a global array with a job ID
-# for each thread
+struct Job
+    id::JobId
+    job_properties::Dict{Symbol, Any}
+    nworkers::Int32
+    sampling_rate::Int32
+    sample_computation::Vector{Function}
+    locations::Dict{ValueId, Location}
+    pending_requests::Vector{Request}
+    futures_on_client::Dict{ValueId, Future}
+
+    Job(job_id::JobId, nworkers::Integer, sampling_rate::Integer)::Job =
+        new(
+            job_id,
+            Dict(),
+            nworkers,
+            sampling_rate,
+            [],
+            Dict(),
+            [],
+            Dict()
+        )
+end
+
+# Process-local dictionary mapping from job IDs to instances of `Job`
+global jobs = Dict()
+
+# TODO: Allow for different threads to use different jobs by making this
+# thread-local. For now, we only allow a single `Job` for each process
+# and no sharing between threads; i.e., the burden is on the user to make
+# sure they are synchronizing access to the `Job` if using the same one from
+# different threads.
+# TODO: Allow for different threads to use the same job by wrapping each
+# `Job` in `jobs` in a mutex to allow only one to use it at a time. Further
+# modifications would be required to make sharing a job between threads
+# ergonomic.
 global current_job_id = nothing
+
+function set_job_id(job_id::Union{JobId, Nothing})
+    global current_job_id
+    current_job_id = job_id
+end
 
 function get_job_id()::JobId
     global current_job_id
+    if isnothing(current_job_id)
+        error("No job selected using `set_job_id` or `create_job`")
+    end
     current_job_id
 end
 
+function get_job()::Job
+    global jobs
+    jobs[get_job_id()]
+end
+
+get_location(fut::AbstractFuture) = get_job().locations[convert(Future, fut).value_id]
+get_location(value_id::ValueId) = get_job().locations[value_id]
+
 function create_job(;
-    cluster_name::String = "",
+    cluster_name::String = nothing,
     nworkers::Integer = 2,
-    banyanfile_path::String = "",
+    banyanfile_path::String = nothing,
+    sampling_rate::Integer = 1/nworkers,
     kwargs...,
 )
-
-    global current_job_id
+    global jobs
     @debug "Creating job"
-
-    if cluster_name == ""
-        cluster_name = nothing
-    end
-    if banyanfile_path == ""
-        banyanfile_path = nothing
-    end
 
     # Configure
     configure(; kwargs...)
@@ -44,7 +86,7 @@ function create_job(;
     if !isnothing(banyanfile_path)
         banyanfile = load_json(banyanfile_path)
         for included in banyanfile["include"]
-            merge_banyanfile_with!(banyanfile, included, :code)
+            merge_banyanfile_with!(banyanfile, included, :job, :creation)
         end
         job_configuration["banyanfile"] = banyanfile
     end
@@ -52,53 +94,39 @@ function create_job(;
     # Create the job
     @debug "Sending request for job creation"
     job_id = send_request_get_response(:create_job, job_configuration)
-
-    # print(job_id)
     job_id = job_id["job_id"]
-    # println("Creating job $job_id")
 
     # Store in global state
-    current_job_id = job_id
+    set_job_id(job_id)
+    jobs[job_id] = Job(job_id, nworkers, sampling_rate)
 
     @debug "Finished creating job $job_id"
     return job_id
 end
 
 function destroy_job(job_id::JobId; kwargs...)
-    global current_job_id
+    global jobs
+    @debug "Destroying job"
 
-    # configure(; kwargs...)
-
-    # @debug "Destroying job"
-    #println("destroying job ", job_id, " now?")
+    # Configure and destroy the job
+    configure(; kwargs...)
     send_request_get_response(
         :destroy_job,
         Dict{String,Any}("job_id" => job_id),
     )
 
-    if current_job_id == job_id
-        current_job_id = nothing
+    # Remove from global state
+    if get_job_id() == job_id
+        set_job_id(nothing)
     end
+    delete!(jobs, job_id)
 end
 
 # destroy_job() = destroy_job(get_job_id())
 
-mutable struct Job
-    job_id::JobId
-
-    # function Job(; kwargs...)
-    #     new_job_id = create_job(; kwargs...)
-    #     #new_job_id = create_job(;cluster_name="banyancluster", nworkers=2)
-    #     new_job = new(new_job_id)
-    #     finalizer(new_job) do j
-    #         destroy_job(j.job_id)
-    #     end
-
-    #     new_job
-    # end
-end
-
 function Job(f::Function; kwargs...)
+    # This is not a constructor; this is just a function that ensures that
+    # every job is always destroyed even in the case of an error
     j = create_job(;kwargs...)
     try
         f(j)

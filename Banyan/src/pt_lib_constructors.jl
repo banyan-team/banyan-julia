@@ -6,8 +6,13 @@
 
 Block() = PartitionType(Dict("name" => "Block"))
 Block(dim) = PartitionType(Dict("name" => "Block", "dim" => dim))
-# BlockBalanced() = PartitionType(Dict("name" => "Block", "balanced" => true))
-# BlockBalanced(dim) =
-#     PartitionType(Dict("name" => "Block", "dim" => dim, "balanced" => true))
-# Div() = PartitionType(Dict("name" => "Replicate", "dividing" => true))
-# Replicate() = PartitionType(Dict("name" => "Replicate"))
+BlockBalanced() = PartitionType(Dict("name" => "Block", "balanced" => true))
+BlockBalanced(dim) =
+    PartitionType(Dict("name" => "Block", "dim" => dim, "balanced" => true))
+BlockUnbalanced() = PartitionType(Dict("name" => "Block", "balanced" => false))
+BlockUnbalanced(dim) =
+    PartitionType(Dict("name" => "Block", "dim" => dim, "balanced" => false))
+    
+Div() = PartitionType(Dict("name" => "Replicate", "dividing" => true))
+Replicated() = PartitionType(Dict("name" => "Replicate", "replicated" => true))
+Reducing(op) = PartitionType(Dict("name" => "Replicate", "replicated" => false, "reducer" => to_jl_value(op)))

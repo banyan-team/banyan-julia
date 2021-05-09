@@ -1,3 +1,7 @@
+######################################################################
+# Helper functions for building union of PAs for current code region #
+######################################################################
+
 # TODO: Support multi-threaded usage by storing a global array with an instance
 # of this annotation state for each thread
 global curr_pa_union = nothing
@@ -67,7 +71,7 @@ function apply_default_constraints!(pa::PartitionAnnotation)
             if length(c.args) == 1
                 push!(co_args, c.args[1])
             elseif length(c.args) > 1
-                push!(co_group_args, copy(c.args))
+                push!(co_group_args, deepcopy(c.args))
             end
         end
     end
@@ -88,13 +92,16 @@ function apply_default_constraints!(pa::PartitionAnnotation)
             PartitioningConstraintOverGroups("CO_GROUP", co_group_args),
         )
     end
+
+    # TODO: Add MemoryUsage constraint by default which computes sample size or
+    # defaults to 0
 end
 
 function duplicate_for_batching!(pa::PartitionAnnotation)
     # Duplicate PT stacks with second half being Sequential and Match-ing the
     # first half
     for (v, pt_stack) in pa.partitions.pt_stacks
-        append!(pt_stack, copy(pt_stack))
+        append!(pt_stack, deepcopy(pt_stack))
         for i = 1:div(length(pt_stack), 2)
             dupi = i + div(length(pt_stack), 2)
             push!(
@@ -131,35 +138,40 @@ function duplicate_for_batching!(pa::PartitionAnnotation)
     append!(pa.constraints.constraints, new_constraints)
 end
 
-function add_pa_to_union()
-    global curr_pa_union
-    global curr_pa
-    # TODO: Ensure this actually copies over the PA and doesn't just
-    # copy over a reference that then gets reset
-    apply_default_constraints!(curr_pa)
-    duplicate_for_batching!(curr_pa)
-    push!(curr_pa_union, curr_pa)
-    reset_pa()
-end
-
-function get_mutated(v::ValueId)
+function get_mutated(v::ValueId)::Bool
     global curr_mut
     return v in curr_mut
 end
 
-function get_pa_union()
+function get_pa_union()::Vector{PartitionAnnotation}
     global curr_pa_union
     return curr_pa_union
 end
 
-function pt(fut, pt::PartitionTypeComposition)
-    global curr_pa_union
+function get_pa()::PartitionAnnotation
     global curr_pa
+    return curr_pa
+end
+
+function add_pa_to_union()
+    curr_pa = get_pa()
+    # TODO: Ensure this actually copies over the PA and doesn't just
+    # copy over a reference that then gets reset
+    push!(get_pa_union(), curr_pa)
+    reset_pa()
+end
+
+#################################################################
+# Fundamental functions in the Partition Annotation abstraction #
+#################################################################
+
+function pt(fut, pt::Delayed{PartitionTypeComposition})
+    curr_pa = get_pa()
     fut = future(fut)
     if fut.value_id in keys(curr_pa.partitions.pt_stacks)
         add_pa_to_union()
     end
-    curr_pa.partitions.pt_stacks[fut.value_id] = pt_composition_from_pts(pt)
+    curr_pa.partitions.pt_stacks[fut.value_id] = pt
 end
 
 # TODO: Implement PT reinterpretation
@@ -185,16 +197,14 @@ end
 #     newfut
 # end
 
-function pt(
-    fut,
-    pre_pt::PartitionTypeComposition,
-    post_pt::PartitionTypeComposition,
-) end
+# function pt(
+#     fut,
+#     pre_pt::PartitionTypeComposition,
+#     post_pt::PartitionTypeComposition,
+# ) end
 
-function pc(constraint::PartitioningConstraint)
-    global curr_pa_union
-    global curr_pa
-    push!(curr_pa.constraints.constraints, constraint)
+function pc(constraint::Delayed{PartitioningConstraint})
+    push!(get_pa().constraints.constraints, constraint)
 end
 
 function mut(fut)
@@ -202,40 +212,103 @@ function mut(fut)
     push!(curr_mut, future(fut).value_id)
 end
 
+######################################
+# High-level function for annotation #
+######################################
+
+# TODO: Implement high-level partition function
+# function partition(
+#     fut::AbstractFuture;
+#     pts = Replicated(),
+#     mutating = false,
+#     cross_with = nothing,
+#     match_with = nothing
+# )
+#     # Get future and assign PT
+#     fut = convert(Future, fut)
+#     pt(fut, pts)
+#     if mutating
+#         mut(fut)
+#     end
+
+#     # TODO: Apply constraints and locations
+#     if !isnothing(cross_with)
+#         pc(Cross(fut, cross_with))
+#     end
+
+#     # TODO: Add ability to specify sample, sample properties, total memory
+#     # usage to copy from another value
+# end
+
+#################################################
+# Macro for wrapping the code region to offload #
+#################################################
+
 macro partitioned(ex...)
     variables = [esc(e) for e in ex[1:end-1]]
     variable_names = [string(e) for e in ex[1:end-1]]
     code = ex[end]
 
     return quote
-        # Create task
+        # Convert arguments to `Future`s if they aren't already
+        futures = [$(variables...)] .|> x->convert(Future,x)
+
+        # Add last PA in union of PAs to the task being recorded here
         add_pa_to_union()
+
+        # TODO: Allow for any Julia object (even stuff that can't be converted
+        # to `Future`s) to be passed into an @partitioned and by default have
+        # it be replicated across all workers and batches
+        # for pa in get_pa_union()
+        #     for fut in futures
+        #         if !(fut.value_id in keys(pa.partitions.pt_stacks))
+        #             pa.partitions.pt_stacks[fut.value_id] = [Replicated()]
+        #             # TODO: Add necessary default constraints so this
+        #             # replication spans what everything else spans
+        #         end
+        #     end
+        # end
+
+        # Create task
         task = BTask(
             $(string(code)),
             Dict(
-                future(fut).value_id => var_name for (fut, var_name) in
-                zip([$(variables...)], [$(variable_names...)])
+                fut.value_id => var_name for (fut, var_name) in
+                zip(futures, [$(variable_names...)])
             ),
             Dict(
-                future(fut).value_id =>
-                    if get_mutated(future(fut).value_id)
+                fut.value_id =>
+                    if get_mutated(fut.value_id)
                         "MUT"
                     else
                         "CONST"
-                    end for fut in [$(variables...)]
+                    end for fut in futures
             ),
             get_pa_union(),
         )
 
-        # Set mutated
-        for fut in [$(variables...)]
-            if get_mutated(future(fut).value_id)
-                future(fut).mutated = true
+        # Set `mutated` field of the `Future`s that have been mutated. This is
+        # to ensure that future calls to `evaluate` on those `Future`s with
+        # `mutated=true` and _only_ those `Future`s will result in an actual
+        # evaluation
+        for fut in futures
+            if get_mutated(fut.value_id)
+                fut.mutated = true
             end
         end
 
         # Record request to record task in backend's dependency graph and reset
         record_request(RecordTaskRequest(task))
         reset_annotation()
+
+        # Lazily perform computation on samples of futures that are used
+        record_sample_computation() do
+            futures = [$(variables...)]
+            $(variables...) = [get_sample(f) for f in futures]
+            $code
+            for (f, value) in zip(futures, [$(variables...)])
+                set_sample(f, value)
+            end
+        end
     end
 end

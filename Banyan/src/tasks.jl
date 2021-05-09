@@ -1,4 +1,5 @@
 struct BTask
+    # B is for Banyan! (we can't use Task since standard library beat us to it)
     code::String
     value_names::Dict{ValueId,String}
     effects::Dict{ValueId,String}
@@ -14,16 +15,11 @@ function to_jl(task::BTask)
     )
 end
 
-global pending_requests = Vector{Any}()
-
-function record_request(request::Any)
-    global pending_requests
-    push!(pending_requests, request)
-end
-
 ############
 # REQUESTS #
 ############
+
+const Request = Union{RecordTaskRequest,RecordLocationRequest,DestroyRequest}
 
 struct RecordTaskRequest
     task::BTask
@@ -54,7 +50,6 @@ function to_jl(req::DestroyRequest)
     return Dict("type" => "DESTROY", "value_id" => req.value_id)
 end
 
-# NOTE: The sole purpose of the "request" abstraction here is to potentially
-# support additional kinds of requests in the future. Right now, the only thing
-# we send on evaluation is the ID of the value to evaluate and tasks to record
-# in a dependency graph
+function record_request(request::Request)
+    push!(get_job().pending_requests, request)
+end

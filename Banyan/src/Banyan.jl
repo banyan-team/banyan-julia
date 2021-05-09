@@ -96,6 +96,8 @@ include("clusters.jl")
 # Futures
 include("locations.jl")
 include("futures.jl")
+include("samples.jl")
+include("sample_properties.jl")
 
 # Annotation
 include("partitions.jl")

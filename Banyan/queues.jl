@@ -48,7 +48,7 @@ end
 ##########################
 
 message_id = 0
-function get_message_id()
+function generate_message_id()
     global message_id
     message_id = message_id + 1
     return string(message_id)
@@ -59,7 +59,7 @@ function send_scatter_request(value_id)
         get_gather_queue(),
         JSON.json(Dict("kind" => "SCATTER_REQUEST", "value_id" => value_id)),
         (:MessageGroupId, "1"),
-        (:MessageDeduplicationId, get_message_id()),
+        (:MessageDeduplicationId, generate_message_id()),
     )
 end
 
@@ -70,7 +70,7 @@ function send_gather(value_id, value)
             Dict("kind" => "GATHER", "value_id" => value_id, "value" => value),
         ),
         (:MessageGroupId, "1"),
-        (:MessageDeduplicationId, get_message_id()),
+        (:MessageDeduplicationId, generate_message_id()),
     )
 end
 
@@ -79,6 +79,6 @@ function send_evaluation_end()
         get_gather_queue(),
         JSON.json(Dict{String,Any}("kind" => "EVALUATION_END")),
         (:MessageGroupId, "1"),
-        (:MessageDeduplicationId, get_message_id()),
+        (:MessageDeduplicationId, generate_message_id()),
     )
 end

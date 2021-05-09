@@ -1,23 +1,39 @@
-#using HTTP
-#using JSON
-#using TOML
+#########
+# TYPES #
+#########
+
+const Delayed{T} = Union{T, Function}
 
 ##############
 # CONVERSION #
 ##############
 
+# NOTE: `jl` referes to a subset of Julia that can be serialized to or
+# deserialized from JSON with ease
+
 jl_to_json(j) = JSON.json(j)
 
 json_to_jl(j) = JSON.parse(j)
+
+total_memory_usage(val) =
+    begin
+        size = Base.summarysize(val)
+        if size ≤ 128
+            0
+        else
+            size
+        end
+    end
 
 ##################
 # AUTHENTICATION #
 ##################
 
-# TODO: Manage TOML file in joinpath(homedir(), ".banyan", "banyanconfig.toml")
-# TODO: 
-# TODO: Functions for setting
-
+# Process-local configuration for the account being used. It wouldn't be hard
+# to but there shouldn't be any reason to make this thread-local (since only
+# one account should be being used per workstation or per server where
+# Banyan.jl may be being used). However, wrapping this in a mutex to ensure
+# synchronized mutation in this module would be a good TODO.
 global banyan_config = nothing
 global aws_config_by_region = Dict()
 

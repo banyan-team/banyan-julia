@@ -41,6 +41,6 @@ function send_message(queue_name, message)
         queue_name,
         message,
         (:MessageGroupId, "1"),
-        (:MessageDeduplicationId, get_message_id()),
+        (:MessageDeduplicationId, generate_message_id()),
     )
 end
