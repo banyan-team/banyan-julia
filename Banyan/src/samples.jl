@@ -42,3 +42,15 @@ function compute_sample(fut)
     end
     sample.value
 end
+
+abstract type AbstractSample end
+
+abstract_sample_impl_error(fn_name) =
+    error("$fn_name not implemented for $(typeof(as)) <: AbstractSample")
+
+compute_size(as::AbstractSample) = abstract_sample_impl_error("compute_size")
+compute_keys(as::AbstractSample) = abstract_sample_impl_error("compute_keys")
+compute_max_ngroups(as::AbstractSample, key) =
+    abstract_sample_impl_error("compute_max_ngroups")
+compute_quantiles(as::AbstractSample, key) =
+    abstract_sample_impl_error("compute_quantiles")
