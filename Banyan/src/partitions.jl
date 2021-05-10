@@ -121,9 +121,9 @@ MaxNPartitions(npartitions, args...) = PartitioningConstraintOverGroup(
     "MAX_NPARTITIONS=$npartitions",
     pt_refs_to_jl(args)
 )
-MaxMemoryUsage(fut::AbstractFuture, memory_usage::Int64) = PartitioningConstraintOverGroup(
-    "MAX_MEMORY_USAGE=$memory_usage",
-    pt_refs_to_jl([(fut, 1)])
+MemoryUsage(fut::AbstractFuture, memory_usage::Int64) = PartitioningConstraintOverGroup(
+    "MEMORY_USAGE=$memory_usage",
+    pt_refs_to_jl([fut])
 )
 
 mutable struct PartitioningConstraints

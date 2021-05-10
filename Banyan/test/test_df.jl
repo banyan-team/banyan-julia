@@ -105,7 +105,7 @@ for (op, agg) in [(:(sum), :(Base.:+)), (:(minimum), :(min)), (:(maximum), :(max
             res = Future()
         end
 
-        function $op(A::Array{T, N}; dims=1) where {T, N}
+        function $op(A::Array{T, N}; dims=:) where {T, N}
             dims = dims isa Tuple ? dims : tuple(dims)
             dimensions = Future(dims)
             operator = Future($op)
@@ -184,7 +184,8 @@ for op in (:+, :-, :>, :<, :>=, :<=, :≥, :≤, :(==), :!=)
             for axis in 1:min(4, ndims(A))
                 partition(A, Blocked(key=axis))
             end
-            partition(res, Partitioned(), matches_with=A)
+            partition(B, Partitioned(), matches_with=A)
+            partition(res, Partitioned(), matches_with=A, mutating=true)
             partition(res_size, ReplicatedOrReducing(), match_with=A_size)
             partition(op, Replicated())
 
@@ -206,10 +207,15 @@ for op in (:+, :-, :>, :<, :>=, :<=, :≥, :≤, :(==), :!=)
                 res = op(A, B)
                 res_size = A_size
             end
+            
             res
         end
     end
 end
+
+# TODO: Implement unary operators
+
+# TODO: Implement element-wise operations
 
 # Array reshaping
 
@@ -1275,7 +1281,6 @@ function groupby(df::DataFrame, cols; kwargs...)::GroupedDataFrame
     cols = Future(cols)
     kwargs = Future(kwargs)
     gdf = GroupedDataFrame(Future(), gdf_length, df, cols, kwargs)
-    # TODO: Store grouping columns and sort? in GDF
 
     partition(df, Replicated())
     partition(gdf, Replicated())
@@ -1441,6 +1446,8 @@ function transform(gdf::GroupedDataFrame)
         end
         res = transform(gdf, args...; kwargs...)
     end
+
+    res
 end
 
 function combine(gdf::GroupedDataFrame)
@@ -1478,6 +1485,8 @@ function combine(gdf::GroupedDataFrame)
     partition(args, Replicated())
     partition(kwargs, Replicated())
 
+    # TODO: Allow for putting multiple variables that share a PT in a call to partition
+
     mut(res)
 
     @partitioned gdf gdf_parent groupcols groupkwargs args kwargs res begin
@@ -1486,6 +1495,8 @@ function combine(gdf::GroupedDataFrame)
         end
         res = combine(gdf, args...; kwargs...)
     end
+
+    res
 end
 
 # TODO: Implement filter using some framework for having references by keeping
@@ -1534,6 +1545,8 @@ function subset(gdf::GroupedDataFrame)
         end
         res = subset(gdf, args...; kwargs...)
     end
+
+    res
 end
 
 function run_iris()

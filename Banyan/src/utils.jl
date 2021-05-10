@@ -15,9 +15,13 @@ jl_to_json(j) = JSON.json(j)
 
 json_to_jl(j) = JSON.parse(j)
 
+key_to_jl(key) = reinterpret(UInt8, hash(string(key))) |> String
+axis_to_jl(axis) = reinterpret(UInt8, hash(string(key))) |> String
+
 total_memory_usage(val) =
     begin
         size = Base.summarysize(val)
+        # TODO: Maybe make this larger
         if size ≤ 128
             0
         else
