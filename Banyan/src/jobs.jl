@@ -1,9 +1,7 @@
 struct Job
     id::JobId
-    job_properties::Dict{Symbol, Any}
     nworkers::Int32
     sampling_rate::Int32
-    sample_computation::Vector{Function}
     locations::Dict{ValueId, Location}
     pending_requests::Vector{Request}
     futures_on_client::Dict{ValueId, Future}
@@ -11,10 +9,8 @@ struct Job
     Job(job_id::JobId, nworkers::Integer, sampling_rate::Integer)::Job =
         new(
             job_id,
-            Dict(),
             nworkers,
             sampling_rate,
-            [],
             Dict(),
             [],
             Dict()
