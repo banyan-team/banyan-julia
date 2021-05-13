@@ -10,7 +10,6 @@ mutable struct Location
     dst_name::Union{String, Nothing}
     src_parameters::Dict
     dst_parameters::Dict
-    total_memory_usage::Int64
     sample::Sample
 
     function Location(
@@ -18,7 +17,6 @@ mutable struct Location
         src_parameters::Dict,
         dst_name::Union{String, Nothing},
         dst_parameters::Dict,
-        total_memory_usage::Int64 = 0,
         sample::Sample = Sample()
     )
         if isnothing(src_name) && isnothing(dst_name)
@@ -30,7 +28,6 @@ mutable struct Location
             dst_name,
             src_parameters,
             dst_parameters,
-            total_memory_usage,
             sample
         )
     end
@@ -85,7 +82,7 @@ function to_jl(lt::Location)
         "dst_name" => lt.dst_name,
         "src_parameters" => lt.src_parameters,
         "dst_parameters" => lt.dst_parameters,
-        "total_memory_usage" => lt.total_memory_usage,
+        "sample_memory_usage" => lt.total_memory_usage,
     )
 end
 

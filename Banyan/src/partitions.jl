@@ -8,7 +8,7 @@ struct PartitionType
     parameters::PartitionTypeParameters
 
     function PartitionType(
-        parameters::Union{String,Dict,PartitionTypeParameters},
+        parameters::Union{String,PartitionTypeParameters},
     )
         new(if parameters isa String
             Dict("name" => parameters)
@@ -27,7 +27,7 @@ function Base.getproperty(pt::PartitionType, name::Symbol)
     if haskey(pt.parameters, n)
         return pt.parameters[n]
     end
-    error("$name not found in location parameters")
+    error("$name not found in partition type parameters")
 end
 
 function to_jl(pt::PartitionType)
@@ -111,10 +111,6 @@ Match(args...) = PartitioningConstraintOverGroup("MATCH", pt_refs_to_jl(args))
 MatchOn(args...) = PartitioningConstraintOverGroup(
     "MATCH_ON=" * string(args[end]),
     pt_refs_to_jl(args[1:end-1]),
-)
-AtMost(npartitions, args...) = PartitioningConstraintOverGroup(
-    "AT_MOST=$npartitions",
-    pt_refs_to_jl(args)
 )
 # TODO: Remove above and implement the below
 MaxNPartitions(npartitions, args...) = PartitioningConstraintOverGroup(

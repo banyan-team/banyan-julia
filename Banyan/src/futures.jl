@@ -320,6 +320,11 @@ function loc(futs...)
     end
 end
 
+# NOTE: The below operations (mem and val) should rarely be used if every. We
+# should probably even remove them at some point. Memory usage of each sample
+# is automatically detected and stored. If you want to make a future have Value
+# location type, simply use the `Future` constructor and pass your value in.
+
 function mem(fut, estimated_total_memory_usage::Integer)
     fut = convert(Future, fut)
     location = get_location(fut)

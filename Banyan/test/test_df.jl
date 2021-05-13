@@ -207,7 +207,7 @@ for op in (:+, :-, :>, :<, :>=, :<=, :≥, :≤, :(==), :!=)
                 res = op(A, B)
                 res_size = A_size
             end
-            
+
             res
         end
     end
@@ -677,9 +677,9 @@ function getindex(df::DataFrame, rows, cols)
 
                 if !onecol && key in sample(res, :names)
                     if rows isa Colon
-                        partition(res, Grouped(;key=key), match_with=df, match_on=["divisions", "balanced", "id"])
+                        partition(res, Distributed(), match_with=df, match_on=["key", "divisions", "balanced", "id"])
                     else
-                        partition(res, Grouped(;key=key, balanced=false, id="*"), match_with=df, match_on="divisions")
+                        partition(res, Distributed(balanced=false, id="*"), match_with=df, match_on=["key", "divisions"])
                     end
                 else
                     if rows isa Colon

@@ -71,6 +71,12 @@
             "dst_required": {"name": "Replicate"},
             "dst_default": {},
             "matching": []
+        },
+        "Shuffle": {
+            "src_required": {"name": "Block"},
+            "dst_required": {"name": "Block"},
+            "dst_default": {},
+            "matching": []
         }
     }
 }
