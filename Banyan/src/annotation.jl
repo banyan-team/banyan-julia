@@ -293,6 +293,7 @@ macro partitioned(ex...)
         # evaluation
         for fut in futures
             if get_mutated(fut.value_id)
+                fut.stale = true
                 fut.mutated = true
             end
         end
@@ -302,7 +303,7 @@ macro partitioned(ex...)
         reset_annotation()
 
         # Lazily perform computation on samples of futures that are used
-        record_sample_computation() do
+        begin
             futures = [$(variables...)]
             $(variables...) = [get_sample(f) for f in futures]
             $code

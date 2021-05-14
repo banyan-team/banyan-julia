@@ -1,16 +1,16 @@
 struct Job
     id::JobId
     nworkers::Int32
-    sampling_rate::Int32
+    sample_rate::Int32
     locations::Dict{ValueId, Location}
     pending_requests::Vector{Request}
-    futures_on_client::Dict{ValueId, Future}
+    futures_on_client::WeakKeyDict{ValueId, Future}
 
-    Job(job_id::JobId, nworkers::Integer, sampling_rate::Integer)::Job =
+    Job(job_id::JobId, nworkers::Integer, sample_rate::Integer)::Job =
         new(
             job_id,
             nworkers,
-            sampling_rate,
+            sample_rate,
             Dict(),
             [],
             Dict()
@@ -51,12 +51,13 @@ end
 
 get_location(fut::AbstractFuture) = get_job().locations[convert(Future, fut).value_id]
 get_location(value_id::ValueId) = get_job().locations[value_id]
+get_future(value_id::ValueId) = get_job().futures_on_client[value_id]
 
 function create_job(;
     cluster_name::String = nothing,
     nworkers::Integer = 2,
     banyanfile_path::String = nothing,
-    sampling_rate::Integer = 1/nworkers,
+    sample_rate::Integer = 1/nworkers,
     kwargs...,
 )
     global jobs
@@ -94,7 +95,7 @@ function create_job(;
 
     # Store in global state
     set_job_id(job_id)
-    jobs[job_id] = Job(job_id, nworkers, sampling_rate)
+    jobs[job_id] = Job(job_id, nworkers, sample_rate)
 
     @debug "Finished creating job $job_id"
     return job_id

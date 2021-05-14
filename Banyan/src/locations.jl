@@ -47,34 +47,36 @@ mutable struct Location
     end
 end
 
-function Base.getproperty(l::Location, n::Symbol)
-    if hasfield(Location, n)
-        return getfield(l, n)
-    end
+# TODO: Determine where we want syntax getproperty/setproperty! for convenience
 
-    if !isnothing(l.src_name) && haskey(l.src_parameters, n)
-        l.src_parameters[n]
-    elseif !isnothing(l.dst_name) && haskey(l.dst_parameters, n)
-        l.dst_parameters[n]
-    else
-        error("$name not found in location parameters")
-    end
-end
+# function Base.getproperty(l::Location, n::Symbol)
+#     if hasfield(Location, n)
+#         return getfield(l, n)
+#     end
 
-function Base.setproperty!(l::Location, n::Symbol, value::Any)
-    if hasfield(Location, n)
-        return setfield!(l, n, value)
-    end
+#     if !isnothing(l.src_name) && haskey(l.src_parameters, n)
+#         l.src_parameters[n]
+#     elseif !isnothing(l.dst_name) && haskey(l.dst_parameters, n)
+#         l.dst_parameters[n]
+#     else
+#         error("$name not found in location parameters")
+#     end
+# end
 
-    # NOTE: This only allows setting values of parameters already in the
-    # location
-    if !isnothing(l.src_name) && haskey(l.src_parameters, n)
-        l.src_parameters[n] = value
-    end
-    if !isnothing(l.dst_name) && haskey(l.dst_parameters, n)
-        l.dst_parameters[n] = value
-    end
-end
+# function Base.setproperty!(l::Location, n::Symbol, value::Any)
+#     if hasfield(Location, n)
+#         return setfield!(l, n, value)
+#     end
+
+#     # NOTE: This only allows setting values of parameters already in the
+#     # location
+#     if !isnothing(l.src_name) && haskey(l.src_parameters, n)
+#         l.src_parameters[n] = value
+#     end
+#     if !isnothing(l.dst_name) && haskey(l.dst_parameters, n)
+#         l.dst_parameters[n] = value
+#     end
+# end
 
 function to_jl(lt::Location)
     return Dict(
@@ -263,7 +265,7 @@ function Remote(p)
                     parsedrow = CSV.detect(row, i)
                     nbytes += Base.summarysize(parsedrow)
                     # TODO: Fix performance issue here
-                    if rand() < get_job().sampling_rate
+                    if rand() < get_job().sample_rate
                         push!(sample, NamedTuple(parsedrow))
                     end
                 end

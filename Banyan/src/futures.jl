@@ -8,6 +8,7 @@ mutable struct Future <: AbstractFuture
     value::Any
     value_id::ValueId
     mutated::Bool
+    stale::Bool
 end
 
 """
@@ -18,7 +19,7 @@ end
 
 Constructs a new future, representing a value that has not yet been evaluated.
 """
-function Future(location::Location)
+function Future(location::Location = None())
     # Generate new value id
     value_id = generate_value_id()
 
@@ -26,20 +27,29 @@ function Future(location::Location)
     new_future = Future(
         nothing,
         value_id,
-        false
+        false,
+        # TODO: Add Size location here if needed
+        location.src_name != "None" &&
+        location.src_name != "Client" &&
+        location.src_name != "Value"
     )
     loc(new_future, None())
-    src(new_future, location)
+    if location.src_name != "None"
+        src(new_future, location)
+    else
+        # For convenience, if a future is constructed with no location to
+        # split from, we assume it will be mutated in the next code region
+        # and mark it as mutated. This is pretty common since often when
+        # we are creating new futures with None location it is as an
+        # intermediate variable to store the result of some code region.
+        # 
+        # Mutation can be specified manually with mutate=true|false in
+        # `partition` or implicitly through `Future` constructors
+        mut(future)
+    end
 
     # Create finalizer and register
     finalizer(new_future) do fut
-        if fut.value_id in keys(get_job().futures_on_client)
-            delete!(get_job().futures_on_client, fut.value_id)
-        end
-        # TODO: Find a way to delete these things without causing delayed
-        # computation on samples that hasn't yet run to potentially fail
-        # delete!(get_job().sample_properties, fut.value_id)
-        # delete!(get_job().locations, fut.value_id)
         record_request(DestroyRequest(value_id))
     end
 
@@ -59,19 +69,6 @@ function Future(value::Any)
     new_future
 end
 
-Future(;kwargs...) = begin
-    # Construct the location from keyword arguments that contain information
-    # about sample properties to copy over (e.g., column statistics for
-    # `DataFrame`s)
-    location = None(;kwargs...)
-
-    # Create a new future and assign the `None` location as both its source and
-    # destination location; then return it
-    new_future = Future(location)
-    dst(new_future, location)
-    new_future
-end
-
 """
     Future(future::AbstractFuture)
 
@@ -87,21 +84,22 @@ mutated. This is because presumably in the case that we _can't_ copy over the
 given future, we would want to assign to it in the upcoming code region where
 it's going to be used.
 """
-function Future(fut::AbstractFuture, mutation::Function=identity; kwargs...)
+function Future(fut::AbstractFuture, mutation::Function=identity)
     # TODO: Remove mutation if it isn't needed
     fut = convert(Future, fut)
-    if !fut.mutated
-        # TODO: Maybe also copy over location and sample
-        Future(copy(mutation(fut.value)))
+    if !fut.stale
+        Future(
+            copy(mutation(fut.value)),
+            generate_value_id(),
+            # If the future is not stale, it is not mutated in a way where
+            # a further `compute` is needed. So we can just copy its value.
+            false,
+            false
+        )
     else
-        f = Future(;kwargs...)
-        mut(f)
-        f
+        Future()
     end
 end
-
-# TODO: Remove the following if it isn't necessary
-const Futuristic{T} = Union{T, Future}
 
 convert(::Type{Future}, value::Any) = Future(value)
 
@@ -124,12 +122,15 @@ convert(::Type{Future}, value::Any) = Future(value)
 # Basic Methods #
 #################
 
-function evaluate(fut::AbstractFuture)
+function compute(fut::AbstractFuture)
     fut = convert(Future, fut)
     job_id = get_job_id()
     job = get_job()
 
     if fut.mutated
+        # Finalize (destroy) all `Future`s that can be destroyed
+        GC.gc()
+
         # Do some final processing on each task to be shipped off
         for req in get_job().pending_requests
             if req isa RecordTaskRequest
@@ -148,12 +149,18 @@ function evaluate(fut::AbstractFuture)
                     apply_default_constraints!(curr_pa)
                     duplicate_for_batching!(curr_pa)
                 end
+            elseif req isa DestroyRequest
+                # If this value was to be downloaded to or uploaded from the
+                # client side, delete the reference to its data
+                if fut.value_id in keys(get_job().futures_on_client)
+                    delete!(get_job().futures_on_client, fut.value_id)
+                end
+
+                # Remove information about the value's location including the
+                # sample taken from it
+                delete!(get_job().locations, fut.value_id)
             end
         end
-
-        # Finalize (destroy) all `Future`s that can be destroyed
-        GC.gc()
-        # println("EVALUATE getting sent")
 
         # Send evaluate request
         response = send_evaluation(fut.value_id, job_id)
@@ -185,6 +192,8 @@ function evaluate(fut::AbstractFuture)
                     ),
                 )
                 src(f, None())
+                # TODO: Update stale/mutated here to avoid costly
+                # call to `send_evaluation`
             elseif message_type == "GATHER"
                 @debug "Received gather request"
                 # Receive gather
@@ -193,8 +202,9 @@ function evaluate(fut::AbstractFuture)
                     value = from_jl_value_contents(message["contents"])
                     f::Future = job.futures_on_client[value_id]
                     f.value = value
-                    f.mutated = false
                     dst(f, None())
+                    # TODO: Update stale/mutated here to avoid costly
+                    # call to `send_evaluation`
                 end
             elseif message_type == "EVALUATION_END"
                 @debug "Received evaluation"
@@ -203,7 +213,13 @@ function evaluate(fut::AbstractFuture)
         end
     end
 
-    return fut.value
+    fut.mutated = false
+    # TODO: See if there are more cases where you a `compute` call on a future
+    # makes it no longer stale
+    if get_dst_name(fut) == "None" || get_dst_name(fut) == "Client"
+        fut.stale = false
+    end
+    fut
 end
 
 function send_evaluation(value_id::ValueId, job_id::JobId)
@@ -224,12 +240,19 @@ function send_evaluation(value_id::ValueId, job_id::JobId)
     return response
 end
 
-function Base.download(fut::AbstractFuture)
+function collect(fut::AbstractFuture)
     # Set the future's destination location to Client
     dst(fut, Client())
 
+    partition(fut, Partitioned(), mutate=true)
+    @partitioned fut begin
+        # This code region is empty but it ensures that something is run
+        # and so the data is partitioned and then re-merged back up to its new
+        # destination location, the client
+    end
+
     # Evaluate the future so that its value is downloaded to the client
-    evaluate(fut)
+    compute(fut)
 
     # Mark it as no longer mutated so that its value can be used in calls to
     # `Future(af::AbstractFuture)`. We could be also setting fut.mutated to
@@ -240,12 +263,11 @@ function Base.download(fut::AbstractFuture)
     # that !fut.mutated implies fut.value is the most up-to-date version so
     # that calls to `download` on things like summary statistics (which are
     # more likely to be accidentally duplicated) are fast.
-    fut.mutated = false
-end
 
-# TODO: For futures with locations like Size, "scale up" the computed sample
-# for a useful approximation of things like length of an array
-approximate(fut::AbstractFuture) = compute_sample(fut)
+    dst(fut, None())
+
+    fut.value
+end
 
 ################################
 # Methods for setting location #
@@ -350,3 +372,12 @@ function mem(futs...)
 end
 
 val(fut) = loc(fut, Value(convert(Future, fut).value))
+
+################################
+# Methods for getting location #
+################################
+
+get_src_name(fut) = get_location(fut).src_name
+get_dst_name(fut) = get_location(fut).dst_name
+get_src_parameters(fut) = get_location(fut).src_parameters
+get_dst_parameters(fut) = get_location(fut).dst_parameters

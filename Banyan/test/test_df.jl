@@ -299,7 +299,7 @@ end
 
 # TODO: Duplicate above functions for Parquet, Arrow
 
-# DataFrame sampling
+# DataFrame sample
 
 DataFrames.DataFrame <: AbstractSample
 
