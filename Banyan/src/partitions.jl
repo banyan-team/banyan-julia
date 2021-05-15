@@ -2,36 +2,58 @@
 # PARTITION TYPE #
 ##################
 
-const PartitionTypeParameters = Dict
+const PartitionTypeParameters = Dict{String, Any}
 
-struct PartitionType
+mutable struct PartitionType
     parameters::PartitionTypeParameters
+    constraints::PartitioningConstraints
 
-    function PartitionType(
-        parameters::Union{String,PartitionTypeParameters},
-    )
-        new(if parameters isa String
-            Dict("name" => parameters)
-        else
-            parameters
-        end)
+    PartitionType(s::String) = new(Dict("name" => s), PartitioningConstraints())
+    PartitionType(parameters::PartitionTypeParameters) = new(parameters, PartitioningConstraints())
+
+    function PartitionType(args::Union{String, Pair{String,Any}, PartitioningConstraint}...)
+        parameters = Dict()
+        constraints = PartitioningConstraints()
+
+        # Construct parameters and constraints from arguments
+        for arg in args
+            if arg isa String
+                parameters["name"] = arg
+            elseif arg isa Pair
+                parameters[first(arg)] = last(arg)
+            else
+                push!(constraints, arg)
+            end
+        end
+
+        new(parameters, constraints)
     end
 end
 
-function Base.getproperty(pt::PartitionType, name::Symbol)
-    if hasfield(PartitionType, name)
-        return getfield(pt, name)
-    end
+# TODO: Determine whether we need this
+# function Base.getproperty(pt::PartitionType, name::Symbol)
+#     if hasfield(PartitionType, name)
+#         return getfield(pt, name)
+#     end
 
-    n = string(name)
-    if haskey(pt.parameters, n)
-        return pt.parameters[n]
-    end
-    error("$name not found in partition type parameters")
-end
+#     n = string(name)
+#     if haskey(pt.parameters, n)
+#         return pt.parameters[n]
+#     end
+#     error("$name not found in partition type parameters")
+# end
 
 function to_jl(pt::PartitionType)
-    return Dict("parameters" => pt.parameters)
+    # Interpret bangs as random IDs
+    # TODO: Use this in the backend to interpret pt_lib_info.json
+    for (k, v) in pt.parameters
+        if v == "!"
+            pt.parameters[k] = randstring(8)
+        end
+    end
+
+    # Construct dictionary
+    Dict("parameters" => pt.parameters, "constraints" => to_jl(pt.constraints))
 end
 
 const PartitionTypeComposition = Union{PartitionType,Vector{PartitionType}}
@@ -52,11 +74,11 @@ pt_composition_to_jl(pts::PartitionTypeComposition) =
         [to_jl(pt) for pt in pts]
     end
 
+const PartitionTypeReference = Tuple{ValueId,Integer}
+
 ############################
 # PARTITIONING CONSTRAINTS #
 ############################
-
-const PartitionTypeReference = Tuple{ValueId,Integer}
 
 pt_ref_to_jl(pt_ref) =
     if pt_ref isa Tuple
@@ -65,7 +87,8 @@ pt_ref_to_jl(pt_ref) =
         (convert(Future, pt_ref).value_id, 0)
     end
 
-pt_refs_to_jl(refs) = [pt_ref_to_jl(ref) for ref in refs]
+pt_refs_to_jl(refs::Vector{PartitionTypeReference}) =
+    [pt_ref_to_jl(ref) for ref in refs]
 
 struct PartitioningConstraintOverGroup
     type::String
@@ -121,10 +144,13 @@ MemoryUsage(fut::AbstractFuture, memory_usage::Int64) = PartitioningConstraintOv
     "MEMORY_USAGE=$memory_usage",
     pt_refs_to_jl([fut])
 )
+# TODO: Create AtMost and RelativeTo constraints
 
 mutable struct PartitioningConstraints
-    constraints::Vector{Delayed{PartitioningConstraint}}
+    constraints::Vector{PartitioningConstraint}
 end
+
+PartitioningConstraints() = PartitioningConstraints([])
 
 function to_jl(constraints::PartitioningConstraints)
     return Dict(
@@ -138,7 +164,7 @@ end
 ########################
 
 mutable struct Partitions
-    pt_stacks::Dict{ValueId,Delayed{PartitionTypeComposition}}
+    pt_stacks::Dict{ValueId,PartitionTypeComposition}
 end
 
 function to_jl(p::Partitions)

@@ -31,21 +31,19 @@ mutable struct Location
             sample
         )
     end
-
-    function Location(name::String, parameters::Dict, args...)
-        Location(name, name, parameters, parameters; args...)
-    end
-
-    function Location(name::String, parameters::Dict, purpose::Symbol, args...)
-        if purpose == :src
-            Location(name, parameters, nothing, Dict(), args...)
-        elseif purpose == :dst
-            Location(nothing, Dict(), name, parameters, args...)
-        else
-            error("Expected location to have purpose of either source or destination")
-        end
-    end
 end
+
+Location(name::String, parameters::Dict, sample::Sample = Sample()) =
+    Location(name, name, parameters, parameters, sample)
+
+Location(purpose::Symbol, name::String, parameters::Dict, sample::Sample = Sample()) =
+    if purpose == :src
+        Location(name, parameters, nothing, Dict(), sample)
+    elseif purpose == :dst
+        Location(nothing, Dict(), name, parameters, sample)
+    else
+        error("Expected location to have purpose of either source or destination")
+    end
 
 # TODO: Determine where we want syntax getproperty/setproperty! for convenience
 
@@ -84,7 +82,10 @@ function to_jl(lt::Location)
         "dst_name" => lt.dst_name,
         "src_parameters" => lt.src_parameters,
         "dst_parameters" => lt.dst_parameters,
-        "sample_memory_usage" => lt.total_memory_usage,
+        # NOTE: sample.properties[:rate] is always set in the Sample
+        # constructor to the configured sample rate (default 1/nworkers) for
+        # this job
+        "total_memory_usage" => sample_memory_usage(lt.sample.value) * lt.sample.properties[:rate]
     )
 end
 
@@ -92,54 +93,17 @@ end
 # Simple locations #
 ####################
 
-Value(val) = Location("Value", Dict("value" => to_jl_value(val)), total_memory_usage(val), Sample(val))
-Client(val) = Location("Client", Dict(), total_memory_usage(val), Sample(val))
-Client() = Location("Client", Dict(), :dst, 0)
-Size(size) = Value(size)
-
-function None(
-    reuse_memory_usage_from::AbstractFuture = nothing,
-    reuse_sample_from::AbstractFuture = nothing,
-    reuse_sample_properties_from::AbstractFuture = nothing,
-    property::Symbol = nothing,
-    properties::Vector{Symbol} = [],
+Value(val) = Location(
+    :src,
+    "Value",
+    Dict("value" => to_jl_value(val)),
+    Sample(val)
 )
-    # Copy over sample
-    sample = if !isnothing(reuse_sample_from)
-        value_location = get_location(reuse_sample_from)
-        if !value_location.stale
-            deepcopy(value_location.sample)
-        else
-            Sample()
-        end
-    else
-        Sample()
-    end
-
-    # Copy over sample properties
-    if !isnothing(reuse_sample_properties_from)
-        value_sample = get_location(reuse_sample_properties_from).sample
-        if !isnothing(property)
-            sample.sample_properties[property] =
-                value_sample.sample_properties[property]
-        end
-        for property in properties
-            sample.sample_properties[property] =
-                value_sample.sample_properties[property]
-        end
-    end
-
-    Location(
-        "None",
-        Dict(),
-        if reuse_total_memory_usage_from
-            get_location(reuse_memory_usage_from).total_memory_usage
-        else
-            0
-        end,
-        sample,
-    )
-end
+Client(val) = Location(:src, "Client", Dict(), Sample(val))
+Client() = Location(:dst, "Client", Dict())
+# TODO: Un-comment only if Size is needed
+# Size(size) = Value(size)
+None() = Location("None", Dict(), Sample(nothing))
 
 ######################################################
 # Helper functions for serialization/deserialization #

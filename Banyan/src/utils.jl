@@ -1,9 +1,3 @@
-#########
-# TYPES #
-#########
-
-const Delayed{T} = Union{T, Function}
-
 ##############
 # CONVERSION #
 ##############

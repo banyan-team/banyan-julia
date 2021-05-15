@@ -1,3 +1,6 @@
+# TODO: Delete this file because the implementations of AbstractSampleWithKeys
+# should be in the nnotated libraries.
+
 function compute_quantiles(fut::AbstractFuture, key)
     key = hash(string(key))
     get!(sample.sample_properties, :quantiles) do Dict() end
