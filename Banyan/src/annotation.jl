@@ -1,3 +1,22 @@
+function partition_before()
+end
+
+function partition()
+end
+
+function partition()
+end
+
+function keep_all_keys()
+    # Keeps all keys in original but only if in next
+end
+
+function keep_keys(keys)
+end
+
+function keep_keys_except(keys)
+end
+
 ######################################################################
 # Helper functions for building union of PAs for current code region #
 ######################################################################
@@ -305,10 +324,10 @@ macro partitioned(ex...)
         # Lazily perform computation on samples of futures that are used
         begin
             futures = [$(variables...)]
-            $(variables...) = [get_sample(f) for f in futures]
+            $(variables...) = [sample(f) for f in futures]
             $code
             for (f, value) in zip(futures, [$(variables...)])
-                set_sample(f, value)
+                setsample!(f, value)
             end
         end
     end

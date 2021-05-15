@@ -1,6 +1,6 @@
-#########
-# Types #
-#########
+###########
+# Futures #
+###########
 
 abstract type AbstractFuture end
 
@@ -24,27 +24,26 @@ function Future(location::Location = None())
     value_id = generate_value_id()
 
     # Create new Future and assign a location to it
-    new_future = Future(
-        nothing,
-        value_id,
-        false,
-        # TODO: Add Size location here if needed
-        location.src_name != "None" &&
-        location.src_name != "Client" &&
-        location.src_name != "Value"
-    )
-    loc(new_future, None())
-    if location.src_name != "None"
-        src(new_future, location)
-    else
-        # For convenience, if a future is constructed with no location to
-        # split from, we assume it will be mutated in the next code region
-        # and mark it as mutated. This is pretty common since often when
-        # we are creating new futures with None location it is as an
-        # intermediate variable to store the result of some code region.
-        # 
-        # Mutation can be specified manually with mutate=true|false in
-        # `partition` or implicitly through `Future` constructors
+    new_future = Future(nothing, value_id, false, false)
+    src(new_future, location)
+    dst(new_future, None())
+
+    # TODO: Add Size location here if needed
+    # Handle locations that have an associated value
+    if location.src_name in ["None", "Client", "Value"]
+        new_future.value = location.sample.value
+        new_future.stale = false
+    end
+    
+    # For convenience, if a future is constructed with no location to
+    # split from, we assume it will be mutated in the next code region
+    # and mark it as mutated. This is pretty common since often when
+    # we are creating new futures with None location it is as an
+    # intermediate variable to store the result of some code region.
+    # 
+    # Mutation can also be specified manually with mutate=true|false in
+    # `partition` or implicitly through `Future` constructors
+    if location.src_name == "None"
         mut(future)
     end
 
@@ -64,9 +63,7 @@ function Future(value::Any)
     end
 
     # Create future, store value, and return
-    new_future = Future(location)
-    new_future.value = value
-    new_future
+    Future(location)
 end
 
 """
@@ -85,7 +82,6 @@ given future, we would want to assign to it in the upcoming code region where
 it's going to be used.
 """
 function Future(fut::AbstractFuture, mutation::Function=identity)
-    # TODO: Remove mutation if it isn't needed
     fut = convert(Future, fut)
     if !fut.stale
         Future(
@@ -102,6 +98,10 @@ function Future(fut::AbstractFuture, mutation::Function=identity)
 end
 
 convert(::Type{Future}, value::Any) = Future(value)
+
+get_location(fut::AbstractFuture) = get_job().locations[convert(Future, fut).value_id]
+get_location(value_id::ValueId) = get_job().locations[value_id]
+get_future(value_id::ValueId) = get_job().futures_on_client[value_id]
 
 #################
 # Magic Methods #
@@ -130,9 +130,9 @@ function compute(fut::AbstractFuture)
     if fut.mutated
         # Finalize (destroy) all `Future`s that can be destroyed
         GC.gc()
-
+    
         # Do some final processing on each task to be shipped off
-        for req in get_job().pending_requests
+        for req in job.pending_requests
             if req isa RecordTaskRequest
                 for pa in req.task.pa_union
                     # Materialize all PT compositions that are delayed
@@ -144,7 +144,7 @@ function compute(fut::AbstractFuture)
                             pa.partitions.pt_stacks[v] = delayed_pt_composition()
                         end
                     end
-
+    
                     # Process each PA before submitting
                     apply_default_constraints!(curr_pa)
                     duplicate_for_batching!(curr_pa)
@@ -152,23 +152,23 @@ function compute(fut::AbstractFuture)
             elseif req isa DestroyRequest
                 # If this value was to be downloaded to or uploaded from the
                 # client side, delete the reference to its data
-                if fut.value_id in keys(get_job().futures_on_client)
-                    delete!(get_job().futures_on_client, fut.value_id)
+                if fut.value_id in keys(job.futures_on_client)
+                    delete!(job.futures_on_client, fut.value_id)
                 end
-
+    
                 # Remove information about the value's location including the
                 # sample taken from it
-                delete!(get_job().locations, fut.value_id)
+                delete!(job.locations, fut.value_id)
             end
         end
-
-        # Send evaluate request
+    
+        # Send evaluation request
         response = send_evaluation(fut.value_id, job_id)
-
+    
         # Get queues
         scatter_queue = get_scatter_queue(job_id)
         gather_queue = get_gather_queue(job_id)
-
+    
         # Read instructions from gather queue
         # println("job id: ", job_id)
         # print("LISTENING ON: ", gather_queue)
@@ -202,7 +202,6 @@ function compute(fut::AbstractFuture)
                     value = from_jl_value_contents(message["contents"])
                     f::Future = job.futures_on_client[value_id]
                     f.value = value
-                    dst(f, None())
                     # TODO: Update stale/mutated here to avoid costly
                     # call to `send_evaluation`
                 end
@@ -211,14 +210,15 @@ function compute(fut::AbstractFuture)
                 break
             end
         end
+
+        fut.mutated = false
+        # TODO: See if there are more cases where you a `compute` call on a future
+        # makes it no longer stale
+        if get_dst_name(fut) == "Client"
+            fut.stale = false
+        end
     end
 
-    fut.mutated = false
-    # TODO: See if there are more cases where you a `compute` call on a future
-    # makes it no longer stale
-    if get_dst_name(fut) == "None" || get_dst_name(fut) == "Client"
-        fut.stale = false
-    end
     fut
 end
 
@@ -237,7 +237,7 @@ function send_evaluation(value_id::ValueId, job_id::JobId)
 
     # Clear global state and return response
     empty!(get_job().pending_requests)
-    return response
+    response
 end
 
 function collect(fut::AbstractFuture)
@@ -253,131 +253,6 @@ function collect(fut::AbstractFuture)
 
     # Evaluate the future so that its value is downloaded to the client
     compute(fut)
-
-    # Mark it as no longer mutated so that its value can be used in calls to
-    # `Future(af::AbstractFuture)`. We could be also setting fut.mutated to
-    # false for stuff that is not being downloaded to Client and that would
-    # prevent redundant evaluations from causing extra work. But this is not
-    # something we would expect the user to do (accidentally calling `evaluate`
-    # on the same value multiple times). And it's much more useful to ensure
-    # that !fut.mutated implies fut.value is the most up-to-date version so
-    # that calls to `download` on things like summary statistics (which are
-    # more likely to be accidentally duplicated) are fast.
-
     dst(fut, None())
-
     fut.value
 end
-
-################################
-# Methods for setting location #
-################################
-
-function src(fut, loc::Location)
-    if isnothing(loc.src_name)
-        error("Location cannot be used as a source")
-    end
-
-    fut::Future = convert(Future, fut)
-    fut_location = get_location(fut)
-    loc(
-        fut,
-        Location(
-            loc.src_name,
-            loc.src_parameters,
-            fut_location.dst_name,
-            fut_location.dst_parameters,
-            max(fut.location.total_memory_usage, loc.total_memory_usage),
-        ),
-    )
-end
-
-function dst(fut, loc::Location)
-    if isnothing(loc.dst_name)
-        error("Location cannot be used as a destination")
-    end
-
-    fut::Future = convert(Future, fut)
-    fut_location = get_location(fut.value_id)
-    loc(
-        fut,
-        Location(
-            fut_location.src_name,
-            fut_location.src_parameters,
-            loc.dst_name,
-            loc.dst_parameters,
-            max(fut.location.total_memory_usage, loc.total_memory_usage),
-        ),
-    )
-end
-
-function loc(fut, location::Location)
-    job = get_job()
-    fut = convert(Future, fut)
-    value_id = fut.value_id
-
-    if location.src_name == "Client" || location.dst_name == "Client"
-        job.futures_on_client[value_id] = fut
-    else
-        # TODO: Set loc of all Futures with Client loc to None at end of
-        # evaluate and ensure that this is proper way to handle Client
-        delete!(job.futures_on_client, value_id)
-    end
-
-    job.locations[value_id] = location
-    record_request(RecordLocationRequest(value_id, location))
-end
-
-function loc(futs...)
-    futs = futs .|> obj->convert(Future, obj)
-    maxindfuts = argmax([
-        get_location(f).total_memory_usage
-        for f in futs
-    ])
-    for fut in futs
-        loc(
-            fut,
-            get_location(futs[maxindfuts]),
-        )
-    end
-end
-
-# NOTE: The below operations (mem and val) should rarely be used if every. We
-# should probably even remove them at some point. Memory usage of each sample
-# is automatically detected and stored. If you want to make a future have Value
-# location type, simply use the `Future` constructor and pass your value in.
-
-function mem(fut, estimated_total_memory_usage::Integer)
-    fut = convert(Future, fut)
-    location = get_location(fut)
-    location.total_memory_usage = estimated_total_memory_usage
-    record_request(RecordLocationRequest(fut.value_id, location))
-end
-
-mem(fut, n::Integer, ty::DataType) = mem(fut, n * sizeof(ty))
-mem(fut) = mem(fut, sizeof(convert(Future, fut).value))
-
-function mem(futs...)
-    for fut in futs
-        mem(
-            fut,
-            maximum([
-                begin
-                    get_location(f).total_memory_usage
-                end
-                for f in futs
-            ]),
-        )
-    end
-end
-
-val(fut) = loc(fut, Value(convert(Future, fut).value))
-
-################################
-# Methods for getting location #
-################################
-
-get_src_name(fut) = get_location(fut).src_name
-get_dst_name(fut) = get_location(fut).dst_name
-get_src_parameters(fut) = get_location(fut).src_parameters
-get_dst_parameters(fut) = get_location(fut).dst_parameters

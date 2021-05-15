@@ -2,21 +2,23 @@
 # Location type #
 #################
 
+const LocationParameters = Dict{String, Any}
+
 mutable struct Location
     # A location may be usable as either a source or destination for data or
     # both.
 
     src_name::Union{String, Nothing}
     dst_name::Union{String, Nothing}
-    src_parameters::Dict
+    src_parameters::Dict{Sym}
     dst_parameters::Dict
     sample::Sample
 
     function Location(
         src_name::Union{String, Nothing},
-        src_parameters::Dict,
+        src_parameters::LocationParameters,
         dst_name::Union{String, Nothing},
-        dst_parameters::Dict,
+        dst_parameters::LocationParameters,
         sample::Sample = Sample()
     )
         if isnothing(src_name) && isnothing(dst_name)
@@ -36,45 +38,11 @@ end
 Location(name::String, parameters::Dict, sample::Sample = Sample()) =
     Location(name, name, parameters, parameters, sample)
 
-Location(purpose::Symbol, name::String, parameters::Dict, sample::Sample = Sample()) =
-    if purpose == :src
-        Location(name, parameters, nothing, Dict(), sample)
-    elseif purpose == :dst
-        Location(nothing, Dict(), name, parameters, sample)
-    else
-        error("Expected location to have purpose of either source or destination")
-    end
+LocationSource(name::String, parameters::Dict, sample::Sample = Sample()) =
+    Location(name, parameters, nothing, Dict(), sample)
 
-# TODO: Determine where we want syntax getproperty/setproperty! for convenience
-
-# function Base.getproperty(l::Location, n::Symbol)
-#     if hasfield(Location, n)
-#         return getfield(l, n)
-#     end
-
-#     if !isnothing(l.src_name) && haskey(l.src_parameters, n)
-#         l.src_parameters[n]
-#     elseif !isnothing(l.dst_name) && haskey(l.dst_parameters, n)
-#         l.dst_parameters[n]
-#     else
-#         error("$name not found in location parameters")
-#     end
-# end
-
-# function Base.setproperty!(l::Location, n::Symbol, value::Any)
-#     if hasfield(Location, n)
-#         return setfield!(l, n, value)
-#     end
-
-#     # NOTE: This only allows setting values of parameters already in the
-#     # location
-#     if !isnothing(l.src_name) && haskey(l.src_parameters, n)
-#         l.src_parameters[n] = value
-#     end
-#     if !isnothing(l.dst_name) && haskey(l.dst_parameters, n)
-#         l.dst_parameters[n] = value
-#     end
-# end
+LocationDestination(name::String, parameters::Dict, sample::Sample = Sample()) =
+    Location(nothing, Dict(), name, parameters, sample)
 
 function to_jl(lt::Location)
     return Dict(
@@ -89,18 +57,132 @@ function to_jl(lt::Location)
     )
 end
 
+
+
+################################
+# Methods for setting location #
+################################
+
+function src(fut, loc::Location)
+    if isnothing(loc.src_name)
+        error("Location cannot be used as a source")
+    end
+
+    fut::Future = convert(Future, fut)
+    fut_location = get_location(fut)
+    loc(
+        fut,
+        Location(
+            loc.src_name,
+            loc.src_parameters,
+            fut_location.dst_name,
+            fut_location.dst_parameters,
+            max(fut.location.total_memory_usage, loc.total_memory_usage),
+        ),
+    )
+end
+
+function dst(fut, loc::Location)
+    if isnothing(loc.dst_name)
+        error("Location cannot be used as a destination")
+    end
+
+    fut::Future = convert(Future, fut)
+    fut_location = get_location(fut.value_id)
+    loc(
+        fut,
+        Location(
+            fut_location.src_name,
+            fut_location.src_parameters,
+            loc.dst_name,
+            loc.dst_parameters,
+            max(fut.location.total_memory_usage, loc.total_memory_usage),
+        ),
+    )
+end
+
+function loc(fut, location::Location)
+    job = get_job()
+    fut = convert(Future, fut)
+    value_id = fut.value_id
+
+    if location.src_name == "Client" || location.dst_name == "Client"
+        job.futures_on_client[value_id] = fut
+    else
+        # TODO: Set loc of all Futures with Client loc to None at end of
+        # evaluate and ensure that this is proper way to handle Client
+        delete!(job.futures_on_client, value_id)
+    end
+
+    job.locations[value_id] = location
+    record_request(RecordLocationRequest(value_id, location))
+end
+
+function loc(futs...)
+    futs = futs .|> obj->convert(Future, obj)
+    maxindfuts = argmax([
+        get_location(f).total_memory_usage
+        for f in futs
+    ])
+    for fut in futs
+        loc(
+            fut,
+            get_location(futs[maxindfuts]),
+        )
+    end
+end
+
+# NOTE: The below operations (mem and val) should rarely be used if every. We
+# should probably even remove them at some point. Memory usage of each sample
+# is automatically detected and stored. If you want to make a future have Value
+# location type, simply use the `Future` constructor and pass your value in.
+
+function mem(fut, estimated_total_memory_usage::Integer)
+    fut = convert(Future, fut)
+    location = get_location(fut)
+    location.total_memory_usage = estimated_total_memory_usage
+    record_request(RecordLocationRequest(fut.value_id, location))
+end
+
+mem(fut, n::Integer, ty::DataType) = mem(fut, n * sizeof(ty))
+mem(fut) = mem(fut, sizeof(convert(Future, fut).value))
+
+function mem(futs...)
+    for fut in futs
+        mem(
+            fut,
+            maximum([
+                begin
+                    get_location(f).total_memory_usage
+                end
+                for f in futs
+            ]),
+        )
+    end
+end
+
+val(fut) = loc(fut, Value(convert(Future, fut).value))
+
+################################
+# Methods for getting location #
+################################
+
+get_src_name(fut) = get_location(fut).src_name
+get_dst_name(fut) = get_location(fut).dst_name
+get_src_parameters(fut) = get_location(fut).src_parameters
+get_dst_parameters(fut) = get_location(fut).dst_parameters
+
 ####################
 # Simple locations #
 ####################
 
-Value(val) = Location(
-    :src,
+Value(val) = LocationSource(
     "Value",
     Dict("value" => to_jl_value(val)),
     Sample(val)
 )
-Client(val) = Location(:src, "Client", Dict(), Sample(val))
-Client() = Location(:dst, "Client", Dict())
+Client(val) = LocationSource("Client", Dict(), Sample(val))
+Client() = LocationDestination("Client", Dict())
 # TODO: Un-comment only if Size is needed
 # Size(size) = Value(size)
 None() = Location("None", Dict(), Sample(nothing))
@@ -139,6 +221,9 @@ from_jl_value_contents(jl_value_contents) =
 # single file or a directory containing files that comprise the dataset.
 
 # TODO: Add support for Client
+
+# TODO: Implement Client, Remote for HDF5, Parquet, Arrow, and CSV so that they
+# compute nrows ()
 
 ####################
 # Remote locations #

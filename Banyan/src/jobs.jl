@@ -1,3 +1,7 @@
+########
+# Jobs #
+########
+
 struct Job
     id::JobId
     nworkers::Int32
@@ -48,10 +52,6 @@ function get_job()::Job
     global jobs
     jobs[get_job_id()]
 end
-
-get_location(fut::AbstractFuture) = get_job().locations[convert(Future, fut).value_id]
-get_location(value_id::ValueId) = get_job().locations[value_id]
-get_future(value_id::ValueId) = get_job().futures_on_client[value_id]
 
 function create_job(;
     cluster_name::String = nothing,

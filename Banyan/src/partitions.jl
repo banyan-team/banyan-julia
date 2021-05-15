@@ -1,6 +1,6 @@
-##################
-# PARTITION TYPE #
-##################
+###################
+# Partition types #
+###################
 
 const PartitionTypeParameters = Dict{String, Any}
 
@@ -21,8 +21,10 @@ mutable struct PartitionType
                 parameters["name"] = arg
             elseif arg isa Pair
                 parameters[first(arg)] = last(arg)
-            else
+            elseif arg isa PartitioningConstraint
                 push!(constraints, arg)
+            else
+                throw(ArgumentError("Expected either a partition type parameter or constraint"))
             end
         end
 
