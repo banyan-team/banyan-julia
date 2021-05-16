@@ -58,28 +58,20 @@ function to_jl(pt::PartitionType)
     Dict("parameters" => pt.parameters, "constraints" => to_jl(pt.constraints))
 end
 
-const PartitionTypeComposition = Union{PartitionType,Vector{PartitionType}}
+struct PTComposition
+    pts::Vector{PartitionType}
+end
 
-pt_composition_from_pts(
-    pt_composition::PartitionTypeComposition,
-)::Vector{PartitionType} =
-    if pt_composition isa Vector
-        pt_composition
-    else
-        [pt_composition]
-    end
+struct PTUnion
+    pts::Vector{PartitionType}
+end
 
-pt_composition_to_jl(pts::PartitionTypeComposition) =
-    if pts isa PartitionType
-        [to_jl(pts)]
-    else
-        [to_jl(pt) for pt in pts]
-    end
+to_jl(ptc::PTComposition) = [to_jl(pt) for pt in ptc.pts]
 
 const PartitionTypeReference = Tuple{ValueId,Integer}
 
 ############################
-# PARTITIONING CONSTRAINTS #
+# Partitioning constraints #
 ############################
 
 pt_ref_to_jl(pt_ref) =
@@ -104,11 +96,7 @@ end
 
 const PartitioningConstraint = Union{PartitioningConstraintOverGroup, PartitioningConstraintOverGroups}
 
-function to_jl(
-    constraint::PartitioningConstraint,
-)
-    return Dict("type" => constraint.type, "args" => constraint.args)
-end
+to_jl(pc::PartitioningConstraint) = Dict("type" => pc.type, "args" => pc.args)
 
 arg_to_jl_for_co(arg) =
     if arg isa Vector
@@ -133,20 +121,22 @@ Equal(args...) = PartitioningConstraintOverGroup("EQUAL", pt_refs_to_jl(args))
 Sequential(args...) =
     PartitioningConstraintOverGroup("SEQUENTIAL", pt_refs_to_jl(args))
 Match(args...) = PartitioningConstraintOverGroup("MATCH", pt_refs_to_jl(args))
-MatchOn(args...) = PartitioningConstraintOverGroup(
-    "MATCH_ON=" * string(args[end]),
-    pt_refs_to_jl(args[1:end-1]),
-)
-# TODO: Remove above and implement the below
-MaxNPartitions(npartitions, args...) = PartitioningConstraintOverGroup(
-    "MAX_NPARTITIONS=$npartitions",
-    pt_refs_to_jl(args)
-)
-MemoryUsage(fut::AbstractFuture, memory_usage::Int64) = PartitioningConstraintOverGroup(
-    "MEMORY_USAGE=$memory_usage",
-    pt_refs_to_jl([fut])
-)
-# TODO: Create AtMost and RelativeTo constraints
+MatchOn(args...) =
+    PartitioningConstraintOverGroup(
+        "MATCH_ON=" * string(args[end]),
+        pt_refs_to_jl(args[1:end-1]),
+    )
+AtMost(npartitions, args...) =
+    PartitioningConstraintOverGroup(
+        "AT_MOST=$npartitions",
+        pt_refs_to_jl(args)
+    )
+ScaledBy(factor::Float32 = 1.0, args...) = 
+    PartitioningConstraintOverGroup(
+        "SCALED_BY=$factor",
+        pt_refs_to_jl(args)
+    )
+# TODO: Fuse ScaledBy constraints in scheduler to be dependent only on factor
 
 mutable struct PartitioningConstraints
     constraints::Vector{PartitioningConstraint}
@@ -161,20 +151,25 @@ function to_jl(constraints::PartitioningConstraints)
     )
 end
 
-######################## 
-# PARTITION ANNOTATION #
-########################
+#########################
+# Partition annotations #
+#########################
 
+# TODO: Rename Partitions to PartitionTypeBinding and keep Partitioning as is
 mutable struct Partitions
-    pt_stacks::Dict{ValueId,PartitionTypeComposition}
+    # TODO: Only use either PT stack or PT composition to be consistent in
+    # terminology
+    pt_stacks::Dict{ValueId,PTComposition}
 end
+
+Partitions() = Partitions(Dict())
 
 function to_jl(p::Partitions)
     # NOTE: This assumes that the PT compositions in `p.pt_stacks` are _not_
     # delayed
     return Dict(
         "pt_stacks" =>
-            Dict(v => pts |> pt_composition_from_pts |> pt_composition_to_jl for (v, pts) in p.pt_stacks),
+            Dict(v => ptc |> pt_composition_to_jl for (v, ptc) in p.pt_stacks),
     )
 end
 
@@ -182,6 +177,8 @@ mutable struct PartitionAnnotation
     partitions::Partitions
     constraints::PartitioningConstraints
 end
+
+PartitionAnnotation() = PartitionAnnotation(Partitions(), PartitioningConstraints())
 
 function to_jl(pa::PartitionAnnotation)
     return Dict(

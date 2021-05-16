@@ -97,6 +97,12 @@ function Future(fut::AbstractFuture, mutation::Function=identity)
     end
 end
 
+function Future(;mutate_from::AbstractFuture)
+    fut = Future()
+    mut(mutate_from, fut)
+    fut
+end
+
 convert(::Type{Future}, value::Any) = Future(value)
 
 get_location(fut::AbstractFuture) = get_job().locations[convert(Future, fut).value_id]
@@ -118,9 +124,9 @@ get_future(value_id::ValueId) = get_job().futures_on_client[value_id]
 # function Base.setproperty!(fut::Future, sym::Symbol, new_value)
 # end
 
-#################
-# Basic Methods #
-#################
+#############################
+# Basic methods for futures #
+#############################
 
 function compute(fut::AbstractFuture)
     fut = convert(Future, fut)
@@ -128,44 +134,97 @@ function compute(fut::AbstractFuture)
     job = get_job()
 
     if fut.mutated
+        # Get all tasks to be recorded in this call to `compute`
+        tasks = [req.task for req in job.pending_requests if req isa RecordTaskRequest]
+
+        # Call `partitioned_using_func`s in 2 passes - forwards and backwards.
+        # This allows sample properties to propagate in both directions. We
+        # must also make sure to apply mutations in each task appropriately.
+        for t in Iterators.reverse(tasks)
+            apply_mutation(invert(t.mutation))
+        end
+        for t in tasks
+            if !isnothing(t.partitioned_using_func)
+                t.partitioned_using_func()
+            end
+            apply_mutation(t.mutation)
+        end
+        for t in Iterators.reverse(tasks)
+            apply_mutation(invert(t.mutation))
+            if !isnothing(t.partitioned_using_func)
+                t.partitioned_using_func()
+            end
+        end
+
+        # Do further processing on tasks now that all samples have been
+        # computed and sample properties have been set up to share references
+        # as needed to prevent expensive redundant computation of sample
+        # properties like divisions
+        for (i, t) in enumerate(tasks)
+            apply_mutation(t.mutation)
+            
+            # Call `partitioned_with_func` to create additional PAs for each task
+            set_task(t)
+            if !isnothing(t.partitioned_with_func)
+                t.partitioned_with_func()
+            end
+
+            # Cascade PAs backwards. In other words, if as we go from first to
+            # last PA we come across one that's annotating a value not
+            # annotated in a previous PA, we copy over the annotation (the
+            # assigned PT stack) to the previous PA.
+            for pa in t.pa_union
+                for previous_pa in Iterators.reverse(tasks[1:i-1])
+                    for value_id in keys(pa.partitions.pt_stacks)
+                        if !(value_id in keys(previous_pa.partitions.pt_stacks))
+                            previous_pa.partitions.pt_stacks[value_id] =
+                                pa.partitions.pt_stacks[value_id]
+                        end
+                    end
+                end
+            end
+        end
+
+        # Iterate through tasks for further processing before recording them
+        for t in tasks
+            # Apply defaults to PAs
+            for pa in t.pa_union
+                apply_default_constraints!(pa)
+                duplicate_for_batching!(pa)
+            end
+
+            # Destroy all closures so that all references to `Future`s are dropped
+            t.partitioned_using_func = nothing
+            t.partitioned_with_func = nothing
+
+            # Handle mutation
+            clear(t.mutation) # Drop references to `Future`s here as well
+        end
+
         # Finalize (destroy) all `Future`s that can be destroyed
         GC.gc()
     
-        # Do some final processing on each task to be shipped off
+        # Destroy everything that is to be destroyed in this task
         for req in job.pending_requests
-            if req isa RecordTaskRequest
-                for pa in req.task.pa_union
-                    # Materialize all PT compositions that are delayed
-                    # NOTE: It might be critical to do this before we finalize since
-                    # finalizing will clear all samples and locations 
-                    for v in keys(pa.partitions.pt_stacks)
-                        delayed_pt_composition = pa.partitions.pt_stacks[v]
-                        if delayed_pt_composition isa Function
-                            pa.partitions.pt_stacks[v] = delayed_pt_composition()
-                        end
-                    end
-    
-                    # Process each PA before submitting
-                    apply_default_constraints!(curr_pa)
-                    duplicate_for_batching!(curr_pa)
-                end
-            elseif req isa DestroyRequest
+            # Don't destroy stuff where a `DestroyRequest` was produced just
+            # because of a `mut(old, new)`
+            if req isa DestroyRequest && !any(req.value_id in values(t.mutation) for t in tasks)
                 # If this value was to be downloaded to or uploaded from the
                 # client side, delete the reference to its data
-                if fut.value_id in keys(job.futures_on_client)
-                    delete!(job.futures_on_client, fut.value_id)
+                if req.value_id in keys(job.futures_on_client)
+                    delete!(job.futures_on_client, req.value_id)
                 end
     
                 # Remove information about the value's location including the
                 # sample taken from it
-                delete!(job.locations, fut.value_id)
+                delete!(job.locations, req.value_id)
             end
         end
     
         # Send evaluation request
         response = send_evaluation(fut.value_id, job_id)
     
-        # Get queues
+        # Get queues for moving data between client and cluster
         scatter_queue = get_scatter_queue(job_id)
         gather_queue = get_gather_queue(job_id)
     
@@ -211,6 +270,7 @@ function compute(fut::AbstractFuture)
             end
         end
 
+        # Update `mutated` and `stale` for the future that is being evaluated
         fut.mutated = false
         # TODO: See if there are more cases where you a `compute` call on a future
         # makes it no longer stale
@@ -255,4 +315,38 @@ function collect(fut::AbstractFuture)
     compute(fut)
     dst(fut, None())
     fut.value
+end
+
+###############################################################
+# Other requests to be sent with request to evaluate a Future #
+###############################################################
+
+const Request = Union{RecordTaskRequest,RecordLocationRequest,DestroyRequest}
+
+struct RecordTaskRequest
+    task::DelayedTask
+end
+
+struct RecordLocationRequest
+    value_id::ValueId
+    location::Location
+end
+
+struct DestroyRequest
+    value_id::ValueId
+end
+
+to_jl(req::RecordTaskRequest) = Dict("type" => "RECORD_TASK", "task" => to_jl(req.task))
+
+to_jl(req::RecordLocationRequest) =
+    Dict(
+        "type" => "RECORD_LOCATION",
+        "value_id" => req.value_id,
+        "location" => to_jl(req.location),
+    )
+
+to_jl(req::DestroyRequest) = Dict("type" => "DESTROY", "value_id" => req.value_id)
+
+function record_request(request::Request)
+    push!(get_job().pending_requests, request)
 end

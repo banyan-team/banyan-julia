@@ -23,6 +23,9 @@ total_memory_usage(val) =
         end
     end
 
+to_vector(v::Vector) = v
+to_vector(v) = [v]
+
 ##################
 # AUTHENTICATION #
 ##################

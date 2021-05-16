@@ -179,13 +179,13 @@ get_dst_parameters(fut) = get_location(fut).dst_parameters
 Value(val) = LocationSource(
     "Value",
     Dict("value" => to_jl_value(val)),
-    Sample(val)
+    ExactSample(val)
 )
-Client(val) = LocationSource("Client", Dict(), Sample(val))
+Client(val) = LocationSource("Client", Dict(), ExactSample(val))
 Client() = LocationDestination("Client", Dict())
 # TODO: Un-comment only if Size is needed
 # Size(size) = Value(size)
-None() = Location("None", Dict(), Sample(nothing))
+None() = Location("None", Dict(), Sample())
 
 ######################################################
 # Helper functions for serialization/deserialization #

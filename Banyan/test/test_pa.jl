@@ -8,7 +8,7 @@ res = Future()
 crossed = Cross(data, other)
 crossed = Cross((data, 0), (data, 1))
 
-# Creates a BTask
+# Creates a DelayedTask
 simple_pa = @pa mut data Block() x Value() wh [crossed, ordered]
 
 # Merges Tasks together by merging their PA unions

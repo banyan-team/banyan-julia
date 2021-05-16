@@ -26,7 +26,7 @@ global BANYAN_API_ENDPOINT
 #      PartitioningConstraints,
 #      Partitions
 # export LocationType
-# export BTask
+# export DelayedTask
 
 # export @pa, @pp, @lt, @src, @dst
 # export pa_noconstraints

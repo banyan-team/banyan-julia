@@ -8,8 +8,8 @@ mutable struct Sample
     # Properties of the sample
     properties::Dict{String,Any}
 
-    function Sample(value::Any = nothing, properties::Dict{String,Any} = Dict())
-        properties[:rate] = if isnothing(sample) get_job().sample_rate else 1 end
+    function Sample(value::Any = nothing, properties::Dict{String,Any} = Dict(), sample_rate=get_job().sample_rate)
+        properties[:rate] = sample_rate
         new(value, properties)
     end
     # TODO: Un-comment if needed
@@ -19,6 +19,8 @@ mutable struct Sample
     #         for prop in properties
     #     ))
 end
+
+ExactSample(value::Any = nothing, properties::Dict{String,Any} = Dict()) = Sample(value, properties, 1)
 
 # TODO: Lazily compute samples by storing sample computation in a DAG if its
 # getting too expensive
@@ -30,7 +32,11 @@ function sample(fut, propertykeys...)
         properties = get!(
             properties,
             propertykey,
-            if i < length(propertykeys) Dict() else nothing end
+            if i < length(propertykeys)
+                Dict()
+            else
+                sample(get_location(fut).sample.value, propertykeys)
+            end
         )
     end
     properties
@@ -95,11 +101,14 @@ sample(as::AbstractSampleWithKeys, properties...) =
         if first(properties) == :keys
             sample_keys(as)
         elseif first(properties) == :groupingkeys
-            sample_groupingkeys(as)
+            # This is just the initial value for grouping keys. Calls to
+            # `keep_*` functions will expand it.
+            []
         else
             throw(ArgumentError("Invalid sample properties: $properties"))
         end
-    elseif length(properties) == 3 && first(properties) == :statistics
+    elseif length(properties) <= 2 && first(properties) == :statistics
+        Dict()
     elseif length(properties) == 3 && first(properties) == :statistics
         key = properties[2]
         query = properties[3]
@@ -130,13 +139,11 @@ abstract_sample_with_keys_impl_error(fn_name) =
     error("$fn_name not implemented for $(typeof(as)) <: AbstractSampleWithKeys")
 const aswkie = abstract_sample_with_keys_impl_error
 
-# For determining what a value can be grouped by
+# Functions to implement for AbstractSampleWithKeys (e.g., for DataFrame or
+# Array)
 sample_keys(as::AbstractSampleWithKeys) = aswkie("sample_keys")
-sample_groupingkeys(as::AbstractSampleWithKeys) = aswkie("sample_groupingkeys")
 sample_divisions(as::AbstractSampleWithKeys, key) = aswkie("sample_divisions")
-
-# For determining constraints on grouping
-sample_max_ngroups(as::AbstractSampleWithKeys, key) = aswkie("sample_max_ngroups")
 sample_division(as::AbstractSampleWithKeys, key, value) = aswkie("sample_division")
+sample_max_ngroups(as::AbstractSampleWithKeys, key) = aswkie("sample_max_ngroups")
 sample_min(as::AbstractSampleWithKeys, key) = aswkie("sample_min")
 sample_max(as::AbstractSampleWithKeys, key) = aswkie("sample_max")

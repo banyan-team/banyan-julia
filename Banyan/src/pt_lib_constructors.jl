@@ -16,3 +16,6 @@ BlockUnbalanced(dim) =
 Div() = PartitionType(Dict("name" => "Replicate", "dividing" => true))
 Replicated() = PartitionType(Dict("name" => "Replicate", "replicated" => true))
 Reducing(op) = PartitionType(Dict("name" => "Replicate", "replicated" => false, "reducer" => to_jl_value(op)))
+
+# TODO: Generate AtMost and ScaledBy constraints in handling filters and joins
+# that introduce data skew and in other operations that explicitly don't
