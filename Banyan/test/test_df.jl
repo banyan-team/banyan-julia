@@ -231,6 +231,11 @@ end
 #     partition(A, Grouped())
 # end
 
+function sortslices(A::Array)
+    # TODO: use the first of the dims to sort on to split the array
+    # TODO: use the first of the slice when splitting the array on the dim to get quantiles
+end
+
 struct DataFrame <: AbstractFuture
     data::Future
     nrows::Future
@@ -1151,6 +1156,9 @@ function innerjoin(df1::DataFrame, df2::DataFrame, args...; on, kwargs...)
     # TODO: Support broadcast join
     # TODO: Implement proper join support where different parties are used for
     # determining the distribution
+    # TODO: Implement distributed from balanced + unbalanced => unbalanced, unbalanced => unbalanced
+    # TODO: Maybe make MatchOn prefer one argument over the other so that we can take both cases of
+    # different sides of the join having their divisions used
 
     on = [k isa Pair ? k : (k => k) for k in (on isa Vector ? on : [on])]
     on_left = first.(on)

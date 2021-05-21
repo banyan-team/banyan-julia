@@ -32,18 +32,19 @@ mutable struct PartitionType
     end
 end
 
-# TODO: Determine whether we need this
-# function Base.getproperty(pt::PartitionType, name::Symbol)
-#     if hasfield(PartitionType, name)
-#         return getfield(pt, name)
-#     end
+# We probably need this so we can iterate over PTs produced by Grouped and then
+# check the key property
+function Base.getproperty(pt::PartitionType, name::Symbol)
+    if hasfield(PartitionType, name)
+        return getfield(pt, name)
+    end
 
-#     n = string(name)
-#     if haskey(pt.parameters, n)
-#         return pt.parameters[n]
-#     end
-#     error("$name not found in partition type parameters")
-# end
+    n = string(name)
+    if haskey(pt.parameters, n)
+        return pt.parameters[n]
+    end
+    error("$name not found in partition type parameters")
+end
 
 function to_jl(pt::PartitionType)
     # Interpret bangs as random IDs
@@ -58,17 +59,34 @@ function to_jl(pt::PartitionType)
     Dict("parameters" => pt.parameters, "constraints" => to_jl(pt.constraints))
 end
 
-struct PTComposition
+##############################
+# Partition type composition #
+##############################
+
+struct PartitionTypeComposition
     pts::Vector{PartitionType}
 end
 
-struct PTUnion
-    pts::Vector{PartitionType}
-end
-
-to_jl(ptc::PTComposition) = [to_jl(pt) for pt in ptc.pts]
+to_jl(ptc::PartitionTypeComposition) = [to_jl(pt) for pt in ptc.pts]
 
 const PartitionTypeReference = Tuple{ValueId,Integer}
+
+##############################
+# Partition type combinators #
+##############################
+
+Base.:&(a::PartitionType, b::PartitionType) =
+    PartitionType(
+        merge(a.parameters, b.parameters),
+        PartitioningConstraints(
+            [a.constraints.constraints; b.constraints.constraints]
+        )
+    )
+
+Base.:&(a::Vector{PartitionType}, b::PartitionType) = [pt & b for pt in a]
+Base.:&(a::PartitionType, b::Vector{PartitionType}) = [a & pt for pt in b]
+Base.:&(a::Vector{PartitionType}, b::Vector{PartitionType}) = [aa && bb for aa in a for bb in b]
+Base.:|(a::Vector{PartitionType}, b::Vector{PartitionType}) = [a; b]
 
 ############################
 # Partitioning constraints #
@@ -121,22 +139,46 @@ Equal(args...) = PartitioningConstraintOverGroup("EQUAL", pt_refs_to_jl(args))
 Sequential(args...) =
     PartitioningConstraintOverGroup("SEQUENTIAL", pt_refs_to_jl(args))
 Match(args...) = PartitioningConstraintOverGroup("MATCH", pt_refs_to_jl(args))
-MatchOn(args...) =
+MatchOn(on, args...) =
     PartitioningConstraintOverGroup(
-        "MATCH_ON=" * string(args[end]),
-        pt_refs_to_jl(args[1:end-1]),
+        "MATCH_ON=" * string(on),
+        pt_refs_to_jl(args),
     )
 AtMost(npartitions, args...) =
     PartitioningConstraintOverGroup(
         "AT_MOST=$npartitions",
         pt_refs_to_jl(args)
     )
-ScaledBy(factor::Float32 = 1.0, args...) = 
+ScaleBy(factor::Float32 = 1.0, arg, relative_to...) = 
     PartitioningConstraintOverGroup(
-        "SCALED_BY=$factor",
-        pt_refs_to_jl(args)
+        "SCALE_BY=$factor",
+        pt_refs_to_jl([arg; relative_to])
     )
-# TODO: Fuse ScaledBy constraints in scheduler to be dependent only on factor
+
+# TODO: Make the above constraint constructors produce dictionaries that have
+# fields that make sense and are specialized for each one. This will reduce
+# a significant amount of messy and hard-to-read code here (e.g., what in the
+# world isa PartitioningConstraintOverGroup vs. a
+# PartitioningConstraintOverGroups).
+
+# NOTE: ScaleBy constraints accept PT references but only the values of PT
+# references where the index is 1 are taken because we only scale relative
+# to the memory usage that is split by the first PT in the PT compositions
+# referenced
+
+# NOTE: If you require a constraint for a particular PT, the onus is on you to
+# ensure that whereever you use a value with that PT assigned, you always
+# have the PTs that are referenced by the constraint. For example, if you use
+# an AtMost constraint which references both PTs from a PT composition for a
+# value where the first PT splits across workers and the second across batches,
+# you need to ensure that anywhere you use the value, you actually do have a 
+# PT composition of length 2.
+
+# NOTE: Currently, only AtMost and ScaleBy are supported as PT-level
+# constraints (meaning they are included as part of a PT so that the PT
+# cannot be applied to a variable unless the constraints are also be enforced)
+# while ScaleBy may not be used as PA-level constraints (constraints that are
+# applicable only for a single code region annotated with a PA)
 
 mutable struct PartitioningConstraints
     constraints::Vector{PartitioningConstraint}
@@ -159,7 +201,7 @@ end
 mutable struct Partitions
     # TODO: Only use either PT stack or PT composition to be consistent in
     # terminology
-    pt_stacks::Dict{ValueId,PTComposition}
+    pt_stacks::Dict{ValueId,PartitionTypeComposition}
 end
 
 Partitions() = Partitions(Dict())

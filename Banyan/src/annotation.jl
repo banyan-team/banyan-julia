@@ -2,6 +2,8 @@
 # Global state for annotation #
 ###############################
 
+# TODO: Support multi-threaded usage by storing a global array with an instance
+# of this annotation state for each thread
 curr_delayed_task = DelayedTask()
 
 function set_task(t::DelayedTask)
@@ -110,11 +112,15 @@ function partitioned_with(handler::Function)
     curr_delayed_task.partitioned_with_func = handler
 end
 
-function pt(args::Union{AbstractFuture,PartitionType,PTComposition,PTUnion}...; kwargs...)
+function pt(args::Union{AbstractFuture,PartitionType,PartitionTypeComposition,Vector}...; kwargs...)
     pa = get_pa()
     
     # Extract PT and args to assign the PT to from given arguments
     futs, ptype = args[1:end-1], last(args)
+
+    if length(futs) > 1 && ptype isa Vector
+        throw(ArgumentError("Multiple partition types cannot be applied to multiple futures at once"))
+    end
 
     # Assign PT to each future
     for fut in futs
@@ -128,13 +134,13 @@ function pt(args::Union{AbstractFuture,PartitionType,PTComposition,PTUnion}...; 
         end
 
         # Put in PT
-        if ptype isa PTUnion
+        if ptype isa Vector
             for pty in ptype.pts
-                pt(fut, PTComposition([pty]); kwargs...)
+                pt(fut, PartitionTypeComposition([pty]); kwargs...)
             end
         elseif ptype isa PartitionType
-            pt(fut, PTComposition([ptype]); kwargs...)
-        elseif ptype isa PTComposition
+            pt(fut, PartitionTypeComposition([ptype]); kwargs...)
+        elseif ptype isa PartitionTypeComposition
             # Add to PAs information about how partitions are produced
             pa.partitions.pt_stacks[fut.value_id] = ptype
 
@@ -204,8 +210,8 @@ function apply_mutation(mutation::Dict{Future, Future})
 
             # Swap other fields of the `Future`s and their locations
             old.value, old.value_id, old.mutated, old.stale, get_job().locations[old.value_id],
-            new.value, old.value_id, old.mutated, old.stale, get_job().locations[old.value_id] =
-                new.value, old.value_id, old.mutated, old.stale, get_job().locations[old.value_id],
+            new.value, new.value_id, new.mutated, new.stale, get_job().locations[new.value_id] =
+                new.value, new.value_id, new.mutated, new.stale, get_job().locations[new.value_id],
                 old.value, old.value_id, old.mutated, old.stale, get_job().locations[old.value_id]
         end
     end
@@ -285,6 +291,8 @@ macro partitioned(ex...)
             end
         end
 
+        # Make a call to `apply_mutation` to handle calls to `mut` like
+        # `mut(df, res)`
         apply_mutation(task.mutation)
     end
 end
@@ -366,13 +374,52 @@ function apply_default_constraints!(pa::PartitionAnnotation)
     # defaults to 0
 end
 
+duplicated_constraints_for_batching(pc::PartitioningConstraints) =
+    PartitioningConstraints(
+        vcat([
+            if c.type == "CO" || c.type == "EQUAL" || c.type == "SEQUENTIAL"
+                [
+                    deepcopy(c),
+                    PartitioningConstraint(c.type, duplicate_args(c.args, pa)),
+                ]
+            elseif c.type == "CROSS" ||
+                   startswith(c.type, "AT_MOST=") ||
+                   c.type == "MATCH" ||
+                   startswith(c.type, "MATCH_ON")
+                [
+                    PartitioningConstraint(
+                        c.type,
+                        [deepcopy(c.args); duplicate_args(c.args, pa)],
+                    ),
+                ]
+            elseif c.type == "CO_GROUP"
+                [
+                    PartitioningConstraint(
+                        c.type,
+                        [duplicate_args(group, pa) for group in c.args],
+                    ),
+                ]
+            elseif startswith(c.type, "SCALE_BY=")
+                # `ScaleBy` constraints are not duplicated. They must refer to
+                # only the first PT of the PT compositions they reference.
+                [c]
+            end for c in pa.constraints.constraints
+        ]),
+    )
+
 function duplicate_for_batching!(pa::PartitionAnnotation)
+    # Duplicate annotation-level constraints for Co, Equal, Cross, AtMost, ScaleBy
+    pa.constraints.constraints = duplicated_constraints_for_batching(pa.constraints.constraints)
+
     # Duplicate PT stacks with second half being Sequential and Match-ing the
     # first half
     for (v, pt_stack) in pa.partitions.pt_stacks
         append!(pt_stack, deepcopy(pt_stack))
         for i = 1:div(length(pt_stack), 2)
             dupi = i + div(length(pt_stack), 2)
+
+            # Add in `Sequential` and `Match` constraints for the duplicated
+            # part of the PT composition
             push!(
                 pa.constraints.constraints,
                 PartitioningConstraint("SEQUENTIAL", [(v, dupi - 1)]),
@@ -381,230 +428,9 @@ function duplicate_for_batching!(pa::PartitionAnnotation)
                 pa.constraints.constraints,
                 PartitioningConstraint("MATCH", [(v, i - 1), (v, dupi - 1)]),
             )
-        end
-    end
 
-    # Duplicate constraints for Co, Equal, Cross, AtMost
-    new_constraints = []
-    for c in pa.constraints.constraints
-        if c.type == "CO" || c.type == "EQUAL"
-            push!(
-                new_constraints,
-                PartitioningConstraint(c.type, duplicate_args(c.args, pa)),
-            )
-        elseif c.type == "CROSS" || startswith(c.type, "AT_MOST")
-            append!(c.args, duplicate_args(c.args, pa))
-        elseif c.type == "CO_GROUP"
-            push!(
-                new_constraints,
-                PartitioningConstraint(c.type, [duplicate_args(group, pa) for group in c.args]),
-            )
-            # for group in c.args
-            #     append!(group, duplicate_args(group, pa))
-            # end
-        end
-    end
-    append!(pa.constraints.constraints, new_constraints)
-end
-
-######################################################################
-# Helper functions for building union of PAs for current code region #
-######################################################################
-
-# TODO: Support multi-threaded usage by storing a global array with an instance
-# of this annotation state for each thread
-global curr_pa_union = nothing
-global curr_pa = nothing
-global curr_mut = nothing
-
-function reset_pa()
-    global curr_pa
-    curr_pa =
-        PartitionAnnotation(Partitions(Dict()), PartitioningConstraints([]))
-end
-
-function reset_annotation()
-    global curr_pa_union
-    global curr_mut
-    reset_pa()
-    curr_pa_union = []
-    curr_mut = []
-end
-
-reset_annotation()
-
-function get_mutated(v::ValueId)::Bool
-    global curr_mut
-    return v in curr_mut
-end
-
-function get_pa_union()::Vector{PartitionAnnotation}
-    global curr_pa_union
-    return curr_pa_union
-end
-
-function get_pa()::PartitionAnnotation
-    global curr_pa
-    return curr_pa
-end
-
-function add_pa_to_union()
-    curr_pa = get_pa()
-    # TODO: Ensure this actually copies over the PA and doesn't just
-    # copy over a reference that then gets reset
-    push!(get_pa_union(), curr_pa)
-    reset_pa()
-end
-
-#################################################################
-# Fundamental functions in the Partition Annotation abstraction #
-#################################################################
-
-function pt(fut, pt::Delayed{PartitionTypeComposition})
-    curr_pa = get_pa()
-    fut = future(fut)
-    if fut.value_id in keys(curr_pa.partitions.pt_stacks)
-        add_pa_to_union()
-    end
-    curr_pa.partitions.pt_stacks[fut.value_id] = pt
-end
-
-# TODO: Implement PT reinterpretation
-
-# function reinterpret(fut)
-#     # Wee store newfut for generating assignment of newfut to fut in code
-#     # region and fut to nothing. We also set location of newfut to that of fut
-#     # but change its src to be None. The user is expected to add PCs to ensure
-#     # newfut and fut match or are co-partitioned as needed. The user is also
-#     # expected to ensure that fut is GC-able after this code region and newfut
-#     # is being used instead
-
-#     global curr_pa
-
-#     # Create reinterpreted future with location
-#     newfut = Future()
-#     loc(newfut, fut)
-#     src(newfut, None())
-
-#     # Store for reinterpretation
-#     curr_pa
-
-#     newfut
-# end
-
-# function pt(
-#     fut,
-#     pre_pt::PartitionTypeComposition,
-#     post_pt::PartitionTypeComposition,
-# ) end
-
-function pc(constraint::Delayed{PartitioningConstraint})
-    push!(get_pa().constraints.constraints, constraint)
-end
-
-function mut(fut)
-    global curr_mut
-    push!(curr_mut, future(fut).value_id)
-end
-
-######################################
-# High-level function for annotation #
-######################################
-
-# TODO: Implement high-level partition function
-# function partition(
-#     fut::AbstractFuture;
-#     pts = Replicated(),
-#     mutating = false,
-#     cross_with = nothing,
-#     match_with = nothing
-# )
-#     # Get future and assign PT
-#     fut = convert(Future, fut)
-#     pt(fut, pts)
-#     if mutating
-#         mut(fut)
-#     end
-
-#     # TODO: Apply constraints and locations
-#     if !isnothing(cross_with)
-#         pc(Cross(fut, cross_with))
-#     end
-
-#     # TODO: Add ability to specify sample, sample properties, total memory
-#     # usage to copy from another value
-# end
-
-#################################################
-# Macro for wrapping the code region to offload #
-#################################################
-
-macro partitioned(ex...)
-    variables = [esc(e) for e in ex[1:end-1]]
-    variable_names = [string(e) for e in ex[1:end-1]]
-    code = ex[end]
-
-    return quote
-        # Convert arguments to `Future`s if they aren't already
-        futures = [$(variables...)] .|> x->convert(Future,x)
-
-        # Add last PA in union of PAs to the task being recorded here
-        add_pa_to_union()
-
-        # TODO: Allow for any Julia object (even stuff that can't be converted
-        # to `Future`s) to be passed into an @partitioned and by default have
-        # it be replicated across all workers and batches
-        # for pa in get_pa_union()
-        #     for fut in futures
-        #         if !(fut.value_id in keys(pa.partitions.pt_stacks))
-        #             pa.partitions.pt_stacks[fut.value_id] = [Replicated()]
-        #             # TODO: Add necessary default constraints so this
-        #             # replication spans what everything else spans
-        #         end
-        #     end
-        # end
-
-        # Create task
-        task = DelayedTask(
-            $(string(code)),
-            Dict(
-                fut.value_id => var_name for (fut, var_name) in
-                zip(futures, [$(variable_names...)])
-            ),
-            Dict(
-                fut.value_id =>
-                    if get_mutated(fut.value_id)
-                        "MUT"
-                    else
-                        "CONST"
-                    end for fut in futures
-            ),
-            get_pa_union(),
-        )
-
-        # Set `mutated` field of the `Future`s that have been mutated. This is
-        # to ensure that future calls to `evaluate` on those `Future`s with
-        # `mutated=true` and _only_ those `Future`s will result in an actual
-        # evaluation
-        for fut in futures
-            if get_mutated(fut.value_id)
-                fut.stale = true
-                fut.mutated = true
-            end
-        end
-
-        # Record request to record task in backend's dependency graph and reset
-        record_request(RecordTaskRequest(task))
-        reset_annotation()
-
-        # Lazily perform computation on samples of futures that are used
-        begin
-            futures = [$(variables...)]
-            $(variables...) = [sample(f) for f in futures]
-            $code
-            for (f, value) in zip(futures, [$(variables...)])
-                setsample!(f, value)
-            end
+            # Duplicate PT-level constraints
+            pt_stack[dupi].constraints = duplicated_constraints_for_batching(pt_stack[dupi].constraints)
         end
     end
 end

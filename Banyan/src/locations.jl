@@ -53,7 +53,7 @@ function to_jl(lt::Location)
         # NOTE: sample.properties[:rate] is always set in the Sample
         # constructor to the configured sample rate (default 1/nworkers) for
         # this job
-        "total_memory_usage" => sample_memory_usage(lt.sample.value) * lt.sample.properties[:rate]
+        "total_memory_usage" => sample(lt.sample, :memory_usage) * sample(lt.sample, :rate)
     )
 end
 
@@ -368,6 +368,9 @@ function Remote(p)
         nbytes
     )
 end
+
+# TODO: Call a function Cailin is making to ensure that the bucket is already
+# mounted at a known location and use that returned location
 
 S3FS(path::String, mount::String) =
     Remote(joinpath(mount, S3Path(path).key))

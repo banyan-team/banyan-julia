@@ -6,11 +6,12 @@ mutable struct Sample
     # The sample itself
     value::Any
     # Properties of the sample
-    properties::Dict{String,Any}
+    properties::Dict{Symbol,Any}
 
-    function Sample(value::Any = nothing, properties::Dict{String,Any} = Dict(), sample_rate=get_job().sample_rate)
-        properties[:rate] = sample_rate
-        new(value, properties)
+    function Sample(value::Any = nothing, properties::Dict{Symbol,Any} = Dict(), sample_rate=get_job().sample_rate)
+        newsample = new(value, properties)
+        setsample!(newsample, :rate, sample_rate)
+        newsample
     end
     # TODO: Un-comment if needed
     # Sample(sample::Sample, properties::Vector{String}) =
@@ -20,14 +21,16 @@ mutable struct Sample
     #     ))
 end
 
-ExactSample(value::Any = nothing, properties::Dict{String,Any} = Dict()) = Sample(value, properties, 1)
+ExactSample(value::Any = nothing, properties::Dict{Symbol,Any} = Dict()) = Sample(value, properties, 1)
 
 # TODO: Lazily compute samples by storing sample computation in a DAG if its
 # getting too expensive
-sample(fut) = get_location(fut).sample.value
+sample(fut::AbstractFuture) = sample(get_location(fut).sample)
+sample(sample::Sample) = sample.value
 
-function sample(fut, propertykeys...)
-    properties = get_location(fut).sample.properties
+sample(fut::AbstractFuture, propertykeys...) = sample(get_location(fut).sample, propertykeys...)
+function sample(sample::Sample, propertykeys...)
+    properties = sample.properties
     for (i, propertykey) in enumerate(propertykeys)
         properties = get!(
             properties,
@@ -35,22 +38,24 @@ function sample(fut, propertykeys...)
             if i < length(propertykeys)
                 Dict()
             else
-                sample(get_location(fut).sample.value, propertykeys)
+                sample(sample.value, propertykeys)
             end
         )
     end
     properties
 end
 
-function setsample!(fut, value)
-    get_location(fut).sample.value = value
+setsample!(fut::AbstractFuture, value) = setsample!(get_location(fut).sample, value)
+function setsample!(sample::Sample, value)
+    sample.value = value
 end
 
-function setsample!(fut, propertykeys...)
+setsample!(fut::AbstractFuture, propertykeys...) = setsample!(get_location(fut).sample, propertykeys...)
+function setsample!(sample::Sample, propertykeys...)
     if length(propertykeys) == 1
-        setsample!(fut, first(propertykeys))
+        setsample!(sample, first(propertykeys))
     else
-        properties = get_location(fut).sample.properties
+        properties = sample.properties
         propertyvalue = last(propertykeys)
         propertykeys = propertykeys[1:end-1]
         for (i, propertykey) in enumerate(propertykeys)
@@ -69,6 +74,12 @@ end
 # AbstractSample to be implemented by anything that can be sampled #
 ####################################################################
 
+# NOTE: We use strings for things that will be serialized to JSON and symbols
+# for everything else
+
+# NOTE: We use upper-camel-case for user-facing names (like names of PTs) and
+# all-caps-snake-case for anything internal (like names of constraints)
+
 abstract type AbstractSample end
 
 # The purpose of the `sample` function is to allow for computing various
@@ -79,8 +90,11 @@ abstract type AbstractSample end
 sample(as::AbstractSample, properties...) =
     if length(properties) == 1
         if first(properties) == :memory_usage
-        sample_memory_usage(as)
-        elseif first(properties) == :memory_usage
+            sample_memory_usage(as)
+        elseif first(properties) == :rate
+            # This is the default but the `Sample` constructor overrides this
+            # before-hand to allow some samples to be "exact" with a sample
+            # rate of 1
             get_job().sample_rate
         else
             throw(ArgumentError("Invalid sample properties: $properties"))
@@ -100,6 +114,8 @@ sample(as::AbstractSampleWithKeys, properties...) =
     if length(properties) == 1
         if first(properties) == :keys
             sample_keys(as)
+        if first(properties) == :axes
+            sample_axes(as)
         elseif first(properties) == :groupingkeys
             # This is just the initial value for grouping keys. Calls to
             # `keep_*` functions will expand it.
@@ -141,6 +157,7 @@ const aswkie = abstract_sample_with_keys_impl_error
 
 # Functions to implement for AbstractSampleWithKeys (e.g., for DataFrame or
 # Array)
+sample_axes(as::AbstractSampleWithKeys) = aswkie("sample_axes")
 sample_keys(as::AbstractSampleWithKeys) = aswkie("sample_keys")
 sample_divisions(as::AbstractSampleWithKeys, key) = aswkie("sample_divisions")
 sample_division(as::AbstractSampleWithKeys, key, value) = aswkie("sample_division")
