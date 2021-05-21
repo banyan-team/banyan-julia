@@ -73,7 +73,8 @@ function Blocked(
             # TODO: Make scheduler check that the values in AtMost or ScaledBy are actually present to ensure
             # that the constraint can be satisfied for this PT to be used
         elseif balanced == false
-            # TODO: Support joins
+            # TODO: Support joins in a better way for both Blocked and Grouped
+            # and for both the filtered_from and the filtered_to versions
             if !isnothing(filtered_from)
                 filtered_from = to_vector(filtered_from)
                 factor = maximum(filtered_from) do ff
