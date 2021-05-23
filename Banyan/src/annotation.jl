@@ -42,12 +42,14 @@ end
 
 # TODO: Switch key names from strings to symbols if performance is an issue
 
-function keep_all_keys(participants::AbstractFuture...)
+function keep_all_sample_keys(participants::AbstractFuture...; change_statistics=false)
     # Take the union of discovered grouping keys. Grouping keys are discovered
     # through calls to `keep_keys` in functions where we know that we need
     # to allow grouping by certain keys such as sorting and join functions.
     groupingkeys = union([sample(p, :groupingkeys) for p in participants]...)
-    statistics = merge([sample(p, :statistics) for p in participants]...)
+    if !change_statistics
+        statistics = merge([sample(p, :statistics) for p in participants]...)
+    end
 
     # Only allow keys that are actually in the keys of the participants
     # TODO: Maybe replace this with a function that doesn't require calling
@@ -55,19 +57,21 @@ function keep_all_keys(participants::AbstractFuture...)
     for p in participants
         p_keys = intersect(groupingkeys, sample(p, :keys))
         setsample!(p, :groupingkeys, p_keys)
-        setsample!(
-            p,
-            :statistics,
-            Dict(
-                key => statistic
-                for (key, statistic) in statistics
-                if key in sample(p, :keys)
+        if !change_statistics
+            setsample!(
+                p,
+                :statistics,
+                Dict(
+                    key => statistic
+                    for (key, statistic) in statistics
+                    if key in sample(p, :keys)
+                )
             )
-        )
+        end
     end
 end
 
-function keep_all_keys_renamed(old::AbstractFuture, new::AbstractFuture)
+function keep_all_sample_keys_renamed(old::AbstractFuture, new::AbstractFuture)
     for (old_key, new_key) in zip(sample(old, :keys), sample(new, :keys))
         if old_key in sample(old, :groupingkeys)
             setsample!(new, :groupingkeys, union(sample(new, :groupingkeys), [new_key]))
@@ -80,7 +84,11 @@ function keep_all_keys_renamed(old::AbstractFuture, new::AbstractFuture)
     end
 end
 
-function keep_keys_renamed(participants::Pair{AbstractFuture, Any}...)
+function keep_sample_keys_named(participants::Pair{AbstractFuture, Any}...)
+    # `participants` maps from futures to lists of key names such that all
+    # participating futures have the same sample properties for the keys at
+    # same indices in those lists
+    participants = [(participant, to_vector(key_names)) for (participant, key_names) in participants]
     nkeys = length(last(first(participants)))
     for i in 1:nkeys
         key_statistics = merge([sample(p, :statistics, keys[i]) for (p, keys) in participants]...)
@@ -92,14 +100,17 @@ function keep_keys_renamed(participants::Pair{AbstractFuture, Any}...)
     end
 end
 
-keep_keys(keys, participants::AbstractFuture...) =
-    keep_keys_renamed([p => keys for p in participants]...)
+# NOTE: For operations where join rate and data skew might be different, it is
+# assumed that they are the same. For example, column vectors from the result
+# of a join should have the same sample rate and the same data skew.
 
-function memory_usage_relative_to(fut::AbstractFuture, relative_to::AbstractFuture...)
-    # This is useful for workloads that involve joins where the sample rate is
-    # diminished quadratically for each join
+keep_sample_keys(keys, participants::AbstractFuture...) =
+    keep_sample_keys_named([p => to_vector(keys) for p in participants]...)
+
+# This is useful for workloads that involve joins where the sample rate is
+# diminished quadratically for each joinv
+keep_sample_rate(fut::AbstractFuture, relative_to::AbstractFuture...) =
     setsample!(fut, :rate, prod([sample(r, :rate) for r in relative_to]))
-end
 
 ###############################
 # Using samples to assign PTs #
@@ -141,6 +152,15 @@ function pt(args::Union{AbstractFuture,PartitionType,PartitionTypeComposition,Ve
         elseif ptype isa PartitionType
             pt(fut, PartitionTypeComposition([ptype]); kwargs...)
         elseif ptype isa PartitionTypeComposition
+            # Handle constraints that have been delayed till PT assignment
+            for pty in ptype
+                for (i, constraint) in enumerate(pty.constraints.constraints)
+                    if constraint isa Function
+                        pty.constraints[i] = constraint(fut)
+                    end
+                end
+            end
+
             # Add to PAs information about how partitions are produced
             pa.partitions.pt_stacks[fut.value_id] = ptype
 
@@ -168,21 +188,19 @@ function pt(args::Union{AbstractFuture,PartitionType,PartitionTypeComposition,Ve
             end
             
             # TODO: Implement support for other constraints in kwargs
-
-            # Handle `mut` in kwargs
-            if :mut in keys(kwargs) && kwargs[:mut]
-                mut(fut)
-            end
         else
             throw(ArgumentError("Expected partition type (PT) or a composition or union of PTs"))
         end
     end
 end
 
-mut(f::AbstractFuture) = mut(f => f)
-mut(ff::Pair{AbstractFuture, AbstractFuture}) = mut(first(ff), last(ff))
+# NOTE: `mutated` should not be used inside of `partitioned_with` or
+# `partitioned_using`
 
-function mut(old::AbstractFuture, new::AbstractFuture)
+mutated(f::AbstractFuture) = mutated(f => f)
+mutated(ff::Pair{AbstractFuture, AbstractFuture}) = mutated(first(ff), last(ff))
+
+function mutated(old::AbstractFuture, new::AbstractFuture)
     global curr_delayed_task
     curr_delayed_task.mutation[convert(Future, old)] = convert(Future, new)
 end
@@ -220,11 +238,66 @@ end
 invert(mutation::Dict{Future,Future}) = Dict(new => old for (old, new) in mutation)
 
 macro partitioned(ex...)
+    res = quote end
+
+    # Load in variables and code from macro
     variables = [esc(e) for e in ex[1:end-1]]
     variable_names = [string(e) for e in ex[1:end-1]]
     code = ex[end]
 
-    return quote
+    # Expand splatted variables
+    if any(endswith(name, "...") for name in variable_names)
+        new_variables = []
+        new_variable_names = []
+
+        # Iterate through variables specified through the annotation
+        for (variable, name) in zip(variables, variable_names)
+            # Variables with names ending with ... need to be expanded
+            if endswith(name, "...")
+                # Get information about the variable being splatted
+                expanded_expr = Meta.parse(name[1:end-3])
+                expanded::Vector{AbstractFuture} = eval(expanded_expr)
+
+                # Append to the variables and variable names to be loaded
+                # into the string
+                expanded_variables = []
+                for (i, e) in enumerate(expanded)
+                    # Appemnd to the variables and variable names to be used.
+                    # We use a randomly-suffixed name for each variable in the
+                    # expansion.
+                    new_variable_name = name[1:end-3] * "_" * randstring(4)
+                    new_variable = Meta.parse(new_variable_name)
+                    push!(new_variable_names, new_variable_name)
+                    push!(expanded_variables, new_variable)
+                    
+                    # Then, in the code that this macro compiles to, we
+                    # construct these randomly-suffixed variables to reference
+                    # the appropriate future.
+                    res = quote
+                        $res
+                        $new_variable = $expanded_expr[$i]
+                    end
+                end
+                append!(new_variables, expanded_variables)
+
+                # Append to the code so that the variable can be used as-is in
+                # the code regiony
+                code = quote
+                    $expanded_expr = [$(expanded_variables...)]
+                    $code
+                end
+            else
+                push!(new_variables, variable)
+                push!(new_variable_names, name)
+            end
+        end
+        variables = new_variables
+        variables_names = new_variables_names
+    end
+
+    quote
+        $res
+
         # Convert arguments to `Future`s if they aren't already
         futures::Vector{Future} = [$(variables...)] .|> x->convert(Future,x)
 
@@ -283,7 +356,6 @@ macro partitioned(ex...)
 
         # Perform computation on samples
         begin
-            futures = [$(variables...)]
             $(variables...) = [sample(f) for f in futures]
             $code
             for (f, value) in zip(futures, [$(variables...)])
@@ -292,7 +364,7 @@ macro partitioned(ex...)
         end
 
         # Make a call to `apply_mutation` to handle calls to `mut` like
-        # `mut(df, res)`
+        # `mutated(df, res)`
         apply_mutation(task.mutation)
     end
 end

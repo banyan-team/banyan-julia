@@ -4,35 +4,66 @@
 # specific locations and so, for example, a Div should not be used on a value
 # with CSV location unless there is a splitting function for that.
 
-Block() = PartitionType(Dict("name" => "Block"))
-Block(dim) = PartitionType(Dict("name" => "Block", "dim" => dim))
-BlockBalanced() = PartitionType(Dict("name" => "Block", "balanced" => true))
-BlockBalanced(dim) =
-    PartitionType(Dict("name" => "Block", "dim" => dim, "balanced" => true))
-BlockUnbalanced() = PartitionType(Dict("name" => "Block", "balanced" => false))
-BlockUnbalanced(dim) =
-    PartitionType(Dict("name" => "Block", "dim" => dim, "balanced" => false))
+# Block() = PartitionType(Dict("name" => "Block"))
+# Block(dim) = PartitionType(Dict("name" => "Block", "dim" => dim))
+# BlockBalanced() = PartitionType(Dict("name" => "Block", "balanced" => true))
+# BlockBalanced(dim) =
+#     PartitionType(Dict("name" => "Block", "dim" => dim, "balanced" => true))
+# BlockUnbalanced() = PartitionType(Dict("name" => "Block", "balanced" => false))
+# BlockUnbalanced(dim) =
+#     PartitionType(Dict("name" => "Block", "dim" => dim, "balanced" => false))
     
-Div() = PartitionType(Dict("name" => "Replicate", "dividing" => true))
-Replicated() = PartitionType(Dict("name" => "Replicate", "replicated" => true))
-Reducing(op) = PartitionType(Dict("name" => "Replicate", "replicated" => false, "reducer" => to_jl_value(op)))
+# Div() = PartitionType(Dict("name" => "Replicate", "dividing" => true))
+# Replicated() = PartitionType(Dict("name" => "Replicate", "replicated" => true))
+# Reducing(op) = PartitionType(Dict("name" => "Replicate", "replicated" => false, "reducer" => to_jl_value(op)))
 
 # TODO: Generate AtMost and ScaledBy constraints in handling filters and joins
 # that introduce data skew and in other operations that explicitly don't
 
-Any = PartitionType(Dict())
+Any() = PartitionType(Dict())
+Any(;scaled_by_same_as) = PartitionType(f->ScaleBy(1.0, f, scaled_by_same_as))
 
-Replicating() = PartitionType("name" => "Replicating", "reducer" => nothing)
-Replicated() = PartitionType("name" => "Replicating", "replication" => "all", "reducer" => nothing)
-Syncing() = PartitionType("name" => "Replicating", "replication" => "one", "reducer" => nothing) # (?)
-Reducing(op) = PartitionType("name" => "Replicating", "replication" => "one", "reducer" => to_jl_value(op))
+Replicating() = PartitionType("name" => "Replicating", f->ScaleBy(1.0, f))
+Replicated() = Replicating() & PartitionType("replication" => "all", "reducer" => nothing)
+# TODO: Add Replicating(f) to the below if needed for reducing operations on
+# large objects such as unique(df::DataFrame)
+
+Divided() = PartitionType("replication" => "all", "reducer" => nothing, "dividing" => true)
+Syncing() = PartitionType("replication" => "one", "reducer" => nothing) # (?)
+Reducing(op) = PartitionType("replication" => "one", "reducer" => to_jl_value(op))
+ReducingSize() = PartitionType("replication" => "one", "reducer" => "banyan_reduce_size_by_key")
 
 Distributing() = PartitionType("name" => "Distributing")
-Drifted() = PartitionType("name" => "Distributing", "id" => "!")
-Unbalanced() = PartitionType("name" => "Distributing", "balanced" => false)
 Blocked() = PartitionType("name" => "Distributing", "distribution" => "blocked")
 Grouped() = PartitionType("name" => "Distributing", "distribution" => "grouped")
+# Blocked(;balanced) = PartitionType("name" => "Distributing", "distribution" => "blocked", "balanced" => balanced)
+# Grouped(;balanced) = PartitionType("name" => "Distributing", "distribution" => "grouped", "balanced" => balanced)
+
+Drifted() = PartitionType("name" => "Distributing", "id" => "!")
+Balanced() = PartitionType("name" => "Distributing", "balanced" => true, f->ScaleBy(1.0, f))
+Unbalanced() = PartitionType("name" => "Distributing", "balanced" => false)
+Unbalanced(;scaled_by_same_as) = Unbalanced() & PartitionType(f->ScaleBy(1.0, f, scaled_by_same_as))
+
+# These functions (along with `keep_sample_rate`) allow for managing memory
+# usage in annotated code. `keep_sample_rate` allows for setting the sample
+# rate as it changes from value to value. Some operations such as joins
+# actually require a change in sample rate so propagating this information is
+# important and must be done before partition annotations are applied (in
+# `partitioned_using`). In the partition annotation itself, we sometimes want
+# to set constraints on how we scale the memory usage based on how much skew
+# is introduced by an operation. Some operations not only change the sample
+# rate but also introduce skew and so applying these constraints is important.
+# FilteredTo and FilteredFrom help with constraining skew when it is introduced
+# through data filtering operations while MutatedTo and MutatedFrom allow for
+# propagatng skew for operations where the skew is unchanged. Balanced data
+# doesn't have any skew and Balanced and balanced=true help to make this clear.
+# TODO: Remove this if we don't need
+# MutatedRelativeTo(f, mutated_relative_to) = PartitionType(ScaleBy(1.0, f, mutated_relative_to))
+# MutatedTo(f, mutated_to) = MutatedRelativeTo(f, mutated_to)
+# MutatedFrom(f, mutated_from) = MutatedRelativeTo(f, mutated_from)
+
 Distributed(args...; kwargs...) = Blocked(args...; kwargs...) | Grouped(args...; kwargs...)
+Partitioned(args...; kwargs...) = Distributed(args...; kwargs...) | Replicated()
 
 function Blocked(
     f::AbstractFuture;
@@ -40,6 +71,7 @@ function Blocked(
     balanced = nothing,
     filtered_from = nothing,
     filtered_to = nothing,
+    scaled_by_same_as = nothing,
 )
     parameters = Dict()
     constraints = PartitioningConstraints()
@@ -47,6 +79,8 @@ function Blocked(
     # Prepare `along`
     if along isa Colon
         along = sample(along, :axes)
+        # TODO: Ensure that axes returns [1] for DataFrame and axes for Array
+        # while keys returns keys for DataFrame and axes for Array
     end
     along = to_vector(along)
     # TODO: Maybe assert that along isa Vector{String} or Vector{Symbol}
@@ -54,54 +88,58 @@ function Blocked(
     # Create PTs for each axis that can be used to block along
     pts = []
     for axis in first(4, along)
-        parameters = Dict("key" => key)
-        constraints = PartitioningConstraints()
+        # Handle combinations of `balanced` and `filtered_from`/`filtered_to`
+        for b in isnothing(balanced) ? [true, false] : [balanced]
+            # Initialize parameters
+            parameters = Dict("key" => key, "balanced" => b)
+            constraints = PartitioningConstraints()
 
-        # Handle `balanced`s
-        if !isnothing(balanced)
-            parameters["balanced"] = balanced
-        end
-        # if drifted == true
-        #     parameters["id"] = "!"
-        # end
-
-        # Load divisions
-        if balanced == true
-            push!(constraints.constraints, ScaleBy(1.0, f))
-
-            # TODO: Make AtMost only accept a value (we can support PT references in the future if needed)
-            # TODO: Make scheduler check that the values in AtMost or ScaledBy are actually present to ensure
-            # that the constraint can be satisfied for this PT to be used
-        elseif balanced == false
-            # TODO: Support joins in a better way for both Blocked and Grouped
-            # and for both the filtered_from and the filtered_to versions
-            if !isnothing(filtered_from)
-                filtered_from = to_vector(filtered_from)
-                factor = maximum(filtered_from) do ff
-                    sample(ff, :memory_usage) / sample(f, :memory_usage)
+            # Create `ScaleBy` constraints
+            if b
+                push!(constraints.constraints, ScaleBy(1.0, f))
+                # TODO: Add an AtMost constraint in the case that input elements are very large
+            else
+                if !isnothing(filtered_from)
+                    filtered_from = to_vector(filtered_from)
+                    factor = maximum(filtered_from) do ff
+                        sample(ff, :memory_usage) / sample(f, :memory_usage)
+                    end
+                    push!(constraints.constraints, ScaleBy(factor, f, filtered_from))
+                elseif !isnothing(filtered_to)
+                    filtered_to = to_vector(filtered_to)
+                    factor = maximum(filtered_to) do ft
+                        sample(ft, :memory_usage) / sample(f, :memory_usage)
+                    end
+                    push!(constraints.constraints, ScaleBy(factor, f, filtered_to))
+                elseif !isnothing(scaled_by_same_as)
+                    push!(constraints.constraints, ScaleBy(1.0, f, scaled_by_same_as))
                 end
-                push!(constraints.constraints, ScaleBy(factor, f, filtered_from))
-            elseif !isnothing(filtered_to)
-                filtered_to = to_vector(filtered_to)
-                factor = maximum(filtered_to) do ft
-                    sample(ft, :memory_usage) / sample(f, :memory_usage)
-                end
-                push!(constraints.constraints, ScaleBy(factor, f, filtered_to))
             end
-        end
 
-        push!(pt, PartitionType(parameters, constraints))
+            # Append new PT to PT union being produced
+            push!(pt, PartitionType(parameters, constraints))
+        end
     end
+
+    # Return the resulting PT union that can then be passed into a call to `pt`
+    # which would in turn result in a PA union
     pts
 end
 
+# NOTE: A reason to use Grouped for element-wise computation (with no
+# filtering) is to allow for the input to be re-balanced. If you just use
+# Any then there wouldn't be any way to re-balance right before the
+# computation. Grouped allows the input to have either balanced=true or
+# balanced=false and if balanced=true is chosen then a cast may be applied.
 
 function Grouped(
     f::AbstractFuture;
     by = :,
     balanced = nothing,
+    rev = false,
     filtered_from = nothing,
     filtered_to = nothing,
+    scaled_by_same_as = nothing,
 )
     # Prepare `by`
     if by isa Colon
@@ -112,51 +150,51 @@ function Grouped(
     # Create PTs for each key that can be used to group by
     pts = []
     for key in first(by, 8)
-        parameters = Dict("key" => key)
-        constraints = PartitioningConstraints()
+        # Handle combinations of `balanced` and `filtered_from`/`filtered_to`
+        for b in isnothing(balanced) ? [true, false] : [balanced]
+            parameters = Dict("key" => key, "balanaced" => b)
+            constraints = PartitioningConstraints()
 
-        # Handle `balanced`s
-        if !isnothing(balanced)
-            parameters["balanced"] = balanced
-        end
-        # if drifted == true
-        #     parameters["id"] = "!"
-        # end
+            # Create `ScaleBy` constraint and also compute `divisions` and
+            # `AtMost` constraint if balanced
+            if b
+                f_divisions = sample(f, :statistics, key, :divisions)
+                # TODO: Change this if `divisions` is not a `Vector{Tuple{Any,Any}}`
+                parameters["divisions"] = rev ? reverse(reverse.(f_divisions)) : f_divisions
+                max_ngroups = sample(f, :statistics, key, :max_ngroups)
+                push!(constraints.constraints, AtMost(max_ngroups, f))
+                push!(constraints.constraints, ScaleBy(1.0, f))
 
-        # Load divisions
-        if balanced == true
-            parameters["divisions"] = sample(f, :statistics, key, :divisions)
-            max_ngroups = sample(f, :statistics, key, :max_ngroups)
-            push!(constraints.constraints, AtMost(max_ngroups, f))
-            push!(constraints.constraints, ScaleBy(1.0, f))
-
-            # TODO: Make AtMost only accept a value (we can support PT references in the future if needed)
-            # TODO: Make scheduler check that the values in AtMost or ScaledBy are actually present to ensure
-            # that the constraint can be satisfied for this PT to be used
-        elseif balanced == false
-            # TODO: Support joins
-            if !isnothing(filtered_from)
-                filtered_from = to_vector(filtered_from)
-                factor = maximum(filtered_from) do ff
-                    f_min = sample(f, :statistics, by, :min)
-                    f_max = sample(f, :statistics, by, :max)
-                    divisions_filtered_from = sample(ff, :statistics, by, :divisions)
-                    f_min_quantile = sample(f, :statistics, :division, f_min)
-                    f_max_quantile = sample(f, :statistics, :division, f_max)
-                    f_max_quantile - f_min_quantile
+                # TODO: Make AtMost only accept a value (we can support PT references in the future if needed)
+                # TODO: Make scheduler check that the values in AtMost or ScaledBy are actually present to ensure
+                # that the constraint can be satisfied for this PT to be used
+            else
+                # TODO: Support joins
+                if !isnothing(filtered_from)
+                    filtered_from = to_vector(filtered_from)
+                    factor = maximum(filtered_from) do ff
+                        f_min = sample(f, :statistics, by, :min)
+                        f_max = sample(f, :statistics, by, :max)
+                        divisions_filtered_from = sample(ff, :statistics, by, :divisions)
+                        f_min_quantile = sample(f, :statistics, :division, f_min)
+                        f_max_quantile = sample(f, :statistics, :division, f_max)
+                        f_max_quantile - f_min_quantile
+                    end
+                    push!(constraints.constraints, ScaleBy(factor, f, filtered_from))
+                elseif !isnothing(filtered_to)
+                    filtered_to = to_vector(filtered_to)
+                    factor = maximum(filtered_to) do ft
+                        min_filtered_to = sample(ft, :statistics, by, :min)
+                        max_filtered_to = sample(ft, :statistics, by, :max)
+                        f_divisions = sample(f, :statistics, by, :divisions)
+                        f_min_quantile = sample(f, :statistics, :division, min_filtered_to)
+                        f_max_quantile = sample(f, :statistics, :division, max_filtered_to)
+                        1 / (f_max_quantile - f_min_quantile)
+                    end
+                    push!(constraints.constraints, ScaleBy(factor, f, filtered_to))
+                elseif !isnothing(scaled_by_same_as)
+                    push!(constraints.constraints, ScaleBy(1.0, f, scaled_by_same_as))
                 end
-                push!(constraints.constraints, ScaleBy(factor, f, filtered_from))
-            elseif !isnothing(filtered_to)
-                filtered_to = to_vector(filtered_to)
-                factor = maximum(filtered_to) do ft
-                    min_filtered_to = sample(ft, :statistics, by, :min)
-                    max_filtered_to = sample(ft, :statistics, by, :max)
-                    f_divisions = sample(f, :statistics, by, :divisions)
-                    f_min_quantile = sample(f, :statistics, :division, min_filtered_to)
-                    f_max_quantile = sample(f, :statistics, :division, max_filtered_to)
-                    1 / (f_max_quantile - f_min_quantile)
-                end
-                push!(constraints.constraints, ScaleBy(factor, f, filtered_to))
             end
         end
 

@@ -11,7 +11,7 @@ mutable struct PartitionType
     PartitionType(s::String) = new(Dict("name" => s), PartitioningConstraints())
     PartitionType(parameters::PartitionTypeParameters) = new(parameters, PartitioningConstraints())
 
-    function PartitionType(args::Union{String, Pair{String,Any}, PartitioningConstraint}...)
+    function PartitionType(args::Union{String, Pair{String,Any}, PartitioningConstraint, Function}...)
         parameters = Dict()
         constraints = PartitioningConstraints()
 
@@ -21,7 +21,7 @@ mutable struct PartitionType
                 parameters["name"] = arg
             elseif arg isa Pair
                 parameters[first(arg)] = last(arg)
-            elseif arg isa PartitioningConstraint
+            elseif arg isa PartitioningConstraint || arg isa Function
                 push!(constraints, arg)
             else
                 throw(ArgumentError("Expected either a partition type parameter or constraint"))
@@ -75,6 +75,8 @@ const PartitionTypeReference = Tuple{ValueId,Integer}
 # Partition type combinators #
 ##############################
 
+const PTOrPTUnion = Union{PartitionType,Vector{PartitionType}}
+
 Base.:&(a::PartitionType, b::PartitionType) =
     PartitionType(
         merge(a.parameters, b.parameters),
@@ -86,7 +88,7 @@ Base.:&(a::PartitionType, b::PartitionType) =
 Base.:&(a::Vector{PartitionType}, b::PartitionType) = [pt & b for pt in a]
 Base.:&(a::PartitionType, b::Vector{PartitionType}) = [a & pt for pt in b]
 Base.:&(a::Vector{PartitionType}, b::Vector{PartitionType}) = [aa && bb for aa in a for bb in b]
-Base.:|(a::Vector{PartitionType}, b::Vector{PartitionType}) = [a; b]
+Base.:|(a::PTOrPTUnion, b::PTOrPTUnion) = [a; b]
 
 ############################
 # Partitioning constraints #

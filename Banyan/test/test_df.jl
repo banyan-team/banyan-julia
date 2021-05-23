@@ -1,10 +1,23 @@
 function Base.copy(fut::AbstractFuture)
     res = Future(fut)
-    partition(fut, Partitioned())
-    partition(res, Partitioned(), matches_with=fut)
+
+    partitioned_using() do
+        keep_all_sample_keys(res, fut)
+        keep_sample_rate(res, fut)
+    end
+
+    # TODO: Ensure that the CopyTo function can always be used to split anything
+    # for which there is no specified PT. But make sure that other splitting
+    # functions such as those that split arrays are expecting a name to be
+    # provided.
+    pt(fut, Any())
+    pt(res, Any(), match_with=fut)
+
     @partitioned fut res begin
         res = copy(fut)
     end
+
+    res
 end
 
 # Array type
@@ -26,23 +39,25 @@ const Matrix{T} = Array{T,2}
 
 # Array creation
 
-function read_hdf5(pathname; mount=nothing)
-    A_loc = Remote(pathname, mount)
-    A_size = Future(A_loc.size)
-    A_data = Future(A_loc)
-    A_eltype = eltype(sample(A_data))
-    A = Array{A_eltype,N}(A_data, A_size)
-    A
+function read_hdf5(path)
+    A_loc = Remote(path)
+    A = Future(A_loc)
+    Array{eltype(A),ndims(A)}(A, Future(A_loc.size))
 end
 
-function write_hdf5(A, pathname; mount=nothing)
-    A_loc = Remote(pathname, mount)
-    dst(A, A_loc)
-    partition(A, Replicated()) # TODO: Use semicolon for keyword args
+function write_hdf5(A, path)
+    # A_loc = Remote(pathname, mount)
+    destined(A, Remote(path))
+    mutated(A)
+    # This doesn't rely on any sample properties so we don't need to wrap this
+    # in a `partitioned_with` to delay the PT construction to after sample
+    # properties are computed.
+    pt(A, Blocked(A) | Replicated())
+    # partition(A, Replicated()) # TODO: Use semicolon for keyword args
     # Distributed will allow for balanced=true|false and any divisions or key
     # but the PT library should be set up such that you can't split if
     # divisions or key are not provided or balanced=false
-    partition(A, Distributed())
+    # partition(A, Blocked())
     # for axis in 1:min(4, ndims(A))
     #     # Partition with distribution of either balanced, grouped, or unknown
     #     partition(A, Blocked(key=a), mutated=true)
@@ -52,24 +67,27 @@ function write_hdf5(A, pathname; mount=nothing)
 end
 
 function fill(v, dims::NTuple{N,Integer}) where {N}
-    v = convert(Future, v)
+    v = Future(v)
     dims = Future(dims)
     A = Array{typeof(v),N}(Future(), Future(dims))
 
     # NOTE: If a value is being created for the first time in a code region, it
     # is being mutated. The only exception is a value that is already created
     # on the client and is merely being replicated in the code region.
-    partition(A, Replicated())
-    partition(dims, Replicated())
+    # partition(A, Replicated())
+    # partition(dims, Replicated())
     
-    for axis in 1:min(4, ndims(A))
-        # Partition with distribution of either balanced, grouped, or unknown
-        partition(A, Blocked(key=a))
-    end
-    partition(dims, Divided(), matches_with=A, matches_on="key")
-    partition(v, Replicated())
+    # for axis in 1:min(4, ndims(A))
+    #     # Partition with distribution of either balanced, grouped, or unknown
+    #     partition(A, Blocked(key=a))
+    # end
+    pt(A, Replicated())
+    pt(dims, Replicated())
+    pt(A, Blocked(A))
+    pt(dims, Divided(), match_with=A, match_on="key")
+    pt(v, Replicated())
 
-    mut(A)
+    mutated(A)
 
     @partitioned A v dims begin
         A = fill(v, dims)
@@ -82,9 +100,147 @@ fill(v, dims::Integer...) = fill(v, tuple(dims))
 
 # Array properties
 
-ndims(A::Array) = ndims(sample(A))
-size(A::Array) = compute(A.size)
-length(A::Vector) = compute(A.size)[1]
+Base.ndims(A::Array) = ndims(sample(A))
+Base.size(A::Array) = compute(A.size)
+Base.length(V::Vector) = compute(V.size)[1]
+Base.eltype(A::Array) = eltype(sample(A))
+
+Base.copy(A::Array{T,N}) where {T,N} = Array{T,N}(copy(A.data), copy(A.size))
+
+# Array operations
+
+function map(f, c::Array{T,N}...) where {T,N}
+    f = Future(f)
+    res = Array{T,N}(Future(), copy(first(c).size))
+
+    partitioned_using() do
+        # We shouldn't need to keep sample keys since we are only allowing data
+        # to be blocked for now. The sample rate is kept because it might be
+        # smaller if this is a column of the result of a join operation.
+        # keep_all_sample_keys(res, fut)
+        keep_sample_rate(res, fut)
+    end
+
+    # TODO: Determine whether array operations need to use mutated_from or mutated_to
+
+    pt(first(c), Blocked(first(c), balanced=true))
+    for b in [c[2:end]; res]
+        pt(b, Blocked(balanced=true), match_with=first(c), match_on="key")
+    end
+
+    # TODO: Make all f with Replicated have ScaleBy(1.0, f)
+    
+
+    pt(first(c), Blocked(first(c)) | Replicated())
+    pt([c[2:end]; res]..., Any(), match_with=first(c))
+    pt(f, Replicated())
+
+    @partitioned f c... res begin
+        res = map(f, c...)
+    end
+
+    res
+end
+
+function mapslices(f, c::Array{T,N}...; dims) where {T,N}
+    if isempty(dims) return map(f, c...) end
+    if length(c) > 1 throw(ArgumentError("Expected no more than a single array to be passed to mapslices")) end
+
+    f = Future(f)
+    res_size = Future()
+    # TODO: Ensure that this usage of Any is correct here and elsewhere
+    res = Array{Any,Any}(Future(), res_size)
+    dims = Future(dims)
+
+    partitioned_using() do
+        keep_sample_rate(res, fut)
+    end
+
+    bpt = [bpt for bpt in Blocked(first(c)) if !(dims isa Colon) && !(bpt.key in [dims...])]
+
+    pt(first(c), bpt & Balanced())
+    pt([c[2:end]; res]..., Blocked(balanced=true), match_with=first(c), match_on="key")
+    pt(first(c), bpt)
+    pt([c[2:end]; res]..., Any(), match_with=first(c))
+    pt(res_size, ReducingSize(), match_with=first(c), match_on="key")
+    pt(c..., res, res_size, f, dims, Replicated())
+
+    @partitioned f c... dims res begin
+        res = map(f, c...; dims=dims)
+        res_size = size(res)
+    end
+
+    res
+end
+
+# TODO: Implement reduce and sortslices
+
+function reduce(op, A::Array{T,N}; dims=:, kwargs...) where {T,N}
+    if :init in keys(kwargs) throw(ArgumentError("Reducing with an initial value is not currently supported")) end
+
+    op = Future(op)
+    res = dims isa Colon ? Future() : Array{Any,Any}(Future(), res_size)
+    dims = Future(dims)
+    kwargs = Future(kwargs)
+
+    partitioned_using() do
+        keep_sample_rate(res, fut)
+    end
+
+    # TODO: Duplicate annotations to handle the balanced and unbalanced cases
+    # seperately
+    # TODO: Have a better API where duplicating to handle balanced and unbalanced
+    # isn't needed
+
+    for bpt in Blocked(A)
+        pt(A, bpt)
+        if dims isa Colon || bpt.key in [dims...]
+            pt(res, Reducing(op))
+        else
+            pt(res, bpt.balanced ? Balanced() : Unbalanced(scaled_by_same_as=A), match_with=A)
+        end
+    end
+    pt(A, res, dims, kwargs, Replicated())
+
+    @partitioned op c dims kwargs res begin
+        res = reduce(op, c; dims=dims, kwargs...)
+    end
+
+    res
+end
+
+function sortslices(A::Array{T,N}, dims; kwargs...) where {T,N}
+    get(kwargs, :by, identity) == identity || throw(ArgumentError("Sorting by a function is not supported"))
+    !haskey(kwargs, :order) || throw(ArgumentError("Sorting by an order is not supported"))
+
+    # Determine what to sort by and whether to sort in reverse
+    sortingdim = dims isa Colon ? 1 : first(dims)
+    isreversed = get(kwargs, :rev, false)
+
+    res = Array{T,N}(Future(), copy(A.size))
+    dims = Future(dims)
+    kwargs = Future(kwargs)
+
+    partitioned_using() do
+        keep_sample_rate(res, fut)
+    end
+
+    pt(A, Grouped(A, by=sortingdim, rev=isreversed, scaled_by_same_as=res, balanced=false))
+    pt(res, Blocked() & Unbalanced(scaled_by_same_as=A), match_with=A, match_on=["key", "divisions", "id"])
+
+    pt(A, Grouped(A, by=sortingdim, rev=isreversed, balanced=true))
+    pt(res, Blocked() & Balanced(), match_with=A, match_on=["key", "divisions", "id"])
+
+    pt(A, res, dims, kwargs, Replicated())
+
+    @partitioned A dims kwargs res begin
+        res = sortslices(A, dims=dims, kwargs...)
+    end
+
+    res
+end
+
+sort(A::Array{T,N}; kwargs...) where {T,N} = sortslices(A, dims=:; kwargs...)
 
 # Array aggregation
 
@@ -96,145 +252,149 @@ length(A::Vector) = compute(A.size)[1]
 # - PT Library
 #   - Maintaining job_properties with keys and axes that are used
 
-for (op, agg) in [(:(sum), :(Base.:+)), (:(minimum), :(min)), (:(maximum), :(max))]
-    @eval begin
-        function $op(A::Array{T, N})
-            dims = dims isa Tuple ? dims : tuple(dims)
-            dimensions = Future(dims)
-            operator = Future($op)
-            res = Future()
-        end
+# for (op, agg) in [(:(sum), :(Base.:+)), (:(minimum), :(min)), (:(maximum), :(max))]
+#     @eval begin
+#         function $op(A::Array{T, N})
+#             dims = dims isa Tuple ? dims : tuple(dims)
+#             dimensions = Future(dims)
+#             operator = Future($op)
+#             res = Future()
+#         end
 
-        function $op(A::Array{T, N}; dims=:) where {T, N}
-            dims = dims isa Tuple ? dims : tuple(dims)
-            dimensions = Future(dims)
-            operator = Future($op)
-            res_size = Future() # TODO: Compute this here using Future, mutation=
-            res = Array{T, N}(Future(), res_size)
+#         function $op(A::Array{T, N}; dims=:) where {T, N}
+#             dims = dims isa Tuple ? dims : tuple(dims)
+#             dimensions = Future(dims)
+#             operator = Future($op)
+#             res_size = Future() # TODO: Compute this here using Future, mutation=
+#             res = Array{T, N}(Future(), res_size)
 
-            partition(A, Replicated())
-            partition(res, Replicated())
+#             partition(A, Replicated())
+#             partition(res, Replicated())
 
-            # Partition by distributing across 1 of up to 4 axes
-            for axis in 1:min(4, ndims(A))
-                # Partition with distribution of either balanced, grouped, or unknown
-                partition(A, Blocked(key=axis))
+#             # Partition by distributing across 1 of up to 4 axes
+#             for axis in 1:min(4, ndims(A))
+#                 # Partition with distribution of either balanced, grouped, or unknown
+#                 partition(A, Blocked(key=axis))
 
-                # Partition the result based on whether the reduction is across the dimension of partitioning
-                if axis in dims
-                    partition(res, Reducing(reducer=$agg))
-                else
-                    partition(res, Partitioned(), matches_with=A)
-                end
-            end
+#                 # Partition the result based on whether the reduction is across the dimension of partitioning
+#                 if axis in dims
+#                     partition(res, Reducing(reducer=$agg))
+#                 else
+#                     partition(res, Partitioned(), matches_with=A)
+#                 end
+#             end
 
-            # Partition all as replicated
-            partition(operator, Replicated())
-            partition(res_size, Replicated())
+#             # Partition all as replicated
+#             partition(operator, Replicated())
+#             partition(res_size, Replicated())
 
-            @partitioned A dimensions operator aggregaton res res_size begin
-                res = $op(V, dims=dimensions)
-                res_size = size(res)
-            end
-        end
-    end
-end
-
-function mean(V::Vector)
-    # TODO: Accept vector partitioned in different dimensions and return
-    # replicated with reducing or distributed with same id potentially grouped
-    # by an axis or balanced
-    sum(V) / length(V)
-end
-
-# Array element-wise operations
-
-# Binary operators
-for op in (:+, :-, :>, :<, :>=, :<=, :≥, :≤, :(==), :!=)
-    @eval begin
-        function Base.$op(A::Array{T, N}, B::Array{T, N}) where {T, N}
-            A_size = A.size
-            res_size = Future(A_size)
-            res = Array{T, N}(Future(), res_size)
-            op = Future(op)
-            # TODO:
-            # - make samples get computed instantly
-            # TODO: Put info in partitioned:
-            # - Future
-            # - PT (replicated, balanced, grouped, pseudo)
-            # - PCs (matching on, at most)
-            # - location (None) with sample, sample properties, total memory
-            # - mutating (constant)
-            # TODO: for columns: how to partition on grouped
-            # - maintain set of possible keys to group by
-            # - compute atmost whenever needed
-            # TODO: Implement new Distributed to support group-by views - how to partition on unknown?
-            # - distribution = balanced by axis|grouped by axis or key with divisions|unknown
-            # - identified by id = true|false
-            # - axis
-            # - key
-            # - divisions - ensure that a split function can't be used if it is required but not provided
-            # - ID (must be null for splitting or casting to)
-            # TODO: Auto-generate default random on casts and splits
-            # "!" for parameters that are to be randomly assigned, can be used both in PAs and in PT library
-            
-            # TODO: Accept replicated or balanced or distributed with same ID for inputs and outputs while grouped by any valid key
-
-            partition(A, Replicated())
-            for axis in 1:min(4, ndims(A))
-                partition(A, Blocked(key=axis))
-            end
-            partition(B, Partitioned(), matches_with=A)
-            partition(res, Partitioned(), matches_with=A, mutating=true)
-            partition(res_size, ReplicatedOrReducing(), match_with=A_size)
-            partition(op, Replicated())
-
-            # colnames = propertynames(sample(df))
-            # partition() do job
-            #     job.properties[:keys]
-            #     Grouped(propertynames(sample(df)))
-            #     Grouped(df, groupingkey, reverse=false)
-            # end
-            # partition(A, Balanced())
-            # partition(A, Distributed(like=B))
-            # partition(A_size, Replicated())
-            # partition(B, Distributed(), matches_with=A)
-            # partition(res, Distributed(), matches_with=A)
-            # partition(res_nrows, Replicated())
-            # partition(op, Replicated())
-
-            @partitioned res res_size A A_size B op begin
-                res = op(A, B)
-                res_size = A_size
-            end
-
-            res
-        end
-    end
-end
-
-# TODO: Implement unary operators
-
-# TODO: Implement element-wise operations
-
-# Array reshaping
-
-# TODO: Support sorting once we have a non-verbose way of specifying grouping for both dataframes and arrays
-
-# function sort(A::Array; kwargs)
-#     # TODO: Accept replicated or grouped on key used for sotring and return same but with same ID but
-#     # newly generated ID if the input has id set to null because of casting or re-splitting
-#     # TODO: Accept A as either blocked on some other dimension or grouped on the dimension
-#     # used for sorting. Then have the result be blocked. And then use Blocked everywhere else and
-#     # ensure that getindex will only return Vector that is Blocked and not Grouped
-#     res = Future()
-#     partition(A, Grouped())
+#             @partitioned A dimensions operator aggregaton res res_size begin
+#                 res = $op(V, dims=dimensions)
+#                 res_size = size(res)
+#             end
+#         end
+#     end
 # end
 
-function sortslices(A::Array)
-    # TODO: use the first of the dims to sort on to split the array
-    # TODO: use the first of the slice when splitting the array on the dim to get quantiles
-end
+# function mean(V::Vector)
+#     # TODO: Accept vector partitioned in different dimensions and return
+#     # replicated with reducing or distributed with same id potentially grouped
+#     # by an axis or balanced
+#     sum(V) / length(V)
+# end
+
+# # Array element-wise operations
+
+# # TODO: Implement a bunch of operations where we allow Replicated and Blocked
+# # across a dimension where communication is not needed (e.g., accumulation
+# # across dims=2 allows us to have Blocked along=1)
+
+# # Binary operators
+# for op in (:+, :-, :>, :<, :>=, :<=, :≥, :≤, :(==), :!=)
+#     @eval begin
+#         function Base.$op(A::Array{T, N}, B::Array{T, N}) where {T, N}
+#             A_size = A.size
+#             res_size = Future(A_size)
+#             res = Array{T, N}(Future(), res_size)
+#             op = Future(op)
+#             # TODO:
+#             # - make samples get computed instantly
+#             # TODO: Put info in partitioned:
+#             # - Future
+#             # - PT (replicated, balanced, grouped, pseudo)
+#             # - PCs (matching on, at most)
+#             # - location (None) with sample, sample properties, total memory
+#             # - mutating (constant)
+#             # TODO: for columns: how to partition on grouped
+#             # - maintain set of possible keys to group by
+#             # - compute atmost whenever needed
+#             # TODO: Implement new Distributed to support group-by views - how to partition on unknown?
+#             # - distribution = balanced by axis|grouped by axis or key with divisions|unknown
+#             # - identified by id = true|false
+#             # - axis
+#             # - key
+#             # - divisions - ensure that a split function can't be used if it is required but not provided
+#             # - ID (must be null for splitting or casting to)
+#             # TODO: Auto-generate default random on casts and splits
+#             # "!" for parameters that are to be randomly assigned, can be used both in PAs and in PT library
+            
+#             # TODO: Accept replicated or balanced or distributed with same ID for inputs and outputs while grouped by any valid key
+
+#             partition(A, Replicated())
+#             for axis in 1:min(4, ndims(A))
+#                 partition(A, Blocked(key=axis))
+#             end
+#             partition(B, Partitioned(), matches_with=A)
+#             partition(res, Partitioned(), matches_with=A, mutating=true)
+#             partition(res_size, ReplicatedOrReducing(), match_with=A_size)
+#             partition(op, Replicated())
+
+#             # colnames = propertynames(sample(df))
+#             # partition() do job
+#             #     job.properties[:keys]
+#             #     Grouped(propertynames(sample(df)))
+#             #     Grouped(df, groupingkey, reverse=false)
+#             # end
+#             # partition(A, Balanced())
+#             # partition(A, Distributed(like=B))
+#             # partition(A_size, Replicated())
+#             # partition(B, Distributed(), matches_with=A)
+#             # partition(res, Distributed(), matches_with=A)
+#             # partition(res_nrows, Replicated())
+#             # partition(op, Replicated())
+
+#             @partitioned res res_size A A_size B op begin
+#                 res = op(A, B)
+#                 res_size = A_size
+#             end
+
+#             res
+#         end
+#     end
+# end
+
+# # TODO: Implement unary operators
+
+# # TODO: Implement element-wise operations
+
+# # Array reshaping
+
+# # TODO: Support sorting once we have a non-verbose way of specifying grouping for both dataframes and arrays
+
+# # function sort(A::Array; kwargs)
+# #     # TODO: Accept replicated or grouped on key used for sotring and return same but with same ID but
+# #     # newly generated ID if the input has id set to null because of casting or re-splitting
+# #     # TODO: Accept A as either blocked on some other dimension or grouped on the dimension
+# #     # used for sorting. Then have the result be blocked. And then use Blocked everywhere else and
+# #     # ensure that getindex will only return Vector that is Blocked and not Grouped
+# #     res = Future()
+# #     partition(A, Grouped())
+# # end
+
+# function sortslices(A::Array)
+#     # TODO: use the first of the dims to sort on to split the array
+#     # TODO: use the first of the slice when splitting the array on the dim to get quantiles
+# end
 
 struct DataFrame <: AbstractFuture
     data::Future
@@ -253,7 +413,7 @@ convert(::Type{Future}, df::DataFrame) = df.data
 #     data = Future()
 #     len = Future(location.nrows)
     
-#     src(data, location)
+#     sourced(data, location)
 #     val(len)
 
 #     pt(data, Block())
@@ -279,25 +439,24 @@ convert(::Type{Future}, df::DataFrame) = df.data
 
 # function write_csv(df::FutureDataFrame, pathname)
 #     location = CSVPath(pathname)
-#     dst(df, location)
+#     destined(df, location)
 #     pt(df, Block())
-#     mut(df)
-#     partition_mut(df, :mut, Block(), CSVPath(pathname))
+#     mutated(df)
+#     partition_mutated(df, :mut, Block(), CSVPath(pathname))
 #     partition(df, Block(), )
 #     @partitioned df begin end
 # end
 
-function read_csv(pathname; mount=nothing)
-    df_loc = Remote(pathname, mount)
+function read_csv(path)
+    df_loc = Remote(path)
     df_nrows = Future(df_loc.nrows)
     DataFrame(Future(df_loc), df_size)
 end
 
-function write_csv(A, pathname; mount=nothing)
-    df_loc = Remote(pathname, mount)
-    dst(df, df_loc)
-    partition(df, Replicated())
-    partition(df, Distributed())
+function write_csv(A, path)
+    destined(df, Remote(path))
+    mutated(df)
+    pt(df, Partitioned(A))
     @partitioned df begin end
     compute(df)
 end
@@ -399,21 +558,50 @@ function dropmissing(df::DataFrame, args...; kwargs...)
     args = Future(args)
     kwargs = Future(kwargs)
 
-    partition(df, Replicated())
-    partition(df, Blocked(dim=1, balanced=true))
-    partition(df, Blocked(dim=1, balanced=false))
-    union!(sample(res, :allowedgroupingkeys), sample(df, :allowedgroupingkeys))
-    partition_later() do
-        union!(sample(df, :allowedgroupingkeys), sample(res, :allowedgroupingkeys))
-        for key in sample(df, :allowedgroupingkeys)
-            for balanced in [true, false]
-                partition(df, Grouped(;key=key, balanced=balanced))
-            end
-        end
+    # partition(df, Replicated())
+    # partition(df, Blocked(dim=1, balanced=true))
+    # partition(df, Blocked(dim=1, balanced=false))
+    # union!(sample(res, :allowedgroupingkeys), sample(df, :allowedgroupingkeys))
+    # partition_later() do
+    #     union!(sample(df, :allowedgroupingkeys), sample(res, :allowedgroupingkeys))
+    #     for key in sample(df, :allowedgroupingkeys)
+    #         for balanced in [true, false]
+    #             partition(df, Grouped(;key=key, balanced=balanced))
+    #         end
+    #     end
+    # end
+
+    partitioned_using() do
+        # We need to maintain these sample properties and hold constraints on
+        # memory usage so that we can properly handle data skew
+        keep_all_sample_keys(res, df, change_statistics=true)
+        keep_sample_rate(res, df)
     end
 
-    partition(res, Partitioned(balanced=false, id="*"), match_with=df, match_on=["distribution", "key", "divisions"])
-    partition(res_nrows, Reducing(reducer=+))
+    partitioned_with() do
+        for (dfpt, respt) in zip(
+            Distributed(df, balanced=false, filtered_to=res),
+            Distributed(res, balanced=false, filtered_from=df),
+        )
+            # unbalanced -> balanced
+            pt(df, dfpt, match_with=res, match_on=["distribution", "key", "divisions"])
+            pt(res, Balanced() & Drifted())
+
+            # unbalanced -> unbalanced
+            pt(df, dfpt, match_with=res, match_on=["distribution", "key", "divisions"])
+            pt(res, respt & Drifted())
+
+            # balanced -> unbalanced
+            pt(df, Balanced(), match_with=res, match_on=["distribution", "key", "divisions"])
+            pt(res, respt & Drifted())
+        end
+        
+        pt(res_nrows, Reducing(+))
+        pt(df, res, res_nrows, args, kwargs, Replicated())
+    end
+
+    # partition(res, Partitioned(balanced=false, id="*"), match_with=df, match_on=["distribution", "key", "divisions"])
+    # partition(res_nrows, Reducing(reducer=+))
 
     @partitioned df res res_nrows args kwargs begin
         res = dropmissing(df, args...; kwargs...)
@@ -458,31 +646,62 @@ end
 # DataFrame element-wise
 
 function Base.copy(df::DataFrame)::DataFrame
-    res = DataFrame(Future(), res_nrows)
+    res = Future()
 
-    partition(df, Replicated())
-    partition(df, Blocked(dim=1, balanced=true))
-    partition(df, Blocked(dim=1, balanced=false))
-    union!(sample(res, :allowedgroupingkeys), sample(df, :allowedgroupingkeys))
-    setsample(res, :keystatistics, sample(df, :keystatistics))
-    partition_later() do
-        union!(sample(df, :allowedgroupingkeys), sample(res, :allowedgroupingkeys))
-        setsample(df, :keystatistics, sample(res, :keystatistics))
-        for key in sample(df, :allowedgroupingkeys)
-            for balanced in [true, false]
-                partition(df, Grouped(;key=key, balanced=balanced))
-            end
-        end
+    partitioned_using() do
+        keep_all_sample_keys(res, df)
+        keep_sample_rate(res, df)
     end
 
-    partition(res, Partitioned(), match_with=res)
-    mut(res)
+    partitioned_with() do
+        pt(df, Distributed(df, balanced=true))
+        pt(res, Balanced(), match_with=df)
 
-    @partitioned df res begin
-        res = copy(df)
+        pt(df, Distributed(df, balanced=false, scaled_by_same_as=res))
+        pt(res, Unbalanced(scaled_by_same_as=df), match_with=df)
+        
+        pt(df, res, Replicated())
     end
+
+    @partitioned df res begin res = copy(df) end
 
     DataFrame(res, copy(df.nrows))
+
+    # res = DataFrame(Future(), res_nrows)
+
+    # partitioned_using() do
+    #     keep_all_sample_keys(res, df)
+    #     keep_sample_rate(res, df)
+    # end
+
+    # partitioned_with() do
+    #     pt(df, Distributed(df))
+    #     pt(res, Any(scaled_by_same_as=df), match_with=df)
+    # end
+
+    # partition(df, Replicated())
+    # partition(df, Blocked(dim=1, balanced=true))
+    # partition(df, Blocked(dim=1, balanced=false))
+    # union!(sample(res, :allowedgroupingkeys), sample(df, :allowedgroupingkeys))
+    # setsample(res, :keystatistics, sample(df, :keystatistics))
+    # partition_later() do
+    #     union!(sample(df, :allowedgroupingkeys), sample(res, :allowedgroupingkeys))
+    #     setsample(df, :keystatistics, sample(res, :keystatistics))
+    #     for key in sample(df, :allowedgroupingkeys)
+    #         for balanced in [true, false]
+    #             partition(df, Grouped(;key=key, balanced=balanced))
+    #         end
+    #     end
+    # end
+
+    # partition(res, Partitioned(), match_with=res)
+    # mutated(res)
+
+    # @partitioned df res begin
+    #     res = copy(df)
+    # end
+
+    # DataFrame(res, copy(df.nrows))
 
     # df_nrows = df.size
     # res_nrows = Future(df_nrows) # This marks df_nrows as mutated if the value can't be copied over.
@@ -584,14 +803,23 @@ function getindex(df::DataFrame, rows, cols)
     # in res (which is just cols of df if column selector is :), or unknown
     # and always with different ID unless row selector is :
     # and only allow : and copying columns without getting a view
-    if !(rows isa Colon || rows isa Vector{Bool})
+    rows isa Colon || rows isa Vector{Bool} ||
         throw(ArgumentError("Expected selection of all rows with : or some rows with Vector{Bool}"))
-    end
-    if cols == ! throw(ArgumentError("! is not allowed for selecting all columns; use : instead")) end
+    cols != ! || throw(ArgumentError("! is not allowed for selecting all columns; use : instead"))
 
     # TODO: Remove this if not necessary
     if rows isa Colon && cols isa Colon
         return copy(df)
+    end
+    
+    return_vector = cols isa Symbol || cols isa String || cols isa Integer
+    select_columns = !(cols isa Colon)
+    filter_rows = !(rows isa Colon)
+    cols = Future(names(sample(df), cols))
+
+    partitioned_using() do
+        keep_all_sample_keys(res, df, change_statistics=filter_rows)
+        keep_sample_rate(res, df)
     end
 
     by = names(sample(df), cols)
@@ -599,7 +827,7 @@ function getindex(df::DataFrame, rows, cols)
 
     # TODO: Maybe make @partitioned be called first so that we can have error handling
     # get triggered first. But make sure that some stuff that needs to happen before
-    # @partitioned happens like creating futures and using mut(future, new_future)
+    # @partitioned happens like creating futures and using mutated(future, new_future)
 
     # TODO: Handle case where cols is a single column by returning a Vector
 
@@ -708,7 +936,7 @@ function getindex(df::DataFrame, rows, cols)
         partition(res_nrows, ReplicatedOrReducing(match_with=df))
     end
 
-    mut(res)
+    mutated(res)
 
     @partitioned df df_nrows res res_nrows rows cols begin
         res = df[rows, cols]
@@ -763,7 +991,7 @@ function getindex(df::DataFrame, rows, cols)
     # - keep track of memory usage of each variable in the backend
     # - for each potential fused PA for a stage, determine memory usage by looking at constraints
 
-    # res_data = cols isa Colon ? Future(;same_keys_as=df, same_memory_usage_as=df) : Future()
+    # res_data = cols isa Colon ? Future(;same_keys_as=df, scaled_by_same_as=df) : Future()
     # res_data = Future()
 
     # TODO: Maybe make some way to mutate the value according to the later
@@ -822,7 +1050,7 @@ function getindex(df::DataFrame, rows, cols)
     # TODO: Make mut accept multiple arguments
     # TODO: Implement partition
 
-    # mut(res, res_nrows)
+    # mutated(res, res_nrows)
     # @partitioned df res res_nrows rows cols begin
     #     res = getindex(df, rows)
     #     res_nrows = size(res)
@@ -897,7 +1125,7 @@ function setindex!(df::DataFrame, v::Union{Vector, Matrix, DataFrame}, rows, col
     # set to nothing. This should also indicate that a sample should not be
     # collected for the thing being mutated.
     # TODO: Implement this version of mut
-    mut(df, res)
+    mutated(df, res)
 
     @partition df col cols res begin
         df[:, cols] = col
@@ -1030,7 +1258,7 @@ function rename(df::DataFrame, args...; kwargs...)
     # partition(res, GroupedBy(), match_with=df, match_on=["distribution", "axis", "divisions"])
     # res
 
-    mut(res)
+    mutated(res)
 
     @partitioned df res args kwargs begin
         res = rename(df, args...; kwargs...)
@@ -1051,7 +1279,9 @@ function rename(df::DataFrame, args...; kwargs...)
     DataFrame(res, copy(df.nrows))
 end
 
-# TODO: Implement select/transform/combine for DataFrame
+# Make AtMost only accept a value (we can support PT references in the future if needed)
+            # TODO: Make scheduler check that the values in AtMost or ScaledBy are actually present to ensure
+            # that the constraint can be satisfied for this PT to be used# TODO: Implement select/transform/combine for DataFrame
 # TODO: In rename/select/transform/combine figure out what columns to copy over statistics for
 # - compute grouping column, owned columns, mutated columns and pass these to PT constructors so that
 # they can filter to the relevant subset
@@ -1085,62 +1315,108 @@ end
 
 # DataFrame shuffling
 
-function sort(df::DataFrame, cols; kwargs...)
+function sort(df::DataFrame, cols=:; kwargs...)
     !get(kwargs, :view, false) || throw(ArgumentError("Cannot return view of sorted dataframe"))
 
     # Determine what to sort by and whether to sort in reverse
-    firstcol = (cols isa Vector ? first(cols) || cols)
-    by, isreversed = if firstcol isa DataFrames.UserColOrdering
-        if isempty(firstcol.kwargs) || (length(firstcol.kwargs) == 1 && haskey(firstcol.kwargs, :rev))
-            string(firstcol.col), get(firstcol.kwargs, :rev, false)
+    firstcol = first(cols)
+    sortingkey, isreversed = if firstcol isa DataFrames.UserColOrdering
+        if isempty(firstcols.kwargs)
+            firstcols.col, get(kwargs, :rev, false)
+        elseif length(firstcol.kwargs) == 1 && haskey(firstcol.kwargs, :rev)
+            firstcols.col, get(firstcol.kwargs, :rev, false)
         else
             throw(ArgumentError("Only rev is supported for ordering"))
         end
     else
-        first(names(sample(df), firstcol)), false
+        first(names(sample(df), firstcol)), get(kwargs, :rev, false)
     end
-    isreversed = get(kwargs, :rev, false) || isreversed
 
     res = Future()
     cols = Future(cols)
     kwargs = Future(kwargs)
 
-    # TODO: Only allow first column to have rev
+    # TODO: Change to_vector(x) to [x;]
 
-    # TODO: Only use at most first 8 for allowedgroupingkeys
-    by = first(names(sample(df), cols))
-    push!(sample(df, :allowedgroupingkeys), by)
-    push!(sample(res, :allowedgroupingkeys), by)
+    partitioned_using() do
+        keep_keys(sortingkey, res, df)
+        memory_usage_relative_to(res, df)
+    end
 
-    # We must construct seperate PTs for balanced=true and balanced=false
-    # because these different PTs have different required constraints
-    # TODO: Implement reversed in Grouped constructor
-    partition(df, Grouped(;key=by, balanced=true, reversed=isreversed))
-    partition(df, Grouped(;key=by, balanced=false, reversed=isreversed))
-    partition(res, Grouped(;key=by, balanced=false, id="*"), match_with=df, match_on=["divisions"])
-    partition(cols, Replicated())
-    partition(kwargs, Replicated())
+    partitioned_with() do
+        # We must construct seperate PTs for balanced=true and balanced=false
+        # because these different PTs have different required constraints
+        # TODO: Implement reversed in Grouped constructor
+        pt(df, Grouped(df, by=sortingkey, rev=isreversed) | Replicated())
+        pt(res, Any(), match_with=df)
+        pt(cols, kwargs, Replicated())
+    end
 
-    mut(res)
+    # mutated(res)
 
     @partitioned df res res_nrows cols kwargs begin
         res = sort(cols; kwargs...)
     end
 
-    statistics = sample(df, :keystatistics, by)
-    if by in keys(statistics)
-        setsample(res, :keystatistics, by, statistics[by])
-    end
+    # statistics = sample(df, :keystatistics, by)
+    # if by in keys(statistics)
+    #     setsample(res, :keystatistics, by, statistics[by])
+    # end
 
     DataFrame(res, copy(df.nrows))
 end
 
-function innerjoin(df1::DataFrame, df2::DataFrame, args...; on, kwargs...)
-    isempty(args) || throw(ArgumentError("Join of multiple dataframes is not supported"))
+function innerjoin(dfs::DataFrame...; on, kwargs...)
+    length(dfs) >= 2 || throw(ArgumentError("Join requires at least 2 dataframes"))
+
+    # TODO: Make it so that the code region's sampled computation is run first to allow for the function's
+    # error handling to kick in first
 
     res_nrows = Future()
     res = DataFrame(Future(), res_nrows)
     kwargs = Future(kwargs)
+
+    partitioned_using() do
+        on = [key isa Pair ? k : (k => k) for key in first(on)]]
+        on_left = first.(on)
+    end
+
+    # TODO: Use something like this for join
+    partitioned_with() do
+        for (df1pt, df2pt, respt) in zip(
+            Grouped(df1, by=on_left, balanced=false, filtered_to=res),
+            Grouped(df2, balanced=false, filtered_to=res),
+            Grouped(res, balanced=false, filtered_from=[df1, df2]),
+        )
+            # unbalanced, unbalanced, .... -> balanced
+            pt(dfs..., Unbalanced(), match_with=res, match_on=["distribution", "key", "divisions"])
+            pt(res, Balanced() & Drifted())
+
+
+            for i in 1:length(dfs)
+                for (j, df) in enumerate(dfs)
+                    if j == i
+                        pt(df, )
+                    end
+                end
+            end
+
+            # # unbalanced, balanced -> unbalanced
+            # pt(df, dfpt, match_with=res, match_on=["distribution", "key", "divisions"])
+            # pt(res, respt & Drifted())
+
+            # # balanced, unbalanced -> unbalanced
+            # pt(df, dfpt, match_with=res, match_on=["distribution", "key", "divisions"])
+            # pt(res, respt & Drifted())
+
+            # unbalanced, unbalanced, ... -> unbalanced
+            pt(df, Balanced(), match_with=res, match_on=["distribution", "key", "divisions"])
+            pt(res, respt & Drifted())
+        end
+        
+        pt(res_nrows, Reducing(+))
+        pt(df, res, res_nrows, args, kwargs, Replicated())
+    end
 
     partition(df1, Replicated())
     partition(df2, Replicated())
@@ -1178,8 +1454,8 @@ function innerjoin(df1::DataFrame, df2::DataFrame, args...; on, kwargs...)
     partition(res_nrows, Reducing(;reducer=+))
     partition(kwargs, Replicated())
 
-    mut(res)
-    mut(res_nrows)
+    mutated(res)
+    mutated(res_nrows)
 
     @partitioned df1 df2 res res_nrows kwargs begin
         res = innerjoin(df1, df2; kwargs...)
@@ -1214,8 +1490,8 @@ function unique(df::DataFrame, cols=nothing; kwargs...)
     partition(res_nrows, Reducing(;reducer=+))
     partition(cols, Replicated())
 
-    mut(res)
-    mut(res_nrows)
+    mutated(res)
+    mutated(res_nrows)
 
     @partitioned df res res_nrows cols begin
         res = isnothing(cols) ? unique(df) : unique(df, cols)
@@ -1250,8 +1526,8 @@ function nonunique(df::DataFrame, cols=nothing; kwargs...)
     partition(cols, Replicated())
 
     # TODO: Maybe make mut automatic or re-evaluate exactly what it is used for
-    mut(res)
-    mut(res_nrows)
+    mutated(res)
+    mutated(res_nrows)
 
     @partitioned df res res_nrows cols begin
         res = isnothing(cols) ? nonunique(df) : nonunique(df, cols)
@@ -1312,8 +1588,8 @@ function groupby(df::DataFrame, cols; kwargs...)::GroupedDataFrame
     partition(kwargs, Replicated())
     # TODO: Ensure splitting/merging functions work for Blocked on GroupedDataFrame
 
-    mut(gdf)
-    mut(gdf_length)
+    mutated(gdf)
+    mutated(gdf_length)
 
     @partitioned df gdf gdf_length cols kwargs begin
         gdf = groupby(df, cols; kwargs...)
@@ -1400,7 +1676,7 @@ function select(gdf::GroupedDataFrame, args...; kwargs...)
     #     end
     # end
 
-    mut(res)
+    mutated(res)
 
     @partitioned gdf gdf_parent groupcols groupkwargs args kwargs res begin
         if gdf.parent != gdf_parent
@@ -1446,7 +1722,7 @@ function transform(gdf::GroupedDataFrame)
     partition(args, Replicated())
     partition(kwargs, Replicated())
 
-    mut(res)
+    mutated(res)
 
     @partitioned gdf gdf_parent groupcols groupkwargs args kwargs res begin
         if gdf.parent != gdf_parent
@@ -1495,7 +1771,7 @@ function combine(gdf::GroupedDataFrame)
 
     # TODO: Allow for putting multiple variables that share a PT in a call to partition
 
-    mut(res)
+    mutated(res)
 
     @partitioned gdf gdf_parent groupcols groupkwargs args kwargs res begin
         if gdf.parent != gdf_parent
@@ -1545,7 +1821,7 @@ function subset(gdf::GroupedDataFrame)
     partition(args, Replicated())
     partition(kwargs, Replicated())
 
-    mut(res)
+    mutated(res)
 
     @partitioned gdf gdf_parent groupcols groupkwargs args kwargs res begin
         if gdf.parent != gdf_parent

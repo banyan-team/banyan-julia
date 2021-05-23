@@ -10,8 +10,8 @@ mutable struct Location
 
     src_name::Union{String, Nothing}
     dst_name::Union{String, Nothing}
-    src_parameters::Dict{Sym}
-    dst_parameters::Dict
+    src_parameters::LocationParameters
+    dst_parameters::LocationParameters
     sample::Sample
 
     function Location(
@@ -44,6 +44,21 @@ LocationSource(name::String, parameters::Dict, sample::Sample = Sample()) =
 LocationDestination(name::String, parameters::Dict, sample::Sample = Sample()) =
     Location(nothing, Dict(), name, parameters, sample)
 
+function Base.getproperty(loc::Location, name::Symbol)
+    if hasfield(Location, name)
+        return getfield(loc, name)
+    end
+
+    n = string(name)
+    if haskey(loc.src_parameters, n)
+        loc.src_parameters[n]
+    elseif haskey(loc.dst_parameters, n)
+        loc.dst_parameters[n]
+    else
+        error("$name not found in location parameters")
+    end
+end
+
 function to_jl(lt::Location)
     return Dict(
         "src_name" => lt.src_name,
@@ -63,14 +78,14 @@ end
 # Methods for setting location #
 ################################
 
-function src(fut, loc::Location)
+function sourced(fut, loc::Location)
     if isnothing(loc.src_name)
         error("Location cannot be used as a source")
     end
 
     fut::Future = convert(Future, fut)
     fut_location = get_location(fut)
-    loc(
+    located(
         fut,
         Location(
             loc.src_name,
@@ -82,14 +97,14 @@ function src(fut, loc::Location)
     )
 end
 
-function dst(fut, loc::Location)
+function destined(fut, loc::Location)
     if isnothing(loc.dst_name)
         error("Location cannot be used as a destination")
     end
 
     fut::Future = convert(Future, fut)
     fut_location = get_location(fut.value_id)
-    loc(
+    located(
         fut,
         Location(
             fut_location.src_name,
@@ -101,7 +116,7 @@ function dst(fut, loc::Location)
     )
 end
 
-function loc(fut, location::Location)
+function located(fut, location::Location)
     job = get_job()
     fut = convert(Future, fut)
     value_id = fut.value_id
@@ -118,14 +133,14 @@ function loc(fut, location::Location)
     record_request(RecordLocationRequest(value_id, location))
 end
 
-function loc(futs...)
+function located(futs...)
     futs = futs .|> obj->convert(Future, obj)
     maxindfuts = argmax([
         get_location(f).total_memory_usage
         for f in futs
     ])
     for fut in futs
-        loc(
+        located(
             fut,
             get_location(futs[maxindfuts]),
         )
@@ -161,7 +176,7 @@ function mem(futs...)
     end
 end
 
-val(fut) = loc(fut, Value(convert(Future, fut).value))
+val(fut) = located(fut, Value(convert(Future, fut).value))
 
 ################################
 # Methods for getting location #

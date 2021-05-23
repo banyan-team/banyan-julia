@@ -25,8 +25,8 @@ function partitioned_vector(ba::FutureArray{T,1}) where {T}
 
     pc(Match(ba, res_data))
     pc(Match(res_size, target_size))
-    mut(res_data)
-    mut(res_size)
+    mutated(res_data)
+    mutated(res_size)
 
     return ba, res_data, res_size, target_size
 end
@@ -48,8 +48,8 @@ function partitioned_vector_by_vector(
 
     pc(Match(ba, other, res_data))
     pc(Match(res_size, target_size))
-    mut(res_data)
-    mut(res_size)
+    mutated(res_data)
+    mutated(res_size)
 
     return ba, other, res_data, res_size, target_size
 end
@@ -72,8 +72,8 @@ function partitioned_vector_by_scalar(ba::FutureArray{T,1}, other::T) where {T}
 
     pc(Match(ba, res_data))
     pc(Match(res_size, target_size))
-    mut(res_data)
-    mut(res_size)
+    mutated(res_data)
+    mutated(res_size)
 
     return ba, other, res_data, res_size, target_size
 end
@@ -99,7 +99,7 @@ function ones(::Type{T}, len::Integer)::FutureArray{T,1} where {T<:Number}
     pt(data, Block())
     pt(created_size, Div())
     pt(ty, Replicate())
-    mut(data)
+    mutated(data)
 
     @partitioned data created_size ty begin
         data = ones(ty, created_size)

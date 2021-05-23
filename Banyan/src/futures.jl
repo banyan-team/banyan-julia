@@ -25,8 +25,8 @@ function Future(location::Location = None())
 
     # Create new Future and assign a location to it
     new_future = Future(nothing, value_id, false, false)
-    src(new_future, location)
-    dst(new_future, None())
+    sourced(new_future, location)
+    destined(new_future, None())
 
     # TODO: Add Size location here if needed
     # Handle locations that have an associated value
@@ -44,7 +44,7 @@ function Future(location::Location = None())
     # Mutation can also be specified manually with mutate=true|false in
     # `partition` or implicitly through `Future` constructors
     if location.src_name == "None"
-        mut(future)
+        mutated(future)
     end
 
     # Create finalizer and register
@@ -99,7 +99,7 @@ end
 
 function Future(;mutate_from::AbstractFuture)
     fut = Future()
-    mut(mutate_from, fut)
+    mutated(mutate_from, fut)
     fut
 end
 
@@ -207,7 +207,7 @@ function compute(fut::AbstractFuture)
         # Destroy everything that is to be destroyed in this task
         for req in job.pending_requests
             # Don't destroy stuff where a `DestroyRequest` was produced just
-            # because of a `mut(old, new)`
+            # because of a `mutated(old, new)`
             if req isa DestroyRequest && !any(req.value_id in values(t.mutation) for t in tasks)
                 # If this value was to be downloaded to or uploaded from the
                 # client side, delete the reference to its data
@@ -250,7 +250,7 @@ function compute(fut::AbstractFuture)
                         ),
                     ),
                 )
-                src(f, None())
+                sourced(f, None())
                 # TODO: Update stale/mutated here to avoid costly
                 # call to `send_evaluation`
             elseif message_type == "GATHER"
@@ -302,7 +302,7 @@ end
 
 function collect(fut::AbstractFuture)
     # Set the future's destination location to Client
-    dst(fut, Client())
+    destined(fut, Client())
 
     partition(fut, Partitioned(), mutate=true)
     @partitioned fut begin
@@ -313,7 +313,7 @@ function collect(fut::AbstractFuture)
 
     # Evaluate the future so that its value is downloaded to the client
     compute(fut)
-    dst(fut, None())
+    destined(fut, None())
     fut.value
 end
 

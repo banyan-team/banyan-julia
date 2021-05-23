@@ -24,8 +24,8 @@ function matmul()
     pc(Co(A, n))
     pc(Co(B, p))
 
-    mut(A)
-    mut(B)
+    mutated(A)
+    mutated(B)
 
     @partitioned A B n m p begin
         A = fill(1, (Int64(n), Int64(m)))
@@ -44,15 +44,15 @@ function matmul()
     pc(Co((C, 1), A))
     pc(Co((C, 2), B))
 
-    mut(C)
+    mutated(C)
 
     @partitioned A B C begin
         C = A * B
     end
 
     # C_new = future()
-    # loc(C_new, C.location)
-    # mut(C_new)
+    # located(C_new, C.location)
+    # mutated(C_new)
 
     # pt(C, [Block(1), Block(2)])
     # pc(Cross((C, 1), (C, 2)))
