@@ -84,18 +84,26 @@ function keep_all_sample_keys_renamed(old::AbstractFuture, new::AbstractFuture)
     end
 end
 
-function keep_sample_keys_named(participants::Pair{AbstractFuture, Any}...)
+function keep_sample_keys_named(participants::Pair{AbstractFuture, Any}...; change_statistics=false)
     # `participants` maps from futures to lists of key names such that all
     # participating futures have the same sample properties for the keys at
     # same indices in those lists
-    participants = [(participant, to_vector(key_names)) for (participant, key_names) in participants]
+    participants = [
+        (participant, Symbol.(to_vector(key_names)))
+        for (participant, key_names) in participants
+    ]
     nkeys = length(last(first(participants)))
     for i in 1:nkeys
-        key_statistics = merge([sample(p, :statistics, keys[i]) for (p, keys) in participants]...)
+        key_statistics = merge([
+            sample(p, :statistics, keys[i]) 
+            for (p, keys) in participants
+        ]...)
         for (p, keys) in participants
             p_key = keys[i]
             setsample!(p, :groupingkeys, union(sample(p, :groupingkeys), [p_key]))
-            setsample!(p, :statistics, key_statistics)
+            if !change_statistics
+                setsample!(p, :statistics, key_statistics)
+            end
         end
     end
 end
@@ -105,7 +113,7 @@ end
 # of a join should have the same sample rate and the same data skew.
 
 keep_sample_keys(keys, participants::AbstractFuture...) =
-    keep_sample_keys_named([p => to_vector(keys) for p in participants]...)
+    keep_sample_keys_named([p => Symbol.(to_vector(keys)) for p in participants]...)
 
 # This is useful for workloads that involve joins where the sample rate is
 # diminished quadratically for each joinv

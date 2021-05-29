@@ -136,7 +136,7 @@ function Grouped(
     f::AbstractFuture;
     by = :,
     balanced = nothing,
-    rev = false,
+    rev = nothing,
     filtered_from = nothing,
     filtered_to = nothing,
     scaled_by_same_as = nothing,
@@ -145,6 +145,7 @@ function Grouped(
     if by isa Colon
         by = sample(by, :groupingkeys)
     end
+    by = Symbol(by)
     along = to_vector(along)
 
     # Create PTs for each key that can be used to group by
@@ -158,10 +159,17 @@ function Grouped(
             # Create `ScaleBy` constraint and also compute `divisions` and
             # `AtMost` constraint if balanced
             if b
-                f_divisions = sample(f, :statistics, key, :divisions)
+                # Set divisions
                 # TODO: Change this if `divisions` is not a `Vector{Tuple{Any,Any}}`
-                parameters["divisions"] = rev ? reverse(reverse.(f_divisions)) : f_divisions
+                parameters["divisions"] = sample(f, :statistics, key, :divisions)
                 max_ngroups = sample(f, :statistics, key, :max_ngroups)
+
+                # Set flag for reversing the order of the groups
+                if !isnothing(rev)
+                    parameters["rev"] = rev
+                end
+
+                # Add constraints
                 push!(constraints.constraints, AtMost(max_ngroups, f))
                 push!(constraints.constraints, ScaleBy(1.0, f))
 

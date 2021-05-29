@@ -237,6 +237,11 @@ end
 # Splitting and merging functions #
 ###################################
 
+# TODO: Implement ReadGroups
+# - Computing divisions
+# - Distributing divisions among partitions
+# - Splitting divisions
+
 function ReadAsBlock(
     src,
     params,
