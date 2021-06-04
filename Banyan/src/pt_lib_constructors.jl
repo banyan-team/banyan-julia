@@ -28,21 +28,25 @@ Replicated() = Replicating() & PartitionType("replication" => "all", "reducer" =
 # TODO: Add Replicating(f) to the below if needed for reducing operations on
 # large objects such as unique(df::DataFrame)
 
-Divided() = PartitionType("replication" => "all", "reducer" => nothing, "dividing" => true)
-Syncing() = PartitionType("replication" => "one", "reducer" => nothing) # (?)
-Reducing(op) = PartitionType("replication" => "one", "reducer" => to_jl_value(op))
-ReducingSize() = PartitionType("replication" => "one", "reducer" => "banyan_reduce_size_by_key")
+Divided() = Replicating() & PartitionType("replication" => "all", "reducer" => nothing, "dividing" => true)
+Syncing() = Replicating() & PartitionType("replication" => "one", "reducer" => nothing) # TODO: Determine whether this is really needed
+Reducing(op) = Replicating() & PartitionType("replication" => "one", "reducer" => to_jl_value(op))
+# TODO: Maybe replace banyan_reduce_size_by_key with an anonymous function since that actually _can_ be ser/de-ed
+# or instead make there be a reducing type that passes in the key to the reducing functions so it can reduce by that key
+# ReducingSize() = PartitionType("replication" => "one", "reducer" => "banyan_reduce_size_by_key")
 
 Distributing() = PartitionType("name" => "Distributing")
 Blocked() = PartitionType("name" => "Distributing", "distribution" => "blocked")
+Blocked(;along) = PartitionType("name" => "Distributing", "distribution" => "blocked", "key" => along)
 Grouped() = PartitionType("name" => "Distributing", "distribution" => "grouped")
 # Blocked(;balanced) = PartitionType("name" => "Distributing", "distribution" => "blocked", "balanced" => balanced)
 # Grouped(;balanced) = PartitionType("name" => "Distributing", "distribution" => "grouped", "balanced" => balanced)
 
-Drifted() = PartitionType("name" => "Distributing", "id" => "!")
-Balanced() = PartitionType("name" => "Distributing", "balanced" => true, f->ScaleBy(1.0, f))
-Unbalanced() = PartitionType("name" => "Distributing", "balanced" => false)
-Unbalanced(;scaled_by_same_as) = Unbalanced() & PartitionType(f->ScaleBy(1.0, f, scaled_by_same_as))
+ScaledBySame(as) = Distributing() & PartitionType(f->ScaleBy(1.0, f, as))
+Drifted() = Distributing() & PartitionType("id" => "!")
+Balanced() = Distributing() & PartitionType("balanced" => true, f->ScaleBy(1.0, f))
+Unbalanced() = Distributing() & PartitionType("balanced" => false)
+Unbalanced(;scaled_by_same_as) = Unbalanced() & ScaledBySame(as=scaled_by_same_as)
 
 # These functions (along with `keep_sample_rate`) allow for managing memory
 # usage in annotated code. `keep_sample_rate` allows for setting the sample
@@ -101,16 +105,16 @@ function Blocked(
             else
                 if !isnothing(filtered_from)
                     filtered_from = to_vector(filtered_from)
-                    factor = maximum(filtered_from) do ff
-                        sample(ff, :memory_usage) / sample(f, :memory_usage)
+                    factor, from = maximum(filtered_from) do ff
+                        (sample(ff, :memory_usage) / sample(f, :memory_usage), filtered_from)
                     end
-                    push!(constraints.constraints, ScaleBy(factor, f, filtered_from))
+                    push!(constraints.constraints, ScaleBy(factor, f, from))
                 elseif !isnothing(filtered_to)
                     filtered_to = to_vector(filtered_to)
-                    factor = maximum(filtered_to) do ft
-                        sample(ft, :memory_usage) / sample(f, :memory_usage)
+                    factor, to = maximum(filtered_to) do ft
+                        (sample(ft, :memory_usage) / sample(f, :memory_usage), filtered_to)
                     end
-                    push!(constraints.constraints, ScaleBy(factor, f, filtered_to))
+                    push!(constraints.constraints, ScaleBy(factor, f, to))
                 elseif !isnothing(scaled_by_same_as)
                     push!(constraints.constraints, ScaleBy(1.0, f, scaled_by_same_as))
                 end
@@ -134,9 +138,11 @@ end
 
 function Grouped(
     f::AbstractFuture;
+    # Parameters for splitting into groups
     by = :,
     balanced = nothing,
     rev = nothing,
+    # Options to deal with skew
     filtered_from = nothing,
     filtered_to = nothing,
     scaled_by_same_as = nothing,
@@ -180,26 +186,26 @@ function Grouped(
                 # TODO: Support joins
                 if !isnothing(filtered_from)
                     filtered_from = to_vector(filtered_from)
-                    factor = maximum(filtered_from) do ff
+                    factor, from = maximum(filtered_from) do ff
                         f_min = sample(f, :statistics, by, :min)
                         f_max = sample(f, :statistics, by, :max)
                         divisions_filtered_from = sample(ff, :statistics, by, :divisions)
                         f_min_quantile = sample(f, :statistics, :division, f_min)
                         f_max_quantile = sample(f, :statistics, :division, f_max)
-                        f_max_quantile - f_min_quantile
+                        (f_max_quantile - f_min_quantile, filtered_from)
                     end
-                    push!(constraints.constraints, ScaleBy(factor, f, filtered_from))
+                    push!(constraints.constraints, ScaleBy(factor, f, from))
                 elseif !isnothing(filtered_to)
                     filtered_to = to_vector(filtered_to)
-                    factor = maximum(filtered_to) do ft
+                    factor, to = maximum(filtered_to) do ft
                         min_filtered_to = sample(ft, :statistics, by, :min)
                         max_filtered_to = sample(ft, :statistics, by, :max)
                         f_divisions = sample(f, :statistics, by, :divisions)
                         f_min_quantile = sample(f, :statistics, :division, min_filtered_to)
                         f_max_quantile = sample(f, :statistics, :division, max_filtered_to)
-                        1 / (f_max_quantile - f_min_quantile)
+                        (1 / (f_max_quantile - f_min_quantile), filtered_to)
                     end
-                    push!(constraints.constraints, ScaleBy(factor, f, filtered_to))
+                    push!(constraints.constraints, ScaleBy(factor, f, to))
                 elseif !isnothing(scaled_by_same_as)
                     push!(constraints.constraints, ScaleBy(1.0, f, scaled_by_same_as))
                 end

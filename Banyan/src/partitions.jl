@@ -152,7 +152,7 @@ Sequential(args...) =
 Match(args...) = PartitioningConstraintOverGroup("MATCH", pt_refs_to_jl(args))
 MatchOn(on, args...) =
     PartitioningConstraintOverGroup(
-        "MATCH_ON=" * string(on),
+        "on=" * string(on),
         pt_refs_to_jl(args),
     )
 AtMost(npartitions, args...) =
@@ -160,7 +160,7 @@ AtMost(npartitions, args...) =
         "AT_MOST=$npartitions",
         pt_refs_to_jl(args)
     )
-ScaleBy(factor::Float32 = 1.0, arg, relative_to...) = 
+ScaleBy(factor::Float32 = 1.0, arg, relative_to) = 
     PartitioningConstraintOverGroup(
         "SCALE_BY=$factor",
         pt_refs_to_jl([arg; relative_to])

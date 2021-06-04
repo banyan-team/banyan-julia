@@ -42,12 +42,12 @@ end
 
 # TODO: Switch key names from strings to symbols if performance is an issue
 
-function keep_all_sample_keys(participants::AbstractFuture...; change_statistics=false)
+function keep_all_sample_keys(participants::AbstractFuture...; drifted=false)
     # Take the union of discovered grouping keys. Grouping keys are discovered
     # through calls to `keep_keys` in functions where we know that we need
     # to allow grouping by certain keys such as sorting and join functions.
     groupingkeys = union([sample(p, :groupingkeys) for p in participants]...)
-    if !change_statistics
+    if !drifted
         statistics = merge([sample(p, :statistics) for p in participants]...)
     end
 
@@ -57,7 +57,7 @@ function keep_all_sample_keys(participants::AbstractFuture...; change_statistics
     for p in participants
         p_keys = intersect(groupingkeys, sample(p, :keys))
         setsample!(p, :groupingkeys, p_keys)
-        if !change_statistics
+        if !drifted
             setsample!(
                 p,
                 :statistics,
@@ -84,7 +84,7 @@ function keep_all_sample_keys_renamed(old::AbstractFuture, new::AbstractFuture)
     end
 end
 
-function keep_sample_keys_named(participants::Pair{AbstractFuture, Any}...; change_statistics=false)
+function keep_sample_keys_named(participants::Pair{AbstractFuture, Any}...; drifted=false)
     # `participants` maps from futures to lists of key names such that all
     # participating futures have the same sample properties for the keys at
     # same indices in those lists
@@ -94,14 +94,19 @@ function keep_sample_keys_named(participants::Pair{AbstractFuture, Any}...; chan
     ]
     nkeys = length(last(first(participants)))
     for i in 1:nkeys
-        key_statistics = merge([
-            sample(p, :statistics, keys[i]) 
-            for (p, keys) in participants
-        ]...)
+        # Copy over allowed grouping keys
         for (p, keys) in participants
             p_key = keys[i]
             setsample!(p, :groupingkeys, union(sample(p, :groupingkeys), [p_key]))
-            if !change_statistics
+        end
+        
+        # Copy over statistics if they haven't changed
+        if !drifted
+            key_statistics = merge([
+                sample(p, :statistics, keys[i]) 
+                for (p, keys) in participants
+            ]...)
+            for (p, keys) in participants
                 setsample!(p, :statistics, key_statistics)
             end
         end
@@ -112,8 +117,11 @@ end
 # assumed that they are the same. For example, column vectors from the result
 # of a join should have the same sample rate and the same data skew.
 
-keep_sample_keys(keys, participants::AbstractFuture...) =
-    keep_sample_keys_named([p => Symbol.(to_vector(keys)) for p in participants]...)
+keep_sample_keys(keys, participants::AbstractFuture...; drifted=false) =
+    begin
+        keys = Symbol.(to_vector(keys))
+        keep_sample_keys_named([p => keys for p in participants]...)
+    end
 
 # This is useful for workloads that involve joins where the sample rate is
 # diminished quadratically for each joinv
@@ -178,9 +186,9 @@ function pt(args::Union{AbstractFuture,PartitionType,PartitionTypeComposition,Ve
             end
 
             # Handle `match`, `on` in keyword arguments
-            if :match in keys(kwargs)
-                to_match_with = to_vector(kwargs[:match_with])
-                if :on in keys(kwargs)
+            if :match in keys(kwargs) && !isnothing(kwargs[:match])
+                to_match_with = to_vector(kwargs[:match])
+                if :on in keys(kwargs) && !isnothing(kwargs[:on])
                     for to_match_on in to_vector(get(kwargs, :on, []))
                         push!(
                             pa.constraints.constraints,
@@ -193,6 +201,14 @@ function pt(args::Union{AbstractFuture,PartitionType,PartitionTypeComposition,Ve
                         Match([fut; to_match_with]...)
                     )
                 end
+            end
+
+            if :cross in keys(kwargs)
+                to_cross = to_vector(kwargs[:match])
+                push!(
+                    pa.constraints.constraints,
+                    Cross(to_cross...)
+                )
             end
             
             # TODO: Implement support for other constraints in kwargs
