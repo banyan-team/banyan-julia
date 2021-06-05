@@ -203,7 +203,7 @@ function pt(args::Union{AbstractFuture,PartitionType,PartitionTypeComposition,Ve
                 end
             end
 
-            if :cross in keys(kwargs)
+            if :cross in keys(kwargs) && !isnothing(kwargs[:cross])
                 to_cross = to_vector(kwargs[:match])
                 push!(
                     pa.constraints.constraints,

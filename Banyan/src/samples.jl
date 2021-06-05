@@ -8,9 +8,20 @@ mutable struct Sample
     # Properties of the sample
     properties::Dict{Symbol,Any}
 
-    function Sample(value::Any = nothing, properties::Dict{Symbol,Any} = Dict(), sample_rate=get_job().sample_rate)
+    function Sample(
+        value::Any = nothing;
+        properties::Dict{Symbol,Any} = Dict(),
+        sample_rate=get_job().sample_rate,
+        total_memory_usage=nothing
+    )
         newsample = new(value, properties)
+
+        # Fill in properties if possible
+        if !isnothing(nbytes)
+            setsample!(newsample, :memory_usage, round(total_memory_usage / sample_rate))
+        end
         setsample!(newsample, :rate, sample_rate)
+
         newsample
     end
     # TODO: Un-comment if needed
@@ -21,7 +32,7 @@ mutable struct Sample
     #     ))
 end
 
-ExactSample(value::Any = nothing, properties::Dict{Symbol,Any} = Dict()) = Sample(value, properties, 1)
+ExactSample(value::Any = nothing; kwargs...) = Sample(value; sample_rate=1, kwargs...)
 
 # TODO: Lazily compute samples by storing sample computation in a DAG if its
 # getting too expensive
@@ -139,10 +150,10 @@ sample(as::AbstractSampleWithKeys, properties...) =
         else
             throw(ArgumentError("Invalid sample properties: $properties"))
         end
-    elseif length(properties) == 4 && first(properties) == :statistics
-        key, query, value = properties[2:end]
-        if query == :division
-            sample_division(as, key, value)
+    elseif length(properties) == 5 && first(properties) == :statistics
+        key, query, minvalue, maxvalue = properties[2:end]
+        if query == :percentile
+            sample_percentile(as, key, minvalue, maxvalue)
         else
             throw(ArgumentError("Invalid sample properties: $properties"))
         end
@@ -160,7 +171,7 @@ const aswkie = abstract_sample_with_keys_impl_error
 sample_axes(as::AbstractSampleWithKeys) = aswkie("sample_axes")
 sample_keys(as::AbstractSampleWithKeys) = aswkie("sample_keys")
 sample_divisions(as::AbstractSampleWithKeys, key) = aswkie("sample_divisions")
-sample_division(as::AbstractSampleWithKeys, key, value) = aswkie("sample_division")
+sample_percentile(as::AbstractSampleWithKeys, key, minvalue, maxvalue) = aswkie("sample_percentile")
 sample_max_ngroups(as::AbstractSampleWithKeys, key) = aswkie("sample_max_ngroups")
 sample_min(as::AbstractSampleWithKeys, key) = aswkie("sample_min")
 sample_max(as::AbstractSampleWithKeys, key) = aswkie("sample_max")

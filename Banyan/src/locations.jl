@@ -244,9 +244,65 @@ from_jl_value_contents(jl_value_contents) =
 # Remote locations #
 ####################
 
+# TODO: Call a function Cailin is making to ensure that the bucket is already
+# mounted at a known location and use that returned location
+
+function get_s3fs_path(path)
+    s3path = S3Path(path)
+    bucket = s3path.bucket
+    key = s3path.key
+    # TODO: Check if bucket is mounted and mount it if it isn't
+    # TODO: Specify the location where the bucket is mounted
+    mount = ""
+    joinpath(mount, key)
+end
+
+# NOTE: Sampling may be the source of weird and annoying bugs for users.
+# Different values tracked by Banyan might have different sampling rates
+# where one is the job's set sampling rate and the other has a sampling rate
+# of 1. If it is expected for both the values to have the same size or be
+# equivalent in some way, this won't be the case. The samples will have
+# differerent size.
+# 
+# Another edge case is when you have two dataframes each stored in S3 and they
+# have the same number of rows and the order matters in a way that each row
+# corresponds to the row at the same index in the other dataframe. We can get
+# around this by using the same seed for every value we read in.
+# 
+# Aside from these edge cases, we should be mostly okay though. We simply hold
+# on to the first 1024 data points. And then swap stuff out randomly. We
+# ensure that the resulting sample size is deterministaclly produced from the
+# overall data size. This way, two arrays that have the same actual size will
+# be guaranteed to have the same sample size.
+
+MAX_EXACT_SAMPLE_LENGTH = 1024
+
+getsamplenrows(totalnrows) =
+    if totalnrows <= MAX_EXACT_SAMPLE_LENGTH
+        totalnrows
+    else
+        div(totalnrows, get_job().sample_rate)
+    end
+
 function Remote(p)
+    Random.seed!(get_job_id())
+    
+    # TODO: Cache stuff
+    if startswith(p, "s3://")
+        p = get_s3fs_path(p)
+    elseif startswith(p, "http://") || startswith(p, "https://")
+        p = download(p)
+    else
+        throw(ArgumentError("Expected location that starts with either http:// or https:// or s3://"))
+    end
+
     # TODO: Support more cases beyond just single files and all files in
     # given directory (e.g., wildcards)
+
+    # TODO: Read cached sample if possible
+
+    nbytes = 0
+    totalnrows = 0
 
     # Handle single-file nd-arrays
 
@@ -264,7 +320,6 @@ function Remote(p)
 
         # Load metadata for reading
 
-        nbytes = 0
         datasize = [0]
         if isfile(p)
             f = h5open(p, "r")
@@ -276,7 +331,7 @@ function Remote(p)
                 close(f)
             end
 
-            nbytes = sizeof(dset)
+            nbytes += sizeof(dset)
             datasize = size(dset)
             if !ismapping
                 close(f)
@@ -303,8 +358,11 @@ function Remote(p)
             metadata_for_reading,
             loc_for_writing,
             metadata_for_writing,
-            nbytes,
-            Sample() # TODO: Get sample of the array
+            if totalnrows <= MAX_EXACT_SAMPLE_LENGTH
+                ExactSample(sample, total_memory_usage=nbytes)
+            else
+                Sample(sample, total_memory_usage=nbytes)
+            end
         )
     end
 
@@ -312,49 +370,149 @@ function Remote(p)
 
     # Read through dataset by row
     p_isdir = isdir(p)
-    nrows = 0
-    nbytes = 0
     files = []
     # TODO: Check for presence of cached file here and job configured to use
     # cache before proceeding
-    sample = DataFrame()
+    exactsample = DataFrame()
+    randomsample = DataFrame()
     for filep in if p_isdir sort(readdir(p)) else [p] end
         filenrows = 0
         # TODO: Ensure usage of Base.summarysize is reasonable
-        if endswith(filep, ".csv")
-            rows = CSV.Rows(filep, reusebuffer=true)
-            ncolumns = length(rows.columns)
-            for row in rows()
-                for i in 1:ncolumns
-                    parsedrow = CSV.detect(row, i)
-                    nbytes += Base.summarysize(parsedrow)
-                    # TODO: Fix performance issue here
-                    if rand() < get_job().sample_rate
-                        push!(sample, NamedTuple(parsedrow))
-                    end
-                end
-                filenrows += 1
+        # if endswith(filep, ".csv")
+        #     for chunk in CSV.Chunks(filep)
+        #         chunkdf = chunk |> DataFrames.DataFrame
+        #         # chunknrows = chunk.rows
+        #         chunknrows = nrows(chunkdf)
+        #         filenrows += chunkrows
+        #         totalnrows += chunkrows
+
+        #         # Append to randomsample
+        #         # chunksampleindices = map(rand() < 1 / get_job().sample_rate, 1:chunknrows)
+        #         chunksampleindices = randsubseq(1:chunknrows, 1 / get_job().sample_rate)
+        #         # if any(chunksampleindices)
+        #         if !isempty(chunksampleindices)
+        #             append!(randomsample, @view chunkdf[chunksampleindices, :])
+        #         end
+
+        #         # Append to exactsample
+        #         samplenrows = getsamplenrows(totalnrows)
+        #         if nrows(exactsample) < samplenrows
+        #             append!(exactsample, first(chunkdf, samplenrows - nrows(exactsample)))
+        #         end
+
+        #         nbytes += Base.summarysize(chunkdf)
+        #     end
+        # elseif endswith(filep, ".parquet")
+        #     # TODO: Ensure estimating size using Parquet metadata is reasonable
+
+        #     tbl = read_parquet(filep)
+        #     pqf = tbl.parfile
+        #     # NOTE: We assume that Tables.partitions will return a partition
+        #     # for each row group
+        #     for (i, chunk) in enumerate(Tables.partitions(read_parquet(filep)))
+        #         chunkdf = chunk |> DataFrames.DataFrame
+        #         # chunknrows = pqf.meta.row_groups[i].num_rows
+        #         chunkrows = nrows(chunkdf)
+        #         filenrows += chunkrows
+        #         totalnrows += chunkrows
+
+        #         # Append to randomsample
+        #         # chunksampleindices = map(rand() < 1 / get_job().sample_rate, 1:chunknrows)
+        #         chunksampleindices = randsubseq(1:chunknrows, 1 / get_job().sample_rate)
+        #         # if any(chunksampleindices)
+        #         if !isempty(chunksampleindices)
+        #             append!(randomsample, @view chunkdf[chunksampleindices, :])
+        #         end
+
+        #         # Append to exactsample
+        #         samplenrows = getsamplenrows(totalnrows)
+        #         if nrows(exactsample) < samplenrows
+        #             append!(exactsample, first(chunkdf, samplenrows - nrows(exactsample)))
+        #         end
+
+        #         # nbytes += isnothing(chunkdf) ? pqf.meta.row_groups[i].total_byte_size : Base.summarysize(chunkdf)
+        #         # nbytes = nothing
+        #         nbytes += Base.summarysize(chunkdf)
+        #     end
+        # elseif endswith(filep, ".arrow")
+        #     for (i, chunk) in enumerate(Arrow.Stream(filep))
+        #         chunkdf = chunk |> DataFrames.DataFrame
+        #         chunknrows = nrows(chunkdf)
+        #         filenrows += chunkrows
+        #         totalnrows += chunkrows
+
+        #         # Append to randomsample
+        #         # chunksampleindices = map(rand() < 1 / get_job().sample_rate, 1:chunknrows)
+        #         chunksampleindices = randsubseq(1:chunknrows, 1 / get_job().sample_rate)
+        #         # if any(chunksampleindices)
+        #         if !isempty(chunksampleindices)
+        #             append!(randomsample, @view chunkdf[chunksampleindices, :])
+        #         end
+
+        #         # Append to exactsample
+        #         samplenrows = getsamplenrows(totalnrows)
+        #         if nrows(exactsample) < samplenrows
+        #             append!(exactsample, first(chunkdf, samplenrows - nrows(exactsample)))
+        #         end
+
+        #         # nbytes += isnothing(chunkdf) ? pqf.meta.row_groups[i].total_byte_size : Base.summarysize(chunkdf)
+        #         # nbytes = nothing
+        #         nbytes += Base.summarysize(chunkdf)
+        #     end
+        # else
+        #     error("Expected .csv or .parquet or .arrow for S3FS location")
+        # end
+
+        # Get chunks to sample from
+        chunks =
+            if endswith(filep, ".csv")
+                CSV.Chunks(filep)
+            elseif endswith(filep, ".parquet")
+                Tables.partitions(read_parquet(filep))
+            elseif endswith(filep, ".arrow")
+                Arrow.Stream(filep)
+            else
+                error("Expected .csv or .parquet or .arrow")
             end
-        elseif endswith(filep, ".parquet")
-            # TODO: Ensure estimating size using Parquet metadata is reasonable
-            pqf = Parquet.File(filep)
-            nbytes += sum([
-                rg.total_byte_size
-                for rg in pqf.meta.row_groups
-            ])
-            filenrows += nrows(pqf)
-            # TODO: Use register_sample_computation to delay loading sample
-        elseif endswith(filep, ".arrow")
-            for tbl in Arrow.Stream(filep)
-                nbytes += Base.summarysize(tbl)
-                filenrows += size(DataFrame(tbl), 1)
+
+        # Sample from each chunk
+        for (i, chunk) in enumerate(chunks)
+            chunkdf = chunk |> DataFrames.DataFrame
+            chunknrows = nrows(chunkdf)
+            filenrows += chunkrows
+            totalnrows += chunkrows
+
+            # Append to randomsample
+            # chunksampleindices = map(rand() < 1 / get_job().sample_rate, 1:chunknrows)
+            chunksampleindices = randsubseq(1:chunknrows, 1 / get_job().sample_rate)
+            # if any(chunksampleindices)
+            if !isempty(chunksampleindices)
+                append!(randomsample, @view chunkdf[chunksampleindices, :])
             end
-            # TODO: Use register_sample_computation to delay loading sample
-        else
-            error("Expected .csv or .parquet or .arrow for S3FS location")
+
+            # Append to exactsample
+            samplenrows = getsamplenrows(totalnrows)
+            if nrows(exactsample) < samplenrows
+                append!(exactsample, first(chunkdf, samplenrows - nrows(exactsample)))
+            end
+
+            # nbytes += isnothing(chunkdf) ? pqf.meta.row_groups[i].total_byte_size : Base.summarysize(chunkdf)
+            # nbytes = nothing
+            nbytes += Base.summarysize(chunkdf)
         end
+
+        # Add to list of file metadata
         push!(files, Dict("path" => filep, "nrows" => filenrows))
-        nrows += filenrows
+        totalnrows += filenrows
+    end
+
+    # Adjust sample to have samplenrows
+    samplenrows = getsamplenrows(totalnrows)
+    if nrows(randomsample) < samplenrows
+        append!(randomsample, first(exactsample, samplenrows - nrows(randomsample)))
+    end
+    if nrows(randomsample) > samplenrows
+        randomsample = first(randomsample, samplenrows)
     end
 
     # TODO: Build up sample and return
@@ -362,7 +520,7 @@ function Remote(p)
     # Load metadata for reading
     loc_for_reading, metadata_for_reading =
         if !isempty(files_metadata)
-            ("Remote", Dict("files" => files, "nrows" => nrows))
+            ("Remote", Dict("files" => files, "nrows" => totalnrows))
         else
             (nothing, Dict())
         end
@@ -374,23 +532,18 @@ function Remote(p)
         (nothing, Dict())
     end
 
+    # TODO: Cache sample on disk
+
     # Construct location with metadata
     Location(
         loc_for_reading,
         metadata_for_reading,
         loc_for_writing,
         metadata_for_writing,
-        nbytes
+        if totalnrows <= MAX_EXACT_SAMPLE_LENGTH
+            ExactSample(sample, total_memory_usage=nbytes)
+        else
+            Sample(sample, total_memory_usage=nbytes)
+        end
     )
 end
-
-# TODO: Call a function Cailin is making to ensure that the bucket is already
-# mounted at a known location and use that returned location
-
-S3FS(path::String, mount::String) =
-    Remote(joinpath(mount, S3Path(path).key))
-
-URL(path::String) = Remote(download(path))
-
-Remote(path::String; mount=nothing) =
-    isnothing(mount) ? URL(path) : S3FS(path, mount)

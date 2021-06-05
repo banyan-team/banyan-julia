@@ -57,7 +57,7 @@ function create_job(;
     cluster_name::String = nothing,
     nworkers::Integer = 2,
     banyanfile_path::String = nothing,
-    sample_rate::Integer = 1/nworkers,
+    sample_rate::Integer = nworkers,
     kwargs...,
 )
     global jobs

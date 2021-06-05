@@ -167,7 +167,7 @@ function Grouped(
             if b
                 # Set divisions
                 # TODO: Change this if `divisions` is not a `Vector{Tuple{Any,Any}}`
-                parameters["divisions"] = sample(f, :statistics, key, :divisions)
+                parameters["divisions"] = to_jl_value(sample(f, :statistics, key, :divisions))
                 max_ngroups = sample(f, :statistics, key, :max_ngroups)
 
                 # Set flag for reversing the order of the groups
@@ -190,9 +190,8 @@ function Grouped(
                         f_min = sample(f, :statistics, by, :min)
                         f_max = sample(f, :statistics, by, :max)
                         divisions_filtered_from = sample(ff, :statistics, by, :divisions)
-                        f_min_quantile = sample(f, :statistics, :division, f_min)
-                        f_max_quantile = sample(f, :statistics, :division, f_max)
-                        (f_max_quantile - f_min_quantile, filtered_from)
+                        f_percentile = sample(f, :statistics, :percentile, min_filtered_to, max_filtered_to)
+                        (f_percentile, filtered_from)
                     end
                     push!(constraints.constraints, ScaleBy(factor, f, from))
                 elseif !isnothing(filtered_to)
@@ -201,9 +200,8 @@ function Grouped(
                         min_filtered_to = sample(ft, :statistics, by, :min)
                         max_filtered_to = sample(ft, :statistics, by, :max)
                         f_divisions = sample(f, :statistics, by, :divisions)
-                        f_min_quantile = sample(f, :statistics, :division, min_filtered_to)
-                        f_max_quantile = sample(f, :statistics, :division, max_filtered_to)
-                        (1 / (f_max_quantile - f_min_quantile), filtered_to)
+                        f_percentile = sample(f, :statistics, :percentile, min_filtered_to, max_filtered_to)
+                        (1 / f_percentile, filtered_to)
                     end
                     push!(constraints.constraints, ScaleBy(factor, f, to))
                 elseif !isnothing(scaled_by_same_as)

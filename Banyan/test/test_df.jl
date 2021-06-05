@@ -34,6 +34,78 @@ end
 
 convert(::Type{Future}, A::Array) = A.data
 
+# Array sample
+
+Base.Array <: AbstractSampleWithKeys
+
+sample_axes(A::Base.Array) = [1:ndims(A)...]
+sample_keys(A::Base.Array) = sample_axes(A)
+
+function sample_divisions(A::Base.Array, key)
+    max_ngroups = sample_max_ngroups(df, key)
+    ngroups = min(max_ngroups, get_job().nworkers, 128)
+    data = sort(mapslices(first, transpose(A), dims=key))
+    datalength = length(data)
+    grouplength = div(datalength, ngroups)
+    [
+        # Each group has elements that are >= start and < end
+        (
+            data[(i-1)*grouplength + 1],
+            data[i == ngroups ? datalength : i*grouplength + 1]
+        )
+        for i in 1:ngroups
+    ]
+end
+
+function sample_percentile(A::Union{Base.Array, DataFrames.DataFrame}, key, minvalue, maxvalue)
+    divisions = sample_divisions(A, key)
+    percentile = 0
+    divpercentile = 1/length(divisions)
+    inminmax = false
+
+    # Iterate through divisions to compute percentile
+    for (i, (divminvalue, divmaxvalue)) in enumerate(divisions)
+        # Check if we are between the minvalue and maxvalue
+        if (i == 1 || minvalue >= divminvalue) && (i == length(divisions) || minvalue < divmaxvalue)
+            inminmax = true
+        end
+
+        # Add to percentile
+        if inminmax
+            percentile += divpercentile
+        end
+
+        # Check if we are no longer between the minvalue and maxvalue
+        if (i == 1 || maxvalue >= divminvalue) && (i == length(divisions) || maxvalue < divmaxvalue)
+            inminmax = false
+        end
+    end
+
+    percentile
+end
+
+sample_max_ngroups(A::Base.Array, key) =
+    begin
+        data = sort(mapslices(first, transpose(A), dims=key))
+        currgroupsize = 1
+        maxgroupsize = 0
+        prev = nothing
+        for curr in data
+            if curr == prev
+                currgroupsize += 1
+            else
+                maxgroupsize = max(maxgroupsize, currgroupsize)
+                currgroupsize = 1
+            end
+            # TODO: Maybe use deepcopy here if eltype might be nested
+            prev = copy(curr)
+        end
+        maxgroupsize = max(maxgroupsize, currgroupsize)
+        size(df, key) / maxgroupsize
+    end
+sample_min(A::Base.Array, key) = minimum(mapslices(first, transpose(A), dims=key))
+sample_max(A::Base.Array, key) = maximum(mapslices(first, transpose(A), dims=key))
+
 const Vector{T} = Array{T,1}
 const Matrix{T} = Array{T,2}
 
@@ -505,7 +577,30 @@ end
 
 # DataFrame sample
 
-DataFrames.DataFrame <: AbstractSample
+DataFrames.DataFrame <: AbstractSampleWithKeys
+
+sample_axes(df::DataFrames.DataFrame) = [1]
+sample_keys(df::DataFrames.DataFrame) = propertynames(df)
+
+function sample_divisions(df::DataFrames.DataFrame, key)
+    max_ngroups = sample_max_ngroups(df, key)
+    ngroups = min(max_ngroups, get_job().nworkers, 128)
+    data = sort(df[!, key])
+    datalength = length(data)
+    grouplength = div(datalength, ngroups)
+    [
+        # Each group has elements that are >= start and < end
+        (
+            data[(i-1)*grouplength + 1],
+            data[i == ngroups ? datalength : i*grouplength + 1]
+        )
+        for i in 1:ngroups
+    ]
+end
+
+sample_max_ngroups(df::DataFrames.DataFrame, key) = round(nrow(df) / maximum(combine(groupby(df, key), nrow).nrow))
+sample_min(df::DataFrames.DataFrame, key) = minimum(df[!, key])
+sample_max(df::DataFrames.DataFrame, key) = maximum(df[!, key])
 
 compute_size(df::DataFrames.DataFrame) = Base.summarysize()
 
@@ -1824,6 +1919,8 @@ struct GroupedDataFrame <: AbstractFuture
     # GroupedDataFrame(gdf::GroupedDataFrame) =
     #     new(Future(), Future(gdf.nrows), Future(gdf.offset))
 end
+
+DataFrames.GroupedDataFrame <: AbstractSample
 
 convert(::Type{Future}, gdf::GroupedDataFrame) = gdf.data
 
