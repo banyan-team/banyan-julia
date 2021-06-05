@@ -175,19 +175,19 @@ function upload_banyanfile(banyanfile_path::String, s3_bucket_arn::String, clust
     code *= "mv setup_log.txt /tmp\n"
     code *= "cd /home/ec2-user\n"
     code *= "sudo yum update -y &>> setup_log.txt\n"
+    code *= "sudo chmod 777 setup_log.txt\n"
     if for_creation_or_update == :creation
-        code *= "wget https://julialang-s3.julialang.org/bin/linux/x64/1.5/julia-1.5.3-linux-x86_64.tar.gz &>> setup_log.txt\n"
-        code *= "tar zxvf julia-1.5.3-linux-x86_64.tar.gz &>> setup_log.txt\n"
+        code *= "sudo su - ec2-user -c \"wget https://julialang-s3.julialang.org/bin/linux/x64/1.5/julia-1.5.3-linux-x86_64.tar.gz &>> setup_log.txt\"\n"
+        code *= "sudo su - ec2-user -c \"tar zxvf julia-1.5.3-linux-x86_64.tar.gz &>> setup_log.txt\"\n"
         code *= "rm julia-1.5.3-linux-x86_64.tar.gz &>> setup_log.txt\n"
         code *= "sudo su - ec2-user -c \"julia-1.5.3/bin/julia --project -e 'using Pkg; Pkg.add([\"AWSCore\", \"AWSSQS\", \"HTTP\", \"Dates\", \"JSON\", \"MPI\", \"Serialization\", \"BenchmarkTools\"]); ENV[\"JULIA_MPIEXEC\"]=\"srun\"; ENV[\"JULIA_MPI_LIBRARY\"]=\"/opt/amazon/openmpi/lib64/libmpi\"; Pkg.build(\"MPI\"; verbose=true)' &>> setup_log.txt\"\n"
     end
     code *= "sudo amazon-linux-extras install epel\n"
     code *= "sudo yum -y install s3fs-fuse\n"
     code *= "aws s3 cp s3://banyan-executor /home/ec2-user --recursive\n"
-    code *= "mkdir /home/ec2-user/mount\n"
-    code *= "s3fs $bucket /home/ec2-user/mount -o iam_role=auto\n"
-    code *= "cp -r mount/. ./\n"
-    code *= "aws configure set region $region\n"
+    code *= "sudo su - ec2-user -c \"mkdir /home/ec2-user/mnt/$bucket\"\n"
+    code *= "sudo su - ec2-user -c \"/usr/bin/s3fs $bucket /home/ec2-user/mnt/$bucket -o iam_role=auto -o url=https://s3.$region.amazonaws.com -o endpoint=$region\"\n"
+    code *= "sudo su - ec2-user -c \"aws configure set region $region\"\n"
 
     # Append to post-install script downloading files, scripts, pt_lib onto cluster
     for f in vcat(files, scripts, pt_lib)

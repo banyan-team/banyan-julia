@@ -246,3 +246,22 @@ function send_request_get_response(method, content::Dict)
         end
     end
 end
+
+
+#########################
+# MOUNTED S3 FILESYSTEM #
+#########################
+
+function get_s3fs_path(path)
+    s3path = S3Path(path)
+    bucket = s3path.bucket
+    key = s3path.key
+    bucket = "banyan-cluster-data-myfirstcluster"
+    mount = joinpath(homedir(), ".banyan", "mnt", bucket)
+    mkpath(mount)
+    if !isdir(mount)
+        run(`/usr/bin/s3fs $bucket $mount -o url=https://s3.us-west-2.amazonaws.com -o endpoint=us-west-2`)
+    end
+    joinpath(mount, key)
+end
+
