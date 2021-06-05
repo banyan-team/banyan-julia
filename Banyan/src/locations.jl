@@ -320,6 +320,8 @@ function Remote(p)
 
         # Load metadata for reading
 
+        # Open HDF5 file
+        sample = []
         datasize = [0]
         if isfile(p)
             f = h5open(p, "r")
@@ -331,8 +333,27 @@ function Remote(p)
                 close(f)
             end
 
+            # Collect metadata
             nbytes += sizeof(dset)
             datasize = size(dset)
+
+            # Collect sample
+            datalength = first(datasize)
+            remainingcolons = repeat([:], ndims(dset)-1)
+            if datalength < MAX_EXACT_SAMPLE_LENGTH
+                sampleindices = randsubseq(1:datalength, 1 / get_job().sample_rate)
+                sample = dset[sampleindices, remainingcolons...]
+            end
+
+            # Extend or chop sample as needed
+            samplelength = getsamplenrows(datalength)
+            if size(sample, 1) < samplelength
+                sample = vcat(sample, dset[1:(samplelength - size(sample, 1)), remainingcolons...])
+            else
+                dset = dset[1:samplelength, remainingcolons...]
+            end
+
+            # Close HDF5 file
             if !ismapping
                 close(f)
             end
@@ -348,7 +369,7 @@ function Remote(p)
             (nothing, Dict())
         end
 
-        # Load metadata for writing
+        # Load metadata for writing to HDF5 file
         loc_for_writing, metadata_for_writing =
             ("Remote", Dict("path" => filename, "subpath" => datasetpath))
 
@@ -358,7 +379,9 @@ function Remote(p)
             metadata_for_reading,
             loc_for_writing,
             metadata_for_writing,
-            if totalnrows <= MAX_EXACT_SAMPLE_LENGTH
+            if isnothing(loc_for_reading)
+                Sample()
+            elseif totalnrows <= MAX_EXACT_SAMPLE_LENGTH
                 ExactSample(sample, total_memory_usage=nbytes)
             else
                 Sample(sample, total_memory_usage=nbytes)
@@ -540,7 +563,9 @@ function Remote(p)
         metadata_for_reading,
         loc_for_writing,
         metadata_for_writing,
-        if totalnrows <= MAX_EXACT_SAMPLE_LENGTH
+        if isnothing(loc_for_reading)
+            Sample()
+        elseif totalnrows <= MAX_EXACT_SAMPLE_LENGTH
             ExactSample(sample, total_memory_usage=nbytes)
         else
             Sample(sample, total_memory_usage=nbytes)
