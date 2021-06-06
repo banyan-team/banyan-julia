@@ -1,12 +1,24 @@
 {
     "splits": {
-        "ReadAsBlock": {
+        "ReadBlock": {
             "required": {"name": "Block"},
             "default": {"dim": 1},
             "location_names": ["None", "Remote"],
             "partition_memory_usage": "div"
         },
-        "SplitAsBlock": {
+        "ReadGroup": {
+            "required": {"name": "Block"},
+            "default": {"dim": 1},
+            "location_names": ["None", "Remote"],
+            "partition_memory_usage": "div"
+        },
+        "SplitBlock": {
+            "required": {"name": "Block"},
+            "default": {"dim": 1},
+            "location_names": ["Executor"],
+            "partition_memory_usage": "div"
+        },
+        "SplitGroup": {
             "required": {"name": "Block"},
             "default": {"dim": 1},
             "location_names": ["Executor"],
@@ -26,56 +38,81 @@
         }
     },
     "merges": {
-        "WriteAsBlock": {
-            "required": {"name": "Block"},
-            "default": {"dim": 1},
-            "location_names": ["None", "Remote"]
+        "Write": {
+            "required": {"name": "Distributing"},
+            "default": {},
+            "location_names": ["None", "Remote", "Disk"]
         },
-        "MergeAsBlock": {
+        "Merge": {
             "required": {"name": "Block"},
             "default": {"dim": 1},
-            "location_names": ["Executor"]
+            "location_names": ["Memory"]
         },
         "CopyTo": {
-            "required": {"name": "Replicate", "reducer": null},
+            "required": {"name": "Replicating", "replication": "all"},
             "default": {},
-            "location_name": ["None", "Executor", "Remote"]
+            "location_name": ["None", "Memory", "Remote"]
         },
-        "CopyReducedTo": {
-            "required": {"name": "Replicate", "on": null},
+        "ReduceAndCopyTo": {
+            "required": {"name": "Replicating", "replication": null, "with_key": false},
+            "expected": ["reducer"],
             "default": {},
-            "location_name": ["None", "Executor", "Remote"]
+            "location_name": ["None", "Memory", "Remote"]
+        },
+        "ReduceWithKeyAndCopyTo": {
+            "required": {"name": "Replicating", "replication": null, "with_key": true},
+            "expected": ["key", "reducer"],
+            "default": {},
+            "location_name": ["None", "Memory", "Remote"]
         }
     },
     "casts": {
         "Reduce": {
-            "src_required": {"name": "Replicate", "replicated": false},
-            "dst_required": {"name": "Replicate", "replicated": true},
+            "src_expected": ["reducer"],
+            "src_required": {"name": "Replicating", "replication": null, "with_key": false},
+            "dst_required": {"name": "Replicating", "replication": "all"},
+            "dst_default": {},
+            "matching": []
+        },
+        "ReduceWithKey": {
+            "src_expected": ["reducer", "key"],
+            "src_required": {"name": "Replicating", "replication": null, "with_key": true},
+            "dst_required": {"name": "Replicating", "replication": "all"},
             "dst_default": {},
             "matching": []
         },
         "Rebalance": {
-            "src_required": {"name": "Block", "balanced": false},
-            "dst_required": {"name": "Block", "balanced": true},
+            "src_required": {"name": "Distributing"},
+            "dst_required": {"name": "Distributing", "distribution": "blocked", "balanced": true, "id": "!"},
             "dst_default": {},
             "matching": ["dim"]
         },
         "Distribute": {
-            "src_required": {"name": "Replicate", "replicated": true},
-            "dst_required": {"name": "Block"},
-            "dst_default": {"dim": 1},
+            "src_required": {"name": "Replicating", "replication": "all"},
+            "dst_required": {"name": "Distributing", "distribution": "blocked", "id": "!"},
+            "dst_expected": ["key"],
+            "dst_default": {},
             "matching": []
         },
         "Consolidate": {
-            "src_required": {"name": "Block"},
-            "dst_required": {"name": "Replicate"},
+            "src_expected": ["key"],
+            "src_required": {"name": "Distributing"},
+            "dst_required": {"name": "Replicating", "replication": "all"},
             "dst_default": {},
             "matching": []
         },
         "Shuffle": {
-            "src_required": {"name": "Block"},
-            "dst_required": {"name": "Block"},
-            "dst_default": {},
+            "src_required": {"name": "Distributing"},
+            "dst_required": {"name": "Distributing", "distribution": "grouped", "id": "!"},
+            "dst_default": {"rev": false},
+            "dst_expected": ["key", "divisions"],
+            "matching": []
+        },
+        "DistributeAndShuffle": {
+            "src_required": {"name": "Replicating", "replication": "all"},
+            "dst_required": {"name": "Distributing", "distribution": "grouped", "id": "!"},
+            "dst_default": {"rev": false},
+            "dst_expected": ["key", "divisions"],
             "matching": []
         }
     }

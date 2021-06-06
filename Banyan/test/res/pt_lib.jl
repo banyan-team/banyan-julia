@@ -242,7 +242,7 @@ end
 # - Distributing divisions among partitions
 # - Splitting divisions
 
-function ReadAsBlock(
+function ReadBlock(
     src,
     params,
     batch_idx::Integer,
@@ -360,7 +360,7 @@ function ReadAsBlock(
     vcat(dfs...)
 end
 
-function WriteAsBlock(
+function Write(
     src,
     part,
     params,
@@ -380,22 +380,26 @@ function WriteAsBlock(
         # to have the S3 filesystem mounted at /mnt/<bucket name>
     end
 
-    # Create directory if it doesn't exist
-    # TODO: Avoid this and other filesystem operations that would be costly
-    # since S3FS is being used
-    if !isdir(path)
-        mkpath(path)
-    end
-
     # Write file for this partition
     idx = get_partition_idx(batch_idx, nbatches, comm)
     if isa_df(part)
+        # Create directory if it doesn't exist
+        # TODO: Avoid this and other filesystem operations that would be costly
+        # since S3FS is being used
+        if !isdir(path)
+            mkpath(path)
+        end
+
         nrows = size(part, 1)
         partfilepath = joinpath(path, "part$idx" * "_nrows=$nrows.arrow"),
         Arrow.write(partfilepath, part)
         src
+        # TODO: Delete all other part* files for this value if others exist
+    elseif isa_array(part)
+        # TODO: Check if HDF5 dataset is created. If not, wait for the master
+        # node to create it.
     else
-        error("Only DataFrame is currently supported for writing as Block")
+        error("Only Array or DataFrame is currently supported for writing as Block")
     end
 end
 
@@ -447,7 +451,7 @@ function merge_on_executor(kind::Symbol, vbuf::MPI.VBuffer, nchunks::Integer; di
     src = merge_on_executor(new_src_chunks...; dims)
 end
 
-function MergeBlock(
+function Merge(
     src,
     part,
     params,
@@ -462,6 +466,8 @@ function MergeBlock(
         # Because if the source is something, then part must be a view into it
         # and no data movement is needed.
 
+        dim = isa_array(part) ? params["key"] : 1
+
         partition_idx = get_partition_idx(batch_idx, nbatches, comm)
         npartitions = get_npartitions(nbatches, comm)
 
@@ -472,12 +478,12 @@ function MergeBlock(
         push!(src, part)
         if batch_idx == nbatches
             # TODO: Test that this merges correctly
-            src = merge_on_executor(src...; dims=params["dim"])
+            src = merge_on_executor(src...; dims=dim)
 
             # Concatenate across workers
             nworkers = get_nworkers(comm)
             if nworkers > 1
-                src = Consolidate(src, Dict("dim" => params["dim"]), Dict(), comm)
+                src = Consolidate(src, Dict("key" => params["key"]), Dict(), comm)
             end
         end
     end
@@ -497,7 +503,7 @@ function CopyFrom(
     if loc_name == "Value"
         loc_params["value"]
     elseif loc_name == "None"
-        p = joinpath(loc_params["name"], "part")
+        p = joinpath(loc_params["name"], "_part")
         if isfile(p)
             # Check if there is a single partition spilled to disk,
             # indicating that we should then simply deserialize and return
@@ -526,7 +532,7 @@ function CopyTo(
     loc_name,
     loc_params,
 )
-    if loc_name == "Executor"
+    if loc_name == "Memory"
         src = part
     elseif get_partition_idx(batch_idx, nbatches, comm) == 1
         # If we are copying to an external location we only want to do it on
@@ -534,12 +540,12 @@ function CopyTo(
         # `head`, so any batch on the first worker is guaranteed to have the
         # value that needs to be copied (either spilled to disk if None or
         # sent to remote storage).
-        if loc_name == "None"
+        if loc_name == "Disk"
             # TODO: Add case for an array by writing to HDF5 dataset
-            if isa_df(part)
+            if isa_df(part) || isa_array(part)
                 WriteAsBlock(src, part, params, 1, 1, MPI.COMM_SELF, loc_name, loc_params)
             else
-                p = joinpath(loc_params["name"], "part")
+                p = joinpath(loc_params["path"], "_part")
                 open(p) do f
                     serialize(f, part)
                 end
@@ -553,7 +559,7 @@ function CopyTo(
     src
 end
 
-function CopyReducedTo(
+function ReduceAndCopyTo(
     src,
     part,
     params,
@@ -565,6 +571,7 @@ function CopyReducedTo(
 )
     # Merge reductions from batches
     op = src_params["reducer"]
+    op = src_params["with_key"] ? op(src_params["key"]) : op
     src = op(src, part)
 
     # Merge reductions across workers
@@ -572,12 +579,14 @@ function CopyReducedTo(
         src = Reduce(src, Dict("reducer" => op), Dict(), comm)
     end
 
-    if loc_name != "Executor"
+    if loc_name != "Memory"
         CopyTo(src, part, params, batch_idx, nbatches, comm, loc_name, loc_params)
     end
 
     src
 end
+
+ReduceWithKeyAndCopyTo = ReduceAndCopyTo
 
 function Divide(
     src,
@@ -602,15 +611,28 @@ function Reduce(
     dst_params,
     comm
 )
+    # Get operator for reduction
+    op = src_params["reducer"]
+    op = src_params["with_key"] ? op(src_params["key"]) : op
+    src = op(src, part)
+
+    # Get buffer to reduce
     kind, sendbuf = tobuf(part)
     # TODO: Handle case where different processes have differently sized
     # sendbuf
-    op = src_params["reducer"]
-    part = MPI.Allreduce(sendbuf.data, (a, b) -> begin
-        tobuf(op(frombuf(kind, a), frombuf(kind, b)))[2]
-    end, comm)
+    
+    # Perform reduction
+    part = MPI.Allreduce(
+        sendbuf.data,
+        (a, b) -> begin
+            tobuf(op(frombuf(kind, a), frombuf(kind, b)))[2]
+        end,
+        comm,
+    )
     part
 end
+
+ReduceWithKey = Reduce
 
 function Rebalance(
     part,
@@ -627,7 +649,8 @@ function Distribute(
     dst_params,
     comm
 )
-    part = copy(split_on_executor(part, dst_params["dim"], 1, 1, comm))
+    dim = isa_array(part) ? dst_params["key"] : 1
+    part = copy(split_on_executor(part, dim, 1, 1, comm))
     part
 end
 
@@ -637,11 +660,12 @@ function Consolidate(
     dst_params,
     comm
 )
+    dim = isa_array(part) ? src_params["key"] : 1
     kind, sendbuf = tobuf(part)
     recvvbuf = buftovbuf(sendbuf)
     # TODO: Maybe sometimes use gatherv if all sendbuf's are known to be equally sized
     MPI.Allgatherv!(sendbuf, recvvbuf, comm)
-    part = merge_on_executor(kind, recvvbuf, get_nworkers(comm), comm; dims=src_params["dim"])
+    part = merge_on_executor(kind, recvvbuf, get_nworkers(comm), comm; dims=dim)
     part
 end
 
@@ -672,4 +696,243 @@ function rebalance_on_executor(
     end
 
     # TODO: Finish
+end
+
+function Shuffle(
+    part,
+    src_params,
+    dst_params,
+    comm
+)
+
+end
+
+# NOTE: This is duplicated between pt_lib.jl and the client library
+orderinghash(x::Any) = x # This lets us handle numbers and dates
+orderinghash(s::String) = Integer.(codepoint.(first(s, 32) * repeat(" ", 32-length(s))))
+orderinghash(A::Array) = orderinghash(first(A))
+
+function get_divisions(divisions, npartitions)
+    # This function accepts a list of divisions where each division is a tuple
+    # of ordering hashes (values returned by `orderinghash` which are either
+    # numbers or vectors of numbers). It also accepts a number of partitions to
+    # produce divisions for. The result is a list of length `npartitions`
+    # containing lists of divisions for each partition. A partition may contain
+    # multiple divisions.
+
+    ndivisions = length(divisions)
+    if ndivisions >= npartitions
+        # If there are more divisions than partitions, we can distribute them
+        # easily. Each partition gets 0 or more divisions.
+        ndivisions_per_partition = div(ndivisions, npartitions)
+        [
+            begin
+                islastpartition = partition_idx == npartitions
+                firstdivisioni = ((partition_idx-1) * ndivisions_per_partition) + 1
+                lastdivisioni = islastpartition ? ndivisions : partition_idx * ndivisions_per_partition
+                divisions[firstdivisioni:lastdivisioni]
+            end
+            for partition_idx in 1:npartitions
+        ]
+    else
+        # Otherwise, each division must be shared among 1 or more partitions
+        allsplitdivisions = []
+        npartitions_per_division = div(npartitions, ndivision)
+
+        # Iterate through the divisions and split each of them and find the
+        # one that contains a split that this partition must own and use as
+        # its `partition_divisions`
+        for (division_idx, division) in enumerate(divisions)
+            # Determine the range (from `firstpartitioni` to `lastpartitioni`) of
+            # partitions that own this division
+            islastdivision = division_idx == ndivisions
+            firstpartitioni = ((division_idx-1) * npartitions_per_division) + 1
+            lastpartitioni = islastdivision ? npartitions : division_idx * npartitions_per_division
+            partitionsrange = firstpartitioni:lastpartitioni
+
+            # # If the current partition is in that division, compute the
+            # # subdivision it should use for its partition
+            # if partition_idx in partitionsrange
+
+            # We need to split the division among all the partitions in
+            # its range
+            ndivisionsplits = length(partitionsrange)
+
+            # Get the `Vector{Number}`s to interpolate between
+            divisionbegin = to_vector(first(division))
+            divisionend = to_vector(last(division))
+
+            # Initialize divisions for each split
+            splitdivisions = repeat([[copy(divisionbegin), copy(divisionbegin)]], ndivisionsplits)
+
+            # Adjust the divisions for each split to interpolate
+            for (i, (dbegin, dend)) in enumerate(zip(divisionbegin, divisionend))
+                # Find the first index in the `Vector{Number}` where
+                # there is a difference that we can interpolate between
+                if dbegin != dend
+                    dpersplit = div(dend-dbegin, ndivisionsplits)
+                    for j in 1:ndivisionsplits
+                        # Update the start and end of the division
+                        islastsplit = j == ndivisionsplits
+                        splitdivisions[j][1] = dbegin + dpersplit * (j-1)
+                        splitdivisions[j][2] = islastsplit ? dend : dbegin + dpersplit * j
+                    end
+
+                    # Stop if we have found a difference we can
+                    # interpolate between
+                    # TODO: If the difference is not that much,
+                    # interpolate between multiple consecutive
+                    # differeing characters together
+                    break
+                end
+            end
+
+            # Convert back to `Number` if the divisions were originally
+            # `Number`s
+            if !(first(division) isa Vector)
+                splitdivisions = [
+                    # NOTE: When porting this stuff to Python, be sure
+                    # to take into account the fact that Julia treats
+                    # many values as arrays
+                    (first(splitdivisionbegin), first(splitdivisionend))
+                    for (splitdivisionbegin, splitdivisionend) in splitdivisions
+                ]
+            end
+
+            # # Get the split of the division that this partition should own
+            # splitdivision = splitdivisions[1+partition_idx-first(partitionsrange)]
+
+            # # Stop because we have found a division that this partition
+            # # is supposed to own a split from
+            # break
+
+            # Each partition must have a _list_ of divisions so we must have a list
+            # for each partition
+            for splitdivision in splitdivisions
+                push!(allsplitdivisions, [splitdivision])
+            end
+
+            # end
+        end
+        allsplitdivisions
+    end
+end
+
+function get_partition_idx_from_divisions(val, divisions)
+    # The given divisions may be returned from `get_divisions`
+    for (i, div) in enumerate(divisions)
+        if val >= first(div)[1] && val < last(div)[2]
+            return i
+        end
+    end
+    throw(Error("Given value does not belong to any of the given divisions"))
+end
+
+function DistributeAndShuffle(
+    part,
+    src_params,
+    dst_params,
+    comm
+)
+    # Distribute the divisions among the partitions
+    divisions = dst_params["divisions"]
+    ndivisions = length(divisions)
+    worker_idx, nworkers = get_worker_idx(comm), get_nworkers(comm)
+    islastworker = worker_idx == nworkers
+    worker_divisions =
+        if ndivisions >= nworkers
+            # If there are more divisions than workers, we can distribute them
+            # easily
+            ndivisions_per_worker = div(ndivisions, nworkers)
+            firstdivisioni = ((worker_idx-1) * ndivisions_per_worker) + 1
+            lastdivisioni = islastworker ? ndivisions : worker_idx * ndivisions_per_worker
+            divisions[firstdivisioni:lastdivisioni]
+        else
+            # Otherwise, each division must be shared among 1 or more workers
+            splitdivision = nothing
+            nworkers_per_division = div(nworkers, ndivision)
+
+            # Iterate through the divisions and split each of them and find the
+            # one that contains a split that this worker must own and use as
+            # its `worker_divisions`
+            for (division_idx, division) in enumerate(divisions)
+                # Determine the range (from `firstworkeri` to `lastworkeri`) of
+                # workers that own this division
+                islastdivision = division_idx == ndivisions
+                firstworkeri = ((division_idx-1) * nworkers_per_division) + 1
+                lastworkeri = islastdivision ? nworkers : division_idx * nworkers_per_division
+                workersrange = firstworkeri:lastworkeri
+
+                # If the current worker is in that division, compute the
+                # subdivision it should use for its partition
+                if worker_idx in workersrange
+                    # We need to split the division among all the workers in
+                    # its range
+                    ndivisionsplits = length(workersrange)
+
+                    # Get the `Vector{Number}`s to interpolate between
+                    divisionbegin = to_vector(first(division))
+                    divisionend = to_vector(last(division))
+
+                    # Initialize divisions for each split
+                    splitdivisions = repeat([[copy(divisionbegin), copy(divisionbegin)]], ndivisionsplits)
+
+                    # Adjust the divisions for each split to interpolate
+                    for (i, (dbegin, dend)) in enumerate(zip(divisionbegin, divisionend))
+                        # Find the first index in the `Vector{Number}` where
+                        # there is a difference that we can interpolate between
+                        if dbegin != dend
+                            dpersplit = div(dend-dbegin, ndivisionsplits)
+                            for j in 1:ndivisionsplits
+                                # Update the start and end of the division
+                                islastsplit = j == ndivisionsplits
+                                splitdivisions[j][1] = dbegin + dpersplit * (j-1)
+                                splitdivisions[j][2] = islastsplit ? dend : dbegin + dpersplit * j
+                            end
+
+                            # Stop if we have found a difference we can
+                            # interpolate between
+                            # TODO: If the difference is not that much,
+                            # interpolate between multiple consecutive
+                            # differeing characters together
+                            break
+                        end
+                    end
+
+                    # Convert back to `Number` if the divisions were originally
+                    # `Number`s
+                    if !(first(division) isa Vector)
+                        splitdivisions = [
+                            # NOTE: When porting this stuff to Python, be sure
+                            # to take into account the fact that Julia treats
+                            # many values as arrays
+                            (first(splitdivisionbegin), first(splitdivisionend))
+                            for (splitdivisionbegin, splitdivisionend) in splitdivisions
+                        ]
+                    end
+
+                    # Get the split of the division that this worker should own
+                    splitdivision = splitdivisions[1+worker_idx-first(workersrange)]
+
+
+                    # Stop because we have found a division that this worker
+                    # is supposed to own a split from
+                    break
+                end
+            end
+            [splitdivision]
+        end
+    in_worker_divisions = val -> begin
+        oh = orderinghash(val)
+        oh >= first(worker_divisions) && oh < last(worker_divisions)
+    end
+
+    # TODO: Use in_worker_divisions to filter for the data to return or to
+    # group-by and split and distribute
+
+    key = dst_params["key"]
+    transform!(divisions, Symbol(key) =>  => :banyan_divisions)
+
+    part = copy(split_on_executor(part, dim, 1, 1, comm))
+    part
 end

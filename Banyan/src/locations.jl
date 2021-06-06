@@ -201,6 +201,9 @@ Client() = LocationDestination("Client", Dict())
 # TODO: Un-comment only if Size is needed
 # Size(size) = Value(size)
 None() = Location("None", Dict(), Sample())
+# Values assigned "None" location as well as other locations may reassigned
+# "Memory" or "Disk" locations by the scheduler depending on where the relevant
+# data is.
 
 ######################################################
 # Helper functions for serialization/deserialization #
@@ -284,7 +287,27 @@ getsamplenrows(totalnrows) =
         div(totalnrows, get_job().sample_rate)
     end
 
-function Remote(p)
+function Remote(p; read_from_cache=true, write_to_cache=true)
+    # Read location from cache. The location will include metadata like the
+    # number of rows in each file as well as a sample that can be used on the
+    # client side for estimating memory usage and data skew among other things.
+    locationpath = joinpath(homedir(), ".banyan", "locations", p |> hash |> string)
+    location =
+        if read_from_cache && isfile(locationpath)
+            deserialize(locationpath)
+        else
+            get_remote_location(p)
+        end
+
+    # Store location in cache
+    if write_to_cache
+        serialize(locationpath, location)
+    end
+
+    location
+end
+
+function get_remote_location(p)
     Random.seed!(get_job_id())
     
     # TODO: Cache stuff

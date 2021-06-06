@@ -256,3 +256,15 @@ function send_request_get_response(method, content::Dict)
         end
     end
 end
+
+##########################################
+# Ordering hash for computing  divisions #
+##########################################
+
+# NOTE: `orderinghash` must either return a number or a vector of
+# equally-sized numbers
+
+# NOTE: This is duplicated between pt_lib.jl and the client library
+orderinghash(x::Any) = x # This lets us handle numbers and dates
+orderinghash(s::String) = Integer.(codepoint.(first(s, 32) * repeat(" ", 32-length(s))))
+orderinghash(A::Array) = orderinghash(first(A))

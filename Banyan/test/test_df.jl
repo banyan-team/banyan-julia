@@ -41,6 +41,9 @@ Base.Array <: AbstractSampleWithKeys
 sample_axes(A::Base.Array) = [1:ndims(A)...]
 sample_keys(A::Base.Array) = sample_axes(A)
 
+# `sample_divisions`, `sample_percentile`, and `sample_max_ngroups` should
+# work with the `orderinghash` of values in the data they are used on
+
 function sample_divisions(A::Base.Array, key)
     max_ngroups = sample_max_ngroups(df, key)
     ngroups = min(max_ngroups, get_job().nworkers, 128)
@@ -50,14 +53,15 @@ function sample_divisions(A::Base.Array, key)
     [
         # Each group has elements that are >= start and < end
         (
-            data[(i-1)*grouplength + 1],
-            data[i == ngroups ? datalength : i*grouplength + 1]
+            orderinghash(data[(i-1)*grouplength + 1]),
+            orderinghash(data[i == ngroups ? datalength : i*grouplength + 1])
         )
         for i in 1:ngroups
     ]
 end
 
 function sample_percentile(A::Union{Base.Array, DataFrames.DataFrame}, key, minvalue, maxvalue)
+    minvalue, maxvalue = orderinghash(minvalue), orderinghash(maxvalue)
     divisions = sample_divisions(A, key)
     percentile = 0
     divpercentile = 1/length(divisions)
@@ -86,7 +90,7 @@ end
 
 sample_max_ngroups(A::Base.Array, key) =
     begin
-        data = sort(mapslices(first, transpose(A), dims=key))
+        data = sort(mapslices(orderinghash, transpose(A), dims=key))
         currgroupsize = 1
         maxgroupsize = 0
         prev = nothing
@@ -264,7 +268,7 @@ function mapslices(f, A::Array{T,N}; dims) where {T,N}
 
     # replicated
     pt(res_size, ReducingSize(), match=A, on="key")
-    pt(res_size, Reducing((a, b) -> tuple([a[1] + b[1], a[2:end]...])), match=A, on="key")
+    pt(res_size, ReducingWithKey(axis -> (a, b) -> tuple([a[begin:axis-1]..., a[axis] + b[axis], a[(axis+1):end]...])), match=A, on="key")
     pt(A, res, res_size, f, dims, Replicated())
 
     @partitioned f A dims res begin
@@ -560,7 +564,7 @@ convert(::Type{Future}, df::DataFrame) = df.data
 function read_csv(path)
     df_loc = Remote(path)
     df_nrows = Future(df_loc.nrows)
-    DataFrame(Future(df_loc), df_size)
+    DataFrame(Future(df_loc), df_nrows)
 end
 
 function write_csv(A, path)
@@ -591,8 +595,8 @@ function sample_divisions(df::DataFrames.DataFrame, key)
     [
         # Each group has elements that are >= start and < end
         (
-            data[(i-1)*grouplength + 1],
-            data[i == ngroups ? datalength : i*grouplength + 1]
+            orderinghash(data[(i-1)*grouplength + 1]),
+            orderinghash(data[i == ngroups ? datalength : i*grouplength + 1])
         )
         for i in 1:ngroups
     ]
@@ -734,7 +738,7 @@ function dropmissing(df::DataFrame, args...; kwargs...)
 
     partitioned_with() do
         pts_for_filtering(df, res, with=Distributed)
-        pt(res_nrows, Reducing(+))
+        pt(res_nrows, Reducing((a, b) -> a .+ b))
         pt(df, res, res_nrows, args, kwargs, Replicated())
     end
 
@@ -764,7 +768,7 @@ function Base.filter(f, df::DataFrame; kwargs...)
 
     partitioned_with() do
         pts_for_filtering(df, res, with=Distributed)
-        pt(res_nrows, Reducing(+))
+        pt(res_nrows, Reducing((a, b) -> a .+ b))
         pt(df, res, res_nrows, f, kwargs, Replicated())
     end
 
@@ -1020,7 +1024,7 @@ function getindex(df::DataFrame, rows=:, cols=:)
             #     # TODO: Handle select_columns
             # end
 
-            pt(res_size, Reducing(return_vector ? (a, b) -> tuple([a[1] + b[1], a[2:end]...]) : +))
+            pt(res_size, Reducing(return_vector ? (a, b) -> tuple([a[1] + b[1], a[2:end]...]) : (a, b) -> a .+ b))
         else
             for dpt in Distributed(df, scaled_by_same_as=res)
                 pt(df, dpt)
@@ -1030,7 +1034,7 @@ function getindex(df::DataFrame, rows=:, cols=:)
                     pt(res, Any(scaled_by_same_as=df), match=df)
                 end
             end
-            pt(res_size, Replicating(), match=df_nrows)
+            pt(res_size, Any(), match=df_nrows)
         end
 
         # if filter_rows
@@ -1044,8 +1048,8 @@ function getindex(df::DataFrame, rows=:, cols=:)
         # pt(rows,  ? Blocked(along=1): Replicated())
         # pt(res)
         # pt(res_size)
-        pt(df_nrows, Replicating())
         pt(df, res, res_size, rows, cols, Replicated())
+        pt(df_nrows, Replicating())
     end
 
     @partitioned df df_nrows res res_size rows cols begin
@@ -1720,7 +1724,7 @@ function innerjoin(dfs::DataFrame...; on, kwargs...)
         pt(res, Grouped(df, by=groupingkey, balanced=false, filtered_from=dfs) & Drifted())
         
         # "replicated join"
-        pt(res_nrows, Reducing(+))
+        pt(res_nrows, Reducing((a, b) -> a .+ b))
         pt(dfs..., res, kwargs, Replicated())
 
         # TODO: Support nested loop join where multiple are Block and Cross-ed and others are all Replicate
@@ -1796,7 +1800,7 @@ function unique(df::DataFrame, cols=nothing; kwargs...)
 
     partitioned_with() do
         pts_for_filtering(df, res, with=Grouped, by=first(compute(cols)))
-        pt(res_nrows, Reducing(+))
+        pt(res_nrows, Reducing((a, b) -> a .+ b))
         pt(df, res, res_nrows, f, kwargs, Replicated())
     end
 
@@ -1860,13 +1864,13 @@ function nonunique(df::DataFrame, cols=nothing; kwargs...)
         pt(df, Grouped(df, by=first(compute(cols))))
         pt(res, Blocked(along=1), match=df, on=["balanced", "id"])
         pt(df_nrows, Replicating())
-        pt(res_size, Replicating(), match=df_nrows)
+        pt(res_size, Any(), match=df_nrows)
         pt(df, res, res_size, f, kwargs, Replicated())
     end
 
     @partitioned df df_nrows res res_size cols kwargs begin
         res = nonunique(df, cols; kwargs...)
-        res_size = (df_nrows)
+        res_size = Tuple(df_nrows)
     end
 
     res
@@ -1954,7 +1958,7 @@ function groupby(df::DataFrame, cols; kwargs...)::GroupedDataFrame
     partitioned_with() do
         pt(df, Grouped(df, by=groupingkeys, scaled_by_same_as=gdf))
         pt(gdf, Blocked() & ScaledBySame(as=df))
-        pt(gdf_length, Reducing(+))
+        pt(gdf_length, Reducing((a, b) -> a .+ b))
         pt(df, gdf, gdf_length, cols, kwargs, Replicated())
     end
 
@@ -2161,7 +2165,7 @@ function combine(gdf::GroupedDataFrame, args...; kwargs...)
     partitioned_with() do
         pts_for_filtering(gdf_parent, res, with=Grouped, by=groupingkeys)
         pt(gdf, Blocked() & ScaledBySame(as=gdf_parent))
-        pt(res_nrows, Reducing(+))
+        pt(res_nrows, Reducing((a, b) -> a .+ b))
         pt(gdf_parent, res, gdf, groupcols, groupkwargs, args, kwargs, Replicated())
     end
 
@@ -2202,7 +2206,7 @@ function subset(gdf::GroupedDataFrame, args...; kwargs...)
     partitioned_with() do
         pts_for_filtering(gdf_parent, res, with=Grouped, by=groupingkeys)
         pt(gdf, Blocked() & ScaledBySame(as=gdf_parent))
-        pt(res_nrows, Reducing(+))
+        pt(res_nrows, Reducing((a, b) -> a .+ b))
         pt(gdf_parent, res, gdf, groupcols, groupkwargs, args, kwargs, Replicated())
     end
 
