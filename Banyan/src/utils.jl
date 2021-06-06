@@ -267,4 +267,4 @@ end
 # NOTE: This is duplicated between pt_lib.jl and the client library
 orderinghash(x::Any) = x # This lets us handle numbers and dates
 orderinghash(s::String) = Integer.(codepoint.(first(s, 32) * repeat(" ", 32-length(s))))
-orderinghash(A::Array) = orderinghash(first(A))
+orderinghash(A::AbstractArray) = orderinghash(first(A))

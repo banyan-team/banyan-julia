@@ -1,3 +1,4 @@
+using Core: Argument
 using Serialization
 
 using MPI
@@ -162,11 +163,11 @@ function tobuf(obj)::Tuple{Symbol, MPI.Buffer}
     elseif isa_df(obj)
         io = IOBuffer()
         Arrow.write(io, obj)
-        (:df, Buffer(view(io.data, 1:position(io))))
+        (:df, MPI.Buffer(view(io.data, 1:position(io))))
     else
         io = IOBuffer()
         serialize(io, obj)
-        (:unknown, Buffer(view(io.data, 1:position(io))))
+        (:unknown, MPI.Buffer(view(io.data, 1:position(io))))
     end
 end
 
@@ -176,23 +177,24 @@ function buftovbuf(buf::MPI.Buffer, comm::MPI.Comm)::MPI.VBuffer
     # on each process and constructs a VBuffer with the sum of the sizes of the
     # buffers on different processes.
     sizes = MPI.Allgather(length(buf.data), comm)
+    # NOTE: This function should only be used for variably-sized buffers for
+    # receiving data because the returned buffer contains zeroed-out memory.
     VBuffer(similar(buf.data, sum(sizes)), sizes)
 end
 
 function bufstosendvbuf(bufs::Vetor{MPI.Buffer}, comm::MPI.Comm)::MPI.VBuffer
     sizes = [length(buf.data) for buf in bufs]
-    VBuffer(similar(first(bufs).data, sum(sizes)), sizes)
+    VBuffer(vcat(map(buf->buf.data, bufs)), sizes)
 end
 
 function bufstorecvvbuf(bufs::Vetor{MPI.Buffer}, comm::MPI.Comm)::MPI.VBuffer
     # This function expects that each given buf has buf.data being an array and
     # that the number of bufs in bufs is equal to the size of the communicator.
-    sizes = MPI.Allgather(length(buf.data), comm)
+    # sizes = MPI.Allgather(length(buf.data), comm)
     sizes = MPI.Alltoall([length(buf.data) for buf in bufs])
     # NOTE: Ensure that the data fields of the bufs are initialized to have the
     # right data type (e.g., Vector{UInt8} or Vector{Int64})
-    # TODO: Don't use similar and instead actually concatentate the data of the
-    # bufs
+    # We use `similar` here because we want zeroed out memory to receive data.
     VBuffer(similar(first(bufs).data, sum(sizes)), sizes)
 end
 
@@ -669,34 +671,69 @@ function Consolidate(
     part
 end
 
-function rebalance_on_executor(
-    part,
-    src_params,
-    dst_params,
-    nbatches::Integer,
-    comm
-)
-    # Get the range owned by this worker
-    worker_idx, nworkers = get_worker_idx(comm), get_nworkers(comm)
-    len = size(part, src_params["dim"])
-    startidx = MPI.Exscan(len, +, comm)
-    if worker_idx == 1
-        startidx = 1
-    else
-        startidx += 1
-    end
-    endidx = startidx + len - 1
+# function rebalance_on_executor(
+#     part,
+#     src_params,
+#     dst_params,
+#     nbatches::Integer,
+#     comm
+# )
+#     # Get the range owned by this worker
+#     dim = src_params["key"]
+#     worker_idx, nworkers = get_worker_idx(comm), get_nworkers(comm)
+#     len = size(part, dim)
+#     scannedstartidx = MPI.Exscan(len, +, comm)
+#     startidx = worker_idx == 1 ? 1 : startidx + 1
+#     endidx = startidx + len - 1
     
-    # Send parts to all workers who own in this range
-    nworkers = get_nworkers(comm)
-    npartitions = nbatches * nworkers
-    whole_len = MPI.bcast(endidx, nworkers-1, comm)
-    for partition_idx in npartitions
-        split_len(whole_len, partition_idx, npartitions)
-    end
+#     # Construct buffer to send parts to all workers who own in this range
+#     nworkers = get_nworkers(comm)
+#     npartitions = nbatches * nworkers
+#     whole_len = MPI.bcast(endidx, nworkers-1, comm)
+#     io = IOBuffer()
+#     nbyteswritten = 0
+#     counts = []
+#     for partition_idx in npartitions
+#         # `split_len` gives us the range that this partition needs
+#         partitionrange = split_len(whole_len, partition_idx, npartitions)
 
-    # TODO: Finish
-end
+#         # Check if the range overlaps with the range owned by this worker
+#         rangesoverlap = max(startidx, partitionrange.start) <= min(endidx, partitionrange.start.stop)
+
+#         # If they do overlap, then serialize the overlapping slice
+#         if rangesoverlap
+#             serialize(
+#                 io,
+#                 view(
+#                     part,
+#                     fill(:, dim - 1)...,
+#                     max(1, partitionrange.start - startidx + 1):min(
+#                         end,
+#                         partitionrange.end - startidx + 1,
+#                     ),
+#                     fill(:, ndims(part) - dim)...,
+#                 ),
+#             )
+#         end
+
+#         # Add the count of the size of this chunk in bytes
+#         push!(counts, io.position - nbyteswritten)
+#         nbyteswritten = io.position
+#     end
+#     sendbuf = VBuffer(MPI.Buffer(view(io.data, 1:nbyteswritten)), counts)
+
+#     # Create buffer for receiving pieces
+#     # TODO: Refactor the intermediate part starting from there if we add
+#     # more cases for this function
+#     sizes = MPI.Alltoall(counts)
+#     recvbuf = VBuffer(similar(io.data, sum(sizes)), sizes)
+
+#     # Return the concatenated array
+#     cat([
+#         deserialize(IOBuffer(view(recvbuf.data, displ+1:displ+count))
+#         for (displ, count) in zip(recvbuf.displs, recvbuf.counts)
+#     ], dims=key)
+# end
 
 function Shuffle(
     part,
@@ -704,7 +741,85 @@ function Shuffle(
     dst_params,
     comm
 )
+    # Get the divisions to apply
+    divisions = dst_params["divisions"]
+    key = dst_params["key"]
+    ndivisions = length(divisions)
+    worker_idx, nworkers = get_worker_idx(comm), get_nworkers(comm)
+    worker_divisions = get_divisions(divisions, nworkers)
 
+    # Perform shuffle
+    partition_idx_getter(val) = get_partition_idx_from_divisions(val, worker_divisions)
+    if isa_df(part)
+        # Compute the partition to send each row of the dataframe to
+        transform!(part, key => ByRow(partition_idx_getter) => :banyan_shuffling_key)
+
+        # Group the dataframe's rows by what partition to send to
+        gdf = groupby(part, :banyan_shuffling_key, sort=true)
+
+        # Create buffer for sending dataframe's rows to all the partitions
+        io = IOBuffer()
+        nbyteswritten = 0
+        counts = []
+        for partition_idx in 1:nworkers
+            Arrow.write(io, partition_idx in keys(gdf) ? gdf[partition_idx] : DataFrame())
+            push!(counts, io.position - nbyteswritten)
+            nbyteswritten = io.position
+        end
+        sendbuf = VBuffer(MPI.Buffer(view(io.data, 1:nbyteswritten)), counts)
+
+        # Create buffer for receiving pieces
+        sizes = MPI.Alltoall(counts)
+        recvbuf = VBuffer(similar(io.data, sum(sizes)), sizes)
+
+        # Return the concatenated dataframe
+        vcat([
+            DataFrame(Arrow.Table(view(recvbuf.data, displ+1:displ+count)), copycols=false)
+            for (displ, count) in zip(recvbuf.displs, recvbuf.counts)
+        ])
+    elseif isa_array(part)
+        # Group the data along the splitting axis (specified by the "key"
+        # parameter)
+        partition_idx_to_e = [[] for partition_idx in 1:nworkers]
+        for e in eachslice(part, dims=key)
+            partition_idx = get_partition_idx_from_divisions(e, worker_divisions)
+            push!(partition_idx_to_e[partition_idx], e)
+        end
+
+        # Construct buffer for sending data
+        io = IOBuffer()
+        nbyteswritten = 0
+        counts = []
+        for partition_idx in 1:nworkers
+            # TODO: If `isbitstype(eltype(e))`, we may want to pass it in
+            # directly as an MPI buffer (if there is such a thing) instead of
+            # serializing
+            # Append to serialized buffer
+            e = partition_idx_to_e[partition_idx]
+            if !isempty(e)
+                serialize(io, cat(e, dims=key))
+            end
+
+            # Add the count of the size of this chunk in bytes
+            push!(counts, io.position - nbyteswritten)
+            nbyteswritten = io.position
+        end
+        sendbuf = VBuffer(MPI.Buffer(view(io.data, 1:nbyteswritten)), counts)
+
+        # Create buffer for receiving pieces
+        # TODO: Refactor the intermediate part starting from there if we add
+        # more cases for this function
+        sizes = MPI.Alltoall(counts)
+        recvbuf = VBuffer(similar(io.data, sum(sizes)), sizes)
+
+        # Return the concatenated array
+        cat([
+            deserialize(IOBuffer(view(recvbuf.data, displ+1:displ+count))
+            for (displ, count) in zip(recvbuf.displs, recvbuf.counts)
+        ], dims=key)
+    else
+        throw(ArgumentError("Expected array or dataframe to distribute and shuffle"))
+    end
 end
 
 # NOTE: This is duplicated between pt_lib.jl and the client library
@@ -765,12 +880,17 @@ function get_divisions(divisions, npartitions)
             # Initialize divisions for each split
             splitdivisions = repeat([[copy(divisionbegin), copy(divisionbegin)]], ndivisionsplits)
 
-            # Adjust the divisions for each split to interpolate
+            # Adjust the divisions for each split to interpolate. The result
+            # of an `orderinghash` call can be an array (in the case of
+            # strings), so we must iterate through that array in order to
+            # interpolate at the first element in that array where there is a
+            # difference.
             for (i, (dbegin, dend)) in enumerate(zip(divisionbegin, divisionend))
                 # Find the first index in the `Vector{Number}` where
                 # there is a difference that we can interpolate between
                 if dbegin != dend
                     dpersplit = div(dend-dbegin, ndivisionsplits)
+                    # Iterate through each split
                     for j in 1:ndivisionsplits
                         # Update the start and end of the division
                         islastsplit = j == ndivisionsplits
@@ -820,8 +940,9 @@ end
 
 function get_partition_idx_from_divisions(val, divisions)
     # The given divisions may be returned from `get_divisions`
+    oh = orderinghash(val)
     for (i, div) in enumerate(divisions)
-        if val >= first(div)[1] && val < last(div)[2]
+        if oh >= first(div)[1] && oh < last(div)[2]
             return i
         end
     end
@@ -834,105 +955,19 @@ function DistributeAndShuffle(
     dst_params,
     comm
 )
-    # Distribute the divisions among the partitions
+    # Get the divisions to apply
     divisions = dst_params["divisions"]
+    key = dst_params["key"]
     ndivisions = length(divisions)
     worker_idx, nworkers = get_worker_idx(comm), get_nworkers(comm)
-    islastworker = worker_idx == nworkers
-    worker_divisions =
-        if ndivisions >= nworkers
-            # If there are more divisions than workers, we can distribute them
-            # easily
-            ndivisions_per_worker = div(ndivisions, nworkers)
-            firstdivisioni = ((worker_idx-1) * ndivisions_per_worker) + 1
-            lastdivisioni = islastworker ? ndivisions : worker_idx * ndivisions_per_worker
-            divisions[firstdivisioni:lastdivisioni]
-        else
-            # Otherwise, each division must be shared among 1 or more workers
-            splitdivision = nothing
-            nworkers_per_division = div(nworkers, ndivision)
+    worker_divisions = get_divisions(divisions, nworkers)
 
-            # Iterate through the divisions and split each of them and find the
-            # one that contains a split that this worker must own and use as
-            # its `worker_divisions`
-            for (division_idx, division) in enumerate(divisions)
-                # Determine the range (from `firstworkeri` to `lastworkeri`) of
-                # workers that own this division
-                islastdivision = division_idx == ndivisions
-                firstworkeri = ((division_idx-1) * nworkers_per_division) + 1
-                lastworkeri = islastdivision ? nworkers : division_idx * nworkers_per_division
-                workersrange = firstworkeri:lastworkeri
-
-                # If the current worker is in that division, compute the
-                # subdivision it should use for its partition
-                if worker_idx in workersrange
-                    # We need to split the division among all the workers in
-                    # its range
-                    ndivisionsplits = length(workersrange)
-
-                    # Get the `Vector{Number}`s to interpolate between
-                    divisionbegin = to_vector(first(division))
-                    divisionend = to_vector(last(division))
-
-                    # Initialize divisions for each split
-                    splitdivisions = repeat([[copy(divisionbegin), copy(divisionbegin)]], ndivisionsplits)
-
-                    # Adjust the divisions for each split to interpolate
-                    for (i, (dbegin, dend)) in enumerate(zip(divisionbegin, divisionend))
-                        # Find the first index in the `Vector{Number}` where
-                        # there is a difference that we can interpolate between
-                        if dbegin != dend
-                            dpersplit = div(dend-dbegin, ndivisionsplits)
-                            for j in 1:ndivisionsplits
-                                # Update the start and end of the division
-                                islastsplit = j == ndivisionsplits
-                                splitdivisions[j][1] = dbegin + dpersplit * (j-1)
-                                splitdivisions[j][2] = islastsplit ? dend : dbegin + dpersplit * j
-                            end
-
-                            # Stop if we have found a difference we can
-                            # interpolate between
-                            # TODO: If the difference is not that much,
-                            # interpolate between multiple consecutive
-                            # differeing characters together
-                            break
-                        end
-                    end
-
-                    # Convert back to `Number` if the divisions were originally
-                    # `Number`s
-                    if !(first(division) isa Vector)
-                        splitdivisions = [
-                            # NOTE: When porting this stuff to Python, be sure
-                            # to take into account the fact that Julia treats
-                            # many values as arrays
-                            (first(splitdivisionbegin), first(splitdivisionend))
-                            for (splitdivisionbegin, splitdivisionend) in splitdivisions
-                        ]
-                    end
-
-                    # Get the split of the division that this worker should own
-                    splitdivision = splitdivisions[1+worker_idx-first(workersrange)]
-
-
-                    # Stop because we have found a division that this worker
-                    # is supposed to own a split from
-                    break
-                end
-            end
-            [splitdivision]
-        end
-    in_worker_divisions = val -> begin
-        oh = orderinghash(val)
-        oh >= first(worker_divisions) && oh < last(worker_divisions)
+    # Apply divisions to get only the elements relevant to this worker
+    if isa_df(part)
+        filter(row -> get_partition_idx_from_divisions(row[key], worker_divisions), part)
+    elseif isa_array(part)
+        cat(filter(e -> get_partition_idx_from_divisions(e, worker_divisions), eachslice(part, dims=key), dims=key)
+    else
+        throw(ArgumentError("Expected array or dataframe to distribute and shuffle"))
     end
-
-    # TODO: Use in_worker_divisions to filter for the data to return or to
-    # group-by and split and distribute
-
-    key = dst_params["key"]
-    transform!(divisions, Symbol(key) =>  => :banyan_divisions)
-
-    part = copy(split_on_executor(part, dim, 1, 1, comm))
-    part
 end
