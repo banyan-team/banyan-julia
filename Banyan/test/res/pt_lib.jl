@@ -642,7 +642,61 @@ function Rebalance(
     dst_params,
     comm
 )
-    # TODO: Implement
+    # Get the range owned by this worker
+    dim = src_params["key"]
+    worker_idx, nworkers = get_worker_idx(comm), get_nworkers(comm)
+    len = size(part, dim)
+    scannedstartidx = MPI.Exscan(len, +, comm)
+    startidx = worker_idx == 1 ? 1 : startidx + 1
+    endidx = startidx + len - 1
+    
+    # Construct buffer to send parts to all workers who own in this range
+    nworkers = get_nworkers(comm)
+    npartitions = nbatches * nworkers
+    whole_len = MPI.bcast(endidx, nworkers-1, comm)
+    io = IOBuffer()
+    nbyteswritten = 0
+    counts = []
+    for partition_idx in npartitions
+        # `split_len` gives us the range that this partition needs
+        partitionrange = split_len(whole_len, partition_idx, npartitions)
+
+        # Check if the range overlaps with the range owned by this worker
+        rangesoverlap = max(startidx, partitionrange.start) <= min(endidx, partitionrange.start.stop)
+
+        # If they do overlap, then serialize the overlapping slice
+        if rangesoverlap
+            serialize(
+                io,
+                view(
+                    part,
+                    fill(:, dim - 1)...,
+                    max(1, partitionrange.start - startidx + 1):min(
+                        end,
+                        partitionrange.end - startidx + 1,
+                    ),
+                    fill(:, ndims(part) - dim)...,
+                ),
+            )
+        end
+
+        # Add the count of the size of this chunk in bytes
+        push!(counts, io.position - nbyteswritten)
+        nbyteswritten = io.position
+    end
+    sendbuf = VBuffer(MPI.Buffer(view(io.data, 1:nbyteswritten)), counts)
+
+    # Create buffer for receiving pieces
+    # TODO: Refactor the intermediate part starting from there if we add
+    # more cases for this function
+    sizes = MPI.Alltoall(counts)
+    recvbuf = VBuffer(similar(io.data, sum(sizes)), sizes)
+
+    # Return the concatenated array
+    cat([
+        deserialize(IOBuffer(view(recvbuf.data, displ+1:displ+count))
+        for (displ, count) in zip(recvbuf.displs, recvbuf.counts)
+    ], dims=key)
 end
 
 function Distribute(
@@ -670,70 +724,6 @@ function Consolidate(
     part = merge_on_executor(kind, recvvbuf, get_nworkers(comm), comm; dims=dim)
     part
 end
-
-# function rebalance_on_executor(
-#     part,
-#     src_params,
-#     dst_params,
-#     nbatches::Integer,
-#     comm
-# )
-#     # Get the range owned by this worker
-#     dim = src_params["key"]
-#     worker_idx, nworkers = get_worker_idx(comm), get_nworkers(comm)
-#     len = size(part, dim)
-#     scannedstartidx = MPI.Exscan(len, +, comm)
-#     startidx = worker_idx == 1 ? 1 : startidx + 1
-#     endidx = startidx + len - 1
-    
-#     # Construct buffer to send parts to all workers who own in this range
-#     nworkers = get_nworkers(comm)
-#     npartitions = nbatches * nworkers
-#     whole_len = MPI.bcast(endidx, nworkers-1, comm)
-#     io = IOBuffer()
-#     nbyteswritten = 0
-#     counts = []
-#     for partition_idx in npartitions
-#         # `split_len` gives us the range that this partition needs
-#         partitionrange = split_len(whole_len, partition_idx, npartitions)
-
-#         # Check if the range overlaps with the range owned by this worker
-#         rangesoverlap = max(startidx, partitionrange.start) <= min(endidx, partitionrange.start.stop)
-
-#         # If they do overlap, then serialize the overlapping slice
-#         if rangesoverlap
-#             serialize(
-#                 io,
-#                 view(
-#                     part,
-#                     fill(:, dim - 1)...,
-#                     max(1, partitionrange.start - startidx + 1):min(
-#                         end,
-#                         partitionrange.end - startidx + 1,
-#                     ),
-#                     fill(:, ndims(part) - dim)...,
-#                 ),
-#             )
-#         end
-
-#         # Add the count of the size of this chunk in bytes
-#         push!(counts, io.position - nbyteswritten)
-#         nbyteswritten = io.position
-#     end
-#     sendbuf = VBuffer(MPI.Buffer(view(io.data, 1:nbyteswritten)), counts)
-
-#     # Create buffer for receiving pieces
-#     # TODO: Refactor the intermediate part starting from there if we add
-#     # more cases for this function
-#     sizes = MPI.Alltoall(counts)
-#     recvbuf = VBuffer(similar(io.data, sum(sizes)), sizes)
-
-#     # Return the concatenated array
-#     cat([
-#         deserialize(IOBuffer(view(recvbuf.data, displ+1:displ+count))
-#         for (displ, count) in zip(recvbuf.displs, recvbuf.counts)
-#     ], dims=key)
-# end
 
 function Shuffle(
     part,
