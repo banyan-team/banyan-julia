@@ -184,7 +184,6 @@ function upload_banyanfile(banyanfile_path::String, s3_bucket_arn::String, clust
     end
     code *= "sudo amazon-linux-extras install epel\n"
     code *= "sudo yum -y install s3fs-fuse\n"
-    code *= "aws s3 cp s3://banyan-executor /home/ec2-user --recursive\n"
     code *= "sudo su - ec2-user -c \"mkdir /home/ec2-user/mnt/$bucket\"\n"
     code *= "sudo su - ec2-user -c \"/usr/bin/s3fs $bucket /home/ec2-user/mnt/$bucket -o iam_role=auto -o url=https://s3.$region.amazonaws.com -o endpoint=$region\"\n"
     code *= "sudo su - ec2-user -c \"aws configure set region $region\"\n"
@@ -354,8 +353,10 @@ parsestatus(status) =
         :stopped
     elseif status == "running"
         :running
+    elseif status == "terminated"
+    	:terminated
     else
-        error("Unexpected status")
+        error("Unexpected status ", status)
     end
 
 function get_clusters(; kwargs...)
