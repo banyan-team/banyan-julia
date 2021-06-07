@@ -145,7 +145,13 @@ end
 function fill(v, dims::NTuple{N,Integer}) where {N}
     v = Future(v)
     dims = Future(dims)
+    fillingdims = Future(dims)
     A = Array{typeof(v),N}(Future(), Future(dims))
+
+    # For futures that contains dims or nrows, we initialize them to store the
+    # dimensions or # of rows of the whole value. Then if we need to mutate,
+    # we reassign to the dimensions or # of rows of the part and assign a
+    # reducing PT.
 
     # NOTE: If a value is being created for the first time in a code region, it
     # is being mutated. The only exception is a value that is already created
@@ -163,20 +169,20 @@ function fill(v, dims::NTuple{N,Integer}) where {N}
     partitioned_with() do
         # blocked
         pt(A, Blocked(A))
-        pt(dims, Divided(), match=A, on="key")
+        pt(fillingdims, Divided(), match=A, on="key")
 
         # replicated
-        pt(A, dims, v, Replicated())
+        pt(A, fillingdims, v, Replicated())
     end
 
-    @partitioned A v dims begin
+    @partitioned A v fillingdims begin
         A = fill(v, dims)
     end
 
     A
 end
 
-fill(v, dims::Integer...) = fill(v, tuple(dims))
+fill(v, dims::Integer...) = fill(v, Tuple(dims))
 
 # Array properties
 
@@ -194,12 +200,15 @@ function Base.copy(A::Array{T,N}) where {T,N} = Array{T,N}
     end
 
     partitioned_with() do
+        # balanced
         pt(df, Blocked(df, balanced=true))
         pt(res, Balanced(), match=df)
 
+        # unbalanced
         pt(df, Blocked(df, balanced=false, scaled_by_same_as=res))
         pt(res, Unbalanced(scaled_by_same_as=df), match=df)
         
+        # replicated
         pt(df, res, Replicated())
     end
 
@@ -268,7 +277,7 @@ function mapslices(f, A::Array{T,N}; dims) where {T,N}
 
     # replicated
     pt(res_size, ReducingSize(), match=A, on="key")
-    pt(res_size, ReducingWithKey(axis -> (a, b) -> tuple([a[begin:axis-1]..., a[axis] + b[axis], a[(axis+1):end]...])), match=A, on="key")
+    pt(res_size, ReducingWithKey(axis -> (a, b) -> Tuple([a[begin:axis-1]..., a[axis] + b[axis], a[(axis+1):end]...])), match=A, on="key")
     pt(A, res, res_size, f, dims, Replicated())
 
     @partitioned f A dims res begin
@@ -964,7 +973,7 @@ function getindex(df::DataFrame, rows=:, cols=:)
         if filter_rows
             Future()
         elseif return_vector
-            Future(df.nrows, mutation=tuple)
+            Future(df.nrows, mutation=Tuple)
         else
             Future(df.nrows)
         end
@@ -1024,7 +1033,7 @@ function getindex(df::DataFrame, rows=:, cols=:)
             #     # TODO: Handle select_columns
             # end
 
-            pt(res_size, Reducing(return_vector ? (a, b) -> tuple([a[1] + b[1], a[2:end]...]) : (a, b) -> a .+ b))
+            pt(res_size, Reducing(return_vector ? (a, b) -> Tuple([a[1] + b[1], a[2:end]...]) : (a, b) -> a .+ b))
         else
             for dpt in Distributed(df, scaled_by_same_as=res)
                 pt(df, dpt)
@@ -1851,7 +1860,7 @@ function nonunique(df::DataFrame, cols=nothing; kwargs...)
     # TOOD: Just reuse select here
 
     df_nrows = df.nrows
-    res_size = Future(df.nrows, mutation=tuple)
+    res_size = Future(df.nrows, mutation=Tuple)
     res = Vector{Bool}(Future(), res_size)
     cols = Future(Symbol.(names(sample(df), cols)))
     kwargs = Future(kwargs)

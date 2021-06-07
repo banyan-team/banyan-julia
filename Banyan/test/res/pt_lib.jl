@@ -227,7 +227,7 @@ function getpath(path)
         end
         joined_path
     elseif startswith(path, "s3://")
-        replace(path, "s3://", "/mnt/")
+        replace(path, "s3://", "/home/ec2-user/mnt/s3/")
         # NOTE: We expect that the ParallelCluster instance was set up
         # to have the S3 filesystem mounted at /mnt/<bucket name>
     else
@@ -244,6 +244,16 @@ end
 # - Distributing divisions among partitions
 # - Splitting divisions
 
+ReturnNull(
+    src,
+    params,
+    batch_idx::Integer,
+    nbatches::Integer,
+    comm::MPI.Comm,
+    loc_name,
+    loc_params,
+) = nothing
+
 function ReadBlock(
     src,
     params,
@@ -258,31 +268,34 @@ function ReadBlock(
     # reading of the same range in different reads
 
     # Handle single-file nd-arrays
-    if haskey(loc_params, "path") && endswith(loc_params["path"], ".h5")
+    if (loc_name == "Disk" && isfile(loc_params["path"])) ||
+        (loc_name == "Remote" && endswith(loc_params["path"], ".h5"))
+
         path = getpath(loc_params["path"])
-        f = h5open(path, "r")
-        dset = f[loc_params["subpath"]]
+        f = h5open(path, "w")
+        dset = loc_name == "Disk" ? f["part"] : f[loc_params["subpath"]]
+
         ismapping = false
-        # TODO: Implement handling of None
-        # TODO: Implement splitting here
-        # TODO: Implement writing to location
+        # TODO: Use `view` instead of `getindex` in the call to
+        # `split_on_executor` here if HDF5 doesn't support this kind of usage
         if ismmappable(dset)
             ismapping = true
             dset = readmmap(dset)
             close(f)
+            dset = split_on_executor(dset, params["key"], batch_idx, nbatches, comm)
         else
-            dset = split_on_executor(dset, params["dim"], batch_idx, nbatches, comm)
+            dset = split_on_executor(dset, params["key"], batch_idx, nbatches, comm)
             close(f)
         end
-        return 
+        return dset
     end
 
     # Handle multi-file tabular datasets
 
     # Handle None location by finding all files in directory used for spilling
     # this value to disk
-    if loc_name == "None"
-        name = loc_params["name"]
+    if loc_name == "Disk"
+        name = loc_params["path"]
         if isdir(name)
             files = []
             nrows = 0
@@ -362,6 +375,71 @@ function ReadBlock(
     vcat(dfs...)
 end
 
+splitting_divisions = IdDict()
+
+function ReadGroup(
+    src,
+    params,
+    batch_idx::Integer,
+    nbatches::Integer,
+    comm::MPI.Comm,
+    loc_name,
+    loc_params,
+)
+    # TODO: Store filters in parameters of the PT and use them to do
+    # partition pruning, avoiding reads that are unnecessary
+
+    # Get information needed to read in the appropriate group
+    divisions = params["divisions"]
+    key = params["key"]
+    nworkers = get_nworkers(comm)
+    npartitions = nworkers * nbatches
+    partition_divisions = get_divisions(divisions, npartitions)
+    
+    # Get the divisions that are relevant to this batch by iterating
+    # through the divisions in a stride and consolidating the list of divisions
+    # for each partition. Then, ensure we use boundedlower=true only for the
+    # first batch and boundedupper=true for the last batch.
+    curr_partition_divisions = []
+    for worker_division_idx in 1:nworkers
+        for batch_division_idx in 1:nbatches
+            partition_division_idx = (worker_division_idx-1)*nbatches + batch_division_idx
+            if j == batch_idx
+                p_divisions = partition_divisions[partition_division_idx]
+                push!(curr_partition_divisions, (first(p_divisions)[1], last(p_divisions)[2]))
+            end
+        end
+    end
+
+    # Read in each batch and shuffle it to get the data for this partition
+    parts = []
+    for i in 1:nbatches
+        # Read in data for this batch
+        part = ReadBlock(src, params, i, nbatches, comm, loc_name, loc_params)
+
+        # Shuffle the batch and add it to the set of data for this partition
+        push!(parts, Shuffle(
+            part,
+            Dict(),
+            Dict("key" => key, "divisions" => curr_partition_divisions),
+            comm,
+            boundedlower = i == 1,
+            boundedupper = i == nbatches,
+        ))
+    end
+
+    # Concatenate together the data for this partition
+    res = merge_on_executor(parts, dims=isa_array(first(parts)) ? key : 1)
+
+    # Store divisions
+    global splitting_divisions
+    partition_idx = get_partition_idx(batch_idx, nbatches, comm)
+    splitting_divisions[res] =
+        (partition_divisions[partition_idx], partition_idx == 1, partition_idx == npartitions)
+
+    res
+end
+
 function Write(
     src,
     part,
@@ -373,11 +451,11 @@ function Write(
     loc_params,
 )
     # Get path of directory to write to
-    path = if loc_name == "None" loc_params["name"] else loc_params["path"] end
+    path = loc_params["path"]
     if startswith(path, "http://") || startswith(path, "https://")
         error("Writing to http(s):// is not supported")
     elseif startswith(path, "s3://")
-        path = replace(path, "s3://", "/mnt/")
+        path = replace(path, "s3://", "/home/ec2-user/mnt/s3/")
         # NOTE: We expect that the ParallelCluster instance was set up
         # to have the S3 filesystem mounted at /mnt/<bucket name>
     end
@@ -393,13 +471,50 @@ function Write(
         end
 
         nrows = size(part, 1)
-        partfilepath = joinpath(path, "part$idx" * "_nrows=$nrows.arrow"),
+        partfilepath = joinpath(path, "_part$idx" * "_nrows=$nrows.arrow"),
         Arrow.write(partfilepath, part)
         src
         # TODO: Delete all other part* files for this value if others exist
     elseif isa_array(part)
+        dim = params["key"]
+        whole_size = MPI.Reduce(
+            size(part),
+            (a, b) -> Tuple([a[1:dim-1]..., a[dim] + b[dim], a[dim+1:end]...]),
+            0,
+            comm,
+        )
+
         # TODO: Check if HDF5 dataset is created. If not, wait for the master
         # node to create it.
+        if get_partition_idx(batch_idx, nbatches, comm) == 1
+            hfopen(joinpath(path * "_part"), "w") do fid
+                create_dataset(fid, "part", similar(part, whole_size))
+            end
+            touch(joinpath(path * "_is_ready"))
+        end
+
+        # Wait till the dataset is created
+        while !isfile(joinpath(path * "_is_ready")) end
+
+        # Write part to the dataset
+        f = h5open(joinpath(path * "_part"), "w")
+        dset = loc_name == "Disk" ? f["part"] : f[loc_params["subpath"]]
+        # TODO: Use `view` instead of `getindex` in the call to
+        # `split_on_executor` here if HDF5 doesn't support this kind of usage
+        if ismmappable(dset)
+            dset = readmmap(dset)
+            close(f)
+            dsubset = split_on_executor(dset, dim, batch_idx, nbatches, comm)
+            dsubset .= part
+        else
+            dsubset = split_on_executor(dset, dim, batch_idx, nbatches, comm)
+            dsubset .= part
+            close(f)
+        end
+
+        # TODO: Make this work for variable-sized element type
+        # TODO: Support arrays and reductions with variable-sized elements
+        # TODO: Maybe use Arrow
     else
         error("Only Array or DataFrame is currently supported for writing as Block")
     end
@@ -421,9 +536,48 @@ function SplitBlock(
     end
 end
 
+function SplitGroup(
+    src,
+    params,
+    batch_idx::Integer,
+    nbatches::Integer,
+    comm::MPI.Comm,
+    loc_name,
+    loc_params,
+)
+
+    # Get divisions stored with src
+    global splitting_divisions
+    divisions, boundedlower, boundedupper = splitting_divisions[src]
+
+    # Call DistributeAndShuffle on src
+    key = params["key"]
+    rev = params["rev"]
+    # TODO: Do a single groupby here instead of a filter for each partition
+    res = DistributeAndShuffle(
+        part,
+        Dict(),
+        Dict("key" => key, "divisions" => divisions, "rev" => rev),
+        comm,
+        boundedlower,
+        boundedupper
+    )
+
+    # Store divisions
+    global splitting_divisions
+    partition_idx = get_partition_idx(batch_idx, nbatches, comm)
+    splitting_divisions[res] = (
+        partition_divisions[partition_idx],
+        boundedlower && partition_idx == 1,
+        boundedupper && partition_idx == npartitions,
+    )
+
+    res
+end
+
 function merge_on_executor(obj...; dims=1)
     first_obj = first(obj)
-    if isa_df(first_obj) && tuple(dims) == (1)
+    if isa_df(first_obj) && Tuple(dims) == (1)
         vcat(obj...)
     elseif isa_array(first_obj)
         cat(obj...; dims=dims)
@@ -463,6 +617,8 @@ function Merge(
     loc_name,
     loc_params,
 )
+    # TODO: To allow for mutation of a value, we may want to remove this
+    # condition
     if isnothing(src)
         # We only need to concatenate partitions if the source is nothing.
         # Because if the source is something, then part must be a view into it
@@ -480,7 +636,8 @@ function Merge(
         push!(src, part)
         if batch_idx == nbatches
             # TODO: Test that this merges correctly
-            src = merge_on_executor(src...; dims=dim)
+            # src = merge_on_executor(src...; dims=dim)
+            cat(src...; dims=dim)
 
             # Concatenate across workers
             nworkers = get_nworkers(comm)
@@ -504,22 +661,22 @@ function CopyFrom(
 )
     if loc_name == "Value"
         loc_params["value"]
-    elseif loc_name == "None"
-        p = joinpath(loc_params["name"], "_part")
+    elseif loc_name == "Disk"
+        p = joinpath(loc_params["path"] * "_part")
         if isfile(p)
             # Check if there is a single partition spilled to disk,
             # indicating that we should then simply deserialize and return
             open(p) do f
                 deserialize(f)
             end
-        elseif isdir(loc_params["name"])
-            ReadAsBlock(src, params, 1, 1, MPI.COMM_SELF, loc_name, loc_params)
+        elseif isdir(loc_params["path"])
+            Read(src, params, 1, 1, MPI.COMM_SELF, loc_name, loc_params)
         else
             nothing
         end
     elseif loc_name == "Remote"
-        ReadAsBlock(src, params, 1, 1, MPI.COMM_SELF, loc_name, loc_params)
-    elseif loc_name == "Executor"
+        Read(src, params, 1, 1, MPI.COMM_SELF, loc_name, loc_params)
+    elseif loc_name == "Memory"
         src
     end
 end
@@ -545,15 +702,15 @@ function CopyTo(
         if loc_name == "Disk"
             # TODO: Add case for an array by writing to HDF5 dataset
             if isa_df(part) || isa_array(part)
-                WriteAsBlock(src, part, params, 1, 1, MPI.COMM_SELF, loc_name, loc_params)
+                Write(src, part, params, 1, 1, MPI.COMM_SELF, loc_name, loc_params)
             else
-                p = joinpath(loc_params["path"], "_part")
+                p = joinpath(loc_params["path"] * "_part")
                 open(p) do f
                     serialize(f, part)
                 end
             end
         elseif loc_name == "Remote"
-            WriteAsBlock(src, part, params, 1, 1, MPI.COMM_SELF, loc_name, loc_params)
+            Write(src, part, params, 1, 1, MPI.COMM_SELF, loc_name, loc_params)
         else
             error("Unexpected location")
         end
@@ -599,8 +756,16 @@ function Divide(
     loc_name,
     loc_params,
 )
+    dim = dst_params["key"]
     part = CopyFrom(src, params, batch_idx, nbatches, comm, loc_name, loc_params)
-    length(split_len(part, batch_idx, nbatches, comm))
+    if part isa Tuple
+        newpartdim = length(split_len(part[dim], batch_idx, nbatches, comm))
+        newpart = [part...]
+        newpart[dim] = newpartdim
+        Tuple(newpart)
+    else
+        length(split_len(part[dim], batch_idx, nbatches, comm))
+    end
 end
 
 #####################
@@ -643,12 +808,16 @@ function Rebalance(
     comm
 )
     # Get the range owned by this worker
-    dim = src_params["key"]
+    dim = isa_array(part) ? dst_params["key"] : 1
     worker_idx, nworkers = get_worker_idx(comm), get_nworkers(comm)
     len = size(part, dim)
     scannedstartidx = MPI.Exscan(len, +, comm)
     startidx = worker_idx == 1 ? 1 : startidx + 1
     endidx = startidx + len - 1
+
+    # Get functions for serializing/deserializing
+    ser = isa_array(part) ? serialize : Arrow.write
+    de = isa_array(part) ? (IOBuffer |> deserialize) : (Arrow.Table |> DataFrame)
     
     # Construct buffer to send parts to all workers who own in this range
     nworkers = get_nworkers(comm)
@@ -666,7 +835,7 @@ function Rebalance(
 
         # If they do overlap, then serialize the overlapping slice
         if rangesoverlap
-            serialize(
+            ser(
                 io,
                 view(
                     part,
@@ -694,9 +863,9 @@ function Rebalance(
 
     # Return the concatenated array
     cat([
-        deserialize(IOBuffer(view(recvbuf.data, displ+1:displ+count))
+        de(view(recvbuf.data, displ+1:displ+count))
         for (displ, count) in zip(recvbuf.displs, recvbuf.counts)
-    ], dims=key)
+    ]...; dims=dim)
 end
 
 function Distribute(
@@ -723,93 +892,6 @@ function Consolidate(
     MPI.Allgatherv!(sendbuf, recvvbuf, comm)
     part = merge_on_executor(kind, recvvbuf, get_nworkers(comm), comm; dims=dim)
     part
-end
-
-function Shuffle(
-    part,
-    src_params,
-    dst_params,
-    comm
-)
-    # Get the divisions to apply
-    divisions = dst_params["divisions"]
-    key = dst_params["key"]
-    ndivisions = length(divisions)
-    worker_idx, nworkers = get_worker_idx(comm), get_nworkers(comm)
-    worker_divisions = get_divisions(divisions, nworkers)
-
-    # Perform shuffle
-    partition_idx_getter(val) = get_partition_idx_from_divisions(val, worker_divisions)
-    if isa_df(part)
-        # Compute the partition to send each row of the dataframe to
-        transform!(part, key => ByRow(partition_idx_getter) => :banyan_shuffling_key)
-
-        # Group the dataframe's rows by what partition to send to
-        gdf = groupby(part, :banyan_shuffling_key, sort=true)
-
-        # Create buffer for sending dataframe's rows to all the partitions
-        io = IOBuffer()
-        nbyteswritten = 0
-        counts = []
-        for partition_idx in 1:nworkers
-            Arrow.write(io, partition_idx in keys(gdf) ? gdf[partition_idx] : DataFrame())
-            push!(counts, io.position - nbyteswritten)
-            nbyteswritten = io.position
-        end
-        sendbuf = VBuffer(MPI.Buffer(view(io.data, 1:nbyteswritten)), counts)
-
-        # Create buffer for receiving pieces
-        sizes = MPI.Alltoall(counts)
-        recvbuf = VBuffer(similar(io.data, sum(sizes)), sizes)
-
-        # Return the concatenated dataframe
-        vcat([
-            DataFrame(Arrow.Table(view(recvbuf.data, displ+1:displ+count)), copycols=false)
-            for (displ, count) in zip(recvbuf.displs, recvbuf.counts)
-        ])
-    elseif isa_array(part)
-        # Group the data along the splitting axis (specified by the "key"
-        # parameter)
-        partition_idx_to_e = [[] for partition_idx in 1:nworkers]
-        for e in eachslice(part, dims=key)
-            partition_idx = get_partition_idx_from_divisions(e, worker_divisions)
-            push!(partition_idx_to_e[partition_idx], e)
-        end
-
-        # Construct buffer for sending data
-        io = IOBuffer()
-        nbyteswritten = 0
-        counts = []
-        for partition_idx in 1:nworkers
-            # TODO: If `isbitstype(eltype(e))`, we may want to pass it in
-            # directly as an MPI buffer (if there is such a thing) instead of
-            # serializing
-            # Append to serialized buffer
-            e = partition_idx_to_e[partition_idx]
-            if !isempty(e)
-                serialize(io, cat(e, dims=key))
-            end
-
-            # Add the count of the size of this chunk in bytes
-            push!(counts, io.position - nbyteswritten)
-            nbyteswritten = io.position
-        end
-        sendbuf = VBuffer(MPI.Buffer(view(io.data, 1:nbyteswritten)), counts)
-
-        # Create buffer for receiving pieces
-        # TODO: Refactor the intermediate part starting from there if we add
-        # more cases for this function
-        sizes = MPI.Alltoall(counts)
-        recvbuf = VBuffer(similar(io.data, sum(sizes)), sizes)
-
-        # Return the concatenated array
-        cat([
-            deserialize(IOBuffer(view(recvbuf.data, displ+1:displ+count))
-            for (displ, count) in zip(recvbuf.displs, recvbuf.counts)
-        ], dims=key)
-    else
-        throw(ArgumentError("Expected array or dataframe to distribute and shuffle"))
-    end
 end
 
 # NOTE: This is duplicated between pt_lib.jl and the client library
@@ -928,35 +1010,158 @@ function get_divisions(divisions, npartitions)
     end
 end
 
-function get_partition_idx_from_divisions(val, divisions)
+function get_partition_idx_from_divisions(val, divisions; boundedlower=false, boundedupper=false)
     # The given divisions may be returned from `get_divisions`
     oh = orderinghash(val)
     for (i, div) in enumerate(divisions)
-        if oh >= first(div)[1] && oh < last(div)[2]
+        isfirstdivision = i == 1
+        islastdivision = i == length(divisions)
+        if ((!boundedlower && isfirstdivision) || oh >= first(div)[1]) &&
+           ((!boundedupper && islastdivision) || oh < last(div)[2])
             return i
-        end
+        end        
     end
-    throw(Error("Given value does not belong to any of the given divisions"))
+    -1
 end
 
 function DistributeAndShuffle(
     part,
     src_params,
     dst_params,
-    comm
+    comm;
+    boundedlower=false,
+    boundedupper=false
 )
     # Get the divisions to apply
     divisions = dst_params["divisions"]
     key = dst_params["key"]
+    rev = dst_params["rev"]
     ndivisions = length(divisions)
     worker_idx, nworkers = get_worker_idx(comm), get_nworkers(comm)
     worker_divisions = get_divisions(divisions, nworkers)
+    if rev
+        reverse!(worker_divisions)
+    end
+
+    # Create helper function for getting index of partition that owns a given
+    # value
+    partition_idx_getter(val) = get_partition_idx_from_divisions(
+        val,
+        worker_divisions,
+        boundedlower,
+        boundedupper,
+    )
 
     # Apply divisions to get only the elements relevant to this worker
     if isa_df(part)
-        filter(row -> get_partition_idx_from_divisions(row[key], worker_divisions), part)
+        filter(row -> partition_idx_getter(row[key]) == worker_idx, part)
     elseif isa_array(part)
-        cat(filter(e -> get_partition_idx_from_divisions(e, worker_divisions), eachslice(part, dims=key), dims=key)
+        cat(
+            filter(
+                e -> partition_idx_getter(e) == worker_idx,
+                eachslice(part, dims = key),
+            )...;
+            dims = key,
+        )
+    else
+        throw(ArgumentError("Expected array or dataframe to distribute and shuffle"))
+    end
+end
+
+function Shuffle(
+    part,
+    src_params,
+    dst_params,
+    comm;
+    boundedlower=false,
+    boundedupper=false
+)
+    # Get the divisions to apply
+    divisions = dst_params["divisions"] # list of min-max tuples
+    key = dst_params["key"]
+    ndivisions = length(divisions)
+    worker_idx, nworkers = get_worker_idx(comm), get_nworkers(comm)
+    worker_divisions = get_divisions(divisions, nworkers) # list of min-max tuple lists
+    if rev
+        reverse!(worker_divisions)
+    end
+
+    # Perform shuffle
+    partition_idx_getter(val) = get_partition_idx_from_divisions(
+        val,
+        worker_divisions,
+        boundedlower,
+        boundedupper,
+    )
+    if isa_df(part)
+        # Compute the partition to send each row of the dataframe to
+        transform!(part, key => ByRow(partition_idx_getter) => :banyan_shuffling_key)
+
+        # Group the dataframe's rows by what partition to send to
+        gdf = groupby(part, :banyan_shuffling_key, sort=true)
+
+        # Create buffer for sending dataframe's rows to all the partitions
+        io = IOBuffer()
+        nbyteswritten = 0
+        counts = []
+        for partition_idx in 1:nworkers
+            Arrow.write(io, partition_idx in keys(gdf) ? gdf[partition_idx] : DataFrame())
+            push!(counts, io.position - nbyteswritten)
+            nbyteswritten = io.position
+        end
+        sendbuf = VBuffer(MPI.Buffer(view(io.data, 1:nbyteswritten)), counts)
+
+        # Create buffer for receiving pieces
+        sizes = MPI.Alltoall(counts)
+        recvbuf = VBuffer(similar(io.data, sum(sizes)), sizes)
+
+        # Return the concatenated dataframe
+        res = vcat([
+            DataFrame(Arrow.Table(view(recvbuf.data, displ+1:displ+count)), copycols=false)
+            for (displ, count) in zip(recvbuf.displs, recvbuf.counts)
+        ])
+        select!(res, Not(:banyan_shuffling_key))
+        res
+    elseif isa_array(part)
+        # Group the data along the splitting axis (specified by the "key"
+        # parameter)
+        partition_idx_to_e = [[] for partition_idx in 1:nworkers]
+        for e in eachslice(part, dims=key)
+            partition_idx = get_partition_idx_from_divisions(e, worker_divisions)
+            push!(partition_idx_to_e[partition_idx], e)
+        end
+
+        # Construct buffer for sending data
+        io = IOBuffer()
+        nbyteswritten = 0
+        counts = []
+        for partition_idx in 1:nworkers
+            # TODO: If `isbitstype(eltype(e))`, we may want to pass it in
+            # directly as an MPI buffer (if there is such a thing) instead of
+            # serializing
+            # Append to serialized buffer
+            e = partition_idx_to_e[partition_idx]
+            if !isempty(e)
+                serialize(io, cat(e...; dims=key))
+            end
+
+            # Add the count of the size of this chunk in bytes
+            push!(counts, io.position - nbyteswritten)
+            nbyteswritten = io.position
+        end
+        sendbuf = VBuffer(MPI.Buffer(view(io.data, 1:nbyteswritten)), counts)
+
+        # Create buffer for receiving pieces
+        # TODO: Refactor the intermediate part starting from there if we add
+        # more cases for this function
+        sizes = MPI.Alltoall(counts)
+        recvbuf = VBuffer(similar(io.data, sum(sizes)), sizes)
+
+        # Return the concatenated array
+        cat([
+            deserialize(IOBuffer(view(recvbuf.data, displ+1:displ+count))
+            for (displ, count) in zip(recvbuf.displs, recvbuf.counts)
+        ]...; dims=key)
     else
         throw(ArgumentError("Expected array or dataframe to distribute and shuffle"))
     end

@@ -1,39 +1,48 @@
 {
     "splits": {
+        "ReturnNull": {
+            "location_names": ["None"],
+            "partition_memory_usage": "all"
+        },
         "ReadBlock": {
-            "required": {"name": "Block"},
-            "default": {"dim": 1},
-            "location_names": ["None", "Remote"],
+            "expected": ["key"],
+            "required": {"name": "Distributing", "distribution": "blocked"},
+            "default": {},
+            "location_names": ["Remote", "Disk"],
             "partition_memory_usage": "div"
         },
         "ReadGroup": {
-            "required": {"name": "Block"},
-            "default": {"dim": 1},
-            "location_names": ["None", "Remote"],
+            "expected": ["key", "divisions"],
+            "required": {"name": "Distributing", "distribution": "grouped"},
+            "default": {"rev": false},
+            "location_names": ["Remote", "Disk"],
             "partition_memory_usage": "div"
         },
         "SplitBlock": {
-            "required": {"name": "Block"},
-            "default": {"dim": 1},
-            "location_names": ["Executor"],
+            "expected": ["key"],
+            "required": {"name": "Distributing", "distribution": "blocked"},
+            "default": {},
+            "location_names": ["Memory"],
             "partition_memory_usage": "div"
         },
         "SplitGroup": {
-            "required": {"name": "Block"},
-            "default": {"dim": 1},
-            "location_names": ["Executor"],
+            "expected": ["key"],
+            "required": {"name": "Distributing", "distribution": "grouped"},
+            "default": {"rev": false},
+            "location_names": ["Memory"],
             "partition_memory_usage": "div"
         },
         "CopyFrom": {
-            "required": {"name": "Replicate", "dividing": false},
+            "required": {"name": "Replicating", "replication": "all", "dividing": false},
             "default": {},
-            "location_name": ["None", "Value", "Executor", "Remote"],
+            "location_names": ["Remote", "Value", "Disk", "Memory"],
             "partition_memory_usage": "all"
         },
         "Divide": {
-            "required": {"name": "Replicate", "dividing": true},
+            "expected": ["key"],
+            "required": {"name": "Replicating", "dividing": true},
             "default": {},
-            "location_name": ["None", "Value", "Executor"],
+            "location_names": ["Value", "Disk", "Memory"],
             "partition_memory_usage": "all"
         }
     },
@@ -41,29 +50,30 @@
         "Write": {
             "required": {"name": "Distributing"},
             "default": {},
-            "location_names": ["None", "Remote", "Disk"]
+            "location_names": ["Remote", "Disk"]
         },
         "Merge": {
-            "required": {"name": "Block"},
-            "default": {"dim": 1},
+            "expected": ["key"],
+            "required": {"name": "Distributing"},
+            "default": {},
             "location_names": ["Memory"]
         },
         "CopyTo": {
             "required": {"name": "Replicating", "replication": "all"},
             "default": {},
-            "location_name": ["None", "Memory", "Remote"]
+            "location_names": ["Memory", "Disk", "Remote"]
         },
         "ReduceAndCopyTo": {
-            "required": {"name": "Replicating", "replication": null, "with_key": false},
             "expected": ["reducer"],
+            "required": {"name": "Replicating", "replication": null, "with_key": false},
             "default": {},
-            "location_name": ["None", "Memory", "Remote"]
+            "location_names": ["Memory", "Disk", "Remote"]
         },
         "ReduceWithKeyAndCopyTo": {
-            "required": {"name": "Replicating", "replication": null, "with_key": true},
             "expected": ["key", "reducer"],
+            "required": {"name": "Replicating", "replication": null, "with_key": true},
             "default": {},
-            "location_name": ["None", "Memory", "Remote"]
+            "location_names": ["Memory", "Disk", "Remote"]
         }
     },
     "casts": {
