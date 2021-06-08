@@ -33,7 +33,7 @@ function run_with_job(name, test_fn)
             for nworkers in [16, 8, 4, 2, 1]
                 Job(
                     username = username,
-		    user_id = user_id,
+                    user_id = user_id,
                     api_key = api_key,
                     cluster_name = cluster_name,
                     nworkers = parse(Int32, nworkers),
@@ -49,7 +49,7 @@ function run_with_job(name, test_fn)
                 cluster_name = cluster_name,
                 nworkers = parse(Int32, nworkers),
                 banyanfile_path = "file://res/Banyanfile.json",
-		user_id = user_id,
+                user_id = user_id,
             ) do j
                 test_fn(j)
             end
@@ -69,5 +69,3 @@ function run(name, test_fn)
 end
 
 include("test_cluster.jl")
-include("test_l1_l2.jl")
-include("test_df.jl")

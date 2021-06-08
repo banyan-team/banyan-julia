@@ -42,12 +42,13 @@ end
 
 function merge_paths_with(
     banyanfile_so_far::Dict,
+    banyanfile_so_far_path::String,
     banyanfile::Dict,
     selector::Function,
 )
     # Merge where we combine arrays by taking unions of their unique elements
     so_far = selector(banyanfile_so_far)
-    curr = selector(banyanfile)
+    curr = [getnormpath(banyanfile_so_far_path, p) for p in selector(banyanfile)]
     deduplicated_absolute_locations = collect(union(Set(so_far), Set(curr)))
     deduplicated_relative_locations =
         unique(loc -> basename(loc), vcat(so_far, curr))
@@ -72,17 +73,27 @@ function keep_same(
     end
 end
 
+function getnormpath(banyanfile_path, p)
+    if startswith(p, "file://")
+        prefix, suffix = split(banyanfile_path, "://")
+        prefix * "://" * normpath(suffix, last(split(p, "://"))
+    else
+        p
+    end
+end
+
 function merge_banyanfile_with!(
     banyanfile_so_far::Dict,
+    banyanfile_so_far_path::String,
     banyanfile_path::String,
     for_cluster_or_job::Symbol,
     for_creation_or_update::Symbol,
 )
-    banyanfile = load_json(banyanfile_path)
+    banyanfile = load_json(getnormpath(banyanfile_so_far_path, banyanfile_path))
 
     # Merge with all included
     for included in banyanfile["include"]
-        merge_banyanfile_with!(banyanfile_so_far, included, for_cluster_or_job, for_creation_or_update)
+        merge_banyanfile_with!(banyanfile_so_far, banyanfile_path, included, for_cluster_or_job, for_creation_or_update)
     end
     banyanfile_so_far["include"] = []
 
@@ -99,11 +110,13 @@ function merge_banyanfile_with!(
         # Merge files, scripts, packages
         banyanfile_so_far["require"]["cluster"]["files"] = merge_paths_with(
             banyanfile_so_far,
+            banyanfile_so_far_path,
             banyanfile,
             b -> b["require"]["cluster"]["files"],
         )
         banyanfile_so_far["require"]["cluster"]["scripts"] = merge_paths_with(
             banyanfile_so_far,
+            banyanfile_so_far_path,
             banyanfile,
             b -> b["require"]["cluster"]["scripts"],
         )
@@ -124,6 +137,8 @@ function merge_banyanfile_with!(
             banyanfile,
             b -> b["require"]["job"]["code"],
         )
+        # TODO: If code is too large, upload to S3 bucket and replace code with
+        # an include statement
     else
         error("Expected for_cluster_or_job to be either :cluster or :job")
     end
@@ -138,7 +153,7 @@ function upload_banyanfile(banyanfile_path::String, s3_bucket_arn::String, clust
     # Load Banyanfile and merge with all included
     banyanfile = load_json(banyanfile_path)
     for included in banyanfile["include"]
-        merge_banyanfile_with!(banyanfile, included, :cluster, for_creation_or_update)
+        merge_banyanfile_with!(banyanfile, banyanfile_path, included, :cluster, for_creation_or_update)
     end
 
     # Load pt_lib_info if path provided
@@ -308,13 +323,13 @@ function update_cluster(;
         # Retrieve the location of the current post_install script in S3 and upload
         # the updated version to the same location
         s3_bucket_arn = get_cluster(name).s3_bucket_arn
-	if endswith(s3_bucket_arn, "/")
+	    if endswith(s3_bucket_arn, "/")
             s3_bucket_arn = s3_bucket_arn[1:end-1]
         elseif endswith(s3_bucket_arn, "/*")
             s3_bucket_arn = s3_bucket_arn[1:end-2]
         elseif endswith(s3_bucket_arn, "*")
-	    s3_bucket_arn = s3_bucket_arn[1:end-1]
-	end
+            s3_bucket_arn = s3_bucket_arn[1:end-1]
+        end
 
         # Upload to S3
         pt_lib_info = upload_banyanfile(banyanfile_path, s3_bucket_arn, cluster_name, :update)

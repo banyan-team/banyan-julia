@@ -1,3 +1,9 @@
+# This file contains a library of functions for splitting/casting/merging
+# partition types (PTs). Any `pt_lib.jl` should have a corresponding
+# `pt_lib_info.json` that contains an annotation for each
+# splitting/casting/merging that describes how data should be partitioned
+# in order for that function to be applicable.
+
 using Core: Argument
 using Serialization
 
