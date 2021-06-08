@@ -1,0 +1,4 @@
+name = "BanyanArrays"
+uuid = "369465de-032e-4609-9dcf-82b89c370a7b"
+authors = ["Caleb Winston <calebhwin@gmail.com>"]
+version = "0.1.0"

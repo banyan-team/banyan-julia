@@ -5,7 +5,7 @@
 To create a cluster, you must provide the following information.
 
 Required Paramters
-* `cluster_id` - name of cluster to update
+* `cluster_name` - name of cluster to update
 * `username` - username under which this cluster was created
 
 Optional Parameters
@@ -22,7 +22,7 @@ Updating a cluster will fail under the following scenarios.
 ## Destroying a Cluster
 
 To destroy a cluster, you must provide the following information:
-* `cluster_id` - name of cluster to delete
+* `cluster_name` - name of cluster to delete
 * `username` - username under which this cluster was created
 
 <!-- Cluster destruction will fail under the following scenarios. To force delete a cluster, even in the following scenarios, set `force=True`.

@@ -129,7 +129,7 @@ function merge_banyanfile_with!(
     end
 end
 
-function upload_banyanfile(banyanfile_path::String, s3_bucket_arn::String, cluster_id::String, for_creation_or_update::Symbol)
+function upload_banyanfile(banyanfile_path::String, s3_bucket_arn::String, cluster_name::String, for_creation_or_update::Symbol)
     # TODO: Implement this to load Banyanfile, referenced pt_lib_info, pt_lib,
     # code files
 
@@ -167,50 +167,58 @@ function upload_banyanfile(banyanfile_path::String, s3_bucket_arn::String, clust
         s3_put(get_aws_config(), s3_bucket_name, basename(f), load_file(f))
     end
 
+    bucket = s3_bucket_name
+    region = get_aws_config_region()
+
     # Create post-install script with base commands
     code = "#!/bin/bash\n"
     code *= "mv setup_log.txt /tmp\n"
     code *= "cd /home/ec2-user\n"
     code *= "sudo yum update -y &>> setup_log.txt\n"
+    code *= "sudo chmod 777 setup_log.txt\n"
     if for_creation_or_update == :creation
-        code *= "wget https://julialang-s3.julialang.org/bin/linux/x64/1.5/julia-1.5.3-linux-x86_64.tar.gz &>> setup_log.txt\n"
-        code *= "tar zxvf julia-1.5.3-linux-x86_64.tar.gz &>> setup_log.txt\n"
+        code *= "sudo su - ec2-user -c \"wget https://julialang-s3.julialang.org/bin/linux/x64/1.5/julia-1.5.3-linux-x86_64.tar.gz &>> setup_log.txt\"\n"
+        code *= "sudo su - ec2-user -c \"tar zxvf julia-1.5.3-linux-x86_64.tar.gz &>> setup_log.txt\"\n"
         code *= "rm julia-1.5.3-linux-x86_64.tar.gz &>> setup_log.txt\n"
-        code *= "julia-1.5.3/bin/julia --project -e 'using Pkg; Pkg.add([\"AWSCore\", \"AWSSQS\", \"HTTP\", \"Dates\", \"JSON\", \"MPI\", \"Serialization\"]); ENV[\"JULIA_MPIEXEC\"]=\"srun\"; ENV[\"JULIA_MPI_LIBRARY\"]=\"/opt/amazon/openmpi/lib64/libmpi\"; Pkg.build(\"MPI\"; verbose=true)' &>> setup_log.txt\n"
+        code *= "sudo su - ec2-user -c \"julia-1.5.3/bin/julia --project -e 'using Pkg; Pkg.add([\"AWSCore\", \"AWSSQS\", \"HTTP\", \"Dates\", \"JSON\", \"MPI\", \"Serialization\", \"BenchmarkTools\"]); ENV[\"JULIA_MPIEXEC\"]=\"srun\"; ENV[\"JULIA_MPI_LIBRARY\"]=\"/opt/amazon/openmpi/lib64/libmpi\"; Pkg.build(\"MPI\"; verbose=true)' &>> setup_log.txt\"\n"
     end
-    code *= "aws s3 cp s3://banyanexecutor /home/ec2-user --recursive\n"
+    code *= "sudo amazon-linux-extras install epel\n"
+    code *= "sudo yum -y install s3fs-fuse\n"
+    code *= "sudo su - ec2-user -c \"mkdir /home/ec2-user/mnt/$bucket\"\n"
+    code *= "sudo su - ec2-user -c \"/usr/bin/s3fs $bucket /home/ec2-user/mnt/$bucket -o iam_role=auto -o url=https://s3.$region.amazonaws.com -o endpoint=$region\"\n"
+    code *= "sudo su - ec2-user -c \"aws configure set region $region\"\n"
 
     # Append to post-install script downloading files, scripts, pt_lib onto cluster
     for f in vcat(files, scripts, pt_lib)
         code *=
-            "aws s3 cp s3://" * s3_bucket_name * "/" *
+            "sudo su - ec2-user -c \"aws s3 cp s3://" * s3_bucket_name * "/" *
             basename(f) *
-            " /home/ec2-user/\n"
+            " /home/ec2-user/\"\n"
     end
 
     # Append to post-install script running scripts onto cluster
     for script in scripts
         fname = basename(f)
-        code *= "bash /home/ec2-user/$fname\n"
+        code *= "sudo su - ec2-user -c \"bash /home/ec2-user/$fname\"\n"
     end
 
     # Append to post-install script installing Julia dependencies
     for pkg in packages
-        code *= "julia-1.5.3/bin/julia --project -e 'using Pkg; Pkg.add([\"$pkg\"])' &>> setup_log.txt\n"
+        code *= "sudo su - ec2-user -c \"julia-1.5.3/bin/julia --project -e 'using Pkg; Pkg.add([\\\"$pkg\\\"])' &>> setup_log.txt \"\n"
     end
 
     # Upload post_install script to s3 bucket
-    post_install_script = "banyan_" * cluster_id * "_script.sh"
+    post_install_script = "banyan_" * cluster_name * "_script.sh"
     code *=
         "touch /home/ec2-user/update_finished\n" *
         "aws s3 cp /home/ec2-user/update_finished " *
         "s3://" * s3_bucket_name * "/\n"
     s3_put(get_aws_config(), s3_bucket_name, post_install_script, code)
-
+    @debug code
     return pt_lib_info
 end
 
-# Required: cluster_id, num_nodes
+# Required: cluster_name
 function create_cluster(;
     name::String = nothing,
     instance_type::String = "m4.4xlarge",
@@ -218,6 +226,8 @@ function create_cluster(;
     banyanfile_path::String = nothing,
     iam_policy_arn::String = nothing,
     s3_bucket_arn::String = nothing,
+    vpc_id = nothing,
+    subnet_id = nothing,
     kwargs...,
 )
     @debug "Creating cluster"
@@ -230,7 +240,7 @@ function create_cluster(;
         "banyan-cluster-" * randstring(6)
     end
     if isnothing(s3_bucket_arn)
-        s3_bucket_arn = "arn:aws:s3:::banyan-cluster-data-" * name
+        s3_bucket_arn = "arn:aws:s3:::banyan-cluster-data-" * name * bytes2hex(rand(UInt8, 16))
         s3_bucket_name = last(split(s3_bucket_arn, ":"))
         s3_create_bucket(get_aws_config(), s3_bucket_name)
     elseif !(s3_bucket_arn in s3_list_buckets(get_aws_config()))
@@ -239,7 +249,7 @@ function create_cluster(;
 
     # Construct cluster creation
     cluster_config = Dict(
-        "cluster_id" => name,
+        "cluster_name" => name,
         "instance_type" => instance_type, #"t3.large", "c5.2xlarge"
         "num_nodes" => max_num_nodes,
         "ec2_key_pair" => c["aws"]["ec2_key_pair_name"],
@@ -253,6 +263,12 @@ function create_cluster(;
     if !isnothing(iam_policy_arn)
         cluster_config["additional_policy"] = iam_policy_arn # "arn:aws:s3:::banyanexecutor*"
     end
+    if !isnothing(vpc_id)
+        cluster_config["vpc_id"] = vpc_id
+    end
+    if !isnothing(subnet_id)
+        cluster_config["subnet_id"] = subnet_id
+    end
 
     # Send request to create cluster
     send_request_get_response(:create_cluster, cluster_config)
@@ -261,7 +277,7 @@ end
 function destroy_cluster(name::String; kwargs...)
     @debug "Destroying cluster"
     configure(; kwargs...)
-    send_request_get_response(:destroy_cluster, Dict("cluster_id" => name))
+    send_request_get_response(:destroy_cluster, Dict("cluster_name" => name))
 end
 
 # TODO: Update website display
@@ -307,8 +323,9 @@ function update_cluster(;
         send_request_get_response(
             :update_cluster,
             Dict(
-                "cluster_id" => name,
+                "cluster_name" => name,
                 "pt_lib_info" => pt_lib_info
+                # TODO: Send banyanfile here
             ),
         )
     end
@@ -336,8 +353,10 @@ parsestatus(status) =
         :stopped
     elseif status == "running"
         :running
+    elseif status == "terminated"
+    	:terminated
     else
-        error("Unexpected status")
+        error("Unexpected status ", status)
     end
 
 function get_clusters(; kwargs...)

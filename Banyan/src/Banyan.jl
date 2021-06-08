@@ -50,27 +50,65 @@ global BANYAN_API_ENDPOINT
 # include("macros.jl")
 # include("evaluation.jl")
 
-# Basic types
+# Account management
 export configure
-export Job, create_job, destroy_job, clear_jobs
-export create_cluster,
-    update_cluster, destroy_cluster, get_clusters, get_cluster
-export Future, future, evaluate
-export Location, src, dst, mem, val
-export PartitionType, pt, pc, mut, @partitioned
+
+# Cluster management
+export Cluster,
+    create_cluster, update_cluster, destroy_cluster, get_clusters, get_cluster
+
+# Job management
+export Job, create_job, destroy_job, destroy_all_jobs, clear_jobs, get_jobs
+
+# Futures
+export AbstractFuture, Future, compute, collect
+
+# Samples
+export AbstractSample,
+    AbstractSampleWithKeys, Sample, ExactSample, sample, setsample!
+export sample_memory_usage,
+    sample_axes,
+    sample_keys,
+    sample_divisions,
+    sample_percentile,
+    sample_max_ngroups,
+    sample_min,
+    sample_max
 
 # Locations
-export None, CSVPath
+export Location, LocationSource, LocationDestination, located, sourced, destined
+export Value, Size, Client, None, Remote
 
 # Partition types
-export Block, BlockBalanced, Div, Replicate
+export PartitionType, pt, pc, mutated, @partitioned
+export Any,
+    Replicating,
+    Replicated,
+    Divided,
+    Syncing,
+    Reducing,
+    ReducingWithKey,
+    Distributing,
+    Blocked,
+    Grouped,
+    ScaledBySame,
+    Drifted,
+    Balanced,
+    Unbalanced,
+    Blocked,
+    Grouped
 
-# Constraints
-export Co, Cross, Equal, Sequential, Match
+# Partitioning constraints
+export Co, Cross, Equal, Sequential, Match, MatchOn, AtMost, ScaleBy
 
 # Annotations
-export add_pa_to_union,
-    reset_annotation, get_locations, get_mutated, get_pa_union
+export partitioned_using,
+    partitioned_with,
+    keep_all_sample_keys,
+    keep_all_sample_keys_renamed,
+    keep_sample_keys_named,
+    keep_sample_keys,
+    keep_sample_rate
 
 using AWSCore
 using AWSS3

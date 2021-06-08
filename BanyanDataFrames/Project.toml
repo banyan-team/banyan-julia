@@ -1,0 +1,4 @@
+name = "BanyanDataFrames"
+uuid = "dfdd4555-3ad7-41cc-a503-a251c9c652f9"
+authors = ["Caleb Winston <calebhwin@gmail.com>"]
+version = "0.1.0"

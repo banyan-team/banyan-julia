@@ -28,6 +28,8 @@ function receive_next_message(queue_name)
         Dict("kind" => "EVALUATION_END")
     elseif startswith(content, "JOB_FAILURE")
         @debug "Job failed"
+        global current_job_status
+        current_job_status = "failed"
         println(content[12:end])
         error("Job failed; see preceding output")
     else

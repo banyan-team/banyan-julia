@@ -10,6 +10,9 @@ struct Job
     pending_requests::Vector{Request}
     futures_on_client::WeakKeyDict{ValueId, Future}
 
+    # TODO: Ensure that this struct and constructor (which are just for storing
+    # information about the job) does not conflict with the `Job` function that
+    # calls `create_job`
     Job(job_id::JobId, nworkers::Integer, sample_rate::Integer)::Job =
         new(
             job_id,
@@ -34,6 +37,7 @@ global jobs = Dict()
 # modifications would be required to make sharing a job between threads
 # ergonomic.
 global current_job_id = nothing
+global current_job_status = nothing
 
 function set_job_id(job_id::Union{JobId, Nothing})
     global current_job_id
@@ -56,12 +60,24 @@ end
 function create_job(;
     cluster_name::String = nothing,
     nworkers::Integer = 2,
-    banyanfile_path::String = nothing,
+    banyanfile_path::String = "",
+    logs_location::String = "",
     sample_rate::Integer = nworkers,
     kwargs...,
 )
-    global jobs
+
+    global current_job_id
+    global current_job_status
     @debug "Creating job"
+    if cluster_name == ""
+        cluster_name = nothing
+    end
+    if banyanfile_path == ""
+        banyanfile_path = nothing
+    end
+    if logs_location == ""
+        logs_location = "client"
+    end
 
     # Configure
     configure(; kwargs...)
@@ -77,8 +93,9 @@ function create_job(;
 
     # Merge Banyanfile if provided
     job_configuration = Dict{String,Any}(
-        "cluster_id" => cluster_name,
+        "cluster_name" => cluster_name,
         "num_workers" => nworkers,
+	"logs_location" => "s3",  #logs_location,
     )
     if !isnothing(banyanfile_path)
         banyanfile = load_json(banyanfile_path)
@@ -92,24 +109,32 @@ function create_job(;
     @debug "Sending request for job creation"
     job_id = send_request_get_response(:create_job, job_configuration)
     job_id = job_id["job_id"]
+    @debug "Creating job $job_id"
 
     # Store in global state
-    set_job_id(job_id)
-    jobs[job_id] = Job(job_id, nworkers, sample_rate)
+    current_job_id = job_id
+    current_job_status = "running"
 
     @debug "Finished creating job $job_id"
     return job_id
 end
 
-function destroy_job(job_id::JobId; kwargs...)
-    global jobs
-    @debug "Destroying job"
+function destroy_job(job_id::JobId; failed = false, kwargs...)
+    global current_job_id
+    global current_job_status
 
-    # Configure and destroy the job
-    configure(; kwargs...)
+    failed = false
+    if current_job_status == "failed"
+    	failed = true
+    end
+
+
+    # configure(; kwargs...)
+
+    @debug "Destroying job $job_id"
     send_request_get_response(
         :destroy_job,
-        Dict{String,Any}("job_id" => job_id),
+        Dict{String,Any}("job_id" => job_id, "failed" => failed),
     )
 
     # Remove from global state
@@ -119,7 +144,40 @@ function destroy_job(job_id::JobId; kwargs...)
     delete!(jobs, job_id)
 end
 
+function get_jobs(; kwargs...)
+    @debug "Downloading description of jobs in each cluster"
+    configure(; kwargs...)
+    response =
+        send_request_get_response(:describe_jobs, Dict{String,Any}())
+    response["jobs"]
+end
+
+function destroy_all_jobs(cluster_name::String; kwargs...)
+    @debug "Destroying all jobs for cluster"
+    configure(; kwargs...)
+    jobs = get_jobs()[cluster_name]
+    for (job_id, job) in jobs
+        destroy_job(job_id; kwargs...)
+    end
+end
+
 # destroy_job() = destroy_job(get_job_id())
+
+# mutable struct Job
+#     job_id::JobId
+#     failed::Bool
+
+#     # function Job(; kwargs...)
+#     #     new_job_id = create_job(; kwargs...)
+#     #     #new_job_id = create_job(;cluster_name="banyancluster", nworkers=2)
+#     #     new_job = new(new_job_id)
+#     #     finalizer(new_job) do j
+#     #         destroy_job(j.job_id)
+#     #     end
+
+#     #     new_job
+#     # end
+# end
 
 function Job(f::Function; kwargs...)
     # This is not a constructor; this is just a function that ensures that
@@ -128,7 +186,7 @@ function Job(f::Function; kwargs...)
     try
         f(j)
     finally
-        destroy_job(j)
+    	destroy_job(j)
     end
 end
 

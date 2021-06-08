@@ -26,6 +26,12 @@ total_memory_usage(val) =
 to_vector(v::Vector) = v
 to_vector(v) = [v]
 
+function div(x, by; dims)
+    x = [x...]
+    x[dims] = div(x, by)
+    Tuple(x)
+end
+
 ##################
 # AUTHENTICATION #
 ##################
@@ -69,6 +75,7 @@ function configure(; kwargs...)
     # Load arguments
     kwargs = Dict(kwargs)
     username = if_in_or(:username, kwargs)
+    user_id = if_in_or(:user_id, kwargs)
     api_key = if_in_or(:api_key, kwargs)
     ec2_key_pair_name = if_in_or(:ec2_key_pair_name, kwargs)
     region = if_in_or(:region, kwargs)
@@ -80,18 +87,19 @@ function configure(; kwargs...)
     is_modified = false
     is_valid = true
 
+
     # Ensure a configuration has been created or can be created. Otherwise,
     # return nothing
     if isnothing(banyan_config)
-        if !isnothing(username) && !isnothing(api_key)
+        if !isnothing(user_id) && !isnothing(api_key)
             banyan_config = Dict(
                 "banyan" =>
-                    Dict("username" => username, "api_key" => api_key),
+                    Dict("username" => username, "user_id" => user_id, "api_key" => api_key),
                 "aws" => Dict(),
             )
             is_modified = true
         else
-            error("Username and API key not provided")
+            error("User ID and API key not provided")
         end
     end
 
@@ -101,6 +109,11 @@ function configure(; kwargs...)
         banyan_config["banyan"]["username"] = username
         is_modified = true
     end
+    if !isnothing(user_id) &&
+        (user_id != banyan_config["banyan"]["user_id"])
+         banyan_config["banyan"]["user_id"] = user_id
+         is_modified = true
+     end
     if !isnothing(api_key) && (api_key != banyan_config["banyan"]["api_key"])
         banyan_config["banyan"]["api_key"] = api_key
         is_modified = true
@@ -208,14 +221,14 @@ function send_request_get_response(method, content::Dict)
     # Prepare request
     # content = convert(Dict{Any, Any}, content)
     configuration = load_config()
-    username = configuration["banyan"]["username"]
+    user_id = configuration["banyan"]["user_id"]
     api_key = configuration["banyan"]["api_key"]
     # TODO: Allow content["debug"]
     # content["debug"] = is_debug_on()
     url = string(BANYAN_API_ENDPOINT, method_to_string(method))
     headers = (
         ("content-type", "application/json"),
-        ("Username-APIKey", "$username-$api_key"),
+        ("Username-APIKey", "$user_id-$api_key"),
     )
 
     # Post and return response
@@ -268,3 +281,25 @@ end
 orderinghash(x::Any) = x # This lets us handle numbers and dates
 orderinghash(s::String) = Integer.(codepoint.(first(s, 32) * repeat(" ", 32-length(s))))
 orderinghash(A::AbstractArray) = orderinghash(first(A))
+
+#########################
+# MOUNTED S3 FILESYSTEM #
+#########################
+
+function get_s3fs_path(path)
+    # Get information about requested object
+    s3path = S3Path(path)
+    bucket = s3path.bucket
+    key = s3path.key
+    # bucket = "banyan-cluster-data-myfirstcluster"
+    mount = joinpath(homedir(), ".banyan", "mnt", "s3", bucket)
+
+    # Mount bucket if not yet mounted
+    if !isdir(mount)
+        mkpath(mount)
+        run(`/usr/bin/s3fs $bucket $mount -o url=https://s3.us-west-2.amazonaws.com -o endpoint=us-west-2`)
+    end
+
+    # Return local path to object
+    joinpath(mount, key)
+end

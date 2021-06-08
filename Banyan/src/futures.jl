@@ -129,6 +129,10 @@ get_future(value_id::ValueId) = get_job().futures_on_client[value_id]
 #############################
 
 function compute(fut::AbstractFuture)
+    # TODO: Refactor `current_job_status` out into the `Job`s stored in
+    # `global jobs`
+    global current_job_status
+
     fut = convert(Future, fut)
     job_id = get_job_id()
     job = get_job()
@@ -222,7 +226,13 @@ function compute(fut::AbstractFuture)
         end
     
         # Send evaluation request
-        response = send_evaluation(fut.value_id, job_id)
+        # Send evaluate request
+        try
+            response = send_evaluation(fut.value_id, job_id)
+        catch
+            current_job_status = "failed"
+            rethrow()
+        end
     
         # Get queues for moving data between client and cluster
         scatter_queue = get_scatter_queue(job_id)

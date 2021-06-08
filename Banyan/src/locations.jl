@@ -196,10 +196,22 @@ Value(val) = LocationSource(
     Dict("value" => to_jl_value(val)),
     ExactSample(val)
 )
+
+# TODO: Implement Size
+Size(val) = LocationSource(
+    "Value",
+    Dict("value" => to_jl_value(val)),
+    Sample(
+        div(val, get_job().sample_rate, dims=1),
+        sample_rate = get_job().sample_rate,
+    ),
+)
+
 Client(val) = LocationSource("Client", Dict(), ExactSample(val))
 Client() = LocationDestination("Client", Dict())
 # TODO: Un-comment only if Size is needed
 # Size(size) = Value(size)
+
 None() = Location("None", Dict(), Sample())
 # Values assigned "None" location as well as other locations may reassigned
 # "Memory" or "Disk" locations by the scheduler depending on where the relevant
@@ -249,16 +261,6 @@ from_jl_value_contents(jl_value_contents) =
 
 # TODO: Call a function Cailin is making to ensure that the bucket is already
 # mounted at a known location and use that returned location
-
-function get_s3fs_path(path)
-    s3path = S3Path(path)
-    bucket = s3path.bucket
-    key = s3path.key
-    # TODO: Check if bucket is mounted and mount it if it isn't
-    # TODO: Specify the location where the bucket is mounted
-    mount = ""
-    joinpath(mount, key)
-end
 
 # NOTE: Sampling may be the source of weird and annoying bugs for users.
 # Different values tracked by Banyan might have different sampling rates
