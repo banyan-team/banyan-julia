@@ -64,19 +64,21 @@ end
 function keep_same(
     banyanfile_so_far::Dict,
     banyanfile::Dict,
-    selector::Function,
+    selector::Function
 )
     so_far = selector(banyanfile_so_far)
     curr = selector(banyanfile)
-    if so_far != curr
-        error("$so_far does not match $curr in included Banyanfiles")
+    if !isnothing(so_far) && !isnothing(curr) && so_far != curr
+        @warn "$so_far does not match $curr in included Banyanfiles"
     end
+    isnothing(so_far) ? curr : so_far
 end
 
 function getnormpath(banyanfile_path, p)
     if startswith(p, "file://")
         prefix, suffix = split(banyanfile_path, "://")
-        prefix * "://" * normpath(suffix, last(split(p, "://"))
+        banyanfile_location_path = dirname(suffix)
+        prefix * "://" * normpath(banyanfile_location_path, last(split(p, "://"))
     else
         p
     end
@@ -89,7 +91,43 @@ function merge_banyanfile_with!(
     for_cluster_or_job::Symbol,
     for_creation_or_update::Symbol,
 )
+    # Load Banyanfile to merge with
     banyanfile = load_json(getnormpath(banyanfile_so_far_path, banyanfile_path))
+
+    # Populate with defaults
+    mergewith!(
+        (a,b)->a,
+        banyanfile,
+        Dict(
+            "include" => [],
+            "require" => Dict()
+        )
+    )
+    mergewith!(
+        (a,b)->a,
+        banyanfile["require"],
+        Dict(
+            "language" => "jl",
+            "cluster" => Dict(),
+            "job" => Dict()
+        )
+    )
+    mergewith!(
+        (a, b) -> a,
+        banyanfile["require"]["cluster"],
+        Dict(
+            "files" => [],
+            "scripts" => [],
+            "packages" => [],
+            "pt_lib" => nothing,
+            "pt_lib_info" => nothing,
+        ),
+    )
+    mergewith!(
+        (a,b)->a,
+        banyanfile["require"]["job"],
+        Dict("code" => [])
+    )
 
     # Merge with all included
     for included in banyanfile["include"]
@@ -126,10 +164,9 @@ function merge_banyanfile_with!(
             b -> b["require"]["cluster"]["packages"],
         )
 
-        # NOTE: We use whatever the top-level value of pt_lib_info and pt_lib are
-        # # Merge pt_lib_info and pt_lib
-        # keep_same(banyanfile_so_far, banyanfile, b->b["require"]["cluster"]["pt_lib_info"])
-        # keep_same(banyanfile_so_far, banyanfile, b->b["require"]["cluster"]["pt_lib"])
+        # Merge pt_lib_info and pt_lib
+        keep_same(banyanfile_so_far, banyanfile, b->b["require"]["cluster"]["pt_lib_info"])
+        keep_same(banyanfile_so_far, banyanfile, b->b["require"]["cluster"]["pt_lib"])
     elseif for_cluster_or_job == :job
         # Merge code
         banyanfile_so_far["require"]["job"]["code"] = merge_with(
