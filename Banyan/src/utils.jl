@@ -42,7 +42,7 @@ end
 # Banyan.jl may be being used). However, wrapping this in a mutex to ensure
 # synchronized mutation in this module would be a good TODO.
 global banyan_config = nothing
-global aws_config_by_region = Dict()
+global aws_config_in_usage = nothing
 
 function load_config()
     global banyan_config
@@ -72,13 +72,17 @@ if_in_or(key, obj, el = nothing) =
     end
 
 function configure(; kwargs...)
+    # This function allows for users to configure their authentication.
+    # Authentication details are then saved in
+    # `$HOME/.banyan/banyanconfig.toml` so they don't have to be entered in again
+    # each time a program using the Banyan client library is run
+
     # Load arguments
     kwargs = Dict(kwargs)
     username = if_in_or(:username, kwargs)
     user_id = if_in_or(:user_id, kwargs)
     api_key = if_in_or(:api_key, kwargs)
     ec2_key_pair_name = if_in_or(:ec2_key_pair_name, kwargs)
-    region = if_in_or(:region, kwargs)
     require_ec2_key_pair_name =
         if_in_or(:require_ec2_key_pair_name, kwargs, false)
 
@@ -86,7 +90,6 @@ function configure(; kwargs...)
     global banyan_config
     is_modified = false
     is_valid = true
-
 
     # Ensure a configuration has been created or can be created. Otherwise,
     # return nothing
@@ -131,17 +134,17 @@ function configure(; kwargs...)
     end
     if require_ec2_key_pair_name &&
        !("ec2_key_pair_name" in banyan_config["aws"])
-        error("Name of an EC2 key pair required but not provided")
+        error("Name of an EC2 key pair required but not provided; visit here to create a key pair: https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ec2-key-pairs.html#having-ec2-create-your-key-pair")
     end
 
-    # aws.region
-    if !isnothing(region) && (
-        !(haskey(banyan_config["aws"], "region")) ||
-        region != banyan_config["aws"]["region"]
-    )
-        banyan_config["aws"]["region"] = region
-        is_modified = true
-    end
+    # # aws.region
+    # if !isnothing(region) && (
+    #     !(haskey(banyan_config["aws"], "region")) ||
+    #     region != banyan_config["aws"]["region"]
+    # )
+    #     banyan_config["aws"]["region"] = region
+    #     is_modified = true
+    # end
 
     # Update config file if it was modified
     if is_modified
@@ -151,28 +154,25 @@ function configure(; kwargs...)
     return banyan_config
 end
 
-function get_aws_config(region::String)
-    global aws_config_by_region
-    configure(region = region)
-    if !(region in keys(aws_config_by_region))
-        # println("region = ", region)
-        aws_config_by_region[region] = aws_config(region = region)
-    end
-    aws_config_by_region[region]
-end
-
 function get_aws_config()
-    global aws_config_by_region
-    try
-        get_aws_config(configure()["aws"]["region"])
-    catch e
-        @warn "Using default AWS region of us-west-2 in \$HOME/.banyan/banyanconfig.toml"
-        configure(region = "us-west-2")
-        get_aws_config(configure()["aws"]["region"])
+    global aws_config_in_usage
+
+    # Get AWS configuration using AWS.jl
+    if isnothing(aws_config_in_usage)
+        aws_config_in_usage = AWSConfig()
+        aws_config
     end
+
+    # # Use default location if needed
+    # if !haskey(aws_config_in_usage, :region)
+    #     @warn "Using default AWS region of us-west-2 in \$HOME/.banyan/banyanconfig.toml"
+    #     aws_config_in_usage[:region] = "us-west-2"
+    # end
+
+    aws_config_in_usage
 end
 
-get_aws_config_region() = get_aws_config()[:region]
+get_aws_config_region() = get_aws_config().region
 
 #########################
 # ENVIRONMENT VARIABLES #
@@ -294,10 +294,23 @@ function get_s3fs_path(path)
     # bucket = "banyan-cluster-data-myfirstcluster"
     mount = joinpath(homedir(), ".banyan", "mnt", "s3", bucket)
 
-    # Mount bucket if not yet mounted
+    # Ensure path to mount exists
     if !isdir(mount)
         mkpath(mount)
-        run(`/usr/bin/s3fs $bucket $mount -o url=https://s3.us-west-2.amazonaws.com -o endpoint=us-west-2`)
+    end
+
+    # Ensure something is mounted
+    if !ismount(mount)
+        # TODO: Store buckets from different accounts/IAMs/etc. seperately
+        try
+            ACCESS_KEY_ID = get_aws_config().credentials.access_key_id
+            SECRET_ACCESS_KEY = get_aws_config().credentials.secret_key
+            HOME = homedir()
+            run(`echo $ACCESS_KEY_ID:$SECRET_ACCESS_KEY \> $HOME/.passwd-s3fs\; chmod 600 $HOME/.passwd-s3fs`)
+            run(`s3fs $bucket $mount -o url=https://s3.$location.amazonaws.com -o endpoint=$location`)
+        catch e
+            @error """Failed to mount S3 bucket \"$bucket\" at $mount using s3fs with error: $e. Please ensure s3fs is in PATH or mount manually."""
+        end
     end
 
     # Return local path to object

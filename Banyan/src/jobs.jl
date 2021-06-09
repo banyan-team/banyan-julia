@@ -2,28 +2,6 @@
 # Jobs #
 ########
 
-struct Job
-    id::JobId
-    nworkers::Int32
-    sample_rate::Int32
-    locations::Dict{ValueId, Location}
-    pending_requests::Vector{Request}
-    futures_on_client::WeakKeyDict{ValueId, Future}
-
-    # TODO: Ensure that this struct and constructor (which are just for storing
-    # information about the job) does not conflict with the `Job` function that
-    # calls `create_job`
-    Job(job_id::JobId, nworkers::Integer, sample_rate::Integer)::Job =
-        new(
-            job_id,
-            nworkers,
-            sample_rate,
-            Dict(),
-            [],
-            Dict()
-        )
-end
-
 # Process-local dictionary mapping from job IDs to instances of `Job`
 global jobs = Dict()
 
@@ -52,7 +30,7 @@ function get_job_id()::JobId
     current_job_id
 end
 
-function get_job()::Job
+function get_job()
     global jobs
     jobs[get_job_id()]
 end
@@ -179,7 +157,7 @@ end
 #     # end
 # end
 
-function Job(f::Function; kwargs...)
+function with_job(f::Function; kwargs...)
     # This is not a constructor; this is just a function that ensures that
     # every job is always destroyed even in the case of an error
     j = create_job(;kwargs...)

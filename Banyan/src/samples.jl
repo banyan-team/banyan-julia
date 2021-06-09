@@ -91,8 +91,6 @@ end
 # NOTE: We use upper-camel-case for user-facing names (like names of PTs) and
 # all-caps-snake-case for anything internal (like names of constraints)
 
-abstract type AbstractSample end
-
 # The purpose of the `sample` function is to allow for computing various
 # properties of the sample by property key name instead of an explicit
 # function call. This makes it easier for the `sample` and `setsample!`
@@ -117,15 +115,13 @@ sample(as::AbstractSample, properties...) =
 sample_memory_usage(as::AbstractSample) = total_memory_usage(as)
 # TODO: Include sample_rate and have functions for setting it in forward pass
 
-abstract type AbstractSampleWithKeys <: AbstractSample end
-
 # TODO: Implement this for dataframe and for array
 
 sample(as::AbstractSampleWithKeys, properties...) =
     if length(properties) == 1
         if first(properties) == :keys
             sample_keys(as)
-        if first(properties) == :axes
+        elseif first(properties) == :axes
             sample_axes(as)
         elseif first(properties) == :groupingkeys
             # This is just the initial value for grouping keys. Calls to

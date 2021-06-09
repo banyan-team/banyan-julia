@@ -227,6 +227,8 @@ to_jl_value(jl) =
         "contents" => to_jl_value_contents(jl)
     )
 
+# NOTE: This function is copied into pt_lib.jl so any changes here should
+# be made there
 to_jl_value_contents(jl) =
     begin
         io = IOBuffer()

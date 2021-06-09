@@ -1,3 +1,114 @@
+#############################
+# Partition type references #
+#############################
+
+const PartitionTypeReference = Tuple{ValueId,Integer}
+
+############################
+# Partitioning constraints #
+############################
+
+pt_ref_to_jl(pt_ref) =
+    if pt_ref isa Tuple
+        (convert(Future, pt_ref[1]).value_id, pt_ref[2] - 1)
+    else
+        (convert(Future, pt_ref).value_id, 0)
+    end
+
+pt_refs_to_jl(refs::Vector{PartitionTypeReference}) =
+    [pt_ref_to_jl(ref) for ref in refs]
+
+struct PartitioningConstraintOverGroup
+    type::String
+    args::Vector{PartitionTypeReference}
+end
+
+struct PartitioningConstraintOverGroups
+    type::String
+    args::Vector{Vector{PartitionTypeReference}}
+end
+
+const PartitioningConstraint = Union{PartitioningConstraintOverGroup, PartitioningConstraintOverGroups}
+
+to_jl(pc::PartitioningConstraint) = Dict("type" => pc.type, "args" => pc.args)
+
+arg_to_jl_for_co(arg) =
+    if arg isa Vector
+        pt_refs_to_jl(arg)
+    else
+        [pt_ref_to_jl(arg)]
+    end
+
+function constraint_for_co(args)::PartitioningConstraintOverGroups
+    if any(arg isa Vector for arg in args)
+        args = [arg_to_jl_for_co(arg) for arg in args]
+        PartitioningConstraintOverGroups("CO_GROUP", args)
+    else
+        PartitioningConstraintOverGroups("CO", pt_refs_to_jl(args))
+    end
+end
+
+# TODO: Support Ordered
+Co(args...) = constraint_for_co(args)
+Cross(args...) = PartitioningConstraintOverGroup("CROSS", pt_refs_to_jl(args))
+Equal(args...) = PartitioningConstraintOverGroup("EQUAL", pt_refs_to_jl(args))
+Sequential(args...) =
+    PartitioningConstraintOverGroup("SEQUENTIAL", pt_refs_to_jl(args))
+Match(args...) = PartitioningConstraintOverGroup("MATCH", pt_refs_to_jl(args))
+MatchOn(on, args...) =
+    PartitioningConstraintOverGroup(
+        "on=" * string(on),
+        pt_refs_to_jl(args),
+    )
+AtMost(npartitions, args...) =
+    PartitioningConstraintOverGroup(
+        "AT_MOST=$npartitions",
+        pt_refs_to_jl(args)
+    )
+ScaleBy(arg, factor::Float32 = 1.0, relative_to...) = 
+    PartitioningConstraintOverGroup(
+        "SCALE_BY=$factor",
+        pt_refs_to_jl([arg; relative_to...])
+    )
+
+# TODO: Make the above constraint constructors produce dictionaries that have
+# fields that make sense and are specialized for each one. This will reduce
+# a significant amount of messy and hard-to-read code here (e.g., what in the
+# world isa PartitioningConstraintOverGroup vs. a
+# PartitioningConstraintOverGroups).
+
+# NOTE: ScaleBy constraints accept PT references but only the values of PT
+# references where the index is 1 are taken because we only scale relative
+# to the memory usage that is split by the first PT in the PT compositions
+# referenced
+
+# NOTE: If you require a constraint for a particular PT, the onus is on you to
+# ensure that whereever you use a value with that PT assigned, you always
+# have the PTs that are referenced by the constraint. For example, if you use
+# an AtMost constraint which references both PTs from a PT composition for a
+# value where the first PT splits across workers and the second across batches,
+# you need to ensure that anywhere you use the value, you actually do have a 
+# PT composition of length 2.
+
+# NOTE: Currently, only AtMost and ScaleBy are supported as PT-level
+# constraints (meaning they are included as part of a PT so that the PT
+# cannot be applied to a variable unless the constraints are also be enforced)
+# while ScaleBy may not be used as PA-level constraints (constraints that are
+# applicable only for a single code region annotated with a PA)
+
+mutable struct PartitioningConstraints
+    constraints::Vector{PartitioningConstraint}
+end
+
+PartitioningConstraints() = PartitioningConstraints([])
+
+function to_jl(constraints::PartitioningConstraints)
+    return Dict(
+        "constraints" =>
+            [to_jl(constraint) for constraint in constraints.constraints],
+    )
+end
+
 ###################
 # Partition types #
 ###################
@@ -69,8 +180,6 @@ end
 
 to_jl(ptc::PartitionTypeComposition) = [to_jl(pt) for pt in ptc.pts]
 
-const PartitionTypeReference = Tuple{ValueId,Integer}
-
 ##############################
 # Partition type combinators #
 ##############################
@@ -98,111 +207,6 @@ Base.:&(a::PartitionType, b::Vector{PartitionType}) = b & a
 Base.:&(a::Vector{PartitionType}, b::Vector{PartitionType}) =
     filter(pt->!isnothing(pt), [aa & bb for aa in a for bb in b])
 Base.:|(a::PTOrPTUnion, b::PTOrPTUnion) = [a; b]
-
-############################
-# Partitioning constraints #
-############################
-
-pt_ref_to_jl(pt_ref) =
-    if pt_ref isa Tuple
-        (convert(Future, pt_ref[1]).value_id, pt_ref[2] - 1)
-    else
-        (convert(Future, pt_ref).value_id, 0)
-    end
-
-pt_refs_to_jl(refs::Vector{PartitionTypeReference}) =
-    [pt_ref_to_jl(ref) for ref in refs]
-
-struct PartitioningConstraintOverGroup
-    type::String
-    args::Vector{PartitionTypeReference}
-end
-
-struct PartitioningConstraintOverGroups
-    type::String
-    args::Vector{Vector{PartitionTypeReference}}
-end
-
-const PartitioningConstraint = Union{PartitioningConstraintOverGroup, PartitioningConstraintOverGroups}
-
-to_jl(pc::PartitioningConstraint) = Dict("type" => pc.type, "args" => pc.args)
-
-arg_to_jl_for_co(arg) =
-    if arg isa Vector
-        pt_refs_to_jl(arg)
-    else
-        [pt_ref_to_jl(arg)]
-    end
-
-function constraint_for_co(args)::PartitioningConstraintOverGroups
-    if any(arg isa Vector for arg in args)
-        args = [arg_to_jl_for_co(arg) for arg in args]
-        PartitioningConstraintOverGroups("CO_GROUP", args)
-    else
-        PartitioningConstraintOverGroups("CO", pt_refs_to_jl(args))
-    end
-end
-
-# TODO: Support Ordered
-Co(args...) = constraint_for_co(args)
-Cross(args...) = PartitioningConstraintOverGroup("CROSS", pt_refs_to_jl(args))
-Equal(args...) = PartitioningConstraintOverGroup("EQUAL", pt_refs_to_jl(args))
-Sequential(args...) =
-    PartitioningConstraintOverGroup("SEQUENTIAL", pt_refs_to_jl(args))
-Match(args...) = PartitioningConstraintOverGroup("MATCH", pt_refs_to_jl(args))
-MatchOn(on, args...) =
-    PartitioningConstraintOverGroup(
-        "on=" * string(on),
-        pt_refs_to_jl(args),
-    )
-AtMost(npartitions, args...) =
-    PartitioningConstraintOverGroup(
-        "AT_MOST=$npartitions",
-        pt_refs_to_jl(args)
-    )
-ScaleBy(factor::Float32 = 1.0, arg, relative_to) = 
-    PartitioningConstraintOverGroup(
-        "SCALE_BY=$factor",
-        pt_refs_to_jl([arg; relative_to])
-    )
-
-# TODO: Make the above constraint constructors produce dictionaries that have
-# fields that make sense and are specialized for each one. This will reduce
-# a significant amount of messy and hard-to-read code here (e.g., what in the
-# world isa PartitioningConstraintOverGroup vs. a
-# PartitioningConstraintOverGroups).
-
-# NOTE: ScaleBy constraints accept PT references but only the values of PT
-# references where the index is 1 are taken because we only scale relative
-# to the memory usage that is split by the first PT in the PT compositions
-# referenced
-
-# NOTE: If you require a constraint for a particular PT, the onus is on you to
-# ensure that whereever you use a value with that PT assigned, you always
-# have the PTs that are referenced by the constraint. For example, if you use
-# an AtMost constraint which references both PTs from a PT composition for a
-# value where the first PT splits across workers and the second across batches,
-# you need to ensure that anywhere you use the value, you actually do have a 
-# PT composition of length 2.
-
-# NOTE: Currently, only AtMost and ScaleBy are supported as PT-level
-# constraints (meaning they are included as part of a PT so that the PT
-# cannot be applied to a variable unless the constraints are also be enforced)
-# while ScaleBy may not be used as PA-level constraints (constraints that are
-# applicable only for a single code region annotated with a PA)
-
-mutable struct PartitioningConstraints
-    constraints::Vector{PartitioningConstraint}
-end
-
-PartitioningConstraints() = PartitioningConstraints([])
-
-function to_jl(constraints::PartitioningConstraints)
-    return Dict(
-        "constraints" =>
-            [to_jl(constraint) for constraint in constraints.constraints],
-    )
-end
 
 #########################
 # Partition annotations #

@@ -5,7 +5,7 @@
         "cluster": {
             "files": [],
             "scripts": [],
-            "packages": ["AWSS3", "DataFrames", "CSV", "Parquet", "Arrow"],
+            "packages": ["AWSCore", "AWSS3", "AWSSQS", "DataFrames", "CSV", "JSON", "Parquet", "Arrow"],
             "pt_lib_info": "file://pt_lib_info.json",
             "pt_lib": "file://pt_lib.jl"
         },

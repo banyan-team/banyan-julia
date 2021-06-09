@@ -20,10 +20,14 @@
 # TODO: Generate AtMost and ScaledBy constraints in handling filters and joins
 # that introduce data skew and in other operations that explicitly don't
 
-Any() = PartitionType(Dict())
-Any(;scaled_by_same_as) = PartitionType(f->ScaleBy(1.0, f, scaled_by_same_as))
+Any(; scaled_by_same_as = nothing) =
+    if isnothing(scaled_by_same_as)
+        PartitionType(Dict())
+    else
+        PartitionType(f -> ScaleBy(f, 1.0, scaled_by_same_as))
+    end
 
-Replicating() = PartitionType("name" => "Replicating", f->ScaleBy(1.0, f))
+Replicating() = PartitionType("name" => "Replicating", f->ScaleBy(f, 1.0))
 Replicated() = Replicating() & PartitionType("replication" => "all", "reducer" => nothing)
 # TODO: Add Replicating(f) to the below if needed for reducing operations on
 # large objects such as unique(df::DataFrame)
@@ -31,24 +35,37 @@ Replicated() = Replicating() & PartitionType("replication" => "all", "reducer" =
 # TODO: Determine whether the `"reducer" => nothing` should be there
 Divided() = Replicating() & PartitionType("divided" => true)
 Syncing() = Replicating() & PartitionType("replication" => "one", "reducer" => nothing) # TODO: Determine whether this is really needed
-Reducing(op) = Replicating() & PartitionType("replication" => nothing, "reducer" => to_jl_value(op), "with_key"=false)
-ReducingWithKey(op) = Replicating() & PartitionType("replication" => nothing, "reducer" => to_jl_value(op), "with_key"=true)
+Reducing(op) = Replicating() & PartitionType("replication" => nothing, "reducer" => to_jl_value(op), "with_key" => false)
+ReducingWithKey(op) = Replicating() & PartitionType("replication" => nothing, "reducer" => to_jl_value(op), "with_key" => true)
 # TODO: Maybe replace banyan_reduce_size_by_key with an anonymous function since that actually _can_ be ser/de-ed
 # or instead make there be a reducing type that passes in the key to the reducing functions so it can reduce by that key
 # ReducingSize() = PartitionType("replication" => "one", "reducer" => "banyan_reduce_size_by_key")
 
 Distributing() = PartitionType("name" => "Distributing")
-Blocked() = PartitionType("name" => "Distributing", "distribution" => "blocked")
-Blocked(;along) = PartitionType("name" => "Distributing", "distribution" => "blocked", "key" => along)
+Blocked(; along = nothing) =
+    if isnothing(along)
+        PartitionType("name" => "Distributing", "distribution" => "blocked")
+    else
+        PartitionType(
+            "name" => "Distributing",
+            "distribution" => "blocked",
+            "key" => along,
+        )
+    end
 Grouped() = PartitionType("name" => "Distributing", "distribution" => "grouped")
 # Blocked(;balanced) = PartitionType("name" => "Distributing", "distribution" => "blocked", "balanced" => balanced)
 # Grouped(;balanced) = PartitionType("name" => "Distributing", "distribution" => "grouped", "balanced" => balanced)
 
-ScaledBySame(as) = Distributing() & PartitionType(f->ScaleBy(1.0, f, as))
+ScaledBySame(as) = Distributing() & PartitionType(f -> ScaleBy(f, 1.0, as))
 Drifted() = Distributing() & PartitionType("id" => "!")
-Balanced() = Distributing() & PartitionType("balanced" => true, f->ScaleBy(1.0, f))
-Unbalanced() = Distributing() & PartitionType("balanced" => false)
-Unbalanced(;scaled_by_same_as) = Unbalanced() & ScaledBySame(as=scaled_by_same_as)
+Balanced() =
+    Distributing() & PartitionType("balanced" => true, f -> ScaleBy(f, 1.0))
+Unbalanced(; scaled_by_same_as = nothing) =
+    if isnothing(scaled_by_same_as)
+        Distributing() & PartitionType("balanced" => false)
+    else
+        Unbalanced() & ScaledBySame(as = scaled_by_same_as)
+    end
 
 # These functions (along with `keep_sample_rate`) allow for managing memory
 # usage in annotated code. `keep_sample_rate` allows for setting the sample
@@ -95,14 +112,14 @@ function Blocked(
     pts = []
     for axis in first(4, along)
         # Handle combinations of `balanced` and `filtered_from`/`filtered_to`
-        for b in isnothing(balanced) ? [true, false] : [balanced]
+        for b in (isnothing(balanced) ? [true, false] : [balanced])
             # Initialize parameters
             parameters = Dict("key" => key, "balanced" => b)
             constraints = PartitioningConstraints()
 
             # Create `ScaleBy` constraints
             if b
-                push!(constraints.constraints, ScaleBy(1.0, f))
+                push!(constraints.constraints, ScaleBy(f, 1.0))
                 # TODO: Add an AtMost constraint in the case that input elements are very large
             else
                 if !isnothing(filtered_from)
@@ -110,15 +127,15 @@ function Blocked(
                     factor, from = maximum(filtered_from) do ff
                         (sample(ff, :memory_usage) / sample(f, :memory_usage), filtered_from)
                     end
-                    push!(constraints.constraints, ScaleBy(factor, f, from))
+                    push!(constraints.constraints, ScaleBy(f, factor, from))
                 elseif !isnothing(filtered_to)
                     filtered_to = to_vector(filtered_to)
                     factor, to = maximum(filtered_to) do ft
                         (sample(ft, :memory_usage) / sample(f, :memory_usage), filtered_to)
                     end
-                    push!(constraints.constraints, ScaleBy(factor, f, to))
+                    push!(constraints.constraints, ScaleBy(f, factor, to))
                 elseif !isnothing(scaled_by_same_as)
-                    push!(constraints.constraints, ScaleBy(1.0, f, scaled_by_same_as))
+                    push!(constraints.constraints, ScaleBy(f, 1.0, scaled_by_same_as))
                 end
             end
 
@@ -160,7 +177,7 @@ function Grouped(
     pts = []
     for key in first(by, 8)
         # Handle combinations of `balanced` and `filtered_from`/`filtered_to`
-        for b in isnothing(balanced) ? [true, false] : [balanced]
+        for b in (isnothing(balanced) ? [true, false] : [balanced])
             parameters = Dict("key" => key, "balanaced" => b)
             constraints = PartitioningConstraints()
 
@@ -179,7 +196,7 @@ function Grouped(
 
                 # Add constraints
                 push!(constraints.constraints, AtMost(max_ngroups, f))
-                push!(constraints.constraints, ScaleBy(1.0, f))
+                push!(constraints.constraints, ScaleBy(f, 1.0))
 
                 # TODO: Make AtMost only accept a value (we can support PT references in the future if needed)
                 # TODO: Make scheduler check that the values in AtMost or ScaledBy are actually present to ensure
@@ -195,7 +212,7 @@ function Grouped(
                         f_percentile = sample(f, :statistics, :percentile, min_filtered_to, max_filtered_to)
                         (f_percentile, filtered_from)
                     end
-                    push!(constraints.constraints, ScaleBy(factor, f, from))
+                    push!(constraints.constraints, ScaleBy(f, factor, from))
                 elseif !isnothing(filtered_to)
                     filtered_to = to_vector(filtered_to)
                     factor, to = maximum(filtered_to) do ft
@@ -205,9 +222,9 @@ function Grouped(
                         f_percentile = sample(f, :statistics, :percentile, min_filtered_to, max_filtered_to)
                         (1 / f_percentile, filtered_to)
                     end
-                    push!(constraints.constraints, ScaleBy(factor, f, to))
+                    push!(constraints.constraints, ScaleBy(f, factor, to))
                 elseif !isnothing(scaled_by_same_as)
-                    push!(constraints.constraints, ScaleBy(1.0, f, scaled_by_same_as))
+                    push!(constraints.constraints, ScaleBy(f, 1.0, scaled_by_same_as))
                 end
             end
         end

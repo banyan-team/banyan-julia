@@ -7,6 +7,7 @@
 
 module Banyan
 
+using Base: notnothing
 global BANYAN_API_ENDPOINT
 
 # TODO: Remove this
@@ -110,6 +111,7 @@ export partitioned_using,
     keep_sample_keys,
     keep_sample_rate
 
+using AWS: AWSConfig
 using AWSCore
 using AWSS3
 using AWSSQS
@@ -129,21 +131,28 @@ using IterTools
 # Jobs
 include("id.jl")
 include("utils.jl")
+include("utils_abstract_types.jl")
 include("queues.jl")
 include("jobs.jl")
 include("clusters.jl")
 
 # Futures
+include("future.jl")
+include("samples.jl")
 include("locations.jl")
 include("futures.jl")
-include("samples.jl")
-include("sample_properties.jl")
 
 # Annotation
 include("partitions.jl")
 include("pt_lib_constructors.jl")
 include("tasks.jl")
 include("annotation.jl")
+
+# Utilities
+include("requests.jl")
+
+# Job (using locations and futures)
+include("job.jl")
 
 function __init__()
     # The user must provide the following for authentication:

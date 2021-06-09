@@ -1,8 +1,16 @@
-using Test
-using Banyan
+# NOTE: This file is to be copied across the `runtests.jl` of all Banyan Julia
+# projects
 
-clear_jobs()
-enabled_tests = lowercase.(ARGS)
+using Test
+
+function include_tests_to_run(args...)
+    clear_jobs()
+    for arg in args
+        include(arg)
+    end
+end
+
+get_enabled_tests() = lowercase.(ARGS)
 
 # NOTE: For testing, please provide the following:
 # - AWS_DEFAULT_PROFILE (if you don't already have the desired default AWS account)
@@ -16,7 +24,7 @@ enabled_tests = lowercase.(ARGS)
 # If these are not specified, we will only run tests that don't require a
 # configured job to be created first.
 
-function run_with_job(name, test_fn)
+function run_with_job(test_fn, name)
     # This function should be used for tests that need a job to be already
     # created to run. We look at environment variables for a specification for
     # how to authenticate and what cluster to run on
@@ -27,8 +35,8 @@ function run_with_job(name, test_fn)
     cluster_name = get(ENV, "BANYAN_CLUSTER_NAME", nothing)
     nworkers = get(ENV, "BANYAN_NWORKERS", nothing)
 
-    if isempty(enabled_tests) ||
-       any([occursin(t, lowercase(name)) for t in enabled_tests])
+    if isempty(get_enabled_tests()) ||
+       any([occursin(t, lowercase(name)) for t in get_enabled_tests()])
         if get(ENV, "BANYAN_NWORKERS_ALL", "false") == "true"
             for nworkers in [16, 8, 4, 2, 1]
                 Job(
@@ -57,15 +65,15 @@ function run_with_job(name, test_fn)
     end
 end
 
-function run(name, test_fn)
+function run(test_fn, name)
     # This function should be used for tests that test cluster/job managemnt
     # and so they only need environment variables to dictate how to
     # authenticate. These can be read in from ENV on a per-test basis.
 
-    if isempty(enabled_tests) ||
-       any([occursin(t, lowercase(name)) for t in enabled_tests])
+    if isempty(get_enabled_tests()) ||
+       any([occursin(t, lowercase(name)) for t in get_enabled_tests()])
         test_fn()
     end
 end
 
-include("test_cluster.jl")
+include_tests_to_run("test_cluster.jl")

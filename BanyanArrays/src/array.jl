@@ -22,14 +22,14 @@ end
 
 # Array type
 
-struct Array{T,N} <: AbstractFuture
+struct Array{T,N} <: AbstractFuture where {T,N}
     data::Future
     size::Future
     # TODO: Add offset for indexing
     # offset::Future
 
-    Array{T,N}() = new(Future(), Future())
-    Array{T,N}(A::Array{T,N}) = new(Future(), Future(A.size))
+    Array{T,N}() where {T,N} = new(Future(), Future())
+    Array{T,N}(A::Array{T,N}) where {T,N} = new(Future(), Future(A.size))
 end
 
 convert(::Type{Future}, A::Array) = A.data
@@ -60,7 +60,7 @@ function sample_divisions(A::Base.Array, key)
     ]
 end
 
-function sample_percentile(A::Union{Base.Array, DataFrames.DataFrame}, key, minvalue, maxvalue)
+function sample_percentile(A::Base.Array, key, minvalue, maxvalue)
     minvalue, maxvalue = orderinghash(minvalue), orderinghash(maxvalue)
     divisions = sample_divisions(A, key)
     percentile = 0
@@ -184,6 +184,11 @@ end
 
 fill(v, dims::Integer...) = fill(v, Tuple(dims))
 
+zeros(::Type{T}=Float64, args...; kwargs...) where {T} = fill(zero(T), args...; kwargs...)
+ones(::Type{T}=Float64, args...; kwargs...) where {T} = fill(one(T), args...; kwargs...)
+trues(args...; kwargs...) where {T} = fill(true, args...; kwargs...)
+falses(args...; kwargs...) where {T} = fill(false, args...; kwargs...)
+
 # Array properties
 
 Base.ndims(A::Array) = ndims(sample(A))
@@ -191,7 +196,7 @@ Base.size(A::Array) = compute(A.size)
 Base.length(V::Vector) = compute(V.size)[1]
 Base.eltype(A::Array) = eltype(sample(A))
 
-function Base.copy(A::Array{T,N}) where {T,N} = Array{T,N}
+function Base.copy(A::Array{T,N})::Array{T,N} where {T,N}
     res = Future()
 
     partitioned_using() do
@@ -244,7 +249,7 @@ function map(f, c::Array{T,N}...) where {T,N}
     # replicated
     pt(c..., res, f, Replicated())
 
-    @partitioned f c... res begin
+    @partitioned f c res begin
         res = map(f, c...)
     end
 
@@ -434,17 +439,23 @@ sort(A::Array{T,N}; kwargs...) where {T,N} = sortslices(A, dims=:; kwargs...)
 
 # Array binary operations
 
-for op in (:+, :-, :>, :<, :>=, :<=, :≥, :≤, :(==), :!=)
+for op in [:+, :-, :>, :<, :(>=), :(<=), :(==), :!=]
     @eval begin
-        Base.$op(A, B) = map($op, A, B)
+        Base.$op(A::Array, B::Array) = map($op, A, B)
     end
 end
 
 # Array unary operations
 
-for op in (:-)
+for op in [:-]
     @eval begin
-        Base.$op(X) = map($op, X)
+        Base.$op(X::Array) = map($op, X)
+    end
+end
+
+for (op, agg) in [(:(sum), :(Base.:+)), (:(minimum), :(min)), (:(maximum), :(max))]
+    @eval begin
+        $op(X::Array; dims=:) = reduce($agg, X; dims=dims)
     end
 end
 

@@ -58,6 +58,8 @@ end
 read_parquet = read_csv
 read_arrow = read_csv
 
+# TODO: For writing functions, if a file is specified, enforce Replicated
+
 function write_csv(A, path)
     destined(df, Remote(path))
     mutated(df)
@@ -94,6 +96,34 @@ function sample_divisions(df::DataFrames.DataFrame, key)
         )
         for i in 1:ngroups
     ]
+end
+
+function sample_percentile(A::DataFrames.DataFrame, key, minvalue, maxvalue)
+    minvalue, maxvalue = orderinghash(minvalue), orderinghash(maxvalue)
+    divisions = sample_divisions(A, key)
+    percentile = 0
+    divpercentile = 1/length(divisions)
+    inminmax = false
+
+    # Iterate through divisions to compute percentile
+    for (i, (divminvalue, divmaxvalue)) in enumerate(divisions)
+        # Check if we are between the minvalue and maxvalue
+        if (i == 1 || minvalue >= divminvalue) && (i == length(divisions) || minvalue < divmaxvalue)
+            inminmax = true
+        end
+
+        # Add to percentile
+        if inminmax
+            percentile += divpercentile
+        end
+
+        # Check if we are no longer between the minvalue and maxvalue
+        if (i == 1 || maxvalue >= divminvalue) && (i == length(divisions) || maxvalue < divmaxvalue)
+            inminmax = false
+        end
+    end
+
+    percentile
 end
 
 sample_max_ngroups(df::DataFrames.DataFrame, key) = round(nrow(df) / maximum(combine(groupby(df, key), nrow).nrow))
@@ -1224,7 +1254,7 @@ function innerjoin(dfs::DataFrame...; on, kwargs...)
         # TODO: Support nested loop join where multiple are Block and Cross-ed and others are all Replicate
     end
 
-    @partitioned dfs... on kwargs res res_nrows begin
+    @partitioned dfs on kwargs res res_nrows begin
         res = innerjoin(dfs...; on=on, kwargs...)
         res_nrows = nrows(res)
     end

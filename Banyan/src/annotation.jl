@@ -269,61 +269,73 @@ macro partitioned(ex...)
     variable_names = [string(e) for e in ex[1:end-1]]
     code = ex[end]
 
-    # Expand splatted variables
-    if any(endswith(name, "...") for name in variable_names)
-        new_variables = []
-        new_variable_names = []
+    # # Expand splatted variables
+    # # if any(endswith(name, "...") for name in variable_names)
+    # if true
+    #     new_variables = []
+    #     new_variable_names = []
 
-        # Iterate through variables specified through the annotation
-        for (variable, name) in zip(variables, variable_names)
-            # Variables with names ending with ... need to be expanded
-            if endswith(name, "...")
-                # Get information about the variable being splatted
-                expanded_expr = Meta.parse(name[1:end-3])
-                expanded::Vector{AbstractFuture} = eval(expanded_expr)
+    #     # Iterate through variables specified through the annotation
+    #     for (variable, name) in zip(variables, variable_names)
+    #         splatted = Meta.parse(name)
+    #         println(__module__.eval(quote $variable end))
+    #         # println(eval(quote $(variable) end))
+    #     end
 
-                # Append to the variables and variable names to be loaded
-                # into the string
-                expanded_variables = []
-                for (i, e) in enumerate(expanded)
-                    # Appemnd to the variables and variable names to be used.
-                    # We use a randomly-suffixed name for each variable in the
-                    # expansion.
-                    new_variable_name = name[1:end-3] * "_" * randstring(4)
-                    new_variable = Meta.parse(new_variable_name)
-                    push!(new_variable_names, new_variable_name)
-                    push!(expanded_variables, new_variable)
+    #     # Iterate through variables specified through the annotation
+    #     for (variable, name) in zip(variables, variable_names)
+    #         # Variables with names ending with ... need to be expanded
+    #         if endswith(name, "...")
+    #             # Get information about the variable being splatted
+    #             expanded_expr = Meta.parse(name[1:end-3])
+    #             println(typeof(expanded_expr))
+    #             println(:([$(esc(ex[2]))]))
+    #             println(Base.eval(__module__, :([$(esc(ex[2]))])))
+    #             expanded::Vector{AbstractFuture} = Base.eval(__module__, esc(expanded_expr))
+
+    #             # Append to the variables and variable names to be loaded
+    #             # into the string
+    #             expanded_variables = []
+    #             for (i, e) in enumerate(expanded)
+    #                 # Appemnd to the variables and variable names to be used.
+    #                 # We use a randomly-suffixed name for each variable in the
+    #                 # expansion.
+    #                 new_variable_name = name[1:end-3] * "_" * randstring(4)
+    #                 new_variable = Meta.parse(new_variable_name)
+    #                 push!(new_variable_names, new_variable_name)
+    #                 push!(expanded_variables, new_variable)
                     
-                    # Then, in the code that this macro compiles to, we
-                    # construct these randomly-suffixed variables to reference
-                    # the appropriate future.
-                    res = quote
-                        $res
-                        $new_variable = $expanded_expr[$i]
-                    end
-                end
-                append!(new_variables, expanded_variables)
+    #                 # Then, in the code that this macro compiles to, we
+    #                 # construct these randomly-suffixed variables to reference
+    #                 # the appropriate future.
+    #                 res = quote
+    #                     $res
+    #                     $new_variable = $expanded_expr[$i]
+    #                 end
+    #             end
+    #             append!(new_variables, expanded_variables)
 
-                # Append to the code so that the variable can be used as-is in
-                # the code regiony
-                code = quote
-                    $expanded_expr = [$(expanded_variables...)]
-                    $code
-                end
-            else
-                push!(new_variables, variable)
-                push!(new_variable_names, name)
-            end
-        end
-        variables = new_variables
-        variables_names = new_variables_names
-    end
+    #             # Append to the code so that the variable can be used as-is in
+    #             # the code regiony
+    #             code = quote
+    #                 $expanded_expr = [$(expanded_variables...)]
+    #                 $code
+    #             end
+    #         else
+    #             push!(new_variables, variable)
+    #             push!(new_variable_names, name)
+    #         end
+    #     end
+    #     variables = new_variables
+    #     variables_names = new_variable_names
+    # end
 
     quote
-        $res
+        # $res
 
         # Convert arguments to `Future`s if they aren't already
-        futures::Vector{Future} = [$(variables...)] .|> x->convert(Future,x)
+        unsplatted_futures = [$(variables...)]
+        splatted_futures::Vector{AbstractFuture} = vcat(unsplatted_futures...) .|> x->convert(Future,x)
 
         # TODO: Allow for any Julia object (even stuff that can't be converted
         # to `Future`s) to be passed into an @partitioned and by default have
@@ -339,11 +351,30 @@ macro partitioned(ex...)
         # end
 
         # Fill in task with code and value names pulled using the macro
+        unsplatted_variable_names = [$(variable_names...)]
+        splatted_variable_names = []
         task = get_task()
-        task.code = $(string(code))
+        # Get code to initialize the unsplatted variable in the code region
+        task.code = ""
+        for (variable, unsplatted_variable_name) in zip(unsplatted_futures, unsplatted_variable_names)
+            task.code *= "$variable = "
+            if variable isa Vector
+                task.code *= "["
+                for (i, v) in enumerate(variable)
+                    push!(splatted_variable_names, "$unsplatted_variable_name_$i")
+                    task.code *= "$unsplatted_variable_name, "
+                end
+                task.code *= "]\n"
+            else
+                push!(splatted_variable_names, unsplatted_variable_name)
+                task.code *= "$unsplatted_variable_name\n"
+            end
+        end
+        task.code *= $(string(code))
         task.value_names = Dict(
             fut.value_id => var_name for (fut, var_name) in
-            zip(futures, [$(variable_names...)])
+            # zip(futures, [$(variable_names...)])
+            zip(futures, splatted_variable_names)
         )
         # task = DelayedTask(
         #     ,
@@ -380,10 +411,23 @@ macro partitioned(ex...)
 
         # Perform computation on samples
         begin
-            $(variables...) = [sample(f) for f in futures]
-            $code
-            for (f, value) in zip(futures, [$(variables...)])
-                setsample!(f, value)
+            # Store samples in variables
+            let $(variables...) = [f isa Vector ? sample.(f) : sample(f) for f in unsplatted_futures]
+                # Run the actual code. We don't have to do any splatting here
+                # because the variables already each contain either a single
+                # future or a list of them.
+                $code
+
+                # Move results from variables back into the samples
+                for (f, value) in zip(unsplatted_futures, [$(variables...)])
+                    if f isa Vector
+                        for (fe, ve) in zip(f, value)
+                            setsample!(fe, ve)
+                        end
+                    else
+                        setsample!(f, value)
+                    end
+                end
             end
         end
 

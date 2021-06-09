@@ -78,7 +78,7 @@ function getnormpath(banyanfile_path, p)
     if startswith(p, "file://")
         prefix, suffix = split(banyanfile_path, "://")
         banyanfile_location_path = dirname(suffix)
-        prefix * "://" * normpath(banyanfile_location_path, last(split(p, "://"))
+        prefix * "://" * normpath(banyanfile_location_path, last(split(p, "://")))
     else
         p
     end

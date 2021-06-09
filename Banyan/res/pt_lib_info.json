@@ -35,7 +35,7 @@
         "CopyFrom": {
             "required": {"name": "Replicating", "replication": "all", "dividing": false},
             "default": {},
-            "location_names": ["Remote", "Value", "Disk", "Memory"],
+            "location_names": ["Client", "Remote", "Value", "Disk", "Memory"],
             "partition_memory_usage": "all"
         },
         "Divide": {
@@ -61,7 +61,7 @@
         "CopyTo": {
             "required": {"name": "Replicating", "replication": "all"},
             "default": {},
-            "location_names": ["Memory", "Disk", "Remote"]
+            "location_names": ["Memory", "Disk", "Remote", "Client"]
         },
         "ReduceAndCopyTo": {
             "expected": ["reducer"],

@@ -682,6 +682,8 @@ function CopyFrom(
         end
     elseif loc_name == "Remote"
         Read(src, params, 1, 1, MPI.COMM_SELF, loc_name, loc_params)
+    elseif loc_name == "Client" && get_partition_idx(batch_idx, nbatches, comm) == 1
+        receive_from_client(loc_params["value_id"])
     elseif loc_name == "Memory"
         src
     end
@@ -717,6 +719,8 @@ function CopyTo(
             end
         elseif loc_name == "Remote"
             Write(src, part, params, 1, 1, MPI.COMM_SELF, loc_name, loc_params)
+        elseif loc_name == "Client"
+            send_to_client(loc_params["value_id"], part)
         else
             error("Unexpected location")
         end
@@ -736,7 +740,7 @@ function ReduceAndCopyTo(
 )
     # Merge reductions from batches
     op = src_params["reducer"]
-    op = src_params["with_key"] ? op(src_params["key"]) : op
+    op = src_params["w_key"] ? op(src_params["key"]) : op
     src = op(src, part)
 
     # Merge reductions across workers
@@ -786,7 +790,7 @@ function Reduce(
 )
     # Get operator for reduction
     op = src_params["reducer"]
-    op = src_params["with_key"] ? op(src_params["key"]) : op
+    op = src_params["w_key"] ? op(src_params["key"]) : op
     src = op(src, part)
 
     # Get buffer to reduce

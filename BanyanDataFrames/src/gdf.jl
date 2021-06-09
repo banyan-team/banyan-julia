@@ -208,6 +208,10 @@ function transform(gdf::GroupedDataFrame, args...; kwargs...)
         keep_sample_rate(res, gdf_parent)
     end
 
+    # TODO: Maybe automatically infer sample properties (set with
+    # `partitioned_using`) by looking at the actual annotations in
+    # `partitioned_with`
+
     partitioned_with() do
         pt(gdf_parent, Grouped(df, by=groupingkeys, scaled_by_same_as=res), match=res)
         pt(gdf, Blocked() & ScaledBySame(as=res))

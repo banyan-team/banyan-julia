@@ -5,15 +5,15 @@
 Either use your default AWS profile or [create on](https://stackoverflow.com/questions/593334/how-to-use-multiple-aws-accounts-from-the-command-line).
 
 ```cmd
-cd Banyan
+cd BanyanArrays
 
-AWS_DEFAULT_PROFILE=banyan-testing \
-  BANYAN_CLUSTER_NAME=banyancluster \
+AWS_PROFILE=banyan-testing \
+  BANYAN_API_KEY=8066d203223d2adbd9a668b16339ce7c \
+  BANYAN_USER_ID=7f812fbd2dd0941d8a12abc56c8d7ddb \
+  BANYAN_CLUSTER_NAME=pumpkincluster0 \
   BANYAN_NWORKERS=2 \
-  BANYAN_USERNAME=pumpkin-at-pie.com \
-  BANYAN_API_KEY=7FBKWAv3ld0eOfghSwhX_g \
-  JULIA_DEBUG=Banyan \
-  julia --project=. -e "using Pkg; Pkg.test(\"Banyan\", test_args=[\"scholes\"])"
+  BANYAN_USERNAME=pumpkinpie \
+  julia --project=BanyanArrays -e "using Pkg; Pkg.test(\"BanyanArrays\", test_args=[\"filling\"])"
 ```
 
 In a single line:
