@@ -66,12 +66,13 @@ function compute(fut::AbstractFuture)
             # last PA we come across one that's annotating a value not
             # annotated in a previous PA, we copy over the annotation (the
             # assigned PT stack) to the previous PA.
-            for pa in t.pa_union
-                for previous_pa in Iterators.reverse(tasks[1:i-1])
+            for (j, pa) in enumerate(t.pa_union)
+                for previous_pa in Iterators.reverse(t.pa_union[1:j-1])
                     for value_id in keys(pa.partitions.pt_stacks)
                         if !(value_id in keys(previous_pa.partitions.pt_stacks))
                             previous_pa.partitions.pt_stacks[value_id] =
                                 pa.partitions.pt_stacks[value_id]
+                            # NOTE: We don't cascade constraints backwards
                         end
                     end
                 end
@@ -90,8 +91,8 @@ function compute(fut::AbstractFuture)
             t.partitioned_using_func = nothing
             t.partitioned_with_func = nothing
 
-            # Handle mutation
-            clear(t.mutation) # Drop references to `Future`s here as well
+            # Handle 
+            empty!(t.mutation) # Drop references to `Future`s here as well
         end
 
         # Finalize (destroy) all `Future`s that can be destroyed
@@ -199,7 +200,12 @@ function send_evaluation(value_id::ValueId, job_id::JobId)
     response
 end
 
-function collect(fut::AbstractFuture)
+function Base.collect(fut::AbstractFuture)
+    # Fast case for where the future has not been mutated and isn't stale
+    if !fut.mutated && !fut.stale
+        return fut.value
+    end
+
     # This function collects the given future on the client side
     
     # Set the future's destination location to Client

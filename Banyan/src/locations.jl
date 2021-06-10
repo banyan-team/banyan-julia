@@ -2,47 +2,52 @@
 # Location type #
 #################
 
-const LocationParameters = Dict{String, Any}
+const LocationParameters = Dict{String,Any}
 
 mutable struct Location
     # A location may be usable as either a source or destination for data or
     # both.
 
-    src_name::Union{String, Nothing}
-    dst_name::Union{String, Nothing}
+    src_name::Union{String,Nothing}
+    dst_name::Union{String,Nothing}
     src_parameters::LocationParameters
     dst_parameters::LocationParameters
     sample::Sample
 
     function Location(
-        src_name::Union{String, Nothing},
-        src_parameters::LocationParameters,
-        dst_name::Union{String, Nothing},
-        dst_parameters::LocationParameters,
-        sample::Sample = Sample()
+        src_name::Union{String,Nothing},
+        src_parameters::Dict{String,<:Any},
+        dst_name::Union{String,Nothing},
+        dst_parameters::Dict{String,<:Any},
+        sample::Sample = Sample(),
     )
         if isnothing(src_name) && isnothing(dst_name)
-            error("Location must either be usable as a source or as a destination for data")
+            error(
+                "Location must either be usable as a source or as a destination for data",
+            )
         end
 
-        new(
-            src_name,
-            dst_name,
-            src_parameters,
-            dst_parameters,
-            sample
-        )
+        new(src_name, dst_name, src_parameters, dst_parameters, sample)
     end
 end
 
-Location(name::String, parameters::Dict, sample::Sample = Sample()) =
-    Location(name, name, parameters, parameters, sample)
+Location(
+    name::String,
+    parameters::Dict{String,<:Any},
+    sample::Sample = Sample(),
+) = Location(name, parameters, name, parameters, sample)
 
-LocationSource(name::String, parameters::Dict, sample::Sample = Sample()) =
-    Location(name, parameters, nothing, Dict(), sample)
+LocationSource(
+    name::String,
+    parameters::Dict{String,<:Any},
+    sample::Sample = Sample(),
+) = Location(name, parameters, nothing, LocationParameters(), sample)
 
-LocationDestination(name::String, parameters::Dict, sample::Sample = Sample()) =
-    Location(nothing, Dict(), name, parameters, sample)
+LocationDestination(
+    name::String,
+    parameters::Dict{String,<:Any},
+    sample::Sample = Sample(),
+) = Location(nothing, LocationParameters(), name, parameters, sample)
 
 function Base.getproperty(loc::Location, name::Symbol)
     if hasfield(Location, name)
@@ -68,7 +73,8 @@ function to_jl(lt::Location)
         # NOTE: sample.properties[:rate] is always set in the Sample
         # constructor to the configured sample rate (default 1/nworkers) for
         # this job
-        "total_memory_usage" => sample(lt.sample, :memory_usage) * sample(lt.sample, :rate)
+        "total_memory_usage" =>
+            sample(lt.sample, :memory_usage) * sample(lt.sample, :rate),
     )
 end
 
@@ -90,9 +96,9 @@ function sourced(fut, loc::Location)
         Location(
             loc.src_name,
             loc.src_parameters,
-            fut_location.dst_name,
-            fut_location.dst_parameters,
-            max(fut.location.total_memory_usage, loc.total_memory_usage),
+            isnothing(fut_location) ? nothing : fut_location.dst_name,
+            isnothing(fut_location) ? Dict{String,Any}() : fut_location.dst_parameters,
+            (isnothing(fut_location) || sample(loc.sample, :memory_usage) > sample(fut_location.sample, :memory_usage)) ? loc.sample : fut_location.sample,
         ),
     )
 end
@@ -107,11 +113,11 @@ function destined(fut, loc::Location)
     located(
         fut,
         Location(
-            fut_location.src_name,
-            fut_location.src_parameters,
+            isnothing(fut_location) ? nothing : fut_location.src_name,
+            isnothing(fut_location) ? Dict{String,Any}() : fut_location.src_parameters,
             loc.dst_name,
             loc.dst_parameters,
-            max(fut.location.total_memory_usage, loc.total_memory_usage),
+            (isnothing(fut_location) || sample(loc.sample, :memory_usage) > sample(fut_location.sample, :memory_usage)) ? loc.sample : fut_location.sample,
         ),
     )
 end
@@ -134,16 +140,10 @@ function located(fut, location::Location)
 end
 
 function located(futs...)
-    futs = futs .|> obj->convert(Future, obj)
-    maxindfuts = argmax([
-        get_location(f).total_memory_usage
-        for f in futs
-    ])
+    futs = futs .|> obj -> convert(Future, obj)
+    maxindfuts = argmax([get_location(f).total_memory_usage for f in futs])
     for fut in futs
-        located(
-            fut,
-            get_location(futs[maxindfuts]),
-        )
+        located(fut, get_location(futs[maxindfuts]))
     end
 end
 
@@ -169,8 +169,7 @@ function mem(futs...)
             maximum([
                 begin
                     get_location(f).total_memory_usage
-                end
-                for f in futs
+                end for f in futs
             ]),
         )
     end
@@ -191,28 +190,25 @@ get_dst_parameters(fut) = get_location(fut).dst_parameters
 # Simple locations #
 ####################
 
-Value(val) = LocationSource(
-    "Value",
-    Dict("value" => to_jl_value(val)),
-    ExactSample(val)
-)
+Value(val) =
+    LocationSource("Value", Dict("value" => to_jl_value(val)), ExactSample(val))
 
 # TODO: Implement Size
 Size(val) = LocationSource(
     "Value",
     Dict("value" => to_jl_value(val)),
     Sample(
-        div(val, get_job().sample_rate, dims=1),
+        ndiv(val, get_job().sample_rate, dims = 1);
         sample_rate = get_job().sample_rate,
     ),
 )
 
-Client(val) = LocationSource("Client", Dict(), ExactSample(val))
-Client() = LocationDestination("Client", Dict())
+Client(val) = LocationSource("Client", Dict{String,Any}(), ExactSample(val))
+Client() = LocationDestination("Client", Dict{String,Any}())
 # TODO: Un-comment only if Size is needed
 # Size(size) = Value(size)
 
-None() = Location("None", Dict(), Sample())
+None() = Location("None", Dict{String,Any}(), Sample())
 # Values assigned "None" location as well as other locations may reassigned
 # "Memory" or "Disk" locations by the scheduler depending on where the relevant
 # data is.
@@ -222,32 +218,27 @@ None() = Location("None", Dict(), Sample())
 ######################################################
 
 to_jl_value(jl) =
-    Dict(
-        "is_banyan_value" => true,
-        "contents" => to_jl_value_contents(jl)
-    )
+    Dict("is_banyan_value" => true, "contents" => to_jl_value_contents(jl))
 
 # NOTE: This function is copied into pt_lib.jl so any changes here should
 # be made there
-to_jl_value_contents(jl) =
-    begin
-        io = IOBuffer()
-        iob64_encode = Base64EncodePipe(io)
-        serialize(iob64_encode, jl)
-        close(iob64_encode)
-        String(take!(io))
-    end
+to_jl_value_contents(jl) = begin
+    io = IOBuffer()
+    iob64_encode = Base64EncodePipe(io)
+    serialize(iob64_encode, jl)
+    close(iob64_encode)
+    String(take!(io))
+end
 
 # NOTE: This function is copied into pt_lib.jl so any changes here should
 # be made there
-from_jl_value_contents(jl_value_contents) =
-    begin
-        io = IOBuffer()
-        iob64_decode = Base64DecodePipe(io)
-        write(io, jl_value_contents)
-        seekstart(io)
-        deserialize(iob64_decode)
-    end
+from_jl_value_contents(jl_value_contents) = begin
+    io = IOBuffer()
+    iob64_decode = Base64DecodePipe(io)
+    write(io, jl_value_contents)
+    seekstart(io)
+    deserialize(iob64_decode)
+end
 
 # NOTE: Currently, we only support s3:// or http(s):// and only either a
 # single file or a directory containing files that comprise the dataset.
@@ -291,17 +282,17 @@ getsamplenrows(totalnrows) =
         div(totalnrows, get_job().sample_rate)
     end
 
-function Remote(p; read_from_cache=true, write_to_cache=true)
+function Remote(p; read_from_cache = true, write_to_cache = true)
     # Read location from cache. The location will include metadata like the
     # number of rows in each file as well as a sample that can be used on the
     # client side for estimating memory usage and data skew among other things.
-    locationpath = joinpath(homedir(), ".banyan", "locations", p |> hash |> string)
-    location =
-        if read_from_cache && isfile(locationpath)
-            deserialize(locationpath)
-        else
-            get_remote_location(p)
-        end
+    locationpath =
+        joinpath(homedir(), ".banyan", "locations", p |> hash |> string)
+    location = if read_from_cache && isfile(locationpath)
+        deserialize(locationpath)
+    else
+        get_remote_location(p)
+    end
 
     # Store location in cache
     if write_to_cache
@@ -313,14 +304,18 @@ end
 
 function get_remote_location(p)
     Random.seed!(get_job_id())
-    
+
     # TODO: Cache stuff
     if startswith(p, "s3://")
         p = get_s3fs_path(p)
     elseif startswith(p, "http://") || startswith(p, "https://")
         p = download(p)
     else
-        throw(ArgumentError("Expected location that starts with either http:// or https:// or s3://"))
+        throw(
+            ArgumentError(
+                "Expected location that starts with either http:// or https:// or s3://",
+            ),
+        )
     end
 
     # TODO: Support more cases beyond just single files and all files in
@@ -333,14 +328,13 @@ function get_remote_location(p)
 
     # Handle single-file nd-arrays
 
-    hdf5_ending =
-        if occursin(p, ".h5")
-            ".h5"
-        elseif occursin(p, ".hdf5")
-            ".hdf5"
-        else
-            ""
-        end
+    hdf5_ending = if occursin(p, ".h5")
+        ".h5"
+    elseif occursin(p, ".hdf5")
+        ".hdf5"
+    else
+        ""
+    end
     if length(hdf5_ending) > 0
         filename, datasetpath = split(p, hdf5_ending)
         filename *= ".h5"
@@ -366,16 +360,20 @@ function get_remote_location(p)
 
             # Collect sample
             datalength = first(datasize)
-            remainingcolons = repeat([:], ndims(dset)-1)
+            remainingcolons = repeat([:], ndims(dset) - 1)
             if datalength < MAX_EXACT_SAMPLE_LENGTH
-                sampleindices = randsubseq(1:datalength, 1 / get_job().sample_rate)
+                sampleindices =
+                    randsubseq(1:datalength, 1 / get_job().sample_rate)
                 sample = dset[sampleindices, remainingcolons...]
             end
 
             # Extend or chop sample as needed
             samplelength = getsamplenrows(datalength)
             if size(sample, 1) < samplelength
-                sample = vcat(sample, dset[1:(samplelength - size(sample, 1)), remainingcolons...])
+                sample = vcat(
+                    sample,
+                    dset[1:(samplelength-size(sample, 1)), remainingcolons...],
+                )
             else
                 dset = dset[1:samplelength, remainingcolons...]
             end
@@ -387,11 +385,14 @@ function get_remote_location(p)
         end
 
         loc_for_reading, metadata_for_reading = if isfile(p)
-            ("Remote", Dict(
-                "path" => filename,
-                "subpath" => datasetpath,
-                "size" => datasize
-            ))
+            (
+                "Remote",
+                Dict(
+                    "path" => filename,
+                    "subpath" => datasetpath,
+                    "size" => datasize,
+                ),
+            )
         else
             (nothing, Dict())
         end
@@ -409,10 +410,10 @@ function get_remote_location(p)
             if isnothing(loc_for_reading)
                 Sample()
             elseif totalnrows <= MAX_EXACT_SAMPLE_LENGTH
-                ExactSample(sample, total_memory_usage=nbytes)
+                ExactSample(sample, total_memory_usage = nbytes)
             else
-                Sample(sample, total_memory_usage=nbytes)
-            end
+                Sample(sample, total_memory_usage = nbytes)
+            end,
         )
     end
 
@@ -425,7 +426,11 @@ function get_remote_location(p)
     # cache before proceeding
     exactsample = DataFrame()
     randomsample = DataFrame()
-    for filep in if p_isdir sort(readdir(p)) else [p] end
+    for filep in if p_isdir
+        sort(readdir(p))
+    else
+        [p]
+    end
         filenrows = 0
         # TODO: Ensure usage of Base.summarysize is reasonable
         # if endswith(filep, ".csv")
@@ -514,16 +519,15 @@ function get_remote_location(p)
         # end
 
         # Get chunks to sample from
-        chunks =
-            if endswith(filep, ".csv")
-                CSV.Chunks(filep)
-            elseif endswith(filep, ".parquet")
-                Tables.partitions(read_parquet(filep))
-            elseif endswith(filep, ".arrow")
-                Arrow.Stream(filep)
-            else
-                error("Expected .csv or .parquet or .arrow")
-            end
+        chunks = if endswith(filep, ".csv")
+            CSV.Chunks(filep)
+        elseif endswith(filep, ".parquet")
+            Tables.partitions(read_parquet(filep))
+        elseif endswith(filep, ".arrow")
+            Arrow.Stream(filep)
+        else
+            error("Expected .csv or .parquet or .arrow")
+        end
 
         # Sample from each chunk
         for (i, chunk) in enumerate(chunks)
@@ -534,7 +538,8 @@ function get_remote_location(p)
 
             # Append to randomsample
             # chunksampleindices = map(rand() < 1 / get_job().sample_rate, 1:chunknrows)
-            chunksampleindices = randsubseq(1:chunknrows, 1 / get_job().sample_rate)
+            chunksampleindices =
+                randsubseq(1:chunknrows, 1 / get_job().sample_rate)
             # if any(chunksampleindices)
             if !isempty(chunksampleindices)
                 append!(randomsample, @view chunkdf[chunksampleindices, :])
@@ -543,7 +548,10 @@ function get_remote_location(p)
             # Append to exactsample
             samplenrows = getsamplenrows(totalnrows)
             if nrows(exactsample) < samplenrows
-                append!(exactsample, first(chunkdf, samplenrows - nrows(exactsample)))
+                append!(
+                    exactsample,
+                    first(chunkdf, samplenrows - nrows(exactsample)),
+                )
             end
 
             # nbytes += isnothing(chunkdf) ? pqf.meta.row_groups[i].total_byte_size : Base.summarysize(chunkdf)
@@ -559,7 +567,10 @@ function get_remote_location(p)
     # Adjust sample to have samplenrows
     samplenrows = getsamplenrows(totalnrows)
     if nrows(randomsample) < samplenrows
-        append!(randomsample, first(exactsample, samplenrows - nrows(randomsample)))
+        append!(
+            randomsample,
+            first(exactsample, samplenrows - nrows(randomsample)),
+        )
     end
     if nrows(randomsample) > samplenrows
         randomsample = first(randomsample, samplenrows)
@@ -568,12 +579,11 @@ function get_remote_location(p)
     # TODO: Build up sample and return
 
     # Load metadata for reading
-    loc_for_reading, metadata_for_reading =
-        if !isempty(files_metadata)
-            ("Remote", Dict("files" => files, "nrows" => totalnrows))
-        else
-            (nothing, Dict())
-        end
+    loc_for_reading, metadata_for_reading = if !isempty(files_metadata)
+        ("Remote", Dict("files" => files, "nrows" => totalnrows))
+    else
+        (nothing, Dict())
+    end
 
     # Load metadata for writing
     loc_for_writing, metadata_for_writing = if p_isdir
@@ -593,9 +603,9 @@ function get_remote_location(p)
         if isnothing(loc_for_reading)
             Sample()
         elseif totalnrows <= MAX_EXACT_SAMPLE_LENGTH
-            ExactSample(sample, total_memory_usage=nbytes)
+            ExactSample(sample, total_memory_usage = nbytes)
         else
-            Sample(sample, total_memory_usage=nbytes)
-        end
+            Sample(sample, total_memory_usage = nbytes)
+        end,
     )
 end

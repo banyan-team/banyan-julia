@@ -10,7 +10,7 @@
 
 Constructs a new future, representing a value that has not yet been evaluated.
 """
-function Future(location::Location = None(); mutate_from::AbstractFuture=nothing)
+function Future(location::Location = None(); mutate_from::Union{<:AbstractFuture,Nothing}=nothing)
     # Generate new value id
     value_id = generate_value_id()
 
@@ -26,27 +26,20 @@ function Future(location::Location = None(); mutate_from::AbstractFuture=nothing
         new_future.stale = false
     end
     
-    # For convenience, if a future is constructed with no location to
-    # split from, we assume it will be mutated in the next code region
-    # and mark it as mutated. This is pretty common since often when
-    # we are creating new futures with None location it is as an
-    # intermediate variable to store the result of some code region.
-    # 
-    # Mutation can also be specified manually with mutate=true|false in
-    # `partition` or implicitly through `Future` constructors
-    if location.src_name == "None"
-        mutated(future)
-    end
-
-    # Create finalizer and register
-    finalizer(new_future) do fut
-        record_request(DestroyRequest(value_id))
-    end
-
-    # Indicate that this future is the result of an in-place mutation of some other
-    # value
     if !isnothing(mutate_from)
-        mutated(mutate_from, fut)
+        # Indicate that this future is the result of an in-place mutation of
+        # some other value
+        mutated(mutate_from, new_future)
+    elseif location.src_name == "None"
+        # For convenience, if a future is constructed with no location to
+        # split from, we assume it will be mutated in the next code region
+        # and mark it as mutated. This is pretty common since often when
+        # we are creating new futures with None location it is as an
+        # intermediate variable to store the result of some code region.
+        # 
+        # Mutation can also be specified manually with mutate=true|false in
+        # `partition` or implicitly through `Future` constructors
+        mutated(new_future)
     end
 
     new_future
@@ -81,21 +74,28 @@ it's going to be used.
 function Future(fut::AbstractFuture, mutation::Function=identity)
     fut = convert(Future, fut)
     if !fut.stale
-        Future(
-            copy(mutation(fut.value)),
+        # Copy over value
+        new_future = Future(
+            deepcopy(mutation(fut.value)),
             generate_value_id(),
             # If the future is not stale, it is not mutated in a way where
             # a further `compute` is needed. So we can just copy its value.
             false,
             false
         )
+
+        # Copy over location
+        located(new_future, deepcopy(get_location(fut)))
+
+        new_future
     else
         Future()
     end
 end
 
-convert(::Type{Future}, value::Any) = Future(value)
+# convert(::Type{Future}, value::Any) = Future(value)
+convert(::Type{Future}, fut::Future) = fut
 
-get_location(fut::AbstractFuture) = get_job().locations[convert(Future, fut).value_id]
-get_location(value_id::ValueId) = get_job().locations[value_id]
+get_location(fut::AbstractFuture) = get(get_job().locations, convert(Future, fut).value_id, nothing)
+get_location(value_id::ValueId) = get(get_job().locations, value_id, nothing)
 get_future(value_id::ValueId) = get_job().futures_on_client[value_id]

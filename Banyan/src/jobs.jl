@@ -25,7 +25,7 @@ end
 function get_job_id()::JobId
     global current_job_id
     if isnothing(current_job_id)
-        error("No job selected using `set_job_id` or `create_job`")
+        error("No job selected using `with_job` or `create_job` or `set_job_id`")
     end
     current_job_id
 end
@@ -43,9 +43,10 @@ function create_job(;
     sample_rate::Integer = nworkers,
     kwargs...,
 )
-
+    global jobs
     global current_job_id
     global current_job_status
+
     @debug "Creating job"
     if cluster_name == ""
         cluster_name = nothing
@@ -73,12 +74,12 @@ function create_job(;
     job_configuration = Dict{String,Any}(
         "cluster_name" => cluster_name,
         "num_workers" => nworkers,
-	"logs_location" => "s3",  #logs_location,
+    	"logs_location" => "s3",  #logs_location,
     )
     if !isnothing(banyanfile_path)
         banyanfile = load_json(banyanfile_path)
         for included in banyanfile["include"]
-            merge_banyanfile_with!(banyanfile, included, :job, :creation)
+            merge_banyanfile_with!(banyanfile, banyanfile_path, included, :job, :creation)
         end
         job_configuration["banyanfile"] = banyanfile
     end
@@ -92,6 +93,7 @@ function create_job(;
     # Store in global state
     current_job_id = job_id
     current_job_status = "running"
+    jobs[current_job_id] = Job(current_job_id, nworkers, sample_rate)
 
     @debug "Finished creating job $job_id"
     return job_id
@@ -169,8 +171,11 @@ function with_job(f::Function; kwargs...)
 end
 
 function clear_jobs()
-    global pending_requests
-    empty!(pending_requests)
+    global jobs
+    global current_job_id
+    if !isnothing(current_job_id)
+        empty!(jobs[current_job_id].pending_requests)
+    end
 end
 
 # TODO: Fix bug causing nbatches to be 2 when it should be 25

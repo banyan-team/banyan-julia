@@ -2,7 +2,7 @@
 # Tasks #
 #########
 
-struct DelayedTask
+mutable struct DelayedTask
     # Fields for use in processed task ready to be recorded
     code::String
     value_names::Dict{ValueId,String}

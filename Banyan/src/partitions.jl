@@ -15,7 +15,7 @@ pt_ref_to_jl(pt_ref) =
         (convert(Future, pt_ref).value_id, 0)
     end
 
-pt_refs_to_jl(refs::Vector{PartitionTypeReference}) =
+pt_refs_to_jl(refs) =
     [pt_ref_to_jl(ref) for ref in refs]
 
 struct PartitioningConstraintOverGroup
@@ -65,7 +65,7 @@ AtMost(npartitions, args...) =
         "AT_MOST=$npartitions",
         pt_refs_to_jl(args)
     )
-ScaleBy(arg, factor::Float32 = 1.0, relative_to...) = 
+ScaleBy(arg, factor::Real = 1.0, relative_to...) = 
     PartitioningConstraintOverGroup(
         "SCALE_BY=$factor",
         pt_refs_to_jl([arg; relative_to...])
@@ -97,7 +97,7 @@ ScaleBy(arg, factor::Float32 = 1.0, relative_to...) =
 # applicable only for a single code region annotated with a PA)
 
 mutable struct PartitioningConstraints
-    constraints::Vector{PartitioningConstraint}
+    constraints::Vector{Union{PartitioningConstraint, Function}}
 end
 
 PartitioningConstraints() = PartitioningConstraints([])
@@ -119,10 +119,14 @@ mutable struct PartitionType
     parameters::PartitionTypeParameters
     constraints::PartitioningConstraints
 
+    PartitionType(
+        parameters::Dict{String, <:Any} = PartitionTypeParameters(),
+        constraints::PartitioningConstraints = PartitioningConstraints(),
+    ) = new(parameters, constraints)
     PartitionType(s::String) = new(Dict("name" => s), PartitioningConstraints())
     PartitionType(parameters::PartitionTypeParameters) = new(parameters, PartitioningConstraints())
 
-    function PartitionType(args::Union{String, Pair{String,Any}, PartitioningConstraint, Function}...)
+    function PartitionType(args::Union{String, Pair{String,<:Any}, PartitioningConstraint, Function}...)
         parameters = Dict()
         constraints = PartitioningConstraints()
 
@@ -133,7 +137,7 @@ mutable struct PartitionType
             elseif arg isa Pair
                 parameters[first(arg)] = last(arg)
             elseif arg isa PartitioningConstraint || arg isa Function
-                push!(constraints, arg)
+                push!(constraints.constraints, arg)
             else
                 throw(ArgumentError("Expected either a partition type parameter or constraint"))
             end
@@ -174,7 +178,8 @@ end
 # Partition type composition #
 ##############################
 
-struct PartitionTypeComposition
+# This is mutable so that we can append PTs
+mutable struct PartitionTypeComposition
     pts::Vector{PartitionType}
 end
 
@@ -226,7 +231,7 @@ function to_jl(p::Partitions)
     # delayed
     return Dict(
         "pt_stacks" =>
-            Dict(v => ptc |> pt_composition_to_jl for (v, ptc) in p.pt_stacks),
+            Dict(v => ptc |> to_jl for (v, ptc) in p.pt_stacks),
     )
 end
 

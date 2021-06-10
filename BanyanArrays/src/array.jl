@@ -10,11 +10,33 @@ function Base.copy(fut::AbstractFuture)
     # for which there is no specified PT. But make sure that other splitting
     # functions such as those that split arrays are expecting a name to be
     # provided.
-    pt(fut, Any())
-    pt(res, Any(), match=fut)
+    pt(fut, PartitionType())
+    pt(res, PartitionType(), match=fut)
 
     @partitioned fut res begin
-        res = copy(fut)
+        res = Base.copy(fut)
+    end
+
+    res
+end
+
+function Base.deepcopy(fut::AbstractFuture)
+    res = Future(fut)
+
+    # partitioned_using() do
+    #     keep_all_sample_keys(res, fut)
+    #     keep_sample_rate(res, fut)
+    # end
+
+    # TODO: Ensure that the CopyTo function can always be used to split anything
+    # for which there is no specified PT. But make sure that other splitting
+    # functions such as those that split arrays are expecting a name to be
+    # provided.
+    pt(fut, PartitionType())
+    pt(res, PartitionType(), match=fut)
+
+    @partitioned fut res begin
+        res = Base.deepcopy(fut)
     end
 
     res
@@ -30,21 +52,23 @@ struct Array{T,N} <: AbstractFuture where {T,N}
 
     Array{T,N}() where {T,N} = new(Future(), Future())
     Array{T,N}(A::Array{T,N}) where {T,N} = new(Future(), Future(A.size))
+    Array{T,N}(data::Future, size::Future) where {T,N} = new(data, size)
 end
 
-convert(::Type{Future}, A::Array) = A.data
+const Vector{T} = Array{T,1}
+const Matrix{T} = Array{T,2}
+
+Banyan.convert(::Type{Future}, A::Array{T,N}) where {T,N} = A.data
 
 # Array sample
 
-Base.Array <: AbstractSampleWithKeys
-
-sample_axes(A::Base.Array) = [1:ndims(A)...]
-sample_keys(A::Base.Array) = sample_axes(A)
+Banyan.sample_axes(A::Base.Array{T,N}) where {T,N} = [1:ndims(A)...]
+Banyan.sample_keys(A::Base.Array{T,N}) where {T,N} = sample_axes(A)
 
 # `sample_divisions`, `sample_percentile`, and `sample_max_ngroups` should
 # work with the `orderinghash` of values in the data they are used on
 
-function sample_divisions(A::Base.Array, key)
+function Banyan.sample_divisions(A::Base.Array{T,N}, key) where {T,N}
     max_ngroups = sample_max_ngroups(df, key)
     ngroups = min(max_ngroups, get_job().nworkers, 128)
     data = sort(mapslices(first, transpose(A), dims=key))
@@ -60,7 +84,7 @@ function sample_divisions(A::Base.Array, key)
     ]
 end
 
-function sample_percentile(A::Base.Array, key, minvalue, maxvalue)
+function Banyan.sample_percentile(A::Base.Array{T,N}, key, minvalue, maxvalue) where {T,N}
     minvalue, maxvalue = orderinghash(minvalue), orderinghash(maxvalue)
     divisions = sample_divisions(A, key)
     percentile = 0
@@ -88,7 +112,7 @@ function sample_percentile(A::Base.Array, key, minvalue, maxvalue)
     percentile
 end
 
-sample_max_ngroups(A::Base.Array, key) =
+Banyan.sample_max_ngroups(A::Base.Array{T,N}, key) where {T,N} =
     begin
         data = sort(mapslices(orderinghash, transpose(A), dims=key))
         currgroupsize = 1
@@ -107,11 +131,8 @@ sample_max_ngroups(A::Base.Array, key) =
         maxgroupsize = max(maxgroupsize, currgroupsize)
         size(df, key) / maxgroupsize
     end
-sample_min(A::Base.Array, key) = minimum(mapslices(first, transpose(A), dims=key))
-sample_max(A::Base.Array, key) = maximum(mapslices(first, transpose(A), dims=key))
-
-const Vector{T} = Array{T,1}
-const Matrix{T} = Array{T,2}
+Banyan.sample_min(A::Base.Array{T,N}, key) where {T,N} = minimum(mapslices(first, transpose(A), dims=key))
+Banyan.sample_max(A::Base.Array{T,N}, key) where {T,N} = maximum(mapslices(first, transpose(A), dims=key))
 
 # Array creation
 
@@ -143,10 +164,10 @@ function write_hdf5(A, path)
 end
 
 function fill(v, dims::NTuple{N,Integer}) where {N}
-    v = Future(v)
-    dims = Future(dims)
     fillingdims = Future(Size(dims))
     A = Array{typeof(v),N}(Future(), Future(dims))
+    v = Future(v)
+    dims = Future(dims)
 
     # For futures that contains dims or nrows, we initialize them to store the
     # dimensions or # of rows of the whole value. Then if we need to mutate,
@@ -175,8 +196,14 @@ function fill(v, dims::NTuple{N,Integer}) where {N}
         pt(A, fillingdims, v, Replicated())
     end
 
+    # TODO: Remove the println @macroexpand
+    # println(@macroexpand begin @partitioned A v fillingdims begin
+    #     println(A)
+    #     println(v)
+    #     A = fill(v, fillingdims)
+    # end end)
     @partitioned A v fillingdims begin
-        A = fill(v, fillingdims)
+        A = Base.fill(v, fillingdims)
     end
 
     A
@@ -196,6 +223,19 @@ Base.size(A::Array) = compute(A.size)
 Base.length(V::Vector) = compute(V.size)[1]
 Base.eltype(A::Array) = eltype(sample(A))
 
+function pts_for_copying(A, res)
+    # balanced
+    pt(A, Blocked(A, balanced=true))
+    pt(res, Balanced(), match=A)
+
+    # unbalanced
+    pt(A, Blocked(A, balanced=false, scaled_by_same_as=res))
+    pt(res, Unbalanced(scaled_by_same_as=A), match=A)
+    
+    # replicated
+    pt(A, res, Replicated())
+end
+
 function Base.copy(A::Array{T,N})::Array{T,N} where {T,N}
     res = Future()
 
@@ -205,28 +245,40 @@ function Base.copy(A::Array{T,N})::Array{T,N} where {T,N}
     end
 
     partitioned_with() do
-        # balanced
-        pt(df, Blocked(df, balanced=true))
-        pt(res, Balanced(), match=df)
-
-        # unbalanced
-        pt(df, Blocked(df, balanced=false, scaled_by_same_as=res))
-        pt(res, Unbalanced(scaled_by_same_as=df), match=df)
-        
-        # replicated
-        pt(df, res, Replicated())
+        pts_for_copying(A, res)
     end
 
-    @partitioned df res begin res = copy(df) end
+    @partitioned A res begin
+        res = Base.copy(A)
+    end
 
-    Array{T,N}(res, copy(df.size))
+    Array{T,N}(res, deepcopy(A.size))
+end
+
+function Base.deepcopy(A::Array{T,N})::Array{T,N} where {T,N}
+    res = Future()
+
+    partitioned_using() do
+        keep_all_sample_keys(res, A)
+        keep_sample_rate(res, A)
+    end
+
+    partitioned_with() do
+        pts_for_copying(A, res)
+    end
+
+    @partitioned A res begin
+        res = Base.deepcopy(A)
+    end
+
+    Array{T,N}(res, deepcopy(A.size))
 end
 
 # Array operations
 
-function map(f, c::Array{T,N}...) where {T,N}
+function Base.map(f, c::Array{T,N}...) where {T,N}
     f = Future(f)
-    res = Array{T,N}(Future(), copy(first(c).size))
+    res = Array{T,N}(Future(), deepcopy(first(c).size))
 
     partitioned_using() do
         # We shouldn't need to keep sample keys since we are only allowing data
@@ -240,23 +292,26 @@ function map(f, c::Array{T,N}...) where {T,N}
 
     # balanced
     pt(first(c), Blocked(first(c), balanced=true))
-    pt([c[2:end]; res]..., Blocked() & Balanced(), match=first(c), on="key")
+    pt(c[2:end]..., res, Blocked() & Balanced(), match=first(c), on="key")
 
     # unbalanced
-    pt(first(c), Blocked(first(c), balanced=false, scaled_by_same_as=res) | Replicated())
-    pt([c[2:end]; res]..., Unbalanced(scaled_by_same_as=first(c)), match=first(c))
+    pt(first(c), Blocked(first(c), balanced=false, scaled_by_same_as=res))
+    pt(c[2:end]..., res, Unbalanced(scaled_by_same_as=first(c)), match=first(c))
 
     # replicated
     pt(c..., res, f, Replicated())
 
+    # println(@macroexpand begin @partitioned f c res begin
+    #     res = Base.map(f, c...)
+    # end end)
     @partitioned f c res begin
-        res = map(f, c...)
+        res = Base.map(f, c...)
     end
 
     res
 end
 
-function mapslices(f, A::Array{T,N}; dims) where {T,N}
+function Base.mapslices(f, A::Array{T,N}; dims) where {T,N}
     if isempty(dims) return map(f, A) end
 
     f = Future(f)
@@ -281,13 +336,12 @@ function mapslices(f, A::Array{T,N}; dims) where {T,N}
     pt(res, Unbalanced(scaled_by_same_as=A), match=A)
 
     # replicated
-    pt(res_size, ReducingSize(), match=A, on="key")
-    pt(res_size, ReducingWithKey(axis -> (a, b) -> Tuple([a[begin:axis-1]..., a[axis] + b[axis], a[(axis+1):end]...])), match=A, on="key")
+    pt(res_size, SummingSize(), match=A, on="key")
     pt(A, res, res_size, f, dims, Replicated())
 
     @partitioned f A dims res begin
-        res = mapslices(f, A, dims=dims)
-        res_size = size(res)
+        res = Base.mapslices(f, A, dims=dims)
+        res_size = Base.size(res)
     end
 
     res
@@ -295,7 +349,7 @@ end
 
 # TODO: Implement reduce and sortslices
 
-function reduce(op, A::Array{T,N}; dims=:, kwargs...) where {T,N}
+function Base.reduce(op, A::Array{T,N}; dims=:, kwargs...) where {T,N}
     if :init in keys(kwargs) throw(ArgumentError("Reducing with an initial value is not currently supported")) end
 
     op = Future(op)
@@ -315,26 +369,26 @@ function reduce(op, A::Array{T,N}; dims=:, kwargs...) where {T,N}
 
     for bpt in Blocked(A)
         pt(A, bpt)
-        if dims isa Colon || bpt.key in [dims...]
+        if collect(dims) isa Colon || bpt.key in [collect(dims)...]
             pt(res, Reducing(op))
         else
             pt(res, bpt.balanced ? Balanced() : Unbalanced(scaled_by_same_as=A), match=A)
         end
     end
-    pt(res_size, ReducingSize(), match=A, on="key")
+    pt(res_size, SummingSize(), match=A, on="key")
     pt(A, res, res_size, dims, kwargs, Replicated())
 
-    @partitioned op c dims kwargs res res_size begin
-        res = reduce(op, c; dims=dims, kwargs...)
+    @partitioned op A dims kwargs res res_size begin
+        res = Base.reduce(op, A; dims=dims, kwargs...)
         if res isa Array
-            res_size = size(res)
+            res_size = Base.size(res)
         end
     end
 
     res
 end
 
-function sortslices(A::Array{T,N}, dims; kwargs...) where {T,N}
+function Base.sortslices(A::Array{T,N}, dims; kwargs...) where {T,N}
     get(kwargs, :by, identity) == identity || throw(ArgumentError("Sorting by a function is not supported"))
     !haskey(kwargs, :order) || throw(ArgumentError("Sorting by an order is not supported"))
 
@@ -342,7 +396,7 @@ function sortslices(A::Array{T,N}, dims; kwargs...) where {T,N}
     sortingdim = dims isa Colon ? 1 : first(dims)
     isreversed = get(kwargs, :rev, false)
 
-    res = Array{T,N}(Future(), copy(A.size))
+    res = Array{T,N}(Future(), deepcopy(A.size))
     dims = Future(dims)
     kwargs = Future(kwargs)
 
@@ -368,7 +422,7 @@ function sortslices(A::Array{T,N}, dims; kwargs...) where {T,N}
     res
 end
 
-sort(A::Array{T,N}; kwargs...) where {T,N} = sortslices(A, dims=:; kwargs...)
+Base.sort(A::Array{T,N}; kwargs...) where {T,N} = sortslices(A, dims=:; kwargs...)
 
 # Array aggregation
 
@@ -455,7 +509,7 @@ end
 
 for (op, agg) in [(:(sum), :(Base.:+)), (:(minimum), :(min)), (:(maximum), :(max))]
     @eval begin
-        $op(X::Array; dims=:) = reduce($agg, X; dims=dims)
+        Base.$op(X::Array; dims=:) = reduce($agg, X; dims=dims)
     end
 end
 

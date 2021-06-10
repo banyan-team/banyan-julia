@@ -26,9 +26,9 @@ total_memory_usage(val) =
 to_vector(v::Vector) = v
 to_vector(v) = [v]
 
-function div(x, by; dims)
+function ndiv(x, by; dims)
     x = [x...]
-    x[dims] = div(x, by)
+    x[dims] = div(x[dims], by)
     Tuple(x)
 end
 

@@ -13,7 +13,7 @@ AWS_PROFILE=banyan-testing \
   BANYAN_CLUSTER_NAME=pumpkincluster0 \
   BANYAN_NWORKERS=2 \
   BANYAN_USERNAME=pumpkinpie \
-  julia --project=BanyanArrays -e "using Pkg; Pkg.test(\"BanyanArrays\", test_args=[\"filling\"])"
+  julia --project=. -e "using Pkg; Pkg.test(\"BanyanArrays\", test_args=[\"filling\"])"
 ```
 
 In a single line:

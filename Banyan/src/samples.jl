@@ -10,14 +10,14 @@ mutable struct Sample
 
     function Sample(
         value::Any = nothing;
-        properties::Dict{Symbol,Any} = Dict(),
+        properties::Dict{Symbol,Any} = Dict{Symbol,Any}(),
         sample_rate=get_job().sample_rate,
         total_memory_usage=nothing
     )
         newsample = new(value, properties)
 
         # Fill in properties if possible
-        if !isnothing(nbytes)
+        if !isnothing(total_memory_usage)
             setsample!(newsample, :memory_usage, round(total_memory_usage / sample_rate))
         end
         setsample!(newsample, :rate, sample_rate)
@@ -40,8 +40,8 @@ sample(fut::AbstractFuture) = sample(get_location(fut).sample)
 sample(sample::Sample) = sample.value
 
 sample(fut::AbstractFuture, propertykeys...) = sample(get_location(fut).sample, propertykeys...)
-function sample(sample::Sample, propertykeys...)
-    properties = sample.properties
+function sample(s::Sample, propertykeys...)
+    properties = s.properties
     for (i, propertykey) in enumerate(propertykeys)
         properties = get!(
             properties,
@@ -49,7 +49,7 @@ function sample(sample::Sample, propertykeys...)
             if i < length(propertykeys)
                 Dict()
             else
-                sample(sample.value, propertykeys)
+                sample(s.value, propertykeys...)
             end
         )
     end
@@ -96,7 +96,7 @@ end
 # function call. This makes it easier for the `sample` and `setsample!`
 # functions for `Future`s to compute and cache samples.
 
-sample(as::AbstractSample, properties...) =
+sample(as::Any, properties...) =
     if length(properties) == 1
         if first(properties) == :memory_usage
             sample_memory_usage(as)
@@ -105,21 +105,7 @@ sample(as::AbstractSample, properties...) =
             # before-hand to allow some samples to be "exact" with a sample
             # rate of 1
             get_job().sample_rate
-        else
-            throw(ArgumentError("Invalid sample properties: $properties"))
-        end
-    else
-        throw(ArgumentError("Invalid sample properties: $properties"))
-    end
-
-sample_memory_usage(as::AbstractSample) = total_memory_usage(as)
-# TODO: Include sample_rate and have functions for setting it in forward pass
-
-# TODO: Implement this for dataframe and for array
-
-sample(as::AbstractSampleWithKeys, properties...) =
-    if length(properties) == 1
-        if first(properties) == :keys
+        elseif first(properties) == :keys
             sample_keys(as)
         elseif first(properties) == :axes
             sample_axes(as)
@@ -128,6 +114,8 @@ sample(as::AbstractSampleWithKeys, properties...) =
             # `keep_*` functions will expand it.
             []
         else
+            # println(typeof(as))
+            # println(typeof(as) <: Any)
             throw(ArgumentError("Invalid sample properties: $properties"))
         end
     elseif length(properties) <= 2 && first(properties) == :statistics
@@ -157,17 +145,17 @@ sample(as::AbstractSampleWithKeys, properties...) =
         throw(ArgumentError("Invalid sample properties: $properties"))
     end
 
-# Implementation error 
-abstract_sample_with_keys_impl_error(fn_name) =
-    error("$fn_name not implemented for $(typeof(as)) <: AbstractSampleWithKeys")
-const aswkie = abstract_sample_with_keys_impl_error
+sample_memory_usage(as::Any) = total_memory_usage(as)
 
-# Functions to implement for AbstractSampleWithKeys (e.g., for DataFrame or
+# Implementation error 
+impl_error(fn_name, as) = error("$fn_name not implemented for $(typeof(as))")
+
+# Functions to implement for Any (e.g., for DataFrame or
 # Array)
-sample_axes(as::AbstractSampleWithKeys) = aswkie("sample_axes")
-sample_keys(as::AbstractSampleWithKeys) = aswkie("sample_keys")
-sample_divisions(as::AbstractSampleWithKeys, key) = aswkie("sample_divisions")
-sample_percentile(as::AbstractSampleWithKeys, key, minvalue, maxvalue) = aswkie("sample_percentile")
-sample_max_ngroups(as::AbstractSampleWithKeys, key) = aswkie("sample_max_ngroups")
-sample_min(as::AbstractSampleWithKeys, key) = aswkie("sample_min")
-sample_max(as::AbstractSampleWithKeys, key) = aswkie("sample_max")
+sample_axes(as::Any) = impl_error("sample_axes", as)
+sample_keys(as::Any) = impl_error("sample_keys", as)
+sample_divisions(as::Any, key) = impl_error("sample_divisions", as)
+sample_percentile(as::Any, key, minvalue, maxvalue) = impl_error("sample_percentile", as)
+sample_max_ngroups(as::Any, key) = impl_error("sample_max_ngroups", as)
+sample_min(as::Any, key) = impl_error("sample_min", as)
+sample_max(as::Any, key) = impl_error("sample_max", as)

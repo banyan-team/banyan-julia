@@ -59,14 +59,13 @@ export Cluster,
     create_cluster, update_cluster, destroy_cluster, get_clusters, get_cluster
 
 # Job management
-export Job, create_job, destroy_job, destroy_all_jobs, clear_jobs, get_jobs
+export Job, with_job, create_job, destroy_job, destroy_all_jobs, clear_jobs, get_jobs
 
 # Futures
 export AbstractFuture, Future, compute, collect
 
 # Samples
-export AbstractSample,
-    AbstractSampleWithKeys, Sample, ExactSample, sample, setsample!
+export Sample, ExactSample, sample, setsample!
 export sample_memory_usage,
     sample_axes,
     sample_keys,
@@ -89,6 +88,7 @@ export Any,
     Syncing,
     Reducing,
     ReducingWithKey,
+    SummingSize,
     Distributing,
     Blocked,
     Grouped,

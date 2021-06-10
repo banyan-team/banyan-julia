@@ -77,12 +77,10 @@ write_arrow = write_csv
 
 # DataFrame sample
 
-DataFrames.DataFrame <: AbstractSampleWithKeys
+Banyan.sample_axes(df::DataFrames.DataFrame) = [1]
+Banyan.sample_keys(df::DataFrames.DataFrame) = propertynames(df)
 
-sample_axes(df::DataFrames.DataFrame) = [1]
-sample_keys(df::DataFrames.DataFrame) = propertynames(df)
-
-function sample_divisions(df::DataFrames.DataFrame, key)
+function Banyan.sample_divisions(df::DataFrames.DataFrame, key)
     max_ngroups = sample_max_ngroups(df, key)
     ngroups = min(max_ngroups, get_job().nworkers, 128)
     data = sort(df[!, key])
@@ -98,7 +96,7 @@ function sample_divisions(df::DataFrames.DataFrame, key)
     ]
 end
 
-function sample_percentile(A::DataFrames.DataFrame, key, minvalue, maxvalue)
+function Banyan.sample_percentile(A::DataFrames.DataFrame, key, minvalue, maxvalue)
     minvalue, maxvalue = orderinghash(minvalue), orderinghash(maxvalue)
     divisions = sample_divisions(A, key)
     percentile = 0
@@ -126,11 +124,9 @@ function sample_percentile(A::DataFrames.DataFrame, key, minvalue, maxvalue)
     percentile
 end
 
-sample_max_ngroups(df::DataFrames.DataFrame, key) = round(nrow(df) / maximum(combine(groupby(df, key), nrow).nrow))
-sample_min(df::DataFrames.DataFrame, key) = minimum(df[!, key])
-sample_max(df::DataFrames.DataFrame, key) = maximum(df[!, key])
-
-compute_size(df::DataFrames.DataFrame) = Base.summarysize()
+Banyan.sample_max_ngroups(df::DataFrames.DataFrame, key) = round(nrow(df) / maximum(combine(groupby(df, key), nrow).nrow))
+Banyan.sample_min(df::DataFrames.DataFrame, key) = minimum(df[!, key])
+Banyan.sample_max(df::DataFrames.DataFrame, key) = maximum(df[!, key])
 
 # DataFrame properties
 
@@ -318,7 +314,7 @@ function Base.copy(df::DataFrame)::DataFrame
 
     partitioned_with() do
         pt(df, Distributed(scaled_by_same_as=res))
-        pt(res, Any(scaled_by_same_as=df), match=df)
+        pt(res, ScaledBySame(as=df), match=df)
 
         # pt(df, Distributed(df, balanced=true))
         # pt(res, Balanced(), match=df)
@@ -342,7 +338,7 @@ function Base.copy(df::DataFrame)::DataFrame
 
     # partitioned_with() do
     #     pt(df, Distributed(df))
-    #     pt(res, Any(scaled_by_same_as=df), match=df)
+    #     pt(res, ScaledBySame(as=df), match=df)
     # end
 
     # partition(df, Replicated())
@@ -440,7 +436,7 @@ end
 #             # `df` is grouped by a key that `res` has or not
 #             partition(df, gpt, max_npartitions=max_ngroups)
 #             if like && rows isa Colon
-#                 partition(res, Any(), match=df)
+#                 partition(res, PartitionType(), match=df)
 #             elseif like
 #                 partition(
 #                     res,
@@ -494,7 +490,7 @@ function getindex(df::DataFrame, rows=:, cols=:)
         end
     res =
         if return_vector
-            Vector{eltype(sample(df)[compute(cols)])}(Future(), res_size)
+            Vector{eltype(sample(df)[collect(cols)])}(Future(), res_size)
         else
             DataFrame(Future(), res_size)
         end
@@ -511,11 +507,11 @@ function getindex(df::DataFrame, rows=:, cols=:)
                 Distributed(res; balanced=false, filtered_from=df, kwargs...),
             )
                 # Return Blocked if return_vector or select_columns and grouping by non-selected
-                return_blocked = return_vector || (dfpt.distribution == "grouped" && !(dfpt.key in compute(cols)))
+                return_blocked = return_vector || (dfpt.distribution == "grouped" && !(dfpt.key in collect(cols)))
 
                 # unbalanced -> balanced
                 pt(df, dfpt, match=(return_blocked ? nothing : final), on=["distribution", "key", "divisions", "rev"])
-                pt(res, (return_blocked ? Blocked(along=1) : Any()) & Balanced() & Drifted())
+                pt(res, (return_blocked ? Blocked(along=1) : PartitionType()) & Balanced() & Drifted())
         
                 # unbalanced -> unbalanced
                 pt(df, dfpt, match=(return_blocked ? nothing : final), on=["distribution", "key", "divisions", "rev"])
@@ -552,13 +548,13 @@ function getindex(df::DataFrame, rows=:, cols=:)
         else
             for dpt in Distributed(df, scaled_by_same_as=res)
                 pt(df, dpt)
-                if return_vector || (dpt.distribution == "grouped" && !(dpt.key in compute(cols)))
+                if return_vector || (dpt.distribution == "grouped" && !(dpt.key in collect(cols)))
                     pt(res, Blocked(along=1) & ScaledBySame(as=df), match=df, on=["balanced", "id"])
                 else
-                    pt(res, Any(scaled_by_same_as=df), match=df)
+                    pt(res, ScaledBySame(as=df), match=df)
                 end
             end
-            pt(res_size, Any(), match=df_nrows)
+            pt(res_size, PartitionType(), match=df_nrows)
         end
 
         # if filter_rows
@@ -770,7 +766,7 @@ function getindex(df::DataFrame, rows=:, cols=:)
     # partition(df, Balanced(dim=1))
     # partition(df, Distributing(distribution=:unknown))
     # if rows isa Colon
-    #     partition(res, Any(); match=df, on="id")
+    #     partition(res, PartitionType(); match=df, on="id")
     # else:
     #     partition(res, Distributing(distribution=:unknown, id='*'))
     # end
@@ -793,7 +789,7 @@ function getindex(df::DataFrame, rows=:, cols=:)
     #     for (key, like, gpt, max_ngroups) in GroupedLike(df, res, job)
     #         partition(df, gpt, max_npartitions=max_ngroups)
     #         if like && rows isa Colon
-    #             partition(res, Any(), match=df)
+    #             partition(res, PartitionType(), match=df)
     #         elseif like
     #             partition(
     #                 res,
@@ -835,7 +831,7 @@ function setindex!(df::DataFrame, v::Union{Vector, Matrix, DataFrame}, rows, col
     partitioned_with() do
         for dpt in Distributed(df, scaled_by_same_as=res)
             pt(df, dpt)
-            pt(res, Any(scaled_by_same_as=df), match=df)
+            pt(res, ScaledBySame(as=df), match=df)
 
             if dfpt.distribution == "blocked" && dfpt.balanced
                 pt(v, Blocked(along=1) & Balanced())
@@ -1007,7 +1003,7 @@ function rename(df::DataFrame, args...; kwargs...)
                 groupingkey = sample(res, :keys)[groupingkeyindex]
                 pt(res, Grouped(by=groupingkey) & ScaledBySame(as=df), match=df, on=["balanced", "id", "divisions", "rev"])
             else
-                pt(res, Any(scaled_by_same_as=df), match=df)
+                pt(res, ScaledBySame(as=df), match=df)
             end
         end
         
@@ -1163,7 +1159,7 @@ function sort(df::DataFrame, cols=:; kwargs...)
         # because these different PTs have different required constraints
         # TODO: Implement reversed in Grouped constructor
         pt(df, Grouped(df, by=sortingkey, rev=isreversed) | Replicated())
-        pt(res, Any(), match=df)
+        pt(res, PartitionType(), match=df)
         pt(df, res, ols, kwargs, Replicated())
     end
 
@@ -1231,7 +1227,7 @@ function innerjoin(dfs::DataFrame...; on, kwargs...)
                     pt(df, Replicated())
                 end
             end
-            pt(res, Any(scaled_by_same_as=dfs[i]), match=dfs[i])
+            pt(res, ScaledBySame(as=dfs[i]), match=dfs[i])
 
             # TODO: Ensure that constraints are copied backwards properly everywhere
         end
@@ -1318,12 +1314,12 @@ function unique(df::DataFrame, cols=nothing; kwargs...)
     kwargs = Future(kwargs)
 
     partitioned_using() do
-        keep_sample_keys(first(compute(cols)), res, df, drifted=true)
+        keep_sample_keys(first(collect(cols)), res, df, drifted=true)
         keep_sample_rate(res, df)
     end
 
     partitioned_with() do
-        pts_for_filtering(df, res, with=Grouped, by=first(compute(cols)))
+        pts_for_filtering(df, res, with=Grouped, by=first(collect(cols)))
         pt(res_nrows, Reducing((a, b) -> a .+ b))
         pt(df, res, res_nrows, f, kwargs, Replicated())
     end
@@ -1385,10 +1381,10 @@ function nonunique(df::DataFrame, cols=nothing; kwargs...)
     end
 
     partitioned_with() do
-        pt(df, Grouped(df, by=first(compute(cols))))
+        pt(df, Grouped(df, by=first(collect(cols))))
         pt(res, Blocked(along=1), match=df, on=["balanced", "id"])
         pt(df_nrows, Replicating())
-        pt(res_size, Any(), match=df_nrows)
+        pt(res_size, PartitionType(), match=df_nrows)
         pt(df, res, res_size, f, kwargs, Replicated())
     end
 

@@ -20,13 +20,6 @@
 # TODO: Generate AtMost and ScaledBy constraints in handling filters and joins
 # that introduce data skew and in other operations that explicitly don't
 
-Any(; scaled_by_same_as = nothing) =
-    if isnothing(scaled_by_same_as)
-        PartitionType(Dict())
-    else
-        PartitionType(f -> ScaleBy(f, 1.0, scaled_by_same_as))
-    end
-
 Replicating() = PartitionType("name" => "Replicating", f->ScaleBy(f, 1.0))
 Replicated() = Replicating() & PartitionType("replication" => "all", "reducer" => nothing)
 # TODO: Add Replicating(f) to the below if needed for reducing operations on
@@ -37,6 +30,7 @@ Divided() = Replicating() & PartitionType("divided" => true)
 Syncing() = Replicating() & PartitionType("replication" => "one", "reducer" => nothing) # TODO: Determine whether this is really needed
 Reducing(op) = Replicating() & PartitionType("replication" => nothing, "reducer" => to_jl_value(op), "with_key" => false)
 ReducingWithKey(op) = Replicating() & PartitionType("replication" => nothing, "reducer" => to_jl_value(op), "with_key" => true)
+SummingSize() = ReducingWithKey(axis -> (a, b) -> Tuple([a[begin:axis-1]..., a[axis] + b[axis], a[(axis+1):end]...]))
 # TODO: Maybe replace banyan_reduce_size_by_key with an anonymous function since that actually _can_ be ser/de-ed
 # or instead make there be a reducing type that passes in the key to the reducing functions so it can reduce by that key
 # ReducingSize() = PartitionType("replication" => "one", "reducer" => "banyan_reduce_size_by_key")
@@ -56,7 +50,7 @@ Grouped() = PartitionType("name" => "Distributing", "distribution" => "grouped")
 # Blocked(;balanced) = PartitionType("name" => "Distributing", "distribution" => "blocked", "balanced" => balanced)
 # Grouped(;balanced) = PartitionType("name" => "Distributing", "distribution" => "grouped", "balanced" => balanced)
 
-ScaledBySame(as) = Distributing() & PartitionType(f -> ScaleBy(f, 1.0, as))
+ScaledBySame(;as) = PartitionType(f -> ScaleBy(f, 1.0, as))
 Drifted() = Distributing() & PartitionType("id" => "!")
 Balanced() =
     Distributing() & PartitionType("balanced" => true, f -> ScaleBy(f, 1.0))
@@ -101,7 +95,7 @@ function Blocked(
 
     # Prepare `along`
     if along isa Colon
-        along = sample(along, :axes)
+        along = sample(f, :axes)
         # TODO: Ensure that axes returns [1] for DataFrame and axes for Array
         # while keys returns keys for DataFrame and axes for Array
     end
@@ -110,11 +104,11 @@ function Blocked(
 
     # Create PTs for each axis that can be used to block along
     pts = []
-    for axis in first(4, along)
+    for axis in first(along, 4)
         # Handle combinations of `balanced` and `filtered_from`/`filtered_to`
         for b in (isnothing(balanced) ? [true, false] : [balanced])
             # Initialize parameters
-            parameters = Dict("key" => key, "balanced" => b)
+            parameters = Dict("key" => axis, "balanced" => b)
             constraints = PartitioningConstraints()
 
             # Create `ScaleBy` constraints
@@ -140,7 +134,7 @@ function Blocked(
             end
 
             # Append new PT to PT union being produced
-            push!(pt, PartitionType(parameters, constraints))
+            push!(pts, PartitionType(parameters, constraints))
         end
     end
 
@@ -158,7 +152,7 @@ end
 function Grouped(
     f::AbstractFuture;
     # Parameters for splitting into groups
-    by = :,
+    by = nothing,
     balanced = nothing,
     rev = nothing,
     # Options to deal with skew
@@ -167,11 +161,15 @@ function Grouped(
     scaled_by_same_as = nothing,
 )
     # Prepare `by`
-    if by isa Colon
-        by = sample(by, :groupingkeys)
+    by = if isnothing(by)
+        sample(f, :groupingkeys)
+    elseif by isa Colon
+        sample(f, :keys)
+    else
+        by
     end
-    by = Symbol(by)
-    along = to_vector(along)
+    by = Symbol.(by)
+    by = to_vector(by)
 
     # Create PTs for each key that can be used to group by
     pts = []

@@ -42,7 +42,7 @@ function run_with_job(test_fn, name)
        any([occursin(t, lowercase(name)) for t in get_enabled_tests()])
         if get(ENV, "BANYAN_NWORKERS_ALL", "false") == "true"
             for nworkers in [16, 8, 4, 2, 1]
-                Job(
+                with_job(
                     username = username,
                     user_id = user_id,
                     api_key = api_key,
@@ -54,7 +54,7 @@ function run_with_job(test_fn, name)
                 end
             end
         elseif !isnothing(nworkers)
-            Job(
+            with_job(
                 username = username,
                 api_key = api_key,
                 cluster_name = cluster_name,

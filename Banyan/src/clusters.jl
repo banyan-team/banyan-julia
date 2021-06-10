@@ -37,7 +37,7 @@ function merge_with(
     # Merge where we combine arrays by taking unions of their unique elements
     so_far = selector(banyanfile_so_far)
     curr = selector(banyanfile)
-    collect(union(Set(so_far), Set(curr)))
+    Base.collect(union(Set(so_far), Set(curr)))
 end
 
 function merge_paths_with(
@@ -84,16 +84,7 @@ function getnormpath(banyanfile_path, p)
     end
 end
 
-function merge_banyanfile_with!(
-    banyanfile_so_far::Dict,
-    banyanfile_so_far_path::String,
-    banyanfile_path::String,
-    for_cluster_or_job::Symbol,
-    for_creation_or_update::Symbol,
-)
-    # Load Banyanfile to merge with
-    banyanfile = load_json(getnormpath(banyanfile_so_far_path, banyanfile_path))
-
+function merge_banyanfile_with_defaults!(banyanfile)
     # Populate with defaults
     mergewith!(
         (a,b)->a,
@@ -128,6 +119,21 @@ function merge_banyanfile_with!(
         banyanfile["require"]["job"],
         Dict("code" => [])
     )
+end
+
+function merge_banyanfile_with!(
+    banyanfile_so_far::Dict,
+    banyanfile_so_far_path::String,
+    banyanfile_path::String,
+    for_cluster_or_job::Symbol,
+    for_creation_or_update::Symbol,
+)
+    # Load Banyanfile to merge with
+    banyanfile = load_json(getnormpath(banyanfile_so_far_path, banyanfile_path))
+
+    # Merge Banyanfile with defaults
+    merge_banyanfile_with_defaults!(banyanfile_so_far)
+    merge_banyanfile_with_defaults!(banyanfile)
 
     # Merge with all included
     for included in banyanfile["include"]

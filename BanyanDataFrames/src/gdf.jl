@@ -10,8 +10,6 @@ struct GroupedDataFrame <: AbstractFuture
     #     new(Future(), Future(gdf.nrows), Future(gdf.offset))
 end
 
-DataFrames.GroupedDataFrame <: AbstractSample
-
 convert(::Type{Future}, gdf::GroupedDataFrame) = gdf.data
 
 length(gdf::GroupedDataFrame) = compute(gdf.length)
@@ -35,7 +33,7 @@ function groupby(df::DataFrame, cols; kwargs...)::GroupedDataFrame
     # partition(gdf, Replicated())
     # partition(gdf_length, Replicated())
 
-    groupingkeys = names(sample(df), compute(cols))
+    groupingkeys = names(sample(df), collect(cols))
 
     partitioned_using() do
         keep_sample_rate(gdf, df)
@@ -116,7 +114,7 @@ function select(gdf::GroupedDataFrame, args...; kwargs...)
     args = Future(args)
     kwargs = Future(kwargs)
 
-    groupingkeys = names(sample(gdf_parent), compute(groupcols))
+    groupingkeys = names(sample(gdf_parent), collect(groupcols))
 
     partitioned_using() do
         keep_sample_keys(if get(kwargs, :keepkeys, true) groupingkeys else [] end, res, gdf_parent, drifted=true)
@@ -126,7 +124,7 @@ function select(gdf::GroupedDataFrame, args...; kwargs...)
     partitioned_with() do
         pt(gdf_parent, Grouped(df, by=groupingkeys, scaled_by_same_as=res), match=res)
         pt(gdf, Blocked() & ScaledBySame(as=res))
-        pt(res, Any(scaled_by_same_as=gdf_parent))
+        pt(res, ScaledBySame(as=gdf_parent))
         pt(gdf_parent, gdf, res, groupcols, groupkwargs, args, kwargs, Replicated())
     end
 
@@ -198,7 +196,7 @@ function transform(gdf::GroupedDataFrame, args...; kwargs...)
     kwargs = Future(kwargs)
 
     # TODO: Put groupingkeys in GroupedDataFrame
-    groupingkeys = names(sample(gdf_parent), compute(groupcols))
+    groupingkeys = names(sample(gdf_parent), collect(groupcols))
 
     partitioned_using() do
         keep_sample_keys(
@@ -215,7 +213,7 @@ function transform(gdf::GroupedDataFrame, args...; kwargs...)
     partitioned_with() do
         pt(gdf_parent, Grouped(df, by=groupingkeys, scaled_by_same_as=res), match=res)
         pt(gdf, Blocked() & ScaledBySame(as=res))
-        pt(res, Any(scaled_by_same_as=gdf_parent))
+        pt(res, ScaledBySame(as=gdf_parent))
         pt(gdf_parent, gdf, res, groupcols, groupkwargs, args, kwargs, Replicated())
     end
 
@@ -242,7 +240,7 @@ function combine(gdf::GroupedDataFrame, args...; kwargs...)
     kwargs = Future(kwargs)
 
     # TODO: Put groupingkeys in GroupedDataFrame
-    groupingkeys = names(sample(gdf_parent), compute(groupcols))
+    groupingkeys = names(sample(gdf_parent), collect(groupcols))
 
     partitioned_using() do
         keep_sample_keys(
