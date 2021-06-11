@@ -7,7 +7,7 @@
 
 module Banyan
 
-using FilePathsBase: joinpath
+using FilePathsBase: joinpath, isempty
 using Base: notnothing, env_project_file
 global BANYAN_API_ENDPOINT
 
@@ -112,7 +112,7 @@ export partitioned_using,
     keep_sample_keys,
     keep_sample_rate
 
-using AWS: AWSConfig, aws_get_region, _get_ini_value
+using AWS: _get_ini_value
 using AWSCore
 using AWSS3
 using AWSSQS

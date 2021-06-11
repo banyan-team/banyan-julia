@@ -78,8 +78,9 @@ function create_job(;
     )
     if !isnothing(banyanfile_path)
         banyanfile = load_json(banyanfile_path)
+        merge_banyanfile_with_defaults!(banyanfile)
         for included in banyanfile["include"]
-            merge_banyanfile_with!(banyanfile, banyanfile_path, included, :job, :creation)
+            merge_banyanfile_with!(banyanfile, getnormpath(banyanfile_path, included), :job, :creation)
         end
         job_configuration["banyanfile"] = banyanfile
     end

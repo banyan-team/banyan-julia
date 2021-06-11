@@ -157,12 +157,9 @@ end
 function get_aws_config()
     global aws_config_in_usage
 
-    # Get AWS configuration using AWS.jl
+    # Get AWS configuration
     if isnothing(aws_config_in_usage)
-        # Get configuration with credentials
-        aws_config_in_usage = AWSConfig()
-
-        # Get region according to credentials and according to the config files
+        # Get region according to ENV, then credentials, then config files
         profile = get(ENV, "AWS_PROFILE", get(ENV, "AWS_DEFAULT_PROFILE", "banyan_nothing"))
         env_region = get(ENV, "AWS_DEFAULT_REGION", "")
         credentialsfile = read(Inifile(), joinpath(homedir(), ".aws", "credentials"))
@@ -171,15 +168,20 @@ function get_aws_config()
         config_region = _get_ini_value(configfile, profile, "region", default_value="")
 
         # Choose the region that is not default
-        aws_config_in_usage.region = env_region
-        aws_config_in_usage.region = isempty(aws_config_in_usage.region) ? credentials_region : aws_config_in_usage.region
-        aws_config_in_usage.region = isempty(aws_config_in_usage.region) ? config_region : aws_config_in_usage.region
+        region = env_region
+        region = isempty(region) ? credentials_region : region
+        region = isempty(region) ? config_region : region
 
-        println(aws_config_in_usage.region)
+        println(region)
 
-        if isempty(aws_config_in_usage.region)
+        if isempty(region)
             throw(Exception("No AWS region specified"))
         end
+
+        aws_config_in_usage = Dict(
+            :creds => AWSCredentials(),
+            :region => region
+        )
     end
 
     # # Use default location if needed
@@ -188,10 +190,12 @@ function get_aws_config()
     #     aws_config_in_usage[:region] = "us-west-2"
     # end
 
+    # Convert to dictionary and return
+
     aws_config_in_usage
 end
 
-get_aws_config_region() = get_aws_config().region
+get_aws_config_region() = get_aws_config()[:region]
 
 #########################
 # ENVIRONMENT VARIABLES #
@@ -322,8 +326,8 @@ function get_s3fs_path(path)
     if !ismount(mount)
         # TODO: Store buckets from different accounts/IAMs/etc. seperately
         try
-            ACCESS_KEY_ID = get_aws_config().credentials.access_key_id
-            SECRET_ACCESS_KEY = get_aws_config().credentials.secret_key
+            ACCESS_KEY_ID = get_aws_config()[:creds].access_key_id
+            SECRET_ACCESS_KEY = get_aws_config()[:creds].secret_key
             HOME = homedir()
             run(`echo $ACCESS_KEY_ID:$SECRET_ACCESS_KEY \> $HOME/.passwd-s3fs\; chmod 600 $HOME/.passwd-s3fs`)
             run(`s3fs $bucket $mount -o url=https://s3.$location.amazonaws.com -o endpoint=$location`)

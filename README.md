@@ -2,12 +2,13 @@
 
 ## Testing
 
-Either use your default AWS profile or [create on](https://stackoverflow.com/questions/593334/how-to-use-multiple-aws-accounts-from-the-command-line).
+Either use your default AWS profile or [create on](https://stackoverflow.com/questions/593334/how-to-use-multiple-aws-accounts-from-the-command-line). If using a profile make sure you have
+unset other variables that might override the profile.
 
 ```cmd
 cd BanyanArrays
 
-AWS_PROFILE=banyan-testing \
+AWS_DEFAULT_PROFILE=banyan-testing \
   BANYAN_API_KEY=8066d203223d2adbd9a668b16339ce7c \
   BANYAN_USER_ID=7f812fbd2dd0941d8a12abc56c8d7ddb \
   BANYAN_CLUSTER_NAME=pumpkincluster0 \
