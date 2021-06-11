@@ -7,7 +7,8 @@
 
 module Banyan
 
-using Base: notnothing
+using FilePathsBase: joinpath
+using Base: notnothing, env_project_file
 global BANYAN_API_ENDPOINT
 
 # TODO: Remove this
@@ -111,7 +112,7 @@ export partitioned_using,
     keep_sample_keys,
     keep_sample_rate
 
-using AWS: AWSConfig
+using AWS: AWSConfig, aws_get_region, _get_ini_value
 using AWSCore
 using AWSS3
 using AWSSQS
@@ -125,6 +126,7 @@ using TOML
 using FileIO
 using FilePathsBase
 using CSV
+using IniFile
 
 using IterTools
 

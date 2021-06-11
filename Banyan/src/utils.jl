@@ -159,8 +159,27 @@ function get_aws_config()
 
     # Get AWS configuration using AWS.jl
     if isnothing(aws_config_in_usage)
+        # Get configuration with credentials
         aws_config_in_usage = AWSConfig()
-        aws_config
+
+        # Get region according to credentials and according to the config files
+        profile = get(ENV, "AWS_PROFILE", get(ENV, "AWS_DEFAULT_PROFILE", "banyan_nothing"))
+        env_region = get(ENV, "AWS_DEFAULT_REGION", "")
+        credentialsfile = read(Inifile(), joinpath(homedir(), ".aws", "credentials"))
+        configfile = read(Inifile(), joinpath(homedir(), ".aws", "config"))
+        credentials_region = _get_ini_value(credentialsfile, profile, "region", default_value="")
+        config_region = _get_ini_value(configfile, profile, "region", default_value="")
+
+        # Choose the region that is not default
+        aws_config_in_usage.region = env_region
+        aws_config_in_usage.region = isempty(aws_config_in_usage.region) ? credentials_region : aws_config_in_usage.region
+        aws_config_in_usage.region = isempty(aws_config_in_usage.region) ? config_region : aws_config_in_usage.region
+
+        println(aws_config_in_usage.region)
+
+        if isempty(aws_config_in_usage.region)
+            throw(Exception("No AWS region specified"))
+        end
     end
 
     # # Use default location if needed
