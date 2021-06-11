@@ -132,7 +132,6 @@ function merge_banyanfile_with!(
     banyanfile = load_json(getnormpath(banyanfile_so_far_path, banyanfile_path))
 
     # Merge Banyanfile with defaults
-    merge_banyanfile_with_defaults!(banyanfile_so_far)
     merge_banyanfile_with_defaults!(banyanfile)
 
     # Merge with all included
@@ -195,6 +194,7 @@ function upload_banyanfile(banyanfile_path::String, s3_bucket_arn::String, clust
 
     # Load Banyanfile and merge with all included
     banyanfile = load_json(banyanfile_path)
+    merge_banyanfile_with_defaults!(banyanfile)
     for included in banyanfile["include"]
         merge_banyanfile_with!(banyanfile, banyanfile_path, included, :cluster, for_creation_or_update)
     end
@@ -211,6 +211,7 @@ function upload_banyanfile(banyanfile_path::String, s3_bucket_arn::String, clust
     scripts = banyanfile["require"]["cluster"]["scripts"]
     packages = banyanfile["require"]["cluster"]["packages"]
     pt_lib = banyanfile["require"]["cluster"]["pt_lib"]
+    pt_lib = isnothing(pt_lib) ? [] : [pt_lib]
 
     # Upload all files, scripts, and pt_lib to s3 bucket
     s3_bucket_name = last(split(s3_bucket_arn, ":"))
@@ -271,6 +272,7 @@ function upload_banyanfile(banyanfile_path::String, s3_bucket_arn::String, clust
         "touch /home/ec2-user/update_finished\n" *
         "aws s3 cp /home/ec2-user/update_finished " *
         "s3://" * s3_bucket_name * "/\n"
+    println(s3_bucket_name)
     s3_put(get_aws_config(), s3_bucket_name, post_install_script, code)
     @debug code
     return pt_lib_info

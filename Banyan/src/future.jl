@@ -9,7 +9,11 @@ mutable struct Future <: AbstractFuture
 
         # Create finalizer and register
         finalizer(new_future) do fut
-            record_request(DestroyRequest(fut.value_id))
+            try
+                record_request(DestroyRequest(fut.value_id))
+            catch e
+                @warn "Failed to destroy value $(fut.value_id) because job has stopped: $e"
+            end
         end
 
         new_future
