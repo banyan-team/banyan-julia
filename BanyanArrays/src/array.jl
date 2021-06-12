@@ -390,7 +390,9 @@ function Base.reduce(op, A::Array{T,N}; dims=:, kwargs...) where {T,N}
             end
         end
         pt(res_size, SummingSize(), match=A, on="key")
-        pt(A, res, res_size, dims, kwargs, Replicated())
+        # TODO: Allow replication
+        # pt(A, res, res_size, dims, kwargs, Replicated())
+        pt(dims, kwargs, Replicated())
     end
 
     @partitioned op A dims kwargs res res_size begin
