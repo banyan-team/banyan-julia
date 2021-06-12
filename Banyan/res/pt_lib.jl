@@ -5,6 +5,7 @@
 # in order for that function to be applicable.
 
 using Serialization
+using Base64
 
 using MPI
 

@@ -5,12 +5,12 @@
         "cluster": {
             "files": [],
             "scripts": [],
-            "packages": ["AWSCore", "AWSS3", "AWSSQS", "DataFrames", "CSV", "JSON", "Parquet", "Arrow"],
+            "packages": ["DataFrames", "CSV", "Parquet", "Arrow"],
             "pt_lib_info": "file://pt_lib_info.json",
             "pt_lib": "file://pt_lib.jl"
         },
         "job": {
-            "code": ["using AWSS3, DataFrames, CSV, Parquet, Arrow"]
+            "code": ["using DataFrames, CSV, Parquet, Arrow"]
         }
     }
 }

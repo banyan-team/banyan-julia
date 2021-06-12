@@ -267,10 +267,12 @@ function upload_banyanfile(banyanfile_path::String, s3_bucket_arn::String, clust
     code *= "sudo yum update -y &>> setup_log.txt\n"
     code *= "sudo chmod 777 setup_log.txt\n"
     if for_creation_or_update == :creation
-        code *= "sudo su - ec2-user -c \"wget https://julialang-s3.julialang.org/bin/linux/x64/1.5/julia-1.5.3-linux-x86_64.tar.gz &>> setup_log.txt\"\n"
-        code *= "sudo su - ec2-user -c \"tar zxvf julia-1.5.3-linux-x86_64.tar.gz &>> setup_log.txt\"\n"
-        code *= "rm julia-1.5.3-linux-x86_64.tar.gz &>> setup_log.txt\n"
-        code *= "sudo su - ec2-user -c \"julia-1.5.3/bin/julia --project -e 'using Pkg; Pkg.add([\"AWSCore\", \"AWSSQS\", \"HTTP\", \"Dates\", \"JSON\", \"MPI\", \"Serialization\", \"BenchmarkTools\"]); ENV[\"JULIA_MPIEXEC\"]=\"srun\"; ENV[\"JULIA_MPI_LIBRARY\"]=\"/opt/amazon/openmpi/lib64/libmpi\"; Pkg.build(\"MPI\"; verbose=true)' &>> setup_log.txt\"\n"
+        code *= "sudo su - ec2-user -c \"wget https://julialang-s3.julialang.org/bin/linux/x64/1.6/julia-1.6.1-linux-x86_64.tar.gz -O julia.tar.gz &>> setup_log.txt\"\n"
+        code *= "mkdir julia &>> setup_log.txt\n"
+        code *= "sudo su - ec2-user -c \"tar zxvf julia.tar.gz -C julia --strip-components 1 &>> setup_log.txt\"\n"
+        code *= "rm julia.tar.gz &>> setup_log.txt\n"
+        # code *= "sudo su - ec2-user -c \"julia-1.5.3/bin/julia --project -e 'using Pkg; Pkg.add([\"AWSCore\", \"AWSSQS\", \"HTTP\", \"Dates\", \"JSON\", \"MPI\", \"Serialization\", \"BenchmarkTools\"]); ENV[\"JULIA_MPIEXEC\"]=\"srun\"; ENV[\"JULIA_MPI_LIBRARY\"]=\"/opt/amazon/openmpi/lib64/libmpi\"; Pkg.build(\"MPI\"; verbose=true)' &>> setup_log.txt\"\n"
+        code *= "sudo su - ec2-user -c \"julia/bin/julia --project -e 'using Pkg; Pkg.add([\"AWSCore\", \"AWSSQS\", \"AWSS3\", \"JSON\", \"MPI\", \"BenchmarkTools\"]); ENV[\"JULIA_MPIEXEC\"]=\"srun\"; ENV[\"JULIA_MPI_LIBRARY\"]=\"/opt/amazon/openmpi/lib64/libmpi\"; Pkg.build(\"MPI\"; verbose=true)' &>> setup_log.txt\"\n"
     end
     code *= "sudo amazon-linux-extras install epel\n"
     code *= "sudo yum -y install s3fs-fuse\n"
@@ -294,7 +296,7 @@ function upload_banyanfile(banyanfile_path::String, s3_bucket_arn::String, clust
 
     # Append to post-install script installing Julia dependencies
     for pkg in packages
-        code *= "sudo su - ec2-user -c \"julia-1.5.3/bin/julia --project -e 'using Pkg; Pkg.add([\\\"$pkg\\\"])' &>> setup_log.txt \"\n"
+        code *= "sudo su - ec2-user -c \"julia/bin/julia --project -e 'using Pkg; Pkg.add([\\\"$pkg\\\"])' &>> setup_log.txt \"\n"
     end
 
     # Upload post_install script to s3 bucket
