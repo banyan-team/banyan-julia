@@ -4,7 +4,6 @@
 # splitting/casting/merging that describes how data should be partitioned
 # in order for that function to be applicable.
 
-using Core: Argument
 using Serialization
 
 using MPI
@@ -188,12 +187,12 @@ function buftovbuf(buf::MPI.Buffer, comm::MPI.Comm)::MPI.VBuffer
     VBuffer(similar(buf.data, sum(sizes)), sizes)
 end
 
-function bufstosendvbuf(bufs::Vetor{MPI.Buffer}, comm::MPI.Comm)::MPI.VBuffer
+function bufstosendvbuf(bufs::Vector{MPI.Buffer}, comm::MPI.Comm)::MPI.VBuffer
     sizes = [length(buf.data) for buf in bufs]
     VBuffer(vcat(map(buf->buf.data, bufs)), sizes)
 end
 
-function bufstorecvvbuf(bufs::Vetor{MPI.Buffer}, comm::MPI.Comm)::MPI.VBuffer
+function bufstorecvvbuf(bufs::Vector{MPI.Buffer}, comm::MPI.Comm)::MPI.VBuffer
     # This function expects that each given buf has buf.data being an array and
     # that the number of bufs in bufs is equal to the size of the communicator.
     # sizes = MPI.Allgather(length(buf.data), comm)
@@ -724,7 +723,7 @@ function CopyTo(
         else
             error("Unexpected location")
         end
-    else
+    end
     src
 end
 
@@ -851,7 +850,7 @@ function Rebalance(
                     part,
                     fill(:, dim - 1)...,
                     max(1, partitionrange.start - startidx + 1):min(
-                        end,
+                        size(part, dim),
                         partitionrange.end - startidx + 1,
                     ),
                     fill(:, ndims(part) - dim)...,
@@ -1169,7 +1168,7 @@ function Shuffle(
 
         # Return the concatenated array
         cat([
-            deserialize(IOBuffer(view(recvbuf.data, displ+1:displ+count))
+            deserialize(IOBuffer(view(recvbuf.data, displ+1:displ+count)))
             for (displ, count) in zip(recvbuf.displs, recvbuf.counts)
         ]...; dims=key)
     else

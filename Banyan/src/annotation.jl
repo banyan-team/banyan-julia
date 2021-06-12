@@ -226,6 +226,7 @@ function pt(
             if :match in keys(kwargs) && !isnothing(kwargs[:match])
                 to_match_with = to_vector(kwargs[:match])
                 if :on in keys(kwargs) && !isnothing(kwargs[:on])
+                    @debug "Matching on something"
                     for to_match_on in to_vector(get(kwargs, :on, []))
                         push!(
                             pa.constraints.constraints,
@@ -461,18 +462,22 @@ macro partitioned(ex...)
         splatted_variable_names = []
         task = get_task()
         # Get code to initialize the unsplatted variable in the code region
+        # TODO: Generate code in codegen that puts each code region in a
+        # seperate function (where we reuse functions with the hash of the
+        # function body) so that we don't have scoping-related bugs
         task.code = ""
         for (variable, unsplatted_variable_name) in
             zip(unsplatted_futures, unsplatted_variable_names)
-            task.code *= "$variable = "
+            task.code *= "$unsplatted_variable_name = "
             if variable isa Tuple
                 task.code *= "["
                 for (i, v) in enumerate(variable)
+                    splatted_variable_name = unsplatted_variable_name * "_$i"
                     push!(
                         splatted_variable_names,
-                        unsplatted_variable_name * "_$i",
+                        splatted_variable_name,
                     )
-                    task.code *= "$unsplatted_variable_name, "
+                    task.code *= "$splatted_variable_name, "
                 end
                 task.code *= "]\n"
             else
@@ -565,7 +570,8 @@ function duplicate_args(
     pa::PartitionAnnotation,
 )::Vector{PartitionTypeReference}
     [
-        (v, idx + div(length(pa.partitions.pt_stacks[v].pts), 2)) for
+        # (v, idx + div(length(pa.partitions.pt_stacks[v].pts), 2)) for
+        (v, idx + length(pa.partitions.pt_stacks[v].pts)) for
         (v, idx) in args
     ]
 end
@@ -671,7 +677,7 @@ duplicated_constraints_for_batching(
                 [c]
             else
                 []
-            end for c in pa.constraints.constraints
+            end for c in pc.constraints
         ]...,
     )
     # println()

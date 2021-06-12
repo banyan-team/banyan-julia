@@ -103,7 +103,7 @@ function Blocked(
     # TODO: Maybe assert that along isa Vector{String} or Vector{Symbol}
 
     # Create PTs for each axis that can be used to block along
-    pts = []
+    pts::Vector{PartitionType} = []
     for axis in first(along, 4)
         # Handle combinations of `balanced` and `filtered_from`/`filtered_to`
         for b in (isnothing(balanced) ? [true, false] : [balanced])
@@ -140,7 +140,7 @@ function Blocked(
 
     # Return the resulting PT union that can then be passed into a call to `pt`
     # which would in turn result in a PA union
-    pts
+    Blocked() & pts
 end
 
 # NOTE: A reason to use Grouped for element-wise computation (with no
@@ -172,7 +172,7 @@ function Grouped(
     by = to_vector(by)
 
     # Create PTs for each key that can be used to group by
-    pts = []
+    pts::Vector{PartitionType} = []
     for key in first(by, 8)
         # Handle combinations of `balanced` and `filtered_from`/`filtered_to`
         for b in (isnothing(balanced) ? [true, false] : [balanced])
@@ -229,5 +229,5 @@ function Grouped(
 
         push!(pt, PartitionType(parameters, constraints))
     end
-    pts
+    Grouped() & pts
 end

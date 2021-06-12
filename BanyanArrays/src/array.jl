@@ -9,9 +9,12 @@ function Base.copy(fut::AbstractFuture)
     # TODO: Ensure that the CopyTo function can always be used to split anything
     # for which there is no specified PT. But make sure that other splitting
     # functions such as those that split arrays are expecting a name to be
-    # provided.
-    pt(fut, PartitionType())
-    pt(res, PartitionType(), match=fut)
+    # provided. If we do that, we can un-comment the below and allow for
+    # copying anything  
+    # pt(fut, PartitionType())
+    # pt(res, PartitionType(), match=fut)
+    pt(fut, Replicating())
+    pt(res, Replicating(), match=fut)
 
     @partitioned fut res begin
         res = Base.copy(fut)
@@ -31,9 +34,12 @@ function Base.deepcopy(fut::AbstractFuture)
     # TODO: Ensure that the CopyTo function can always be used to split anything
     # for which there is no specified PT. But make sure that other splitting
     # functions such as those that split arrays are expecting a name to be
-    # provided.
-    pt(fut, PartitionType())
-    pt(res, PartitionType(), match=fut)
+    # provided. If we do that, we can un-comment the below and allow for
+    # copying anything  
+    # pt(fut, PartitionType())
+    # pt(res, PartitionType(), match=fut)
+    pt(fut, Replicating())
+    pt(res, Replicating(), match=fut)
 
     @partitioned fut res begin
         res = Base.deepcopy(fut)
@@ -290,16 +296,18 @@ function Base.map(f, c::Array{T,N}...) where {T,N}
 
     # TODO: Determine whether array operations need to use mutated_from or mutated_to
 
-    # balanced
-    pt(first(c), Blocked(first(c), balanced=true))
-    pt(c[2:end]..., res, Blocked() & Balanced(), match=first(c), on="key")
+    partitioned_with() do
+        # balanced
+        pt(first(c), Blocked(first(c), balanced=true))
+        pt(c[2:end]..., res, Blocked() & Balanced(), match=first(c), on="key")
 
-    # unbalanced
-    pt(first(c), Blocked(first(c), balanced=false, scaled_by_same_as=res))
-    pt(c[2:end]..., res, Unbalanced(scaled_by_same_as=first(c)), match=first(c))
+        # unbalanced
+        pt(first(c), Blocked(first(c), balanced=false, scaled_by_same_as=res))
+        pt(c[2:end]..., res, Unbalanced(scaled_by_same_as=first(c)), match=first(c))
 
-    # replicated
-    pt(c..., res, f, Replicated())
+        # replicated
+        pt(c..., res, f, Replicated())
+    end
 
     # println(@macroexpand begin @partitioned f c res begin
     #     res = Base.map(f, c...)
@@ -324,20 +332,23 @@ function Base.mapslices(f, A::Array{T,N}; dims) where {T,N}
         keep_sample_rate(res, A)
     end
 
-    # Blocked PTs along dimensions _not_ being mapped along
-    bpt = [bpt for bpt in Blocked(A) if !(dims isa Colon) && !(bpt.key in [dims...])]
+    partitioned_with() do
+        # Blocked PTs along dimensions _not_ being mapped along
+        bpt = [bpt for bpt in Blocked(A) if !(dims isa Colon) && !(bpt.key in [dims...])]
 
-    # balanced
-    pt(A, bpt & Balanced())
-    pt(res, Blocked() & Balanced(), match=A, on="key")
+        # balanced
+        pt(A, bpt & Balanced())
+        pt(res, Blocked() & Balanced(), match=A, on="key")
 
-    # unbalanced
-    pt(A, bpt & Unbalanced(scaled_by_same_as=res))
-    pt(res, Unbalanced(scaled_by_same_as=A), match=A)
+        # unbalanced
+        pt(A, bpt & Unbalanced(scaled_by_same_as=res))
+        pt(res, Unbalanced(scaled_by_same_as=A), match=A)
 
-    # replicated
-    pt(res_size, SummingSize(), match=A, on="key")
-    pt(A, res, res_size, f, dims, Replicated())
+        # replicated
+        # TODO: Determine why this MatchOn constraint is not propagating
+        pt(res_size, SummingSize(), match=A, on="key")
+        pt(A, res, res_size, f, dims, Replicated())
+    end
 
     @partitioned f A dims res begin
         res = Base.mapslices(f, A, dims=dims)
@@ -362,21 +373,25 @@ function Base.reduce(op, A::Array{T,N}; dims=:, kwargs...) where {T,N}
         keep_sample_rate(res, A)
     end
 
-    # TODO: Duplicate annotations to handle the balanced and unbalanced cases
-    # seperately
-    # TODO: Have a better API where duplicating to handle balanced and unbalanced
-    # isn't needed
+    partitioned_with() do
+        # TODO: Duplicate annotations to handle the balanced and unbalanced cases
+        # seperately
+        # TODO: Have a better API where duplicating to handle balanced and unbalanced
+        # isn't needed
+        # TODO: Cascaade MatchOn constraints
+        # TODO: Ensure that MatchOn value is being discovered
 
-    for bpt in Blocked(A)
-        pt(A, bpt)
-        if collect(dims) isa Colon || bpt.key in [collect(dims)...]
-            pt(res, Reducing(op))
-        else
-            pt(res, bpt.balanced ? Balanced() : Unbalanced(scaled_by_same_as=A), match=A)
+        for bpt in Blocked(A)
+            pt(A, bpt)
+            if collect(dims) isa Colon || bpt.key in [collect(dims)...]
+                pt(res, Reducing(op))
+            else
+                pt(res, bpt.balanced ? Balanced() : Unbalanced(scaled_by_same_as=A), match=A)
+            end
         end
+        pt(res_size, SummingSize(), match=A, on="key")
+        pt(A, res, res_size, dims, kwargs, Replicated())
     end
-    pt(res_size, SummingSize(), match=A, on="key")
-    pt(A, res, res_size, dims, kwargs, Replicated())
 
     @partitioned op A dims kwargs res res_size begin
         res = Base.reduce(op, A; dims=dims, kwargs...)
@@ -404,16 +419,18 @@ function Base.sortslices(A::Array{T,N}, dims; kwargs...) where {T,N}
         keep_sample_rate(res, A)
     end
 
-    # unbalanced -> unbalanced
-    pt(A, Grouped(A, by=sortingdim, rev=isreversed, scaled_by_same_as=res, balanced=false))
-    pt(res, Blocked() & Unbalanced(scaled_by_same_as=A), match=A, on=["key", "divisions", "id"])
+    partitioned_with() do
+        # unbalanced -> unbalanced
+        pt(A, Grouped(A, by=sortingdim, rev=isreversed, scaled_by_same_as=res, balanced=false))
+        pt(res, Blocked() & Unbalanced(scaled_by_same_as=A), match=A, on=["key", "divisions", "id"])
 
-    # balanced -> balanced
-    pt(A, Grouped(A, by=sortingdim, rev=isreversed, balanced=true))
-    pt(res, Blocked() & Balanced(), match=A, on=["key", "divisions", "id"])
+        # balanced -> balanced
+        pt(A, Grouped(A, by=sortingdim, rev=isreversed, balanced=true))
+        pt(res, Blocked() & Balanced(), match=A, on=["key", "divisions", "id"])
 
-    # replicated
-    pt(A, res, dims, kwargs, Replicated())
+        # replicated
+        pt(A, res, dims, kwargs, Replicated())
+    end
 
     @partitioned A dims kwargs res begin
         res = sortslices(A, dims=dims, kwargs...)

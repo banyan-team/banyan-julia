@@ -57,7 +57,7 @@ Sequential(args...) =
 Match(args...) = PartitioningConstraintOverGroup("MATCH", pt_refs_to_jl(args))
 MatchOn(on, args...) =
     PartitioningConstraintOverGroup(
-        "on=" * string(on),
+        "MATCH_ON=" * string(on),
         pt_refs_to_jl(args),
     )
 AtMost(npartitions, args...) =

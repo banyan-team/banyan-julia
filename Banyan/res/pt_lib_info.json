@@ -6,34 +6,34 @@
         },
         "ReadBlock": {
             "expected": ["key"],
-            "required": {"name": "Distributing", "distribution": "blocked"},
+            "required": {"name": "Distributing", "distribution": "blocked", "id": "!"},
             "default": {},
             "location_names": ["Remote", "Disk"],
             "partition_memory_usage": "div"
         },
         "ReadGroup": {
             "expected": ["key", "divisions"],
-            "required": {"name": "Distributing", "distribution": "grouped"},
+            "required": {"name": "Distributing", "distribution": "grouped", "id": "!"},
             "default": {"rev": false},
             "location_names": ["Remote", "Disk"],
             "partition_memory_usage": "div"
         },
         "SplitBlock": {
             "expected": ["key"],
-            "required": {"name": "Distributing", "distribution": "blocked"},
+            "required": {"name": "Distributing", "distribution": "blocked", "id": "!"},
             "default": {},
             "location_names": ["Memory"],
             "partition_memory_usage": "div"
         },
         "SplitGroup": {
             "expected": ["key"],
-            "required": {"name": "Distributing", "distribution": "grouped"},
+            "required": {"name": "Distributing", "distribution": "grouped", "id": "!"},
             "default": {"rev": false},
             "location_names": ["Memory"],
             "partition_memory_usage": "div"
         },
         "CopyFrom": {
-            "required": {"name": "Replicating", "replication": "all", "dividing": false},
+            "required": {"name": "Replicating", "dividing": false},
             "default": {},
             "location_names": ["Client", "Remote", "Value", "Disk", "Memory"],
             "partition_memory_usage": "all"

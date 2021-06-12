@@ -70,8 +70,38 @@ function compute(fut::AbstractFuture)
                 for previous_pa in Iterators.reverse(t.pa_union[1:j-1])
                     for value_id in keys(pa.partitions.pt_stacks)
                         if !(value_id in keys(previous_pa.partitions.pt_stacks))
+                            # Cascade the PT composition backwards
                             previous_pa.partitions.pt_stacks[value_id] =
-                                pa.partitions.pt_stacks[value_id]
+                                deepcopy(pa.partitions.pt_stacks[value_id])
+
+                            # Cascade backwards all constraints that mention the
+                            # value. NOTE: If this is not desired, users should
+                            # be explicit and assign different PT compositions for
+                            # different values.
+                            for constraint in pa.constraints.constraints
+                                # Determine whether we should copy over this constraint
+                                copy_constraint = false
+                                if constraint isa PartitioningConstraintOverGroup
+                                    for arg in constraint.args
+                                        if arg isa PartitionTypeReference && first(arg) == value_id
+                                            copy_constraint = true
+                                        end
+                                    end
+                                elseif constraint isa PartitioningConstraintOverGroups
+                                    for arg in constraint.args
+                                        for subarg in arg
+                                            if subarg isa PartitionTypeReference && first(subarg) == value_id
+                                                copy_constraint = true
+                                            end    
+                                        end
+                                    end
+                                end
+
+                                # Copy over constraint
+                                if copy_constraint
+                                    push!(previous_pa.constraints.constraints, deepcopy(constraint))
+                                end
+                            end
                             # NOTE: We don't cascade constraints backwards
                         end
                     end
@@ -79,12 +109,22 @@ function compute(fut::AbstractFuture)
             end
         end
 
+        # for t in tasks
+        #     # Apply defaults to PAs
+        #     for pa in t.pa_union
+        #         @show pa
+        #     end
+        # end
+
         # Iterate through tasks for further processing before recording them
         for t in tasks
+            @show t.code
+            @show t.value_names
             # Apply defaults to PAs
             for pa in t.pa_union
                 apply_default_constraints!(pa)
                 duplicate_for_batching!(pa)
+                @show pa
             end
 
             # Destroy all closures so that all references to `Future`s are dropped
@@ -201,6 +241,8 @@ function send_evaluation(value_id::ValueId, job_id::JobId)
 end
 
 function Base.collect(fut::AbstractFuture)
+    fut = convert(Future, fut)
+
     # Fast case for where the future has not been mutated and isn't stale
     if !fut.mutated && !fut.stale
         return fut.value
@@ -210,6 +252,7 @@ function Base.collect(fut::AbstractFuture)
     
     # Set the future's destination location to Client
     destined(fut, Client())
+    mutated(fut)
 
     pt(fut, Replicated())
     @partitioned fut begin

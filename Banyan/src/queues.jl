@@ -30,6 +30,7 @@ function receive_next_message(queue_name)
         @debug "Job failed"
         global current_job_status
         current_job_status = "failed"
+        # TODO: Document why the 12 here is necessary
         println(content[12:end])
         error("Job failed; see preceding output")
     else

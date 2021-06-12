@@ -16,8 +16,8 @@ mutable struct Location
 
     function Location(
         src_name::Union{String,Nothing},
-        src_parameters::Dict{String,<:Any},
         dst_name::Union{String,Nothing},
+        src_parameters::Dict{String,<:Any},
         dst_parameters::Dict{String,<:Any},
         sample::Sample = Sample(),
     )
@@ -35,19 +35,19 @@ Location(
     name::String,
     parameters::Dict{String,<:Any},
     sample::Sample = Sample(),
-) = Location(name, parameters, name, parameters, sample)
+) = Location(name, name, parameters, parameters, sample)
 
 LocationSource(
     name::String,
     parameters::Dict{String,<:Any},
     sample::Sample = Sample(),
-) = Location(name, parameters, nothing, LocationParameters(), sample)
+) = Location(name, nothing, parameters, LocationParameters(), sample)
 
 LocationDestination(
     name::String,
     parameters::Dict{String,<:Any},
     sample::Sample = Sample(),
-) = Location(nothing, LocationParameters(), name, parameters, sample)
+) = Location(nothing, name, LocationParameters(), parameters, sample)
 
 function Base.getproperty(loc::Location, name::Symbol)
     if hasfield(Location, name)
@@ -95,8 +95,8 @@ function sourced(fut, loc::Location)
         fut,
         Location(
             loc.src_name,
-            loc.src_parameters,
             isnothing(fut_location) ? nothing : fut_location.dst_name,
+            loc.src_parameters,
             isnothing(fut_location) ? Dict{String,Any}() : fut_location.dst_parameters,
             (isnothing(fut_location) || sample(loc.sample, :memory_usage) > sample(fut_location.sample, :memory_usage)) ? loc.sample : fut_location.sample,
         ),
@@ -114,8 +114,8 @@ function destined(fut, loc::Location)
         fut,
         Location(
             isnothing(fut_location) ? nothing : fut_location.src_name,
-            isnothing(fut_location) ? Dict{String,Any}() : fut_location.src_parameters,
             loc.dst_name,
+            isnothing(fut_location) ? Dict{String,Any}() : fut_location.src_parameters,
             loc.dst_parameters,
             (isnothing(fut_location) || sample(loc.sample, :memory_usage) > sample(fut_location.sample, :memory_usage)) ? loc.sample : fut_location.sample,
         ),
@@ -137,6 +137,8 @@ function located(fut, location::Location)
 
     job.locations[value_id] = location
     record_request(RecordLocationRequest(value_id, location))
+    @debug value_id
+    @debug location
 end
 
 function located(futs...)
@@ -404,8 +406,8 @@ function get_remote_location(p)
         # Construct location with metadata
         return Location(
             loc_for_reading,
-            metadata_for_reading,
             loc_for_writing,
+            metadata_for_reading,
             metadata_for_writing,
             if isnothing(loc_for_reading)
                 Sample()
@@ -597,8 +599,8 @@ function get_remote_location(p)
     # Construct location with metadata
     Location(
         loc_for_reading,
-        metadata_for_reading,
         loc_for_writing,
+        metadata_for_reading,
         metadata_for_writing,
         if isnothing(loc_for_reading)
             Sample()
