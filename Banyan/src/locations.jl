@@ -200,7 +200,7 @@ Size(val) = LocationSource(
     "Value",
     Dict("value" => to_jl_value(val)),
     Sample(
-        ndiv(val, get_job().sample_rate, dims = 1);
+        indexapply(div, val, get_job().sample_rate, index = 1);
         sample_rate = get_job().sample_rate,
     ),
 )
@@ -222,9 +222,15 @@ None() = Location("None", Dict{String,Any}(), Sample())
 to_jl_value(jl) =
     Dict("is_banyan_value" => true, "contents" => to_jl_value_contents(jl))
 
-# NOTE: This function is copied into pt_lib.jl so any changes here should
-# be made there
+# NOTE: This function is shared between the client library and the PT library
 to_jl_value_contents(jl) = begin
+    # Handle functions defined in a module
+    # if jl isa Function && !(isdefined(Base, jl) || isdefined(Core, jl) || isdefined(Main, jl))
+    if jl isa Function
+        jl = Dict("is_banyan_udf" => true, "code" => (quote jl end))
+    end
+
+    # Convert Julia object to string
     io = IOBuffer()
     iob64_encode = Base64EncodePipe(io)
     serialize(iob64_encode, jl)
@@ -232,14 +238,21 @@ to_jl_value_contents(jl) = begin
     String(take!(io))
 end
 
-# NOTE: This function is copied into pt_lib.jl so any changes here should
-# be made there
+# NOTE: This function is shared between the client library and the PT library
 from_jl_value_contents(jl_value_contents) = begin
+    # Converty string to Julia object
     io = IOBuffer()
     iob64_decode = Base64DecodePipe(io)
     write(io, jl_value_contents)
     seekstart(io)
-    deserialize(iob64_decode)
+    res = deserialize(iob64_decode)
+
+    # Handle functions defined in a module
+    if res isa Dict && haskey(res, "is_banyan_udf") && res["is_banyan_udf"]
+        eval(res["code"])
+    else
+        res
+    end
 end
 
 # NOTE: Currently, we only support s3:// or http(s):// and only either a

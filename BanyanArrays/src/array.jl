@@ -384,7 +384,11 @@ function Base.reduce(op, A::Array{T,N}; dims=:, kwargs...) where {T,N}
         for bpt in Blocked(A)
             pt(A, bpt)
             if collect(dims) isa Colon || bpt.key in [collect(dims)...]
-                pt(res, Reducing(op))
+                # NOTE: Be careful about trying to serialize things that would
+                # require serializing the whole Banyan module. For example, if
+                # this where Reducing(op) or if we tried Future(op) where op
+                # could refer to a + function overloaded by BanyanArrays.
+                pt(res, Reducing(collect(op)))
             else
                 pt(res, bpt.balanced ? Balanced() : Unbalanced(scaled_by_same_as=A), match=A)
             end
@@ -510,14 +514,6 @@ Base.sort(A::Array{T,N}; kwargs...) where {T,N} = sortslices(A, dims=:; kwargs..
 # # across a dimension where communication is not needed (e.g., accumulation
 # # across dims=2 allows us to have Blocked along=1)
 
-# Array binary operations
-
-for op in [:+, :-, :>, :<, :(>=), :(<=), :(==), :!=]
-    @eval begin
-        Base.$op(A::Array, B::Array) = map($op, A, B)
-    end
-end
-
 # Array unary operations
 
 for op in [:-]
@@ -526,9 +522,18 @@ for op in [:-]
     end
 end
 
-for (op, agg) in [(:(sum), :(Base.:+)), (:(minimum), :(min)), (:(maximum), :(max))]
+for (op, agg) in [(:(sum), :(+)), (:(minimum), :(min)), (:(maximum), :(max))]
+    # TODO: Maybe try ensuring that the Base.:+ here is not including the method from above
     @eval begin
         Base.$op(X::Array; dims=:) = reduce($agg, X; dims=dims)
+    end
+end
+
+# Array binary operations
+
+for op in [:+, :-, :>, :<, :(>=), :(<=), :(==), :!=]
+    @eval begin
+        Base.$op(A::Array, B::Array) = map($op, A, B)
     end
 end
 

@@ -289,7 +289,7 @@ function upload_banyanfile(banyanfile_path::String, s3_bucket_arn::String, clust
 
     # Append to post-install script running scripts onto cluster
     for script in scripts
-        fname = basename(f)
+        fname = basename(script)
         code *= "sudo su - ec2-user -c \"bash /home/ec2-user/$fname\"\n"
     end
 

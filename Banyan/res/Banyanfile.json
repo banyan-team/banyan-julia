@@ -3,14 +3,16 @@
     "require": {
         "language": "jl",
         "cluster": {
-            "files": [],
+            "files": ["file://utils.jl"],
             "scripts": [],
             "packages": ["DataFrames", "CSV", "Parquet", "Arrow"],
             "pt_lib_info": "file://pt_lib_info.json",
             "pt_lib": "file://pt_lib.jl"
         },
         "job": {
-            "code": ["using DataFrames, CSV, Parquet, Arrow"]
+            "code": [
+                "using DataFrames, CSV, Parquet, Arrow"
+            ]
         }
     }
 }
