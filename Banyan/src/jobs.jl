@@ -125,18 +125,22 @@ function destroy_job(job_id::JobId; failed = false, kwargs...)
     delete!(jobs, job_id)
 end
 
-function get_jobs(; kwargs...)
+function get_jobs(cluster_name=Nothing; kwargs...)
     @debug "Downloading description of jobs in each cluster"
     configure(; kwargs...)
+    filters = Dict()
+    if cluster_name != Nothing
+        filters["cluster_name"] cluster_name
+    end
     response =
-        send_request_get_response(:describe_jobs, Dict{String,Any}())
+        send_request_get_response(:describe_jobs, Dict{String,Any}("filters"=>filters))
     response["jobs"]
 end
 
 function destroy_all_jobs(cluster_name::String; kwargs...)
     @debug "Destroying all jobs for cluster"
     configure(; kwargs...)
-    jobs = get_jobs()[cluster_name]
+    jobs = get_jobs(cluster_name)
     for (job_id, job) in jobs
         destroy_job(job_id; kwargs...)
     end
