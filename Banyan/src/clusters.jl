@@ -209,7 +209,7 @@ function merge_banyanfile_with!(
     end
 end
 
-function upload_banyanfile(banyanfile_path::String, s3_bucket_arn::String, cluster_name::String, for_creation_or_update::Symbol)
+function upload_banyanfile(banyanfile_path::String, s3_bucket_arn::String, cluster_name::String, for_creation_or_update::Symbol; reinstall_julia::Bool = false)
     # TODO: Implement this to load Banyanfile, referenced pt_lib_info, pt_lib,
     # code files
 
@@ -266,7 +266,7 @@ function upload_banyanfile(banyanfile_path::String, s3_bucket_arn::String, clust
     code *= "cd /home/ec2-user\n"
     code *= "sudo yum update -y &>> setup_log.txt\n"
     code *= "sudo chmod 777 setup_log.txt\n"
-    if for_creation_or_update == :creation
+    if reinstall_julia || for_creation_or_update == :creation
         code *= "sudo su - ec2-user -c \"wget https://julialang-s3.julialang.org/bin/linux/x64/1.6/julia-1.6.1-linux-x86_64.tar.gz -O julia.tar.gz &>> setup_log.txt\"\n"
         code *= "mkdir julia &>> setup_log.txt\n"
         code *= "sudo su - ec2-user -c \"tar zxvf julia.tar.gz -C julia --strip-components 1 &>> setup_log.txt\"\n"
@@ -411,7 +411,7 @@ function update_cluster(;
         end
 
         # Upload to S3
-        pt_lib_info = upload_banyanfile(banyanfile_path, s3_bucket_arn, cluster_name, :update)
+        pt_lib_info = upload_banyanfile(banyanfile_path, s3_bucket_arn, cluster_name, :update, reinstall_julia=get(kwargs, :reinstall_julia, false))
 
         # Upload pt_lib_info
         send_request_get_response(
