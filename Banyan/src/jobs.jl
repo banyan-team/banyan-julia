@@ -130,7 +130,7 @@ function get_jobs(cluster_name=Nothing; kwargs...)
     configure(; kwargs...)
     filters = Dict()
     if cluster_name != Nothing
-        filters["cluster_name"] cluster_name
+        filters["cluster_name"] = cluster_name
     end
     response =
         send_request_get_response(:describe_jobs, Dict{String,Any}("filters"=>filters))

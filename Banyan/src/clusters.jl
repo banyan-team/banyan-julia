@@ -457,7 +457,6 @@ function get_clusters(; kwargs...)
     configure(; kwargs...)
     response =
         send_request_get_response(:describe_clusters, Dict{String,Any}())
-    clusters = []
     Dict(
         name => Cluster(
             name,
