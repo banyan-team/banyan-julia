@@ -424,6 +424,23 @@ function update_cluster(;
     end
 end
 
+function set_cluster_status_running(;
+    name::String,
+    kwargs...,
+)
+    @info "Setting cluster status to running"
+
+    # Configure
+    configure(; kwargs...)
+
+    send_request_get_response(
+        :set_cluster_ready,
+	Dict(
+	     "cluster_name" => name,
+	),
+    )
+end
+
 struct Cluster
     name::String
     status::Symbol
