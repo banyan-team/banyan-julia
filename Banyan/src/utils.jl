@@ -230,6 +230,8 @@ method_to_string(method) = begin
         "create-job"
     elseif method == :destroy_job
         "destroy-job"
+    elseif method == :describe_jobs
+        "describe-jobs"
     elseif method == :evaluate
         "evaluate"
     elseif method == :update_cluster
