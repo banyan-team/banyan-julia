@@ -271,8 +271,7 @@ function upload_banyanfile(banyanfile_path::String, s3_bucket_arn::String, clust
         code *= "mkdir julia &>> setup_log.txt\n"
         code *= "sudo su - ec2-user -c \"tar zxvf julia.tar.gz -C julia --strip-components 1 &>> setup_log.txt\"\n"
         code *= "rm julia.tar.gz &>> setup_log.txt\n"
-        # code *= "sudo su - ec2-user -c \"julia-1.5.3/bin/julia --project -e 'using Pkg; Pkg.add([\"AWSCore\", \"AWSSQS\", \"HTTP\", \"Dates\", \"JSON\", \"MPI\", \"Serialization\", \"BenchmarkTools\"]); ENV[\"JULIA_MPIEXEC\"]=\"srun\"; ENV[\"JULIA_MPI_LIBRARY\"]=\"/opt/amazon/openmpi/lib64/libmpi\"; Pkg.build(\"MPI\"; verbose=true)' &>> setup_log.txt\"\n"
-        code *= "sudo su - ec2-user -c \"julia/bin/julia --project -e 'using Pkg; Pkg.add([\"AWSCore\", \"AWSSQS\", \"AWSS3\", \"JSON\", \"MPI\", \"BenchmarkTools\"]); ENV[\"JULIA_MPIEXEC\"]=\"srun\"; ENV[\"JULIA_MPI_LIBRARY\"]=\"/opt/amazon/openmpi/lib64/libmpi\"; Pkg.build(\"MPI\"; verbose=true)' &>> setup_log.txt\"\n"
+        code *= "sudo su - ec2-user -c \"julia/bin/julia --project -e 'using Pkg; Pkg.add([\\\"AWSCore\\\", \\\"AWSSQS\\\", \\\"AWSS3\\\", \\\"JSON\\\", \\\"MPI\\\", \\\"BenchmarkTools\\\"]); ENV[\\\"JULIA_MPIEXEC\\\"]=\\\"srun\\\"; ENV[\\\"JULIA_MPI_LIBRARY\\\"]=\\\"/opt/amazon/openmpi/lib64/libmpi\\\"; Pkg.build(\\\"MPI\\\"; verbose=true)' &>> setup_log.txt\"\n"
     end
     code *= "sudo amazon-linux-extras install epel\n"
     code *= "sudo yum -y install s3fs-fuse\n"
