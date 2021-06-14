@@ -30,7 +30,6 @@ Divided() = Replicating() & PartitionType("divided" => true)
 Syncing() = Replicating() & PartitionType("replication" => "one", "reducer" => nothing) # TODO: Determine whether this is really needed
 Reducing(op) = Replicating() & PartitionType("replication" => nothing, "reducer" => to_jl_value(op), "with_key" => false)
 ReducingWithKey(op) = Replicating() & PartitionType("replication" => nothing, "reducer" => to_jl_value(op), "with_key" => true)
-SummingSize() = ReducingWithKey(quote axis -> (a, b) -> indexapply(+, a, b, index=axis) end)
 # TODO: Maybe replace banyan_reduce_size_by_key with an anonymous function since that actually _can_ be ser/de-ed
 # or instead make there be a reducing type that passes in the key to the reducing functions so it can reduce by that key
 # ReducingSize() = PartitionType("replication" => "one", "reducer" => "banyan_reduce_size_by_key")

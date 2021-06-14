@@ -81,7 +81,8 @@ function keep_same_path(
     selector::Function
 )
     so_far = selector(banyanfile_so_far)
-    curr = getnormpath(banyanfile_path, selector(banyanfile))
+    curr_selected = selector(banyanfile)
+    curr = isnothing(curr_selected) ? nothing : getnormpath(banyanfile_path, curr_selected)
     if !isnothing(so_far) && !isnothing(curr) && so_far != curr
         @warn "$so_far does not match $curr in included Banyanfiles"
     end
