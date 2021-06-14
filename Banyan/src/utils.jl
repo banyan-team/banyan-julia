@@ -250,6 +250,8 @@ method_to_string(method) = begin
         "evaluate"
     elseif method == :update_cluster
         "update-cluster"
+    elseif method == :set_cluster_ready
+        "set-cluster-ready"
     end
 end
 
