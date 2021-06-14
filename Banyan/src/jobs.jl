@@ -119,7 +119,7 @@ function destroy_job(job_id::JobId; failed = false, kwargs...)
     )
 
     # Remove from global state
-    if get_job_id() == job_id
+    if !isnothing(current_job_id) && get_job_id() == job_id
         set_job_id(nothing)
     end
     delete!(jobs, job_id)

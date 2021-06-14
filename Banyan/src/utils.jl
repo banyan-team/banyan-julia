@@ -1,3 +1,5 @@
+using Base: AbstractVecOrTuple
+
 ##############
 # CONVERSION #
 ##############

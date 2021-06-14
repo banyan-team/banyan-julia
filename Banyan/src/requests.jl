@@ -33,6 +33,10 @@ function compute(fut::AbstractFuture)
         # Call `partitioned_using_func`s in 2 passes - forwards and backwards.
         # This allows sample properties to propagate in both directions. We
         # must also make sure to apply mutations in each task appropriately.
+        for t in tasks
+            @show t.mutation
+            @show t.effects
+        end
         for t in Iterators.reverse(tasks)
             apply_mutation(invert(t.mutation))
         end
@@ -120,6 +124,8 @@ function compute(fut::AbstractFuture)
         for t in tasks
             @show t.code
             @show t.value_names
+            @show t.mutation
+            @show t.effects
             # Apply defaults to PAs
             for pa in t.pa_union
                 apply_default_constraints!(pa)

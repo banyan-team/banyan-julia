@@ -255,7 +255,7 @@ function Write(
         dim = params["key"]
         whole_size = MPI.Reduce(
             size(part),
-            (a, b) -> Tuple([a[1:dim-1]..., a[dim] + b[dim], a[dim+1:end]...]),
+            indexapply(+, a, b, index=dim),
             0,
             comm,
         )
@@ -308,7 +308,7 @@ function SplitBlock(
     if isnothing(src)
         src
     else
-        split_on_executor(src, params["dim"], batch_idx, nbatches, comm)
+        split_on_executor(src, params["key"], batch_idx, nbatches, comm)
     end
 end
 
@@ -508,9 +508,7 @@ function Divide(
     part = CopyFrom(src, params, batch_idx, nbatches, comm, loc_name, loc_params)
     if part isa Tuple
         newpartdim = length(split_len(part[dim], batch_idx, nbatches, comm))
-        newpart = [part...]
-        newpart[dim] = newpartdim
-        Tuple(newpart)
+        indexapply(_->newpartdim, part, index=dim)
     else
         length(split_len(part[dim], batch_idx, nbatches, comm))
     end

@@ -284,7 +284,7 @@ end
 
 function Base.map(f, c::Array{T,N}...) where {T,N}
     f = Future(f)
-    res = Array{T,N}(Future(), deepcopy(first(c).size))
+    res = Future()
 
     partitioned_using() do
         # We shouldn't need to keep sample keys since we are only allowing data
@@ -316,7 +316,7 @@ function Base.map(f, c::Array{T,N}...) where {T,N}
         res = Base.map(f, c...)
     end
 
-    res
+    Array{T,N}(res, deepcopy(first(c).size))
 end
 
 function Base.mapslices(f, A::Array{T,N}; dims) where {T,N}
@@ -417,7 +417,7 @@ function Base.sortslices(A::Array{T,N}, dims; kwargs...) where {T,N}
     sortingdim = dims isa Colon ? 1 : first(dims)
     isreversed = get(kwargs, :rev, false)
 
-    res = Array{T,N}(Future(), deepcopy(A.size))
+    res = Future()
     dims = Future(dims)
     kwargs = Future(kwargs)
 
@@ -442,7 +442,7 @@ function Base.sortslices(A::Array{T,N}, dims; kwargs...) where {T,N}
         res = sortslices(A, dims=dims, kwargs...)
     end
 
-    res
+    Array{T,N}(res, deepcopy(A.size))
 end
 
 Base.sort(A::Array{T,N}; kwargs...) where {T,N} = sortslices(A, dims=:; kwargs...)

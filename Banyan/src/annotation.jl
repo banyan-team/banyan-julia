@@ -18,6 +18,9 @@ end
 
 function finish_task()
     global curr_delayed_task
+    @show "finishing task"
+    @show curr_delayed_task.mutation
+    @show curr_delayed_task.effects
     curr_delayed_task = DelayedTask()
 end
 
@@ -276,6 +279,11 @@ end
 function apply_mutation(mutation::Dict{Future,Future})
     for (old, new) in mutation
         if old != new
+            # Apply the mutation by setting the value ID of the old future the
+            # value ID of the new one. That way, the user can continue using
+            # the old future as if it were mutated but it will be having a
+            # different value ID.
+
             # Swap references in `futures_on_client` if either side of the
             # mutation is on the client
             futures_on_client = get_job().futures_on_client
@@ -511,7 +519,7 @@ macro partitioned(ex...)
         # `mutated=true` and _only_ those `Future`s will result in an actual
         # evaluation
         for fut in splatted_futures
-            if fut in values(task.mutation)
+            if any((fut.value_id == m.value_id for m in values(task.mutation)))
                 fut.stale = true
                 fut.mutated = true
                 task.effects[fut.value_id] = "MUT"

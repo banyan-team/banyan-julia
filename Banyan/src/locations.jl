@@ -225,9 +225,10 @@ to_jl_value(jl) =
 # NOTE: This function is shared between the client library and the PT library
 to_jl_value_contents(jl) = begin
     # Handle functions defined in a module
+    # TODO: Document this special case
     # if jl isa Function && !(isdefined(Base, jl) || isdefined(Core, jl) || isdefined(Main, jl))
-    if jl isa Function
-        jl = Dict("is_banyan_udf" => true, "code" => (quote jl end))
+    if jl isa Expr && eval(jl) isa Function
+        jl = Dict("is_banyan_udf" => true, "code" => jl)
     end
 
     # Convert Julia object to string
