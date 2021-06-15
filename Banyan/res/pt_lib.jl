@@ -458,6 +458,7 @@ function CopyTo(
         elseif loc_name == "Remote"
             Write(src, part, params, 1, 1, MPI.COMM_SELF, loc_name, loc_params)
         elseif loc_name == "Client"
+            # TODO: Ensure this only sends once
             send_to_client(loc_params["value_id"], part)
         else
             error("Unexpected location")

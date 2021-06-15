@@ -172,6 +172,9 @@ function with_job(f::Function; kwargs...)
     j = create_job(;kwargs...)
     try
         f(j)
+    catch err
+        destroy_job(j)
+        rethrow(err)
     finally
     	destroy_job(j)
     end
