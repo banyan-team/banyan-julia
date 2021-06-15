@@ -451,7 +451,7 @@ function CopyTo(
                 Write(src, part, params, 1, 1, MPI.COMM_SELF, loc_name, loc_params)
             else
                 p = joinpath(loc_params["path"] * "_part")
-                open(p) do f
+                open(p, "w") do f
                     serialize(f, part)
                 end
             end
@@ -477,13 +477,13 @@ function ReduceAndCopyTo(
     loc_params,
 )
     # Merge reductions from batches
-    op = src_params["reducer"]
-    op = src_params["with_key"] ? op(src_params["key"]) : op
-    src = op(src, part)
+    op = params["reducer"]
+    op = params["with_key"] ? op(params["key"]) : op
+    src = isnothing(src) ? part : op(src, part)
 
     # Merge reductions across workers
     if batch_idx == nbatches
-        src = Reduce(src, Dict("reducer" => op), Dict(), comm)
+        src = Reduce(src, params, Dict(), comm)
     end
 
     if loc_name != "Memory"
@@ -527,19 +527,23 @@ function Reduce(
     # Get operator for reduction
     op = src_params["reducer"]
     op = src_params["with_key"] ? op(src_params["key"]) : op
-    src = op(src, part)
 
     # Get buffer to reduce
-    kind, sendbuf = tobuf(part)
+    # kind, sendbuf = tobuf(part)
     # TODO: Handle case where different processes have differently sized
-    # sendbuf
+    # sendbuf and where sendbuf is not isbitstype
+
+    # @show kind
     
     # Perform reduction
     part = MPI.Allreduce(
-        sendbuf.data,
-        (a, b) -> begin
-            tobuf(op(frombuf(kind, a), frombuf(kind, b)))[2]
-        end,
+        part,
+        # sendbuf,
+        # (a, b) -> begin
+        #     # tobuf(op(frombuf(kind, a), frombuf(kind, b)))[2]
+        #     op(a, b)
+        # end,
+        op,
         comm,
     )
     part

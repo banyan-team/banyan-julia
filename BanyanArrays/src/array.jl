@@ -414,7 +414,7 @@ function Base.reduce(op, A::Array{T,N}; dims=:, kwargs...) where {T,N}
         pt(res_size, ReducingWithKey(quote axis -> (a, b) -> indexapply(+, a, b, index=axis) end), match=A, on="key")
         # TODO: Allow replication
         # pt(A, res, res_size, dims, kwargs, Replicated())
-        pt(dims, kwargs, Replicated())
+        pt(dims, kwargs, op, Replicated())
     end
 
     @partitioned op A dims kwargs res res_size begin

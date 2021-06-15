@@ -275,6 +275,7 @@ function upload_banyanfile(banyanfile_path::String, s3_bucket_arn::String, clust
         code *= "sudo su - ec2-user -c \"julia/bin/julia --project -e 'using Pkg; Pkg.add([\\\"AWSCore\\\", \\\"AWSSQS\\\", \\\"AWSS3\\\", \\\"JSON\\\", \\\"MPI\\\", \\\"BenchmarkTools\\\"]); ENV[\\\"JULIA_MPIEXEC\\\"]=\\\"srun\\\"; ENV[\\\"JULIA_MPI_LIBRARY\\\"]=\\\"/opt/amazon/openmpi/lib64/libmpi\\\"; Pkg.build(\\\"MPI\\\"; verbose=true)' &>> setup_log.txt\"\n"
     end
     code *= "sudo amazon-linux-extras install epel\n"
+    code *= "aws s3 cp s3://banyan-executor /home/ec2-user --recursive\n"
     code *= "sudo yum -y install s3fs-fuse\n"
     code *= "sudo su - ec2-user -c \"mkdir /home/ec2-user/mnt/$bucket\"\n"
     code *= "sudo su - ec2-user -c \"/usr/bin/s3fs $bucket /home/ec2-user/mnt/$bucket -o iam_role=auto -o url=https://s3.$region.amazonaws.com -o endpoint=$region\"\n"
@@ -475,6 +476,7 @@ function get_clusters(; kwargs...)
     configure(; kwargs...)
     response =
         send_request_get_response(:describe_clusters, Dict{String,Any}())
+    @show response
     Dict(
         name => Cluster(
             name,

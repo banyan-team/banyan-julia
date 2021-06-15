@@ -329,7 +329,8 @@ end
 #     multiply_de_bruijn_bit_position[(UInt32(v * 0x07C4ACDDU) >> 27) + 1]
 # end
 
-function tobuf(obj)::Tuple{Symbol, MPI.Buffer}
+# function tobuf(obj)::Tuple{Symbol, MPI.Buffer}
+function tobuf(obj)
     # We pass around Julia objects between MPI processes in different ways
     # depending on the data type. For simple isbitstype data we keep it as-is
     # and use the simple C-like data layout for fast transfer. For dataframes,
@@ -338,8 +339,10 @@ function tobuf(obj)::Tuple{Symbol, MPI.Buffer}
     # simply serialize and deserialize using the Serialization module in Julia
     # standard library.
 
-    if isbitstype(obj)
-        (:bits, MPI.Buffer(Ref(obj)))
+    if isbits(obj)
+        (:bits, obj)
+        # (:bits, MPI.Buffer(obj))
+        # (:bits, MPI.Buffer(Ref(obj)))
     elseif isa_array(obj) && isbitstype(first(typeof(obj).parameters)) && ndims(obj) == 1
         (:bits, MPI.Buffer(obj))
     elseif isa_df(obj)

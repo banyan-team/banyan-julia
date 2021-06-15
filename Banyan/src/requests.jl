@@ -181,6 +181,7 @@ function compute(fut::AbstractFuture)
         while true
             # TODO: Use to_jl_value and from_jl_value to support Client
             message = receive_next_message(gather_queue)
+            @debug message
             message_type = message["kind"]
             if message_type == "SCATTER_REQUEST"
                 @debug "Received scatter request"
@@ -209,6 +210,7 @@ function compute(fut::AbstractFuture)
                     f.value = value
                     # TODO: Update stale/mutated here to avoid costly
                     # call to `send_evaluation`
+                    @debug value
                 end
             elseif message_type == "EVALUATION_END"
                 @debug "Received evaluation"

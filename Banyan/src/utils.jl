@@ -305,6 +305,7 @@ function send_request_get_response(method, content::Dict)
                 #     "Evaluation is in progress. Please check dashboard to view status.",
                 # )
             end
+            rethrow()
         else
             rethrow()
         end
