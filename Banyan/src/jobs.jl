@@ -142,7 +142,9 @@ function destroy_all_jobs(cluster_name::String; kwargs...)
     configure(; kwargs...)
     jobs = get_jobs(cluster_name)
     for (job_id, job) in jobs
-        destroy_job(job_id; kwargs...)
+        if job["status"] == "running"
+            destroy_job(job_id; kwargs...)
+	end
     end
 end
 
