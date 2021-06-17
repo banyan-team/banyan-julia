@@ -3,6 +3,8 @@ module BanyanDataFrames
 using Banyan
 using BanyanArrays
 
+using DataFrames
+
 include("df.jl")
 include("gdf.jl")
 

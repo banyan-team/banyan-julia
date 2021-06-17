@@ -6,6 +6,8 @@ using Banyan
 using BanyanArrays
 using BanyanDataFrames
 
+using Statistics
+
 function include_tests_to_run(args...)
     clear_jobs()
     for arg in args

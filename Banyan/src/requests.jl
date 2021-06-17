@@ -106,12 +106,14 @@ function compute(fut::AbstractFuture)
                                     push!(previous_pa.constraints.constraints, deepcopy(constraint))
                                 end
                             end
-                            # NOTE: We don't cascade constraints backwards
                         end
                     end
                 end
             end
         end
+
+        # Switch back to a new task for next code region
+        finish_task()
 
         # for t in tasks
         #     # Apply defaults to PAs

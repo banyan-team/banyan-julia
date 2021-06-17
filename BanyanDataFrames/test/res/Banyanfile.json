@@ -1,0 +1,13 @@
+{
+    "include": ["file://../../res/Banyanfile.json"],
+    "require": {
+        "cluster": {
+            "packages": ["Statistics"]
+        },
+        "job": {
+            "code": [
+                "using Statistics"
+            ]
+        }
+    }
+}

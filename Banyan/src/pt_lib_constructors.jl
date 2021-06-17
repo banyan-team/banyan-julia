@@ -175,7 +175,7 @@ function Grouped(
     for key in first(by, 8)
         # Handle combinations of `balanced` and `filtered_from`/`filtered_to`
         for b in (isnothing(balanced) ? [true, false] : [balanced])
-            parameters = Dict("key" => key, "balanaced" => b)
+            parameters = Dict("key" => key, "balanced" => b)
             constraints = PartitioningConstraints()
 
             # Create `ScaleBy` constraint and also compute `divisions` and
@@ -203,20 +203,20 @@ function Grouped(
                 if !isnothing(filtered_from)
                     filtered_from = to_vector(filtered_from)
                     factor, from = maximum(filtered_from) do ff
-                        f_min = sample(f, :statistics, by, :min)
-                        f_max = sample(f, :statistics, by, :max)
-                        divisions_filtered_from = sample(ff, :statistics, by, :divisions)
-                        f_percentile = sample(f, :statistics, :percentile, min_filtered_to, max_filtered_to)
+                        min_filtered_from = sample(f, :statistics, key, :min)
+                        max_filtered_from = sample(f, :statistics, key, :max)
+                        # divisions_filtered_from = sample(ff, :statistics, key, :divisions)
+                        f_percentile = sample(f, :statistics, key, :percentile, min_filtered_from, max_filtered_from)
                         (f_percentile, filtered_from)
                     end
                     push!(constraints.constraints, ScaleBy(f, factor, from))
                 elseif !isnothing(filtered_to)
                     filtered_to = to_vector(filtered_to)
                     factor, to = maximum(filtered_to) do ft
-                        min_filtered_to = sample(ft, :statistics, by, :min)
-                        max_filtered_to = sample(ft, :statistics, by, :max)
-                        f_divisions = sample(f, :statistics, by, :divisions)
-                        f_percentile = sample(f, :statistics, :percentile, min_filtered_to, max_filtered_to)
+                        min_filtered_to = sample(ft, :statistics, key, :min)
+                        max_filtered_to = sample(ft, :statistics, key, :max)
+                        # f_divisions = sample(f, :statistics, key, :divisions)
+                        f_percentile = sample(f, :statistics, key, :percentile, min_filtered_to, max_filtered_to)
                         (1 / f_percentile, filtered_to)
                     end
                     push!(constraints.constraints, ScaleBy(f, factor, to))
@@ -224,9 +224,9 @@ function Grouped(
                     push!(constraints.constraints, ScaleBy(f, 1.0, scaled_by_same_as))
                 end
             end
-        end
 
-        push!(pt, PartitionType(parameters, constraints))
+            push!(pts, PartitionType(parameters, constraints))
+        end
     end
     Grouped() & pts
 end

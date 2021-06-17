@@ -347,9 +347,12 @@ function get_s3fs_path(path)
         try
             ACCESS_KEY_ID = get_aws_config()[:creds].access_key_id
             SECRET_ACCESS_KEY = get_aws_config()[:creds].secret_key
+            passwd_s3fs_contents = ACCESS_KEY_ID * ":" * SECRET_ACCESS_KEY
             HOME = homedir()
-            run(`echo $ACCESS_KEY_ID:$SECRET_ACCESS_KEY \> $HOME/.passwd-s3fs\; chmod 600 $HOME/.passwd-s3fs`)
-            run(`s3fs $bucket $mount -o url=https://s3.$location.amazonaws.com -o endpoint=$location`)
+            region = get_aws_config_region()
+            run(pipeline(`echo $passwd_s3fs_contents`, "$HOME/.passwd-s3fs"))
+            run(`chmod 600 $HOME/.passwd-s3fs`)
+            run(`s3fs $bucket $mount -o url=https://s3.$region.amazonaws.com -o endpoint=$region -o passwd_file=$HOME/.passwd-s3fs`)
         catch e
             @error """Failed to mount S3 bucket \"$bucket\" at $mount using s3fs with error: $e. Please ensure s3fs is in PATH or mount manually."""
         end

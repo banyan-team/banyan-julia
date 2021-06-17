@@ -5,7 +5,7 @@ struct DataFrame <: AbstractFuture
     # offset::Future
 end
 
-convert(::Type{Future}, df::DataFrame) = df.data
+Banyan.convert(::Type{Future}, df::DataFrame) = df.data
 
 # DataFrame creation
 
@@ -49,14 +49,14 @@ convert(::Type{Future}, df::DataFrame) = df.data
 #     @partitioned df begin end
 # end
 
-function read_csv(path)
+function read_csv(path::String)
     df_loc = Remote(path)
     df_nrows = Future(df_loc.nrows)
     DataFrame(Future(df_loc), df_nrows)
 end
 
-read_parquet = read_csv
-read_arrow = read_csv
+read_parquet(p) = read_csv(p)
+read_arrow(p) = read_csv(p)
 
 # TODO: For writing functions, if a file is specified, enforce Replicated
 
@@ -70,8 +70,8 @@ function write_csv(A, path)
     compute(df)
 end
 
-write_parquet = write_csv
-write_arrow = write_csv
+write_parquet(A, p) = write_csv(A, p)
+write_arrow(A, p) = write_csv(A, p)
 
 # TODO: Duplicate above functions for Parquet, Arrow
 
@@ -80,9 +80,13 @@ write_arrow = write_csv
 Banyan.sample_axes(df::DataFrames.DataFrame) = [1]
 Banyan.sample_keys(df::DataFrames.DataFrame) = propertynames(df)
 
+# NOTE: This is duplicated between pt_lib.jl and the client library
+orderinghash(x::Any) = x # This lets us handle numbers and dates
+orderinghash(s::String) = Integer.(codepoint.(collect(first(s, 32) * repeat(" ", 32-length(s)))))
+
 function Banyan.sample_divisions(df::DataFrames.DataFrame, key)
     max_ngroups = sample_max_ngroups(df, key)
-    ngroups = min(max_ngroups, get_job().nworkers, 128)
+    ngroups = min(max_ngroups, Banyan.get_job().nworkers, 128)
     data = sort(df[!, key])
     datalength = length(data)
     grouplength = div(datalength, ngroups)
@@ -124,17 +128,18 @@ function Banyan.sample_percentile(A::DataFrames.DataFrame, key, minvalue, maxval
     percentile
 end
 
-Banyan.sample_max_ngroups(df::DataFrames.DataFrame, key) = round(nrow(df) / maximum(combine(groupby(df, key), nrow).nrow))
+Banyan.sample_max_ngroups(df::DataFrames.DataFrame, key) = div(nrow(df), maximum(combine(groupby(df, key), nrow).nrow))
 Banyan.sample_min(df::DataFrames.DataFrame, key) = minimum(df[!, key])
 Banyan.sample_max(df::DataFrames.DataFrame, key) = maximum(df[!, key])
 
 # DataFrame properties
 
-nrow(df::DataFrame) = compute(df.nrows)
-ncol(df::DataFrame) = sample(df.size)[2]
-size(df::DataFrame) = (nrow(df), ncol(df))
-names(df::DataFrame, args...) = names(sample(df), args...)
-propertynames(df::DataFrame) = propertynames(sample(df))
+DataFrames.nrow(df::DataFrame) = compute(df.nrows)
+DataFrames.ncol(df::DataFrame) = sample(df.size)[2]
+Base.size(df::DataFrame) = (nrow(df), ncol(df))
+Base.ndims(df::DataFrame) = 2
+Base.names(df::DataFrame, args...) = names(sample(df), args...)
+Base.propertynames(df::DataFrame) = propertynames(sample(df))
 
 # DataFrame filtering
 
@@ -228,7 +233,7 @@ function pts_for_filtering(init::AbstractFuture, final::AbstractFuture; with, kw
     end
 end
 
-function dropmissing(df::DataFrame, args...; kwargs...)
+function DataFrames.dropmissing(df::DataFrame, args...; kwargs...)
     !get(kwargs, :view, false) || throw(ArgumentError("Cannot return view of filtered dataframe"))
 
     res_nrows = Future()
@@ -267,7 +272,7 @@ function dropmissing(df::DataFrame, args...; kwargs...)
 
     @partitioned df res res_nrows args kwargs begin
         res = dropmissing(df, args...; kwargs...)
-        res_nrows = nrows(res)
+        res_nrows = nrow(res)
     end
 
     res
@@ -294,7 +299,7 @@ function Base.filter(f, df::DataFrame; kwargs...)
 
     @partitioned df res res_nrows f kwargs begin
         res = filter(f, df; kwargs...)
-        res_nrows = nrows(res)
+        res_nrows = nrow(res)
     end
 
     res
@@ -454,20 +459,20 @@ end
 
 #     @partitioned df res res_nrows begin
 #         res = getindex(df)
-#         res_nrows = nrows(res)
+#         res_nrows = nrow(res)
 #     end
 
 #     res
 # end
 
-function getindex(df::DataFrame, rows=:, cols=:)
+function Base.getindex(df::DataFrame, rows=:, cols=:)
     # TODO: Accept either replicated, balanced, grouped by any of columns
     # in res (which is just cols of df if column selector is :), or unknown
     # and always with different ID unless row selector is :
     # and only allow : and copying columns without getting a view
-    rows isa Colon || rows isa Vector{Bool} ||
+    (rows isa Colon || rows isa Vector{Bool}) ||
         throw(ArgumentError("Expected selection of all rows with : or some rows with Vector{Bool}"))
-    cols != ! || throw(ArgumentError("! is not allowed for selecting all columns; use : instead"))
+    (cols != !) || throw(ArgumentError("! is not allowed for selecting all columns; use : instead"))
 
     # TODO: Remove this if not necessary
     if rows isa Colon && cols isa Colon
@@ -815,7 +820,7 @@ function getindex(df::DataFrame, rows=:, cols=:)
     # end
 end
 
-function setindex!(df::DataFrame, v::Union{Vector, Matrix, DataFrame}, rows, cols)
+function Base.setindex!(df::DataFrame, v::Union{BanyanArrays.Vector, BanyanArrays.Matrix, DataFrame}, rows, cols)
     rows isa Colon || throw(ArgumentError("Cannot mutate a subset of rows in place"))
 
     # selection = names(sample(df), cols)
@@ -905,7 +910,7 @@ function setindex!(df::DataFrame, v::Union{Vector, Matrix, DataFrame}, rows, col
     # # TODO: Implement this version of mut
     # mutated(df, res)
 
-    @partition df col cols res begin
+    @partitioned df col cols res begin
         df[:, cols] = col
         res = df
     end
@@ -984,7 +989,7 @@ end
 #     # 3. No constraint if it is required for something to be unbalanced (if no constraints are applied, the most recent size is used in scheduler)
 # end
 
-function rename(df::DataFrame, args...; kwargs...)
+function DataFrames.rename(df::DataFrame, args...; kwargs...)
     res = Future()
     args = Future(args)
     kwargs = Future(kwargs)
@@ -1126,7 +1131,7 @@ end
 
 # DataFrame shuffling
 
-function sort(df::DataFrame, cols=:; kwargs...)
+function Base.sort(df::DataFrame, cols=:; kwargs...)
     !get(kwargs, :view, false) || throw(ArgumentError("Cannot return view of sorted dataframe"))
 
     # Determine what to sort by and whether to sort in reverse
@@ -1177,7 +1182,7 @@ function sort(df::DataFrame, cols=:; kwargs...)
     DataFrame(res, copy(df.nrows))
 end
 
-function innerjoin(dfs::DataFrame...; on, kwargs...)
+function DataFrames.innerjoin(dfs::DataFrame...; on, kwargs...)
     length(dfs) >= 2 || throw(ArgumentError("Join requires at least 2 dataframes"))
 
     # TODO: Make it so that the code region's sampled computation is run first to allow for the function's
@@ -1252,7 +1257,7 @@ function innerjoin(dfs::DataFrame...; on, kwargs...)
 
     @partitioned dfs on kwargs res res_nrows begin
         res = innerjoin(dfs...; on=on, kwargs...)
-        res_nrows = nrows(res)
+        res_nrows = nrow(res)
     end
 
     # partition(dfs..., Replicated())
@@ -1296,13 +1301,13 @@ function innerjoin(dfs::DataFrame...; on, kwargs...)
 
     # @partitioned df1 df2 res res_nrows kwargs begin
     #     res = innerjoin(df1, df2; kwargs...)
-    #     res_nrows = nrows(res)
+    #     res_nrows = nrow(res)
     # end
 
     res
 end
 
-function unique(df::DataFrame, cols=nothing; kwargs...)
+function DataFrames.unique(df::DataFrame, cols=nothing; kwargs...)
     !get(kwargs, :view, false) || throw(ArgumentError("Cannot return view of Banyan dataframe"))
     !(cols isa Pair || cols isa Function) || throw(ArgumentError("Full select syntax not supported here currently"))
 
@@ -1326,7 +1331,7 @@ function unique(df::DataFrame, cols=nothing; kwargs...)
 
     @partitioned df res res_nrows cols kwargs begin
         res = unique(df, cols; kwargs...)
-        res_nrows = nrows(res)
+        res_nrows = nrow(res)
     end
 
     res
@@ -1358,13 +1363,13 @@ function unique(df::DataFrame, cols=nothing; kwargs...)
 
     # @partitioned df res res_nrows cols begin
     #     res = isnothing(cols) ? unique(df) : unique(df, cols)
-    #     res_nrows = nrows(res)
+    #     res_nrows = nrow(res)
     # end
 
     # res
 end
 
-function nonunique(df::DataFrame, cols=nothing; kwargs...)
+function DataFrames.nonunique(df::DataFrame, cols=nothing; kwargs...)
     !get(kwargs, :view, false) || throw(ArgumentError("Cannot return view of Banyan dataframe"))
     !(cols isa Pair || cols isa Function) || throw(ArgumentError("Full select syntax not supported here currently"))
 
@@ -1424,7 +1429,7 @@ function nonunique(df::DataFrame, cols=nothing; kwargs...)
 
     # @partitioned df res res_nrows cols begin
     #     res = isnothing(cols) ? nonunique(df) : nonunique(df, cols)
-    #     res_nrows = nrows(res)
+    #     res_nrows = nrow(res)
     # end
 
     # res

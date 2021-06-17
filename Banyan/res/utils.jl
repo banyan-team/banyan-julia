@@ -145,7 +145,7 @@ end
 
 # NOTE: This is duplicated between pt_lib.jl and the client library
 orderinghash(x::Any) = x # This lets us handle numbers and dates
-orderinghash(s::String) = Integer.(codepoint.(first(s, 32) * repeat(" ", 32-length(s))))
+orderinghash(s::String) = Integer.(codepoint.(collect(first(s, 32) * repeat(" ", 32-length(s)))))
 orderinghash(A::Array) = orderinghash(first(A))
 
 function get_divisions(divisions, npartitions)
@@ -412,7 +412,7 @@ function getpath(path)
         end
         joined_path
     elseif startswith(path, "s3://")
-        replace(path, "s3://", "/home/ec2-user/mnt/s3/")
+        replace(path, "s3://" => "/home/ec2-user/mnt/")
         # NOTE: We expect that the ParallelCluster instance was set up
         # to have the S3 filesystem mounted at /mnt/<bucket name>
     else

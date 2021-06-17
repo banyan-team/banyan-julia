@@ -9,6 +9,5 @@ export fill
 export map, mapslices, reduce, sort, sortlices
 
 include("array.jl")
-include("../res/utils_ba.jl")
 
 end # module

@@ -5,8 +5,10 @@
         println(typeof(x))
         x = map(e -> e / 10, x)
         println(typeof(x))
-        res = collect(sum(x))
-        println(typeof(res))
-        println(res)
+        res = sum(x)
+
+        res = collect(res)
+        @test typeof(res) == Float64
+        @test res = 1024
     end
 end

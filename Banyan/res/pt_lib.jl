@@ -44,8 +44,9 @@ function ReadBlock(
     # reading of the same range in different reads
 
     # Handle single-file nd-arrays
+    @show loc_params
     if (loc_name == "Disk" && isfile(loc_params["path"])) ||
-        (loc_name == "Remote" && endswith(loc_params["path"], ".h5"))
+        (loc_name == "Remote" && (occursin(".h5", loc_params["path"]) || occursin(".hdf5", loc_params["path"])))
 
         path = getpath(loc_params["path"])
         f = h5open(path, "w")
@@ -78,7 +79,7 @@ function ReadBlock(
             for partfilename in readdir(name)
                 part_nrows = parse(
                     Int64,
-                    replace(split(partfilename, "_nrows=")[end], ".arrow", "")
+                    replace(split(partfilename, "_nrows=")[end], ".arrow" => "")
                 )
                 push!(
                     files,
@@ -103,6 +104,7 @@ function ReadBlock(
     nrows = loc_params["nrows"]
     rowrange = split_len(nrows, batch_idx, nbatches, comm)
     dfs = []
+    rowsscanned = 0
     for file in loc_params["files"]
         newrowsscanned = rowsscanned + file["nrows"]
         filerowrange = (rowsscanned+1):newrowsscanned
@@ -231,7 +233,7 @@ function Write(
     if startswith(path, "http://") || startswith(path, "https://")
         error("Writing to http(s):// is not supported")
     elseif startswith(path, "s3://")
-        path = replace(path, "s3://", "/home/ec2-user/mnt/s3/")
+        path = getpath(path)
         # NOTE: We expect that the ParallelCluster instance was set up
         # to have the S3 filesystem mounted at /mnt/<bucket name>
     end
@@ -247,11 +249,12 @@ function Write(
         end
 
         nrows = size(part, 1)
-        partfilepath = joinpath(path, "_part$idx" * "_nrows=$nrows.arrow"),
+        partfilepath = joinpath(path, "part$idx" * "_nrows=$nrows.arrow"),
         Arrow.write(partfilepath, part)
         src
         # TODO: Delete all other part* files for this value if others exist
     elseif isa_array(part)
+        path *= ".hdf5"
         dim = params["key"]
         whole_size = MPI.Reduce(
             size(part),
@@ -262,19 +265,20 @@ function Write(
 
         # TODO: Check if HDF5 dataset is created. If not, wait for the master
         # node to create it.
+        group = loc_name == "Disk" ? "part" : loc_params["subpath"]
         if get_partition_idx(batch_idx, nbatches, comm) == 1
-            hfopen(joinpath(path * "_part"), "w") do fid
-                create_dataset(fid, "part", similar(part, whole_size))
+            hfopen(path, "w") do fid
+                create_dataset(fid, group, similar(part, whole_size))
             end
-            touch(joinpath(path * "_is_ready"))
+            touch(path * "_is_ready")
         end
 
         # Wait till the dataset is created
-        while !isfile(joinpath(path * "_is_ready")) end
+        while !isfile(path * "_is_ready") end
 
         # Write part to the dataset
-        f = h5open(joinpath(path * "_part"), "w")
-        dset = loc_name == "Disk" ? f["part"] : f[loc_params["subpath"]]
+        f = h5open(part, "w")
+        dset = f[group]
         # TODO: Use `view` instead of `getindex` in the call to
         # `split_on_executor` here if HDF5 doesn't support this kind of usage
         if ismmappable(dset)
@@ -335,8 +339,8 @@ function SplitGroup(
         Dict(),
         Dict("key" => key, "divisions" => divisions, "rev" => rev),
         comm,
-        boundedlower,
-        boundedupper
+        boundedlower=boundedlower,
+        boundedupper=boundedupper
     )
 
     # Store divisions
@@ -419,7 +423,7 @@ function CopyFrom(
             nothing
         end
     elseif loc_name == "Remote"
-        Read(src, params, 1, 1, MPI.COMM_SELF, loc_name, loc_params)
+        ReadBlock(src, params, 1, 1, MPI.COMM_SELF, loc_name, loc_params)
     elseif loc_name == "Client" && get_partition_idx(batch_idx, nbatches, comm) == 1
         receive_from_client(loc_params["value_id"])
     elseif loc_name == "Memory"
@@ -644,6 +648,7 @@ function Consolidate(
     part = merge_on_executor(kind, recvvbuf, get_nworkers(comm), comm; dims=dim)
     part
 end
+
 function DistributeAndShuffle(
     part,
     src_params,
@@ -668,8 +673,8 @@ function DistributeAndShuffle(
     partition_idx_getter(val) = get_partition_idx_from_divisions(
         val,
         worker_divisions,
-        boundedlower,
-        boundedupper
+        boundedlower=boundedlower,
+        boundedupper=boundedupper
     )
 
     # Apply divisions to get only the elements relevant to this worker
@@ -710,8 +715,8 @@ function Shuffle(
     partition_idx_getter(val) = get_partition_idx_from_divisions(
         val,
         worker_divisions,
-        boundedlower,
-        boundedupper
+        boundedlower=boundedlower,
+        boundedupper=boundedupper
     )
     if isa_df(part)
         # Compute the partition to send each row of the dataframe to

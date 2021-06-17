@@ -124,10 +124,13 @@ using TOML
 
 using FileIO
 using FilePathsBase
-using CSV
 using IniFile
 
 using IterTools
+
+# TODO: Move locations, samples, and parts of pt_lib.jl and pt_lib_info.json
+# into their respective libraries where they can be specialized
+using HDF5, CSV, Parquet, Arrow, DataFrames
 
 # Jobs
 include("id.jl")

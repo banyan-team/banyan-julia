@@ -35,6 +35,8 @@ function get_job()
     jobs[get_job_id()]
 end
 
+get_cluster_name() = get_job().cluster_name
+
 function create_job(;
     cluster_name::String = nothing,
     nworkers::Integer = 2,
@@ -94,7 +96,7 @@ function create_job(;
     # Store in global state
     current_job_id = job_id
     current_job_status = "running"
-    jobs[current_job_id] = Job(current_job_id, nworkers, sample_rate)
+    jobs[current_job_id] = Job(cluster_name, current_job_id, nworkers, sample_rate)
 
     @debug "Finished creating job $job_id"
     return job_id
@@ -170,13 +172,17 @@ function with_job(f::Function; kwargs...)
     # This is not a constructor; this is just a function that ensures that
     # every job is always destroyed even in the case of an error
     j = create_job(;kwargs...)
+    j_destroyed = false
     try
         f(j)
     catch err
         destroy_job(j)
+        j_destroyed = true
         rethrow(err)
     finally
-    	destroy_job(j)
+        if !j_destroyed
+    	    destroy_job(j)
+        end
     end
 end
 

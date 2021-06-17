@@ -74,9 +74,14 @@ Banyan.sample_keys(A::Base.Array{T,N}) where {T,N} = sample_axes(A)
 # `sample_divisions`, `sample_percentile`, and `sample_max_ngroups` should
 # work with the `orderinghash` of values in the data they are used on
 
+# NOTE: This is duplicated between pt_lib.jl and the client library
+orderinghash(x::Any) = x # This lets us handle numbers and dates
+orderinghash(s::String) = Integer.(codepoint.(collect(first(s, 32) * repeat(" ", 32-length(s)))))
+orderinghash(A::Array) = orderinghash(first(A))
+
 function Banyan.sample_divisions(A::Base.Array{T,N}, key) where {T,N}
     max_ngroups = sample_max_ngroups(df, key)
-    ngroups = min(max_ngroups, get_job().nworkers, 128)
+    ngroups = min(max_ngroups, Banyan.get_job().nworkers, 128)
     data = sort(mapslices(first, transpose(A), dims=key))
     datalength = length(data)
     grouplength = div(datalength, ngroups)
@@ -135,7 +140,7 @@ Banyan.sample_max_ngroups(A::Base.Array{T,N}, key) where {T,N} =
             prev = copy(curr)
         end
         maxgroupsize = max(maxgroupsize, currgroupsize)
-        size(df, key) / maxgroupsize
+        div(size(df, key), maxgroupsize)
     end
 Banyan.sample_min(A::Base.Array{T,N}, key) where {T,N} = minimum(mapslices(first, transpose(A), dims=key))
 Banyan.sample_max(A::Base.Array{T,N}, key) where {T,N} = maximum(mapslices(first, transpose(A), dims=key))

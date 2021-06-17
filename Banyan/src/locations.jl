@@ -289,7 +289,9 @@ end
 # overall data size. This way, two arrays that have the same actual size will
 # be guaranteed to have the same sample size.
 
-MAX_EXACT_SAMPLE_LENGTH = 1024
+# TODO: Set this back to a proper number
+# MAX_EXACT_SAMPLE_LENGTH = 1024
+MAX_EXACT_SAMPLE_LENGTH = 50
 
 getsamplenrows(totalnrows) =
     if totalnrows <= MAX_EXACT_SAMPLE_LENGTH
@@ -302,8 +304,9 @@ function Remote(p; read_from_cache = true, write_to_cache = true)
     # Read location from cache. The location will include metadata like the
     # number of rows in each file as well as a sample that can be used on the
     # client side for estimating memory usage and data skew among other things.
+    locationspath = joinpath(homedir(), ".banyan", "locations")
     locationpath =
-        joinpath(homedir(), ".banyan", "locations", p |> hash |> string)
+        joinpath(locationspath, p |> hash |> string)
     location = if read_from_cache && isfile(locationpath)
         deserialize(locationpath)
     else
@@ -312,24 +315,25 @@ function Remote(p; read_from_cache = true, write_to_cache = true)
 
     # Store location in cache
     if write_to_cache
+        mkpath(locationspath)
         serialize(locationpath, location)
     end
 
     location
 end
 
-function get_remote_location(p)
-    Random.seed!(get_job_id())
+function get_remote_location(remotepath)
+    Random.seed!(hash(get_job_id()))
 
     # TODO: Cache stuff
-    if startswith(p, "s3://")
-        p = get_s3fs_path(p)
-    elseif startswith(p, "http://") || startswith(p, "https://")
-        p = download(p)
+    p = if startswith(remotepath, "s3://")
+        get_s3fs_path(remotepath)
+    elseif startswith(remotepath, "http://") || startswith(remotepath, "https://")
+        download(remotepath)
     else
         throw(
             ArgumentError(
-                "Expected location that starts with either http:// or https:// or s3://",
+                "$remotepath does not start with either http:// or https:// or s3://",
             ),
         )
     end
@@ -353,7 +357,10 @@ function get_remote_location(p)
     end
     if length(hdf5_ending) > 0
         filename, datasetpath = split(p, hdf5_ending)
+        remotefilename, _ = split(remotepath, hdf5_ending)
         filename *= ".h5"
+        remotefilename *= ".h5"
+        # datasetpath = datasetpath[2:end] # Chop off the /
 
         # Load metadata for reading
 
@@ -371,7 +378,7 @@ function get_remote_location(p)
             end
 
             # Collect metadata
-            nbytes += sizeof(dset)
+            nbytes += sizeof(length(dset) * eltype(dset))
             datasize = size(dset)
 
             # Collect sample
@@ -404,18 +411,18 @@ function get_remote_location(p)
             (
                 "Remote",
                 Dict(
-                    "path" => filename,
+                    "path" => remotefilename,
                     "subpath" => datasetpath,
                     "size" => datasize,
                 ),
             )
         else
-            (nothing, Dict())
+            (nothing, Dict{String,Any}())
         end
 
         # Load metadata for writing to HDF5 file
         loc_for_writing, metadata_for_writing =
-            ("Remote", Dict("path" => filename, "subpath" => datasetpath))
+            ("Remote", Dict("path" => remotefilename, "subpath" => datasetpath))
 
         # Construct location with metadata
         return Location(
@@ -436,24 +443,22 @@ function get_remote_location(p)
     # Handle multi-file tabular datasets
 
     # Read through dataset by row
-    p_isdir = isdir(p)
+    p_isdir = isdirpath(p)
+    # TODO: Support more than just reading/writing single HDF5 files and
+    # reading/writing directories containing CSV/Parquet/Arrow files
     files = []
     # TODO: Check for presence of cached file here and job configured to use
     # cache before proceeding
     exactsample = DataFrame()
     randomsample = DataFrame()
-    for filep in if p_isdir
-        sort(readdir(p))
-    else
-        [p]
-    end
+    for filep in (p_isdir ? readdir(p) : [p])
         filenrows = 0
         # TODO: Ensure usage of Base.summarysize is reasonable
         # if endswith(filep, ".csv")
         #     for chunk in CSV.Chunks(filep)
         #         chunkdf = chunk |> DataFrames.DataFrame
         #         # chunknrows = chunk.rows
-        #         chunknrows = nrows(chunkdf)
+        #         chunknrows = nrow(chunkdf)
         #         filenrows += chunkrows
         #         totalnrows += chunkrows
 
@@ -467,8 +472,8 @@ function get_remote_location(p)
 
         #         # Append to exactsample
         #         samplenrows = getsamplenrows(totalnrows)
-        #         if nrows(exactsample) < samplenrows
-        #             append!(exactsample, first(chunkdf, samplenrows - nrows(exactsample)))
+        #         if nrow(exactsample) < samplenrows
+        #             append!(exactsample, first(chunkdf, samplenrows - nrow(exactsample)))
         #         end
 
         #         nbytes += Base.summarysize(chunkdf)
@@ -483,7 +488,7 @@ function get_remote_location(p)
         #     for (i, chunk) in enumerate(Tables.partitions(read_parquet(filep)))
         #         chunkdf = chunk |> DataFrames.DataFrame
         #         # chunknrows = pqf.meta.row_groups[i].num_rows
-        #         chunkrows = nrows(chunkdf)
+        #         chunkrows = nrow(chunkdf)
         #         filenrows += chunkrows
         #         totalnrows += chunkrows
 
@@ -497,8 +502,8 @@ function get_remote_location(p)
 
         #         # Append to exactsample
         #         samplenrows = getsamplenrows(totalnrows)
-        #         if nrows(exactsample) < samplenrows
-        #             append!(exactsample, first(chunkdf, samplenrows - nrows(exactsample)))
+        #         if nrow(exactsample) < samplenrows
+        #             append!(exactsample, first(chunkdf, samplenrows - nrow(exactsample)))
         #         end
 
         #         # nbytes += isnothing(chunkdf) ? pqf.meta.row_groups[i].total_byte_size : Base.summarysize(chunkdf)
@@ -508,7 +513,7 @@ function get_remote_location(p)
         # elseif endswith(filep, ".arrow")
         #     for (i, chunk) in enumerate(Arrow.Stream(filep))
         #         chunkdf = chunk |> DataFrames.DataFrame
-        #         chunknrows = nrows(chunkdf)
+        #         chunknrows = nrow(chunkdf)
         #         filenrows += chunkrows
         #         totalnrows += chunkrows
 
@@ -522,8 +527,8 @@ function get_remote_location(p)
 
         #         # Append to exactsample
         #         samplenrows = getsamplenrows(totalnrows)
-        #         if nrows(exactsample) < samplenrows
-        #             append!(exactsample, first(chunkdf, samplenrows - nrows(exactsample)))
+        #         if nrow(exactsample) < samplenrows
+        #             append!(exactsample, first(chunkdf, samplenrows - nrow(exactsample)))
         #         end
 
         #         # nbytes += isnothing(chunkdf) ? pqf.meta.row_groups[i].total_byte_size : Base.summarysize(chunkdf)
@@ -535,12 +540,13 @@ function get_remote_location(p)
         # end
 
         # Get chunks to sample from
-        chunks = if endswith(filep, ".csv")
-            CSV.Chunks(filep)
-        elseif endswith(filep, ".parquet")
-            Tables.partitions(read_parquet(filep))
-        elseif endswith(filep, ".arrow")
-            Arrow.Stream(filep)
+        localfilepath = p_isdir ? joinpath(p, filep) : p
+        chunks = if endswith(localfilepath, ".csv")
+            CSV.Chunks(localfilepath)
+        elseif endswith(localfilepath, ".parquet")
+            Tables.partitions(read_parquet(localfilepath))
+        elseif endswith(localfilepath, ".arrow")
+            Arrow.Stream(localfilepath)
         else
             error("Expected .csv or .parquet or .arrow")
         end
@@ -548,9 +554,9 @@ function get_remote_location(p)
         # Sample from each chunk
         for (i, chunk) in enumerate(chunks)
             chunkdf = chunk |> DataFrames.DataFrame
-            chunknrows = nrows(chunkdf)
-            filenrows += chunkrows
-            totalnrows += chunkrows
+            chunknrows = nrow(chunkdf)
+            filenrows += chunknrows
+            totalnrows += chunknrows
 
             # Append to randomsample
             # chunksampleindices = map(rand() < 1 / get_job().sample_rate, 1:chunknrows)
@@ -563,10 +569,10 @@ function get_remote_location(p)
 
             # Append to exactsample
             samplenrows = getsamplenrows(totalnrows)
-            if nrows(exactsample) < samplenrows
+            if nrow(exactsample) < samplenrows
                 append!(
                     exactsample,
-                    first(chunkdf, samplenrows - nrows(exactsample)),
+                    first(chunkdf, samplenrows - nrow(exactsample)),
                 )
             end
 
@@ -576,36 +582,36 @@ function get_remote_location(p)
         end
 
         # Add to list of file metadata
-        push!(files, Dict("path" => filep, "nrows" => filenrows))
-        totalnrows += filenrows
+        push!(files, Dict("path" => p_isdir ? joinpath(remotepath, filep) : remotepath, "nrows" => filenrows))
     end
 
     # Adjust sample to have samplenrows
-    samplenrows = getsamplenrows(totalnrows)
-    if nrows(randomsample) < samplenrows
+    samplenrows = getsamplenrows(totalnrows) # Either a subset of rows or the whole thing
+    @show samplenrows
+    if nrow(randomsample) < samplenrows
         append!(
             randomsample,
-            first(exactsample, samplenrows - nrows(randomsample)),
+            first(exactsample, samplenrows - nrow(randomsample)),
         )
     end
-    if nrows(randomsample) > samplenrows
+    if nrow(randomsample) > samplenrows
         randomsample = first(randomsample, samplenrows)
     end
 
     # TODO: Build up sample and return
 
     # Load metadata for reading
-    loc_for_reading, metadata_for_reading = if !isempty(files_metadata)
-        ("Remote", Dict("files" => files, "nrows" => totalnrows))
+    loc_for_reading, metadata_for_reading = if !isempty(files)
+        ("Remote", Dict("path" => remotepath, "files" => files, "nrows" => totalnrows))
     else
-        (nothing, Dict())
+        (nothing, Dict{String,Any}())
     end
 
     # Load metadata for writing
     loc_for_writing, metadata_for_writing = if p_isdir
-        ("Remote", Dict("path" => p))
+        ("Remote", Dict("path" => remotepath))
     else
-        (nothing, Dict())
+        (nothing, Dict{String,Any}())
     end
 
     # TODO: Cache sample on disk
@@ -619,9 +625,9 @@ function get_remote_location(p)
         if isnothing(loc_for_reading)
             Sample()
         elseif totalnrows <= MAX_EXACT_SAMPLE_LENGTH
-            ExactSample(sample, total_memory_usage = nbytes)
+            ExactSample(randomsample, total_memory_usage = nbytes)
         else
-            Sample(sample, total_memory_usage = nbytes)
+            Sample(randomsample, total_memory_usage = nbytes)
         end,
     )
 end

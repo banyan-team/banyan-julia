@@ -321,11 +321,17 @@ function create_cluster(;
     banyanfile_path::String = nothing,
     iam_policy_arn::String = nothing,
     s3_bucket_arn::String = nothing,
+    s3_bucket_name::String = nothing,
     vpc_id = nothing,
     subnet_id = nothing,
     kwargs...,
 )
     @debug "Creating cluster"
+
+    # Construct arguments
+    if isnothing(s3_bucket_arn)
+        s3_bucket_arn = "arn:aws:s3:::$s3_bucket_name*"
+    end
 
     # Configure using parameters
     c = configure(; require_ec2_key_pair_name = true, kwargs...)
@@ -488,3 +494,4 @@ function get_clusters(; kwargs...)
 end
 
 get_cluster(name::String; kwargs...) = get_clusters(; kwargs...)[name]
+get_cluster() = get_cluster(get_cluster_name())

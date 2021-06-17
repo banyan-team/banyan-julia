@@ -105,7 +105,7 @@ function keep_all_sample_keys_renamed(old::AbstractFuture, new::AbstractFuture)
 end
 
 function keep_sample_keys_named(
-    participants::Pair{AbstractFuture,Any}...;
+    participants::Pair{<:AbstractFuture,<:Any}...;
     drifted = false,
 )
     # `participants` maps from futures to lists of key names such that all
@@ -148,7 +148,7 @@ end
 
 keep_sample_keys(keys, participants::AbstractFuture...; drifted = false) = begin
     keys = Symbol.(to_vector(keys))
-    keep_sample_keys_named([p => keys for p in participants]...)
+    keep_sample_keys_named([p => keys for p in participants]..., drifted=drifted)
 end
 
 # This is useful for workloads that involve joins where the sample rate is
@@ -179,9 +179,9 @@ function pt(
     pa = get_pa()
 
     # Extract PT and args to assign the PT to from given arguments
-    futs, ptype = args[1:end-1], last(args)
+    futs, sharedptype = args[1:end-1], last(args)
 
-    if length(futs) > 1 && ptype isa Vector
+    if length(futs) > 1 && sharedptype isa Vector
         throw(
             ArgumentError(
                 "Multiple partition types cannot be applied to multiple futures at once",
@@ -199,6 +199,9 @@ function pt(
             finish_pa()
             pa = get_pa()
         end
+
+        # Take a copy so that we can mutate
+        ptype = deepcopy(sharedptype)
 
         # Put in PT
         if ptype isa Vector
@@ -269,7 +272,10 @@ mutated(ff::Pair{<:AbstractFuture,<:AbstractFuture}) =
 
 function mutated(old::AbstractFuture, new::AbstractFuture)
     global curr_delayed_task
-    curr_delayed_task.mutation[convert(Future, old)] = convert(Future, new)
+    old = convert(Future, old)
+    # if haskey(curr_delayed_task.value_names, old.value_id)
+    #     finish_pa()
+    curr_delayed_task.mutation[old] = convert(Future, new)
 end
 
 #################################################
@@ -578,8 +584,8 @@ function duplicate_args(
     pa::PartitionAnnotation,
 )::Vector{PartitionTypeReference}
     [
-        # (v, idx + div(length(pa.partitions.pt_stacks[v].pts), 2)) for
-        (v, idx + length(pa.partitions.pt_stacks[v].pts)) for
+        (v, idx + div(length(pa.partitions.pt_stacks[v].pts), 2)) for
+        # (v, idx + length(pa.partitions.pt_stacks[v].pts)) for
         (v, idx) in args
     ]
 end
@@ -695,14 +701,18 @@ duplicated_constraints_for_batching(
 end
 
 function duplicate_for_batching!(pa::PartitionAnnotation)
+    # Duplicate PT stacks
+    for (v, pt_stack) in pa.partitions.pt_stacks
+        append!(pt_stack.pts, deepcopy(pt_stack.pts))
+    end
+
     # Duplicate annotation-level constraints for Co, Equal, Cross, AtMost, ScaleBy
     pa.constraints = duplicated_constraints_for_batching(pa.constraints, pa)
     # println(pa.constraints)
 
-    # Duplicate PT stacks with second half being Sequential and Match-ing the
-    # first half
+    # Add constraints for second half being Sequential and Match-ing the first
+    # half
     for (v, pt_stack) in pa.partitions.pt_stacks
-        append!(pt_stack.pts, deepcopy(pt_stack.pts))
         for i = 1:div(length(pt_stack.pts), 2)
             dupi = i + div(length(pt_stack.pts), 2)
 
