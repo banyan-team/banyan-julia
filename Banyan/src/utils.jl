@@ -189,7 +189,7 @@ function get_aws_config()
         println(region)
 
         if isempty(region)
-            throw(Exception("No AWS region specified"))
+            throw(ErrorException("Could not discover AWS region to use from looking at AWS_PROFILE, AWS_DEFAULT_PROFILE, AWS_DEFAULT_REGION, HOME/.aws/credentials, and HOME/.aws/config"))
         end
 
         aws_config_in_usage = Dict(

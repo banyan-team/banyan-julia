@@ -43,8 +43,12 @@ function DataFrames.groupby(df::DataFrame, cols; kwargs...)::GroupedDataFrame
 
     partitioned_with() do
         pt(df, Grouped(df, by=groupingkeys, scaled_by_same_as=gdf))
-        pt(gdf, Blocked() & ScaledBySame(as=df))
-        pt(gdf_length, Reducing((a, b) -> a .+ b))
+        # TODO: Avoid circular dependency
+        # TODO: Specify key for Blocked
+        # TODO: Ensure that bangs in splitting functions in PF library are used
+        # appropriately
+        pt(gdf, Blocked(along=1) & ScaledBySame(as=df))
+        pt(gdf_length, Reducing(quote + end)) # TODO: See if we can `using Banyan` on the cluster and avoid this
         pt(df, gdf, gdf_length, cols, kwargs, Replicated())
     end
 
@@ -125,7 +129,7 @@ function DataFrames.select(gdf::GroupedDataFrame, args...; kwargs...)
 
     partitioned_with() do
         pt(gdf_parent, Grouped(df, by=groupingkeys, scaled_by_same_as=res), match=res)
-        pt(gdf, Blocked() & ScaledBySame(as=res))
+        pt(gdf, Blocked(along=1) & ScaledBySame(as=res))
         pt(res, ScaledBySame(as=gdf_parent))
         pt(gdf_parent, gdf, res, groupcols, groupkwargs, args, kwargs, Replicated())
     end
@@ -214,7 +218,7 @@ function DataFrames.transform(gdf::GroupedDataFrame, args...; kwargs...)
 
     partitioned_with() do
         pt(gdf_parent, Grouped(df, by=groupingkeys, scaled_by_same_as=res), match=res)
-        pt(gdf, Blocked() & ScaledBySame(as=res))
+        pt(gdf, Blocked(along=1) & ScaledBySame(as=res))
         pt(res, ScaledBySame(as=gdf_parent))
         pt(gdf_parent, gdf, res, groupcols, groupkwargs, args, kwargs, Replicated())
     end
@@ -254,17 +258,22 @@ function DataFrames.combine(gdf::GroupedDataFrame, args...; kwargs...)
 
     partitioned_with() do
         pts_for_filtering(gdf_parent, res, with=Grouped, by=groupingkeys)
-        pt(gdf, Blocked() & ScaledBySame(as=gdf_parent))
-        pt(res_nrows, Reducing((a, b) -> a .+ b))
-        pt(gdf_parent, res, gdf, res_nrows, groupcols, groupkwargs, args, kwargs, Replicated())
+        pt(gdf, Blocked(along=1) & ScaledBySame(as=gdf_parent))
+        pt(res_nrows, Reducing(quote + end)) # TODO: Change to + if possible
+        # pt(gdf_parent, res, gdf, res_nrows, groupcols, groupkwargs, args, kwargs, Replicated())
+        pt(groupcols, groupkwargs, args, kwargs, Replicated())
     end
 
     @partitioned gdf gdf_parent groupcols groupkwargs args kwargs res res_nrows begin
+        println("here!")
         if isnothing(gdf) || gdf.parent != gdf_parent
             gdf = groupby(gdf_parent, groupcols; groupkwargs...)
         end
+        println("here2!")
         res = combine(gdf, args...; kwargs...)
+        println("here3!")
         res_nrows = nrow(res)
+        println("here4!")
     end
 
     res
@@ -295,7 +304,7 @@ function DataFrames.subset(gdf::GroupedDataFrame, args...; kwargs...)
 
     partitioned_with() do
         pts_for_filtering(gdf_parent, res, with=Grouped, by=groupingkeys)
-        pt(gdf, Blocked() & ScaledBySame(as=gdf_parent))
+        pt(gdf, Blocked(along=1) & ScaledBySame(as=gdf_parent))
         pt(res_nrows, Reducing((a, b) -> a .+ b))
         pt(gdf_parent, res, gdf, res_nrows, groupcols, groupkwargs, args, kwargs, Replicated())
     end
