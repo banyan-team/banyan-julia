@@ -76,30 +76,12 @@ end
 function keep_all_sample_keys_renamed(old::AbstractFuture, new::AbstractFuture)
     for (old_key, new_key) in zip(sample(old, :keys), sample(new, :keys))
         if old_key in sample(old, :groupingkeys)
-            setsample!(
-                new,
-                :groupingkeys,
-                union(sample(new, :groupingkeys), [new_key]),
-            )
-            setsample!(
-                new,
-                :statistics,
-                new_key,
-                sample(old, :statistics, old_key),
-            )
+            setsample!(new, :groupingkeys, union(sample(new, :groupingkeys), [new_key]))
+            setsample!(new, :statistics, new_key, sample(old, :statistics, old_key))
         end
         if new_key in sample(new, :groupingkeys)
-            setsample!(
-                old,
-                :groupingkeys,
-                union(sample(old, :groupingkeys), [old_key]),
-            )
-            setsample!(
-                old,
-                :statistics,
-                old_key,
-                sample(new, :statistics, new_key),
-            )
+            setsample!(old, :groupingkeys, union(sample(old, :groupingkeys), [old_key]))
+            setsample!(old, :statistics, old_key, sample(new, :statistics, new_key))
         end
     end
 end
@@ -120,21 +102,13 @@ function keep_sample_keys_named(
         # Copy over allowed grouping keys
         for (p, keys) in participants
             p_key = keys[i]
-            setsample!(
-                p,
-                :groupingkeys,
-                union(sample(p, :groupingkeys), [p_key]),
-            )
+            setsample!(p, :groupingkeys, union(sample(p, :groupingkeys), [p_key]))
         end
 
         # Copy over statistics if they haven't changed
         if !drifted
-            key_statistics = merge(
-                [
-                    sample(p, :statistics, keys[i]) for
-                    (p, keys) in participants
-                ]...,
-            )
+            key_statistics =
+                merge([sample(p, :statistics, keys[i]) for (p, keys) in participants]...)
             for (p, keys) in participants
                 setsample!(p, :statistics, key_statistics)
             end
@@ -148,7 +122,7 @@ end
 
 keep_sample_keys(keys, participants::AbstractFuture...; drifted = false) = begin
     keys = Symbol.(to_vector(keys))
-    keep_sample_keys_named([p => keys for p in participants]..., drifted=drifted)
+    keep_sample_keys_named([p => keys for p in participants]..., drifted = drifted)
 end
 
 # This is useful for workloads that involve joins where the sample rate is
@@ -168,12 +142,7 @@ function partitioned_with(handler::Function)
 end
 
 function pt(
-    args::Union{
-        AbstractFuture,
-        PartitionType,
-        PartitionTypeComposition,
-        Vector,
-    }...;
+    args::Union{AbstractFuture,PartitionType,PartitionTypeComposition,Vector}...;
     kwargs...,
 )
     pa = get_pa()
@@ -240,10 +209,7 @@ function pt(
                         )
                     end
                 else
-                    push!(
-                        pa.constraints.constraints,
-                        Match(fut, to_match_with...),
-                    )
+                    push!(pa.constraints.constraints, Match(fut, to_match_with...))
                 end
             end
 
@@ -267,8 +233,7 @@ end
 # `partitioned_using`
 
 mutated(f::AbstractFuture) = mutated(f => f)
-mutated(ff::Pair{<:AbstractFuture,<:AbstractFuture}) =
-    mutated(first(ff), last(ff))
+mutated(ff::Pair{<:AbstractFuture,<:AbstractFuture}) = mutated(first(ff), last(ff))
 
 function mutated(old::AbstractFuture, new::AbstractFuture)
     global curr_delayed_task
@@ -295,17 +260,13 @@ function apply_mutation(mutation::Dict{Future,Future})
             futures_on_client = get_job().futures_on_client
             if old.value_id in keys(futures_on_client) &&
                new.value_id in keys(futures_on_client)
-                futures_on_client[new.value_id],
-                futures_on_client[old.value_id] =
-                    futures_on_client[old.value_id],
-                    futures_on_client[new.value_id]
+                futures_on_client[new.value_id], futures_on_client[old.value_id] =
+                    futures_on_client[old.value_id], futures_on_client[new.value_id]
             elseif old.value_id in keys(futures_on_client)
-                futures_on_client[new.value_id] =
-                    futures_on_client[old.value_id]
+                futures_on_client[new.value_id] = futures_on_client[old.value_id]
                 delete!(futures_on_client, old.value_id)
             elseif new.value_id in keys(futures_on_client)
-                futures_on_client[old.value_id] =
-                    futures_on_client[new.value_id]
+                futures_on_client[old.value_id] = futures_on_client[new.value_id]
                 delete!(futures_on_client, new.value_id)
             end
 
@@ -333,8 +294,7 @@ function apply_mutation(mutation::Dict{Future,Future})
     end
 end
 
-invert(mutation::Dict{Future,Future}) =
-    Dict(new => old for (old, new) in mutation)
+invert(mutation::Dict{Future,Future}) = Dict(new => old for (old, new) in mutation)
 
 macro partitioned(ex...)
     res = quote end
@@ -487,10 +447,7 @@ macro partitioned(ex...)
                 task.code *= "["
                 for (i, v) in enumerate(variable)
                     splatted_variable_name = unsplatted_variable_name * "_$i"
-                    push!(
-                        splatted_variable_names,
-                        splatted_variable_name,
-                    )
+                    push!(splatted_variable_names, splatted_variable_name)
                     task.code *= "$splatted_variable_name, "
                 end
                 task.code *= "]\n"
@@ -583,11 +540,9 @@ function duplicate_args(
     args::Vector{PartitionTypeReference},
     pa::PartitionAnnotation,
 )::Vector{PartitionTypeReference}
-    [
-        (v, idx + div(length(pa.partitions.pt_stacks[v].pts), 2)) for
-        # (v, idx + length(pa.partitions.pt_stacks[v].pts)) for
-        (v, idx) in args
-    ]
+    [(v, idx + div(length(pa.partitions.pt_stacks[v].pts), 2)) for
+    # (v, idx + length(pa.partitions.pt_stacks[v].pts)) for
+     (v, idx) in args]
 end
 
 function apply_default_constraints!(pa::PartitionAnnotation)
@@ -599,8 +554,7 @@ function apply_default_constraints!(pa::PartitionAnnotation)
             for c in pa.constraints.constraints
                 if (c.type == "CROSS" || c.type == "CO") && (v, i - 1) in c.args
                     in_cross_or_co = true
-                elseif c.type == "CO_GROUP" &&
-                       any((v, i - 1) in group for group in c.args)
+                elseif c.type == "CO_GROUP" && any((v, i - 1) in group for group in c.args)
                     in_cross_or_co = true
                 end
             end
@@ -636,10 +590,7 @@ function apply_default_constraints!(pa::PartitionAnnotation)
 
     # Add constraints
     if length(co_args) > 0
-        push!(
-            pa.constraints.constraints,
-            PartitioningConstraintOverGroup("CO", co_args),
-        )
+        push!(pa.constraints.constraints, PartitioningConstraintOverGroup("CO", co_args))
     end
     if length(co_group_args) > 0
         push!(
@@ -652,58 +603,69 @@ function apply_default_constraints!(pa::PartitionAnnotation)
     # defaults to 0
 end
 
-duplicated_constraints_for_batching(
-    pc::PartitioningConstraints,
-    pa::PartitionAnnotation,
-) = begin
-    # promote(
-    #     Union{PartitioningConstraint, Function}[],
-    new_pts = vcat(
-        [
-            if c.type == "CO" || c.type == "EQUAL" || c.type == "SEQUENTIAL"
-                [
-                    deepcopy(c),
-                    PartitioningConstraintOverGroup(
-                        c.type,
-                        duplicate_args(c.args, pa),
-                    ),
-                ]
-            elseif c.type == "CROSS" ||
-                   startswith(c.type, "AT_MOST=") ||
+duplicated_constraints_for_batching(pc::PartitioningConstraints, pa::PartitionAnnotation) =
+    begin
+        # promote(
+        #     Union{PartitioningConstraint, Function}[],
+        new_pts = vcat(
+            [
+                if c.type == "CO" ||
+                   c.type == "EQUAL" ||
+                   c.type == "SEQUENTIAL" ||
                    c.type == "MATCH" ||
-                   startswith(c.type, "MATCH_ON")
-                [
-                    PartitioningConstraintOverGroup(
-                        c.type,
-                        [deepcopy(c.args); duplicate_args(c.args, pa)],
-                    ),
-                ]
-            elseif c.type == "CO_GROUP"
-                [
-                    PartitioningConstraintOverGroups(
-                        c.type,
-                        [duplicate_args(group, pa) for group in c.args],
-                    ),
-                ]
-            elseif startswith(c.type, "SCALE_BY=")
-                # `ScaleBy` constraints are not duplicated. They must refer to
-                # only the first PT of the PT compositions they reference.
-                [c]
-            else
-                []
-            end for c in pc.constraints
-        ]...,
-    )
-    # println()
-    # println(new_pts)
-    # )
-    PartitioningConstraints(new_pts)
-end
+                   startswith(c.type, "MATCH_ON=")
+                    [
+                        deepcopy(c),
+                        PartitioningConstraintOverGroup(c.type, duplicate_args(c.args, pa)),
+                    ]
+                elseif c.type == "CROSS" || startswith(c.type, "AT_MOST=")
+                    # ||
+                    # c.type == "MATCH" || startswith(c.type, "MATCH_ON")
+                    [
+                        PartitioningConstraintOverGroup(
+                            c.type,
+                            [deepcopy(c.args); duplicate_args(c.args, pa)],
+                        ),
+                    ]
+                elseif c.type == "CO_GROUP"
+                    [
+                        PartitioningConstraintOverGroups(
+                            c.type,
+                            [duplicate_args(group, pa) for group in c.args],
+                        ),
+                    ]
+                elseif startswith(c.type, "SCALE_BY=")
+                    # `ScaleBy` constraints are not duplicated. They must refer to
+                    # only the first PT of the PT compositions they reference.
+                    [c]
+                else
+                    []
+                end for c in pc.constraints
+            ]...,
+        )
+        # println()
+        # println(new_pts)
+        # )
+        PartitioningConstraints(new_pts)
+    end
 
 function duplicate_for_batching!(pa::PartitionAnnotation)
     # Duplicate PT stacks
     for (v, pt_stack) in pa.partitions.pt_stacks
-        append!(pt_stack.pts, deepcopy(pt_stack.pts))
+        # Copy over the PT stack
+        second_half = deepcopy(pt_stack.pts)
+
+        # # Don't duplicate parameters that have bang values
+        # for pt in second_half
+        #     for (k, v) in pt.parameters
+        #         if v == "!"
+        #             pop!(pt.parameters, k)
+        #         end
+        #     end
+        # end
+
+        # Append to form a compositions of PTs that is twic in length
+        append!(pt_stack.pts, second_half)
     end
 
     # Duplicate annotation-level constraints for Co, Equal, Cross, AtMost, ScaleBy
@@ -722,20 +684,16 @@ function duplicate_for_batching!(pa::PartitionAnnotation)
                 pa.constraints.constraints,
                 PartitioningConstraintOverGroup("SEQUENTIAL", [(v, dupi - 1)]),
             )
-            push!(
-                pa.constraints.constraints,
-                PartitioningConstraintOverGroup(
-                    "MATCH",
-                    [(v, i - 1), (v, dupi - 1)],
-                ),
-            )
+            # Since we have duplicated all constraints, we don't need to
+            # constrain both halves of the PT composition to match
+            # push!(
+            #     pa.constraints.constraints,
+            #     PartitioningConstraintOverGroup("MATCH", [(v, i - 1), (v, dupi - 1)]),
+            # )
 
             # Duplicate PT-level constraints
             pt_stack.pts[dupi].constraints =
-                duplicated_constraints_for_batching(
-                    pt_stack.pts[dupi].constraints,
-                    pa,
-                )
+                duplicated_constraints_for_batching(pt_stack.pts[dupi].constraints, pa)
         end
     end
 end

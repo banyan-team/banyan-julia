@@ -103,7 +103,7 @@ function ReadBlock(
     # rows for the batch currently being processed by this worker
     nrows = loc_params["nrows"]
     rowrange = split_len(nrows, batch_idx, nbatches, comm)
-    dfs = []
+    dfs::Vector{DataFrame} = []
     rowsscanned = 0
     for file in loc_params["files"]
         newrowsscanned = rowsscanned + file["nrows"]
@@ -170,6 +170,7 @@ function ReadGroup(
     # Get information needed to read in the appropriate group
     divisions = params["divisions"]
     key = params["key"]
+    rev = params["rev"]
     nworkers = get_nworkers(comm)
     npartitions = nworkers * nbatches
     partition_divisions = get_divisions(divisions, npartitions)
@@ -182,7 +183,7 @@ function ReadGroup(
     for worker_division_idx in 1:nworkers
         for batch_division_idx in 1:nbatches
             partition_division_idx = (worker_division_idx-1)*nbatches + batch_division_idx
-            if j == batch_idx
+            if batch_division_idx == batch_idx
                 p_divisions = partition_divisions[partition_division_idx]
                 push!(curr_partition_divisions, (first(p_divisions)[1], last(p_divisions)[2]))
             end
@@ -199,7 +200,7 @@ function ReadGroup(
         push!(parts, Shuffle(
             part,
             Dict(),
-            Dict("key" => key, "divisions" => curr_partition_divisions),
+            params,
             comm,
             boundedlower = i == 1,
             boundedupper = i == nbatches,
@@ -580,7 +581,7 @@ function Rebalance(
     whole_len = MPI.bcast(endidx, nworkers-1, comm)
     io = IOBuffer()
     nbyteswritten = 0
-    counts = []
+    counts::Vector{Int64} = []
     for partition_idx in npartitions
         # `split_len` gives us the range that this partition needs
         partitionrange = split_len(whole_len, partition_idx, npartitions)
@@ -605,16 +606,19 @@ function Rebalance(
         end
 
         # Add the count of the size of this chunk in bytes
-        push!(counts, io.position - nbyteswritten)
-        nbyteswritten = io.position
+        push!(counts, io.size - nbyteswritten)
+        nbyteswritten = io.size
     end
-    sendbuf = VBuffer(MPI.Buffer(view(io.data, 1:nbyteswritten)), counts)
+    sendbuf = MPI.VBuffer(MPI.Buffer(view(io.data, 1:nbyteswritten)), counts)
 
     # Create buffer for receiving pieces
     # TODO: Refactor the intermediate part starting from there if we add
     # more cases for this function
-    sizes = MPI.Alltoall(counts)
-    recvbuf = VBuffer(similar(io.data, sum(sizes)), sizes)
+    sizes = MPI.Alltoall(MPI.UBuffer(counts, length(counts)), comm)
+    recvbuf = MPI.VBuffer(similar(io.data, sum(sizes)), sizes)
+
+    # Perform the shuffle
+    MPI.Alltoallv!(sendbuf, recvbuf, comm)
 
     # Return the concatenated array
     cat([
@@ -704,6 +708,7 @@ function Shuffle(
     # Get the divisions to apply
     divisions = dst_params["divisions"] # list of min-max tuples
     key = dst_params["key"]
+    rev = dst_params["rev"]
     ndivisions = length(divisions)
     worker_idx, nworkers = get_worker_idx(comm), get_nworkers(comm)
     worker_divisions = get_divisions(divisions, nworkers) # list of min-max tuple lists
@@ -728,17 +733,23 @@ function Shuffle(
         # Create buffer for sending dataframe's rows to all the partitions
         io = IOBuffer()
         nbyteswritten = 0
-        counts = []
+        df_counts::Vector{Int64} = []
         for partition_idx in 1:nworkers
             Arrow.write(io, partition_idx in keys(gdf) ? gdf[partition_idx] : DataFrame())
-            push!(counts, io.position - nbyteswritten)
-            nbyteswritten = io.position
+            push!(df_counts, io.size - nbyteswritten)
+            nbyteswritten = io.size
         end
-        sendbuf = VBuffer(MPI.Buffer(view(io.data, 1:nbyteswritten)), counts)
+        sendbuf = MPI.VBuffer(view(io.data, 1:nbyteswritten), df_counts)
 
         # Create buffer for receiving pieces
-        sizes = MPI.Alltoall(counts)
-        recvbuf = VBuffer(similar(io.data, sum(sizes)), sizes)
+        @show df_counts
+        @show typeof(df_counts)
+        @show MPI.Comm_size(comm)
+        sizes = MPI.Alltoall(MPI.UBuffer(df_counts, 1), comm)
+        recvbuf = MPI.VBuffer(similar(io.data, sum(sizes)), sizes)
+
+        # Perform the shuffle
+        MPI.Alltoallv!(sendbuf, recvbuf, comm)
 
         # Return the concatenated dataframe
         res = vcat([
@@ -759,7 +770,7 @@ function Shuffle(
         # Construct buffer for sending data
         io = IOBuffer()
         nbyteswritten = 0
-        counts = []
+        a_counts::Vector{Int64} = []
         for partition_idx in 1:nworkers
             # TODO: If `isbitstype(eltype(e))`, we may want to pass it in
             # directly as an MPI buffer (if there is such a thing) instead of
@@ -771,16 +782,19 @@ function Shuffle(
             end
 
             # Add the count of the size of this chunk in bytes
-            push!(counts, io.position - nbyteswritten)
-            nbyteswritten = io.position
+            push!(a_counts, io.size - nbyteswritten)
+            nbyteswritten = io.size
         end
-        sendbuf = VBuffer(MPI.Buffer(view(io.data, 1:nbyteswritten)), counts)
+        sendbuf = MPI.VBuffer(MPI.Buffer(view(io.data, 1:nbyteswritten)), a_counts)
 
         # Create buffer for receiving pieces
         # TODO: Refactor the intermediate part starting from there if we add
         # more cases for this function
-        sizes = MPI.Alltoall(counts)
-        recvbuf = VBuffer(similar(io.data, sum(sizes)), sizes)
+        sizes = MPI.Alltoall(MPI.UBuffer(a_counts, length(a_counts)), comm)
+        recvbuf = MPI.VBuffer(similar(io.data, sum(sizes)), sizes)
+
+        # Perform the shuffle
+        MPI.Alltoallv!(sendbuf, recvbuf, comm)
 
         # Return the concatenated array
         cat([
