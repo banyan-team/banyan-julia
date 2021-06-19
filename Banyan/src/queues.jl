@@ -25,7 +25,9 @@ function receive_next_message(queue_name)
     if startswith(content, "EVALUATION_END")
         @debug "Received evaluation end"
         println(content[15:end])
-        Dict("kind" => "EVALUATION_END")
+        response = Dict("kind" => "EVALUATION_END")
+        response["end"] = (endswith(content, "MESSAGE_END"))
+        response
     elseif startswith(content, "JOB_FAILURE")
         @debug "Job failed"
         global current_job_status
