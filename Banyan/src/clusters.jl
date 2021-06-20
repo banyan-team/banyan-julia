@@ -272,7 +272,7 @@ function upload_banyanfile(banyanfile_path::String, s3_bucket_arn::String, clust
         code *= "mkdir julia &>> setup_log.txt\n"
         code *= "sudo su - ec2-user -c \"tar zxvf julia.tar.gz -C julia --strip-components 1 &>> setup_log.txt\"\n"
         code *= "rm julia.tar.gz &>> setup_log.txt\n"
-        code *= "sudo su - ec2-user -c \"julia/bin/julia --project -e 'using Pkg; Pkg.add([\\\"AWSCore\\\", \\\"AWSSQS\\\", \\\"AWSS3\\\", \\\"JSON\\\", \\\"MPI\\\", \\\"BenchmarkTools\\\"]); ENV[\\\"JULIA_MPIEXEC\\\"]=\\\"srun\\\"; ENV[\\\"JULIA_MPI_LIBRARY\\\"]=\\\"/opt/amazon/openmpi/lib64/libmpi\\\"; Pkg.build(\\\"MPI\\\"; verbose=true)' &>> setup_log.txt\"\n"
+        code *= "sudo su - ec2-user -c \"julia/bin/julia --project -e 'using Pkg; Pkg.add(name=\\\"AWSS3\\\", version=\\\"0.7\\\"); Pkg.add([\\\"AWSCore\\\", \\\"AWSSQS\\\", \\\"JSON\\\", \\\"MPI\\\", \\\"BenchmarkTools\\\"]); ENV[\\\"JULIA_MPIEXEC\\\"]=\\\"srun\\\"; ENV[\\\"JULIA_MPI_LIBRARY\\\"]=\\\"/opt/amazon/openmpi/lib64/libmpi\\\"; Pkg.build(\\\"MPI\\\"; verbose=true)' &>> setup_log.txt\"\n"
     end
     code *= "sudo amazon-linux-extras install epel\n"
     code *= "aws s3 cp s3://banyan-executor /home/ec2-user --recursive\n"
@@ -297,7 +297,13 @@ function upload_banyanfile(banyanfile_path::String, s3_bucket_arn::String, clust
 
     # Append to post-install script installing Julia dependencies
     for pkg in packages
-        code *= "sudo su - ec2-user -c \"julia/bin/julia --project -e 'using Pkg; Pkg.add([\\\"$pkg\\\"])' &>> setup_log.txt \"\n"
+	pkg_spec = split(pkg, "@")
+	if length(pkg_spec) == 1
+	    code *= "sudo su - ec2-user -c \"julia/bin/julia --project -e 'using Pkg; Pkg.add(name=\\\"$pkg\\\")' &>> setup_log.txt \"\n"
+	elseif length(pkg_spec) == 2
+	    name, version = pkg_spec
+            code *= "sudo su - ec2-user -c \"julia/bin/julia --project -e 'using Pkg; Pkg.add(name=\\\"$name\\\", version=\\\"$version\\\")' &>> setup_log.txt \"\n"
+        end
     end
 
     # Upload post_install script to s3 bucket
@@ -459,6 +465,8 @@ end
 parsestatus(status) =
     if status == "creating"
         :creating
+    elseif status == "notready"
+	:notready
     elseif status == "destroying"
         :destroying
     elseif status == "updating"
