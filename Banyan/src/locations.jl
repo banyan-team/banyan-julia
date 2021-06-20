@@ -199,10 +199,7 @@ Value(val) =
 Size(val) = LocationSource(
     "Value",
     Dict("value" => to_jl_value(val)),
-    Sample(
-        indexapply(div, val, get_job().sample_rate, index = 1);
-        sample_rate = get_job().sample_rate,
-    ),
+    Sample(indexapply(getsamplenrows, val, index = 1)),
 )
 
 Client(val) = LocationSource("Client", Dict{String,Any}(), ExactSample(val))
@@ -295,9 +292,11 @@ MAX_EXACT_SAMPLE_LENGTH = 50
 
 getsamplenrows(totalnrows) =
     if totalnrows <= MAX_EXACT_SAMPLE_LENGTH
+        # NOTE: This includes the case where the dataset is empty
+        # (totalnrows == 0)
         totalnrows
     else
-        div(totalnrows, get_job().sample_rate)
+        cld(totalnrows, get_job().sample_rate)
     end
 
 function Remote(p; read_from_cache = true, write_to_cache = true)
@@ -358,8 +357,8 @@ function get_remote_location(remotepath)
     if length(hdf5_ending) > 0
         filename, datasetpath = split(p, hdf5_ending)
         remotefilename, _ = split(remotepath, hdf5_ending)
-        filename *= ".h5"
-        remotefilename *= ".h5"
+        filename *= hdf5_ending
+        remotefilename *= hdf5_ending
         # datasetpath = datasetpath[2:end] # Chop off the /
 
         # Load metadata for reading
@@ -443,7 +442,7 @@ function get_remote_location(remotepath)
     # Handle multi-file tabular datasets
 
     # Read through dataset by row
-    p_isdir = isdirpath(p)
+    p_isdir = isdir(p)
     # TODO: Support more than just reading/writing single HDF5 files and
     # reading/writing directories containing CSV/Parquet/Arrow files
     files = []
@@ -609,6 +608,8 @@ function get_remote_location(remotepath)
 
     # Load metadata for writing
     loc_for_writing, metadata_for_writing = if p_isdir
+        # NOTE: `remotepath` should end with `.parquet` or `.csv` if Parquet
+        # or CSV dataset is to be created
         ("Remote", Dict("path" => remotepath))
     else
         (nothing, Dict{String,Any}())

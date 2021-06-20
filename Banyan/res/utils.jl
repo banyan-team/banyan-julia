@@ -18,7 +18,8 @@ get_npartitions(nbatches, comm::MPI.Comm) =
 
 split_len(src_len::Integer, idx::Integer, npartitions::Integer) =
     if npartitions > 1
-        dst_len = Int64(cld(src_len, npartitions))
+        # dst_len = Int64(cld(src_len, npartitions))
+        dst_len = cld(src_len, npartitions)
         dst_start = min((idx - 1) * dst_len + 1, src_len + 1)
         dst_end = min(idx * dst_len, src_len)
         dst_start:dst_end
@@ -60,9 +61,10 @@ split_on_executor(src, dim::Integer, batch_idx::Integer, nbatches::Integer, comm
         end
     end
 
-function merge_on_executor(obj...; dims=1)
+function merge_on_executor(obj...; key=nothing)
     first_obj = first(obj)
-    if isa_df(first_obj) && Tuple(dims) == (1)
+    if isa_df(first_obj)
+        # If this is a dataframe then we ignore the grouping key
         vcat(obj...)
     elseif isa_array(first_obj)
         cat(obj...; dims=dims)
@@ -148,6 +150,9 @@ orderinghash(x::Any) = x # This lets us handle numbers and dates
 orderinghash(s::String) = Integer.(codepoint.(collect(first(s, 32) * repeat(" ", 32-length(s)))))
 orderinghash(A::Array) = orderinghash(first(A))
 
+to_vector(v::Vector) = v
+to_vector(v) = [v]
+
 function get_divisions(divisions, npartitions)
     # This function accepts a list of divisions where each division is a tuple
     # of ordering hashes (values returned by `orderinghash` which are either
@@ -160,20 +165,24 @@ function get_divisions(divisions, npartitions)
     if ndivisions >= npartitions
         # If there are more divisions than partitions, we can distribute them
         # easily. Each partition gets 0 or more divisions.
-        ndivisions_per_partition = div(ndivisions, npartitions)
+        # TODO: Ensure usage of div here and in sampling (in PT
+        # library (here), annotation, and in locations) doesn't result in 0 or
+        # instead we use ceiling division
+        # ndivisions_per_partition = div(ndivisions, npartitions)
         [
             begin
-                islastpartition = partition_idx == npartitions
-                firstdivisioni = ((partition_idx-1) * ndivisions_per_partition) + 1
-                lastdivisioni = islastpartition ? ndivisions : partition_idx * ndivisions_per_partition
-                divisions[firstdivisioni:lastdivisioni]
+                # islastpartition = partition_idx == npartitions
+                # firstdivisioni = ((partition_idx-1) * ndivisions_per_partition) + 1
+                # lastdivisioni = islastpartition ? ndivisions : partition_idx * ndivisions_per_partition
+                # divisions[firstdivisioni:lastdivisioni]
+                divisions[split_len(ndivisions, partition_idx, npartitions)]
             end
             for partition_idx in 1:npartitions
         ]
     else
         # Otherwise, each division must be shared among 1 or more partitions
         allsplitdivisions = []
-        npartitions_per_division = div(npartitions, ndivision)
+        # npartitions_per_division = div(npartitions, ndivisions)
 
         # Iterate through the divisions and split each of them and find the
         # one that contains a split that this partition must own and use as
@@ -181,10 +190,11 @@ function get_divisions(divisions, npartitions)
         for (division_idx, division) in enumerate(divisions)
             # Determine the range (from `firstpartitioni` to `lastpartitioni`) of
             # partitions that own this division
-            islastdivision = division_idx == ndivisions
-            firstpartitioni = ((division_idx-1) * npartitions_per_division) + 1
-            lastpartitioni = islastdivision ? npartitions : division_idx * npartitions_per_division
-            partitionsrange = firstpartitioni:lastpartitioni
+            # islastdivision = division_idx == ndivisions
+            # firstpartitioni = ((division_idx-1) * npartitions_per_division) + 1
+            # lastpartitioni = islastdivision ? npartitions : division_idx * npartitions_per_division
+            # partitionsrange = firstpartitioni:lastpartitioni
+            partitionsrange = split_len(npartitions, division_idx, ndivisions)
 
             # # If the current partition is in that division, compute the
             # # subdivision it should use for its partition
@@ -198,8 +208,11 @@ function get_divisions(divisions, npartitions)
             divisionbegin = to_vector(first(division))
             divisionend = to_vector(last(division))
 
+            # @show divisionbegin
+            # @show divisionend
+
             # Initialize divisions for each split
-            splitdivisions = repeat([[copy(divisionbegin), copy(divisionbegin)]], ndivisionsplits)
+            splitdivisions = [[copy(divisionbegin), copy(divisionend)] for _ in 1:ndivisionsplits]
 
             # Adjust the divisions for each split to interpolate. The result
             # of an `orderinghash` call can be an array (in the case of
@@ -210,13 +223,21 @@ function get_divisions(divisions, npartitions)
                 # Find the first index in the `Vector{Number}` where
                 # there is a difference that we can interpolate between
                 if dbegin != dend
-                    dpersplit = div(dend-dbegin, ndivisionsplits)
+                    # dpersplit = div(dend-dbegin, ndivisionsplits)
                     # Iterate through each split
+                    # @show dpersplit
+                    # @show dbegin
+                    # @show dend
+                    start = copy(dbegin)
                     for j in 1:ndivisionsplits
                         # Update the start and end of the division
-                        islastsplit = j == ndivisionsplits
-                        splitdivisions[j][1] = dbegin + dpersplit * (j-1)
-                        splitdivisions[j][2] = islastsplit ? dend : dbegin + dpersplit * j
+                        # islastsplit = j == ndivisionsplits
+                        splitdivisions[j][1][i] = j == 1 ? dbegin : start
+                        start += cld(dend-dbegin, ndivisionsplits)
+                        start = min(start, dend)
+                        splitdivisions[j][2][i] = j == ndivisionsplits ? dend : start
+                        # splitdivisions[j][1][i] = dbegin + (dpersplit * (j-1))
+                        # splitdivisions[j][2][i] = islastsplit ? dend : dbegin + dpersplit * j
                     end
 
                     # Stop if we have found a difference we can
@@ -229,7 +250,8 @@ function get_divisions(divisions, npartitions)
             end
 
             # Convert back to `Number` if the divisions were originally
-            # `Number`s
+            # `Number`s. We support either numbers or lists of numbers for the
+            # ordering hashes that we use for the min-max bounds.
             if !(first(division) isa Vector)
                 splitdivisions = [
                     # NOTE: When porting this stuff to Python, be sure
@@ -344,15 +366,18 @@ function tobuf(obj)
         # (:bits, MPI.Buffer(obj))
         # (:bits, MPI.Buffer(Ref(obj)))
     elseif isa_array(obj) && isbitstype(first(typeof(obj).parameters)) && ndims(obj) == 1
-        (:bits, MPI.Buffer(obj))
+        # (:bits, MPI.Buffer(obj))
+        (:bits, obj)
     elseif isa_df(obj)
         io = IOBuffer()
         Arrow.write(io, obj)
-        (:df, MPI.Buffer(view(io.data, 1:position(io))))
+        # (:df, MPI.Buffer(view(io.data, 1:position(io))))
+        (:df, io)
     else
         io = IOBuffer()
         serialize(io, obj)
-        (:unknown, MPI.Buffer(view(io.data, 1:position(io))))
+        # (:unknown, MPI.Buffer(view(io.data, 1:position(io))))
+        (:unknown, io)
     end
 end
 

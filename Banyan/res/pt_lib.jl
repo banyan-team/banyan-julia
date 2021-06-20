@@ -170,7 +170,7 @@ function ReadGroup(
     # Get information needed to read in the appropriate group
     divisions = params["divisions"]
     key = params["key"]
-    rev = params["rev"]
+    rev = params["rev"] # Passed in ReadBlock
     nworkers = get_nworkers(comm)
     npartitions = nworkers * nbatches
     partition_divisions = get_divisions(divisions, npartitions)
@@ -208,13 +208,16 @@ function ReadGroup(
     end
 
     # Concatenate together the data for this partition
-    res = merge_on_executor(parts, dims=isa_array(first(parts)) ? key : 1)
+    # res = merge_on_executor(parts, dims=isa_array(first(parts)) ? key : 1)
+    # @show parts
+    res = merge_on_executor(parts...; key=key)
+    # @show res
 
     # Store divisions
     global splitting_divisions
     partition_idx = get_partition_idx(batch_idx, nbatches, comm)
     splitting_divisions[res] =
-        (partition_divisions[partition_idx], partition_idx == 1, partition_idx == npartitions)
+        (partition_divisions[partition_idx], partition_idx > 1, partition_idx < npartitions)
 
     res
 end
@@ -236,11 +239,12 @@ function Write(
     elseif startswith(path, "s3://")
         path = getpath(path)
         # NOTE: We expect that the ParallelCluster instance was set up
-        # to have the S3 filesystem mounted at /mnt/<bucket name>
+        # to have the S3 filesystem mounted at mnt/<bucket name>
     end
 
     # Write file for this partition
     idx = get_partition_idx(batch_idx, nbatches, comm)
+    @show typeof(part)
     if isa_df(part)
         # Create directory if it doesn't exist
         # TODO: Avoid this and other filesystem operations that would be costly
@@ -250,16 +254,26 @@ function Write(
         end
 
         nrows = size(part, 1)
-        partfilepath = joinpath(path, "part$idx" * "_nrows=$nrows.arrow"),
-        Arrow.write(partfilepath, part)
+        if endswith(path, ".parquet")
+            partfilepath = joinpath(path, "part$idx" * "_nrows=$nrows.parquet")
+            Parquet.write_parquet(partfilepath, part)
+        elseif endswith(path, ".csv")
+            partfilepath = joinpath(path, "part$idx" * "_nrows=$nrows.csv")
+            CSV.write(partfilepath, part)
+        else
+            partfilepath = joinpath(path, "part$idx" * "_nrows=$nrows.arrow")
+            Arrow.write(partfilepath, part)
+        end
         src
         # TODO: Delete all other part* files for this value if others exist
     elseif isa_array(part)
-        path *= ".hdf5"
+        if loc_name == "Disk"
+            path *= ".hdf5"
+        end
         dim = params["key"]
         whole_size = MPI.Reduce(
             size(part),
-            indexapply(+, a, b, index=dim),
+            (a, b) -> indexapply(+, a, b, index=dim),
             0,
             comm,
         )
@@ -278,7 +292,7 @@ function Write(
         while !isfile(path * "_is_ready") end
 
         # Write part to the dataset
-        f = h5open(part, "w")
+        f = h5open(path, "w")
         dset = f[group]
         # TODO: Use `view` instead of `getindex` in the call to
         # `split_on_executor` here if HDF5 doesn't support this kind of usage
@@ -313,7 +327,7 @@ function SplitBlock(
     if isnothing(src)
         src
     else
-        split_on_executor(src, params["key"], batch_idx, nbatches, comm)
+        split_on_executor(src, isa_array(src) ? params["key"] : 1, batch_idx, nbatches, comm)
     end
 end
 
@@ -324,34 +338,62 @@ function SplitGroup(
     nbatches::Integer,
     comm::MPI.Comm,
     loc_name,
-    loc_params,
+    loc_params
 )
+    partition_idx = get_partition_idx(batch_idx, nbatches, comm)
+    npartitions = get_npartitions(nbatches, comm)
 
     # Get divisions stored with src
     global splitting_divisions
-    divisions, boundedlower, boundedupper = splitting_divisions[src]
+    src_divisions, boundedlower, boundedupper = get!(splitting_divisions, src) do
+        # This case lets us use `SplitGroup` in `DistributeAndShuffle`
+        (params["divisions"], false, false)
+    end
+    divisions_by_partition = get_divisions(src_divisions, npartitions)
 
-    # Call DistributeAndShuffle on src
+    # Get the divisions to apply
     key = params["key"]
     rev = params["rev"]
-    # TODO: Do a single groupby here instead of a filter for each partition
-    res = DistributeAndShuffle(
-        part,
-        Dict(),
-        Dict("key" => key, "divisions" => divisions, "rev" => rev),
-        comm,
+    if rev
+        reverse!(divisions_by_partition)
+    end
+
+    # Create helper function for getting index of partition that owns a given
+    # value
+    partition_idx_getter(val) = get_partition_idx_from_divisions(
+        val,
+        divisions_by_partition,
         boundedlower=boundedlower,
         boundedupper=boundedupper
     )
 
+    # Apply divisions to get only the elements relevant to this worker
+    # @show key
+    # @show src
+    res = if isa_df(src)
+        # TODO: Do the groupby and filter on batch_idx == 1 and then share
+        # among other batches
+        filter(row -> partition_idx_getter(row[key]) == partition_idx, src)
+    elseif isa_array(src)
+        cat(
+            filter(
+                e -> partition_idx_getter(e) == partition_idx,
+                eachslice(src, dims = key),
+            )...;
+            dims = key,
+        )
+    else
+        throw(ArgumentError("Expected array or dataframe to distribute and shuffle"))
+    end
+
     # Store divisions
     global splitting_divisions
-    partition_idx = get_partition_idx(batch_idx, nbatches, comm)
-    splitting_divisions[res] = (
-        partition_divisions[partition_idx],
-        boundedlower && partition_idx == 1,
-        boundedupper && partition_idx == npartitions,
-    )
+    splitting_divisions[res] =
+        (
+            divisions_by_partition[partition_idx],
+            boundedlower || partition_idx > 1,
+            boundedupper || partition_idx < npartitions
+        )
 
     res
 end
@@ -373,7 +415,8 @@ function Merge(
         # Because if the source is something, then part must be a view into it
         # and no data movement is needed.
 
-        dim = isa_array(part) ? params["key"] : 1
+        # dim = isa_array(part) ? params["key"] : 1
+        key = params["key"]
 
         partition_idx = get_partition_idx(batch_idx, nbatches, comm)
         npartitions = get_npartitions(nbatches, comm)
@@ -386,12 +429,12 @@ function Merge(
         if batch_idx == nbatches
             # TODO: Test that this merges correctly
             # src = merge_on_executor(src...; dims=dim)
-            cat(src...; dims=dim)
+            src = merge_on_executor(src...; key=key)
 
             # Concatenate across workers
             nworkers = get_nworkers(comm)
             if nworkers > 1
-                src = Consolidate(src, Dict("key" => params["key"]), Dict(), comm)
+                src = Consolidate(src, params, Dict(), comm)
             end
         end
     end
@@ -411,18 +454,19 @@ function CopyFrom(
     if loc_name == "Value"
         loc_params["value"]
     elseif loc_name == "Disk"
-        p = joinpath(loc_params["path"] * "_part")
-        if isfile(p)
-            # Check if there is a single partition spilled to disk,
-            # indicating that we should then simply deserialize and return
-            open(p) do f
-                deserialize(f)
-            end
-        elseif isdir(loc_params["path"])
-            Read(src, params, 1, 1, MPI.COMM_SELF, loc_name, loc_params)
-        else
-            nothing
-        end
+        # p = joinpath(loc_params["path"] * "_part")
+        # if isfile(p)
+        #     # Check if there is a single partition spilled to disk,
+        #     # indicating that we should then simply deserialize and return
+        #     open(p) do f
+        #         deserialize(f)
+        #     end
+        # elseif isdir(loc_params["path"])
+        #     ReadBlock(src, params, 1, 1, MPI.COMM_SELF, loc_name, loc_params)
+        # else
+        #     nothing
+        # end
+        ReadBlock(src, params, 1, 1, MPI.COMM_SELF, loc_name, loc_params)
     elseif loc_name == "Remote"
         ReadBlock(src, params, 1, 1, MPI.COMM_SELF, loc_name, loc_params)
     elseif loc_name == "Client" && get_partition_idx(batch_idx, nbatches, comm) == 1
@@ -451,15 +495,16 @@ function CopyTo(
         # value that needs to be copied (either spilled to disk if None or
         # sent to remote storage).
         if loc_name == "Disk"
-            # TODO: Add case for an array by writing to HDF5 dataset
-            if isa_df(part) || isa_array(part)
-                Write(src, part, params, 1, 1, MPI.COMM_SELF, loc_name, loc_params)
-            else
-                p = joinpath(loc_params["path"] * "_part")
-                open(p, "w") do f
-                    serialize(f, part)
-                end
-            end
+            # # TODO: Add case for an array by writing to HDF5 dataset
+            # if isa_df(part) || isa_array(part)
+            #     Write(src, part, params, 1, 1, MPI.COMM_SELF, loc_name, loc_params)
+            # else
+            #     p = joinpath(loc_params["path"] * "_part")
+            #     open(p, "w") do f
+            #         serialize(f, part)
+            #     end
+            # end
+            Write(src, part, params, 1, 1, MPI.COMM_SELF, loc_name, loc_params)
         elseif loc_name == "Remote"
             Write(src, part, params, 1, 1, MPI.COMM_SELF, loc_name, loc_params)
         elseif loc_name == "Client"
@@ -633,9 +678,11 @@ function Distribute(
     dst_params,
     comm
 )
-    dim = isa_array(part) ? dst_params["key"] : 1
-    part = copy(split_on_executor(part, dim, 1, 1, comm))
-    part
+    # dim = isa_array(part) ? dst_params["key"] : 1
+    # TODO: Determine whether copy is needed
+    SplitBlock(part, dst_params, 1, 1, comm, "Memory", Dict())
+    # part = copy(split_on_executor(part, dim, 1, 1, comm))
+    # part
 end
 
 function Consolidate(
@@ -653,49 +700,12 @@ function Consolidate(
     part
 end
 
-function DistributeAndShuffle(
+DistributeAndShuffle(
     part,
     src_params,
     dst_params,
-    comm;
-    boundedlower=false,
-    boundedupper=false
-)
-    # Get the divisions to apply
-    divisions = dst_params["divisions"]
-    key = dst_params["key"]
-    rev = dst_params["rev"]
-    ndivisions = length(divisions)
-    worker_idx, nworkers = get_worker_idx(comm), get_nworkers(comm)
-    worker_divisions = get_divisions(divisions, nworkers)
-    if rev
-        reverse!(worker_divisions)
-    end
-
-    # Create helper function for getting index of partition that owns a given
-    # value
-    partition_idx_getter(val) = get_partition_idx_from_divisions(
-        val,
-        worker_divisions,
-        boundedlower=boundedlower,
-        boundedupper=boundedupper
-    )
-
-    # Apply divisions to get only the elements relevant to this worker
-    if isa_df(part)
-        filter(row -> partition_idx_getter(row[key]) == worker_idx, part)
-    elseif isa_array(part)
-        cat(
-            filter(
-                e -> partition_idx_getter(e) == worker_idx,
-                eachslice(part, dims = key),
-            )...;
-            dims = key,
-        )
-    else
-        throw(ArgumentError("Expected array or dataframe to distribute and shuffle"))
-    end
-end
+    comm
+) = SplitGroup(part, dst_params, 1, 1, comm, "Memory", Dict())
 
 function Shuffle(
     part,
@@ -711,19 +721,19 @@ function Shuffle(
     rev = dst_params["rev"]
     ndivisions = length(divisions)
     worker_idx, nworkers = get_worker_idx(comm), get_nworkers(comm)
-    worker_divisions = get_divisions(divisions, nworkers) # list of min-max tuple lists
+    divisions_by_worker = get_divisions(divisions, nworkers) # list of min-max tuple lists
     if rev
-        reverse!(worker_divisions)
+        reverse!(divisions_by_worker)
     end
 
     # Perform shuffle
     partition_idx_getter(val) = get_partition_idx_from_divisions(
         val,
-        worker_divisions,
+        divisions_by_worker,
         boundedlower=boundedlower,
         boundedupper=boundedupper
     )
-    if isa_df(part)
+    res = if isa_df(part)
         # Compute the partition to send each row of the dataframe to
         transform!(part, key => ByRow(partition_idx_getter) => :banyan_shuffling_key)
 
@@ -753,17 +763,18 @@ function Shuffle(
 
         # Return the concatenated dataframe
         res = vcat([
-            DataFrame(Arrow.Table(view(recvbuf.data, displ+1:displ+count)), copycols=false)
+            DataFrame(Arrow.Table(IOBuffer(view(recvbuf.data, displ+1:displ+count))), copycols=false)
             for (displ, count) in zip(recvbuf.displs, recvbuf.counts)
-        ])
+        ]...)
         select!(res, Not(:banyan_shuffling_key))
+
         res
     elseif isa_array(part)
         # Group the data along the splitting axis (specified by the "key"
         # parameter)
         partition_idx_to_e = [[] for partition_idx in 1:nworkers]
         for e in eachslice(part, dims=key)
-            partition_idx = get_partition_idx_from_divisions(e, worker_divisions)
+            partition_idx = get_partition_idx_from_divisions(e, divisions_by_worker)
             push!(partition_idx_to_e[partition_idx], e)
         end
 
@@ -804,4 +815,11 @@ function Shuffle(
     else
         throw(ArgumentError("Expected array or dataframe to distribute and shuffle"))
     end
+
+    # Store divisions
+    global splitting_divisions
+    splitting_divisions[res] =
+        (divisions_by_worker[worker_idx], worker_idx > 1, worker_idx < nworkers)
+
+    res
 end
