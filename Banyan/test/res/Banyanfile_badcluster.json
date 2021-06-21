@@ -6,8 +6,8 @@
             "files": [],
             "scripts": [],
             "packages": ["DataFrames"],
-            "pt_lib_info": "file://res/pt_lib_info.json",
-            "pt_lib": "file://res/pt_lib.jl"
+            "pt_lib_info": "file://../../res/pt_lib_info.json",
+            "pt_lib": "file://../../res/pt_lib.jl"
         },
         "job": {
             "code": ["using DataFrames; println(\"using DataFrames\")"]

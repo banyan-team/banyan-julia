@@ -25,11 +25,15 @@ function receive_next_message(queue_name)
     if startswith(content, "EVALUATION_END")
         @debug "Received evaluation end"
         println(content[15:end])
-        Dict("kind" => "EVALUATION_END")
+        response = Dict{String,Any}("kind" => "EVALUATION_END")
+        response["end"] = (endswith(content, "MESSAGE_END"))
+        # TODO: Maybe truncate by chopping off the MESSAGE_END
+        response
     elseif startswith(content, "JOB_FAILURE")
         @debug "Job failed"
         global current_job_status
         current_job_status = "failed"
+        # TODO: Document why the 12 here is necessary
         println(content[12:end])
         error("Job failed; see preceding output")
     else
@@ -43,6 +47,6 @@ function send_message(queue_name, message)
         queue_name,
         message,
         (:MessageGroupId, "1"),
-        (:MessageDeduplicationId, get_message_id()),
+        (:MessageDeduplicationId, generate_message_id()),
     )
 end

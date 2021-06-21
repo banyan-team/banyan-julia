@@ -1,63 +1,129 @@
 {
     "splits": {
-        "Block": {
-            "required": {
-                "name": "Block"
-            },
-            "default": {
-                "dim": 1,
-                "balanced": true
-            },
+        "ReturnNull": {
+            "location_names": ["None"],
+            "partition_memory_usage": "all"
+        },
+        "ReadBlock": {
+            "expected": ["key"],
+            "required": {"name": "Distributing", "distribution": "blocked", "id": "!"},
+            "default": {},
+            "location_names": ["Remote", "Disk"],
             "partition_memory_usage": "div"
         },
-        "Div": {
-            "required": {
-                "name": "Div"
-            },
-            "default": {},
-            "partition_memory_usage": "zero"
+        "ReadGroup": {
+            "expected": ["key", "divisions"],
+            "required": {"name": "Distributing", "distribution": "grouped", "id": "!"},
+            "default": {"rev": false},
+            "location_names": ["Remote", "Disk"],
+            "partition_memory_usage": "div"
         },
-        "Replicate": {
-            "required": {
-                "name": "Replicate"
-            },
+        "SplitBlock": {
+            "expected": ["key"],
+            "required": {"name": "Distributing", "distribution": "blocked", "id": "!"},
             "default": {},
+            "location_names": ["Memory"],
+            "partition_memory_usage": "div"
+        },
+        "SplitGroup": {
+            "expected": ["key"],
+            "required": {"name": "Distributing", "distribution": "grouped", "id": "!"},
+            "default": {"rev": false},
+            "location_names": ["Memory"],
+            "partition_memory_usage": "div"
+        },
+        "CopyFrom": {
+            "required": {"name": "Replicating", "dividing": false},
+            "default": {},
+            "location_names": ["Client", "Remote", "Value", "Disk", "Memory"],
+            "partition_memory_usage": "all"
+        },
+        "Divide": {
+            "expected": ["key"],
+            "required": {"name": "Replicating", "dividing": true},
+            "default": {},
+            "location_names": ["Value", "Disk", "Memory"],
             "partition_memory_usage": "all"
         }
     },
     "merges": {
-        "BlockBalanced": {
-            "required": {
-                "name": "Block",
-                "balanced": true
-            },
-            "default": {
-                "dim": 1
-            }
-        },
-        "BlockUnbalanced": {
-            "required": {
-                "name": "Block",
-                "balanced": false
-            },
-            "default": {
-                "dim": 1
-            }
-        },
-        "Div": {
-            "required": {
-                "name": "Div"
-            },
+        "Write": {
+            "required": {"name": "Distributing"},
             "default": {},
-            "partition_memory_usage": "zero"
+            "location_names": ["Remote", "Disk"]
         },
-        "Replicate": {
-            "required": {
-                "name": "Replicate"
-            },
+        "Merge": {
+            "expected": ["key"],
+            "required": {"name": "Distributing"},
             "default": {},
-            "partition_memory_usage": "all"
+            "location_names": ["Memory"]
+        },
+        "CopyTo": {
+            "required": {"name": "Replicating", "replication": "all"},
+            "default": {},
+            "location_names": ["Memory", "Disk", "Remote", "Client"]
+        },
+        "ReduceAndCopyTo": {
+            "expected": ["reducer"],
+            "required": {"name": "Replicating", "replication": null, "with_key": false},
+            "default": {},
+            "location_names": ["Memory", "Disk", "Remote"]
+        },
+        "ReduceWithKeyAndCopyTo": {
+            "expected": ["key", "reducer"],
+            "required": {"name": "Replicating", "replication": null, "with_key": true},
+            "default": {},
+            "location_names": ["Memory", "Disk", "Remote"]
         }
     },
-    "casts": {}
+    "casts": {
+        "Reduce": {
+            "src_expected": ["reducer"],
+            "src_required": {"name": "Replicating", "replication": null, "with_key": false},
+            "dst_required": {"name": "Replicating", "replication": "all"},
+            "dst_default": {},
+            "matching": []
+        },
+        "ReduceWithKey": {
+            "src_expected": ["reducer", "key"],
+            "src_required": {"name": "Replicating", "replication": null, "with_key": true},
+            "dst_required": {"name": "Replicating", "replication": "all"},
+            "dst_default": {},
+            "matching": []
+        },
+        "Rebalance": {
+            "src_required": {"name": "Distributing"},
+            "dst_required": {"name": "Distributing", "distribution": "blocked", "balanced": true, "id": "!"},
+            "dst_default": {},
+            "matching": ["dim"]
+        },
+        "Distribute": {
+            "src_required": {"name": "Replicating", "replication": "all"},
+            "dst_required": {"name": "Distributing", "distribution": "blocked", "id": "!"},
+            "dst_expected": ["key"],
+            "dst_default": {},
+            "matching": []
+        },
+        "Consolidate": {
+            "src_expected": ["key"],
+            "src_required": {"name": "Distributing"},
+            "dst_required": {"name": "Replicating", "replication": "all"},
+            "dst_default": {},
+            "matching": []
+        },
+        "Shuffle": {
+            "src_required": {"name": "Distributing"},
+            "dst_required": {"name": "Distributing", "distribution": "grouped", "id": "!"},
+            "dst_default": {"rev": false},
+            "dst_expected": ["key", "divisions"],
+            "matching": []
+        },
+        "DistributeAndShuffle": {
+            "src_required": {"name": "Replicating", "replication": "all"},
+            "dst_required": {"name": "Distributing", "distribution": "grouped", "id": "!"},
+            "dst_default": {"rev": false},
+            "dst_expected": ["key", "divisions"],
+            "matching": []
+        }
+    }
 }

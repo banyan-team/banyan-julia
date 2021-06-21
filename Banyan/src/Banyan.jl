@@ -7,6 +7,8 @@
 
 module Banyan
 
+using FilePathsBase: joinpath, isempty
+using Base: notnothing, env_project_file
 global BANYAN_API_ENDPOINT
 
 # TODO: Remove this
@@ -26,7 +28,7 @@ global BANYAN_API_ENDPOINT
 #      PartitioningConstraints,
 #      Partitions
 # export LocationType
-# export BTask
+# export DelayedTask
 
 # export @pa, @pp, @lt, @src, @dst
 # export pa_noconstraints
@@ -50,28 +52,66 @@ global BANYAN_API_ENDPOINT
 # include("macros.jl")
 # include("evaluation.jl")
 
-# Basic types
+# Account management
 export configure
-export Job, create_job, destroy_job, destroy_all_jobs, clear_jobs, get_jobs
-export create_cluster,
-    update_cluster, destroy_cluster, get_clusters, get_cluster
-export Future, future, evaluate
-export Location, src, dst, mem, val
-export PartitionType, pt, pc, mut, @partitioned
+
+# Cluster management
+export Cluster,
+    create_cluster, update_cluster, destroy_cluster, get_clusters, get_cluster, assert_cluster_is_ready
+
+# Job management
+export Job, with_job, create_job, destroy_job, destroy_all_jobs, clear_jobs, get_jobs
+
+# Futures
+export AbstractFuture, Future, compute, collect
+
+# Samples
+export Sample, ExactSample, sample, setsample!
+export sample_memory_usage,
+    sample_axes,
+    sample_keys,
+    sample_divisions,
+    sample_percentile,
+    sample_max_ngroups,
+    sample_min,
+    sample_max
 
 # Locations
-export None, CSVPath
+export Location, LocationSource, LocationDestination, located, sourced, destined
+export Value, Size, Client, None, Remote
 
 # Partition types
-export Block, BlockBalanced, Div, Replicate
+export PartitionType, pt, pc, mutated, @partitioned
+export Any,
+    Replicating,
+    Replicated,
+    Divided,
+    Syncing,
+    Reducing,
+    ReducingWithKey,
+    Distributing,
+    Blocked,
+    Grouped,
+    ScaledBySame,
+    Drifted,
+    Balanced,
+    Unbalanced,
+    Blocked,
+    Grouped
 
-# Constraints
-export Co, Cross, Equal, Sequential, Match
+# Partitioning constraints
+export Co, Cross, Equal, Sequential, Match, MatchOn, AtMost, ScaleBy
 
 # Annotations
-export add_pa_to_union,
-    reset_annotation, get_locations, get_mutated, get_pa_union
+export partitioned_using,
+    partitioned_with,
+    keep_all_sample_keys,
+    keep_all_sample_keys_renamed,
+    keep_sample_keys_named,
+    keep_sample_keys,
+    keep_sample_rate
 
+using AWS: _get_ini_value
 using AWSCore
 using AWSS3
 using AWSSQS
@@ -84,16 +124,25 @@ using TOML
 
 using FileIO
 using FilePathsBase
-using CSV
+using IniFile
+
+using IterTools
+
+# TODO: Move locations, samples, and parts of pt_lib.jl and pt_lib_info.json
+# into their respective libraries where they can be specialized
+using HDF5, CSV, Parquet, Arrow, DataFrames
 
 # Jobs
 include("id.jl")
 include("utils.jl")
+include("utils_abstract_types.jl")
 include("queues.jl")
 include("jobs.jl")
 include("clusters.jl")
 
 # Futures
+include("future.jl")
+include("samples.jl")
 include("locations.jl")
 include("futures.jl")
 
@@ -102,6 +151,12 @@ include("partitions.jl")
 include("pt_lib_constructors.jl")
 include("tasks.jl")
 include("annotation.jl")
+
+# Utilities
+include("requests.jl")
+
+# Job (using locations and futures)
+include("job.jl")
 
 function __init__()
     # The user must provide the following for authentication:
@@ -114,8 +169,6 @@ function __init__()
     BANYAN_API_ENDPOINT = "https://hcohsbhhzf.execute-api.us-west-2.amazonaws.com/dev/"
 
     load_config()
-
-    AWS = aws_config(region = "us-west-2")
 end
 
 end # module

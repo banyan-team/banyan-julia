@@ -1,0 +1,7 @@
+{
+    "include": ["file://../../Banyan/res/Banyanfile.json"],
+    "require": {
+        "cluster": {"files": ["file://utils_ba.jl"]},
+        "job": {"code": ["include(\"utils_ba.jl\")"]}
+    }
+}

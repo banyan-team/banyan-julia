@@ -13,10 +13,10 @@ uuid = "4f1ea46c-232b-54a6-9b17-cc2d0f3e6598"
 version = "0.6.17"
 
 [[AWSS3]]
-deps = ["AWS", "Base64", "Dates", "EzXML", "FilePathsBase", "HTTP", "MbedTLS", "OrderedCollections", "Retry", "SymDict", "UUIDs", "XMLDict"]
-git-tree-sha1 = "fc337c0e58d571b4b760849c8f318c08562af015"
+deps = ["AWSCore", "Base64", "Dates", "EzXML", "FilePathsBase", "HTTP", "MbedTLS", "OrderedCollections", "Retry", "SymDict", "UUIDs", "XMLDict"]
+git-tree-sha1 = "c193af7f4403589cf5e12986d7a38d17bf372bd5"
 uuid = "1c724243-ef5b-51ab-93f4-b0a88ac62a95"
-version = "0.8.3"
+version = "0.7.7"
 
 [[AWSSQS]]
 deps = ["AWSCore", "Dates", "HTTP", "MbedTLS", "Retry", "SymDict"]
@@ -35,6 +35,18 @@ version = "1.5.0"
 
 [[Artifacts]]
 uuid = "56f22d72-fd6d-98f1-02f0-08ddc0907c33"
+
+[[Banyan]]
+deps = ["AWS", "AWSCore", "AWSS3", "AWSSQS", "Arrow", "Base64", "CSV", "DataFrames", "FileIO", "FilePaths", "FilePathsBase", "Glob", "HDF5", "HTTP", "IniFile", "IterTools", "JSON", "JuliaFormatter", "Parquet", "Random", "Serialization", "TOML"]
+path = "../Banyan"
+uuid = "706d138b-e922-45b9-a636-baf8ae0d5317"
+version = "0.1.0"
+
+[[BanyanArrays]]
+deps = ["Banyan"]
+path = "../BanyanArrays"
+uuid = "369465de-032e-4609-9dcf-82b89c370a7b"
+version = "0.1.0"
 
 [[Base64]]
 uuid = "2a0f44e3-6c83-55bd-87e4-b1978d98bd5f"

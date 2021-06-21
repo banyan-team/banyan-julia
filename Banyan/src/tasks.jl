@@ -1,11 +1,22 @@
-struct BTask
+#########
+# Tasks #
+#########
+
+mutable struct DelayedTask
+    # Fields for use in processed task ready to be recorded
     code::String
     value_names::Dict{ValueId,String}
     effects::Dict{ValueId,String}
-    pa_union::Vector{PartitionAnnotation}
+    pa_union::Vector{PartitionAnnotation} # Enumeration of applicable PAs
+    # Fields for use in task yet to be processed in a call to `compute`
+    partitioned_using_func::Union{Function,Nothing}
+    partitioned_with_func::Union{Function,Nothing}
+    mutation::Dict{Future,Future} # This gets converted to `effects`
 end
 
-function to_jl(task::BTask)
+DelayedTask() = DelayedTask("", Dict(), Dict(), [PartitionAnnotation()], nothing, nothing, Dict())
+
+function to_jl(task::DelayedTask)
     return Dict(
         "code" => task.code,
         "value_names" => task.value_names,
@@ -13,48 +24,3 @@ function to_jl(task::BTask)
         "pa_union" => [to_jl(pa) for pa in task.pa_union],
     )
 end
-
-global pending_requests = Vector{Any}()
-
-function record_request(request::Any)
-    global pending_requests
-    push!(pending_requests, request)
-end
-
-############
-# REQUESTS #
-############
-
-struct RecordTaskRequest
-    task::BTask
-end
-
-struct RecordLocationRequest
-    value_id::ValueId
-    location::Location
-end
-
-struct DestroyRequest
-    value_id::ValueId
-end
-
-function to_jl(req::RecordTaskRequest)
-    return Dict("type" => "RECORD_TASK", "task" => to_jl(req.task))
-end
-
-function to_jl(req::RecordLocationRequest)
-    return Dict(
-        "type" => "RECORD_LOCATION",
-        "value_id" => req.value_id,
-        "location" => to_jl(req.location),
-    )
-end
-
-function to_jl(req::DestroyRequest)
-    return Dict("type" => "DESTROY", "value_id" => req.value_id)
-end
-
-# NOTE: The sole purpose of the "request" abstraction here is to potentially
-# support additional kinds of requests in the future. Right now, the only thing
-# we send on evaluation is the ID of the value to evaluate and tasks to record
-# in a dependency graph

@@ -2,6 +2,11 @@
 # projects
 
 using Test
+using Banyan
+using BanyanArrays
+using BanyanDataFrames
+
+using Statistics
 
 function include_tests_to_run(args...)
     clear_jobs()
@@ -76,4 +81,4 @@ function run(test_fn, name)
     end
 end
 
-include_tests_to_run("test_cluster.jl")
+include_tests_to_run("test_simple.jl")

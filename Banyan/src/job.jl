@@ -1,0 +1,16 @@
+struct Job
+    id::JobId
+    nworkers::Int32
+    sample_rate::Int32
+    locations::Dict{ValueId,Location}
+    pending_requests::Vector{Request}
+    futures_on_client::WeakKeyDict{ValueId,Future}
+    cluster_name::String
+
+    # TODO: Ensure that this struct and constructor (which are just for storing
+    # information about the job) does not conflict with the `Job` function that
+    # calls `create_job`
+    function Job(cluster_name::String, job_id::JobId, nworkers::Integer, sample_rate::Integer)::Job
+        new(job_id, nworkers, sample_rate, Dict(), [], Dict(), cluster_name)
+    end
+end
