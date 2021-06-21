@@ -57,7 +57,7 @@ export configure
 
 # Cluster management
 export Cluster,
-    create_cluster, update_cluster, destroy_cluster, get_clusters, get_cluster, set_cluster_status_running
+    create_cluster, update_cluster, destroy_cluster, get_clusters, get_cluster, assert_cluster_is_ready
 
 # Job management
 export Job, with_job, create_job, destroy_job, destroy_all_jobs, clear_jobs, get_jobs

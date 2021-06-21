@@ -216,7 +216,7 @@ function compute(fut::AbstractFuture)
                 end
             elseif message_type == "EVALUATION_END"
                 @debug "Received evaluation"
-                if message_end == true
+                if message["end"] == true
                     break
                 end
             end

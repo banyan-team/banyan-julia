@@ -392,6 +392,7 @@ end
 function update_cluster(;
     name::String = nothing,
     banyanfile_path::String = nothing,
+    force = false,
     kwargs...,
 )
     @info "Updating cluster"
@@ -406,6 +407,11 @@ function update_cluster(;
         first(keys(clusters))
     else
         name
+    end
+
+    # Force by setting cluster to running
+    if force
+        assert_cluster_is_ready(name=name)
     end
 
     # Require restart: pcluster_additional_policy, s3_read_write_resource, num_nodes
@@ -438,7 +444,7 @@ function update_cluster(;
     end
 end
 
-function set_cluster_status_running(;
+function assert_cluster_is_ready(;
     name::String,
     kwargs...,
 )

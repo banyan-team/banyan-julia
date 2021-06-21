@@ -62,19 +62,27 @@ split_on_executor(src, dim::Integer, batch_idx::Integer, nbatches::Integer, comm
     end
 
 function merge_on_executor(obj...; key=nothing)
+    # @show obj
+    # @show length(obj)
+    # @show typeof(obj)
     first_obj = first(obj)
+    # @show first_obj
+    # @show typeof(first_obj)
+    # @show length(first_obj)
     if isa_df(first_obj)
         # If this is a dataframe then we ignore the grouping key
         vcat(obj...)
     elseif isa_array(first_obj)
-        cat(obj...; dims=dims)
+        # @show obj
+        cat(obj...; dims=key)
     else
-        error("Expected either AbstractDataFrame or AbstractArray for concatenation")
+        # error("Expected either AbstractDataFrame or AbstractArray for concatenation")
+        first_obj
     end
 end
 
-function merge_on_executor(kind::Symbol, vbuf::MPI.VBuffer, nchunks::Integer; dims=1)
-    chunk = [
+function merge_on_executor(kind::Symbol, vbuf::MPI.VBuffer, nchunks::Integer; key)
+    chunks = [
         begin
             chunk = view(
                 vbuf.data,
@@ -82,7 +90,7 @@ function merge_on_executor(kind::Symbol, vbuf::MPI.VBuffer, nchunks::Integer; di
                 (vbuf.displs[i] + vbuf.counts[i])
             )
             if kind == :df
-                DataFrame(Arrow.Table(chunk))
+                DataFrame(Arrow.Table(IOBuffer(chunk)))
             elseif kind == :bits
                 chunk
             else
@@ -91,7 +99,7 @@ function merge_on_executor(kind::Symbol, vbuf::MPI.VBuffer, nchunks::Integer; di
         end
         for i in 1:nchunks
     ]
-    src = merge_on_executor(new_src_chunks...; dims)
+    merge_on_executor(chunks...; key=key)
 end
 
 function get_partition_idx_from_divisions(val, divisions; boundedlower=false, boundedupper=false)
@@ -362,22 +370,22 @@ function tobuf(obj)
     # standard library.
 
     if isbits(obj)
-        (:bits, obj)
+        (:bits, MPI.Buffer(Ref(obj)))
         # (:bits, MPI.Buffer(obj))
         # (:bits, MPI.Buffer(Ref(obj)))
     elseif isa_array(obj) && isbitstype(first(typeof(obj).parameters)) && ndims(obj) == 1
         # (:bits, MPI.Buffer(obj))
-        (:bits, obj)
+        (:bits, MPI.Buffer(obj))
     elseif isa_df(obj)
         io = IOBuffer()
         Arrow.write(io, obj)
         # (:df, MPI.Buffer(view(io.data, 1:position(io))))
-        (:df, io)
+        (:df, MPI.Buffer(view(io.data, 1:io.size)))
     else
         io = IOBuffer()
         serialize(io, obj)
-        # (:unknown, MPI.Buffer(view(io.data, 1:position(io))))
-        (:unknown, io)
+        (:unknown, MPI.Buffer(view(io.data, 1:io.size)))
+        # (:unknown, io)
     end
 end
 
@@ -386,7 +394,7 @@ function buftovbuf(buf::MPI.Buffer, comm::MPI.Comm)::MPI.VBuffer
     # Basically what it does is it takes the result of a call to tobuf above
     # on each process and constructs a VBuffer with the sum of the sizes of the
     # buffers on different processes.
-    sizes = MPI.Allgather(length(buf.data), comm)
+    sizes = MPI.Allgather(buf.count, comm)
     # NOTE: This function should only be used for variably-sized buffers for
     # receiving data because the returned buffer contains zeroed-out memory.
     VBuffer(similar(buf.data, sum(sizes)), sizes)

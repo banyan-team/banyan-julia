@@ -609,7 +609,7 @@ function get_remote_location(remotepath)
     # Load metadata for writing
     loc_for_writing, metadata_for_writing = if p_isdir
         # NOTE: `remotepath` should end with `.parquet` or `.csv` if Parquet
-        # or CSV dataset is to be created
+        # or CSV dataset is desired to be created
         ("Remote", Dict("path" => remotepath))
     else
         (nothing, Dict{String,Any}())

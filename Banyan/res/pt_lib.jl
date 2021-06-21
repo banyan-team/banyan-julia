@@ -44,7 +44,8 @@ function ReadBlock(
     # reading of the same range in different reads
 
     # Handle single-file nd-arrays
-    @show loc_params
+    # We check if it's a file because for items on disk, files are HDF5
+    # datasets while directories contain Parquet, CSV, or Arrow datasets
     if (loc_name == "Disk" && isfile(loc_params["path"])) ||
         (loc_name == "Remote" && (occursin(".h5", loc_params["path"]) || occursin(".hdf5", loc_params["path"])))
 
@@ -244,7 +245,6 @@ function Write(
 
     # Write file for this partition
     idx = get_partition_idx(batch_idx, nbatches, comm)
-    @show typeof(part)
     if isa_df(part)
         # Create directory if it doesn't exist
         # TODO: Avoid this and other filesystem operations that would be costly
@@ -267,10 +267,13 @@ function Write(
         src
         # TODO: Delete all other part* files for this value if others exist
     elseif isa_array(part)
-        if loc_name == "Disk"
-            path *= ".hdf5"
-        end
+        # if loc_name == "Disk"
+        #     # Technically we don't have to do this since when we read we can
+        #     # check if location is Disk
+        #     path *= ".hdf5"
+        # end
         dim = params["key"]
+        # TODO: Ensure this works where some partitions are empty
         whole_size = MPI.Reduce(
             size(part),
             (a, b) -> indexapply(+, a, b, index=dim),
@@ -315,6 +318,8 @@ function Write(
     end
 end
 
+global partial_merges = Set()
+
 function SplitBlock(
     src,
     params,
@@ -324,7 +329,8 @@ function SplitBlock(
     loc_name,
     loc_params,
 )
-    if isnothing(src)
+    global partial_merges
+    if isnothing(src) || objectid(src) in partial_merges
         src
     else
         split_on_executor(src, isa_array(src) ? params["key"] : 1, batch_idx, nbatches, comm)
@@ -340,6 +346,13 @@ function SplitGroup(
     loc_name,
     loc_params
 )
+    global partial_merges
+    if isnothing(src) || objectid(src) in partial_merges
+        # src is [] if we are partially merged (because as we iterate over
+        # batches we take turns between splitting and merging)
+        return nothing
+    end
+
     partition_idx = get_partition_idx(batch_idx, nbatches, comm)
     npartitions = get_npartitions(nbatches, comm)
 
@@ -369,7 +382,6 @@ function SplitGroup(
 
     # Apply divisions to get only the elements relevant to this worker
     # @show key
-    # @show src
     res = if isa_df(src)
         # TODO: Do the groupby and filter on batch_idx == 1 and then share
         # among other batches
@@ -385,6 +397,8 @@ function SplitGroup(
     else
         throw(ArgumentError("Expected array or dataframe to distribute and shuffle"))
     end
+    worker_idx = get_worker_idx(comm)
+    @show batch_idx worker_idx src res
 
     # Store divisions
     global splitting_divisions
@@ -408,9 +422,11 @@ function Merge(
     loc_name,
     loc_params,
 )
+    global partial_merges
+
     # TODO: To allow for mutation of a value, we may want to remove this
     # condition
-    if isnothing(src)
+    if isnothing(src) || objectid(src) in partial_merges
         # We only need to concatenate partitions if the source is nothing.
         # Because if the source is something, then part must be a view into it
         # and no data movement is needed.
@@ -424,9 +440,12 @@ function Merge(
         # Concatenate across batches
         if batch_idx == 1
             src = []
+            push!(partial_merges, objectid(src))
         end
         push!(src, part)
         if batch_idx == nbatches
+            pop!(partial_merges, objectid(src))
+
             # TODO: Test that this merges correctly
             # src = merge_on_executor(src...; dims=dim)
             src = merge_on_executor(src...; key=key)
@@ -436,6 +455,8 @@ function Merge(
             if nworkers > 1
                 src = Consolidate(src, params, Dict(), comm)
             end
+            @show partial_merges
+            # delete!(partial_merges, src)
         end
     end
 
@@ -691,12 +712,20 @@ function Consolidate(
     dst_params,
     comm
 )
-    dim = isa_array(part) ? src_params["key"] : 1
     kind, sendbuf = tobuf(part)
     recvvbuf = buftovbuf(sendbuf, comm)
     # TODO: Maybe sometimes use gatherv if all sendbuf's are known to be equally sized
+    # if isa_df(part)
+    #     io = IOBuffer()
+    #     Arrow.write(io, part)
+    #     MPI.Allgatherv!()
+    # elseif isa_array(part)
+
+    # else
+    #     throw(ArgumentError("Expected either array or dataframe to consolidate"))
+    # end
     MPI.Allgatherv!(sendbuf, recvvbuf, comm)
-    part = merge_on_executor(kind, recvvbuf, get_nworkers(comm), comm; dims=dim)
+    part = merge_on_executor(kind, recvvbuf, get_nworkers(comm); key=(isa_array(part) ? src_params["key"] : 1))
     part
 end
 
@@ -752,9 +781,6 @@ function Shuffle(
         sendbuf = MPI.VBuffer(view(io.data, 1:nbyteswritten), df_counts)
 
         # Create buffer for receiving pieces
-        @show df_counts
-        @show typeof(df_counts)
-        @show MPI.Comm_size(comm)
         sizes = MPI.Alltoall(MPI.UBuffer(df_counts, 1), comm)
         recvbuf = MPI.VBuffer(similar(io.data, sum(sizes)), sizes)
 
