@@ -26,7 +26,7 @@ Replicated() = Replicating() & PartitionType("replication" => "all", "reducer" =
 # large objects such as unique(df::DataFrame)
 
 # TODO: Determine whether the `"reducer" => nothing` should be there
-Divided() = Replicating() & PartitionType("divided" => true)
+Divided() = Replicating() & PartitionType("dividing" => true)
 Syncing() = Replicating() & PartitionType("replication" => "one", "reducer" => nothing) # TODO: Determine whether this is really needed
 Reducing(op) = Replicating() & PartitionType("replication" => nothing, "reducer" => to_jl_value(op), "with_key" => false)
 ReducingWithKey(op) = Replicating() & PartitionType("replication" => nothing, "reducer" => to_jl_value(op), "with_key" => true)

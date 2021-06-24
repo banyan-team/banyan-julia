@@ -185,7 +185,7 @@ function compute(fut::AbstractFuture)
             message = receive_next_message(gather_queue)
             @debug message
             message_type = message["kind"]
-            message_end = message["end"]
+            # message_end = message["end"]
             if message_type == "SCATTER_REQUEST"
                 @debug "Received scatter request"
                 # Send scatter
