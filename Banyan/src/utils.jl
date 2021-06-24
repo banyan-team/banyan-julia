@@ -147,7 +147,7 @@ function configure(; kwargs...)
         is_modified = true
     end
     if require_ec2_key_pair_name &&
-       !("ec2_key_pair_name" in banyan_config["aws"])
+       !(haskey(banyan_config["aws"], "ec2_key_pair_name"))
         error("Name of an EC2 key pair required but not provided; visit here to create a key pair: https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ec2-key-pairs.html#having-ec2-create-your-key-pair")
     end
 
@@ -174,7 +174,7 @@ function get_aws_config()
     # Get AWS configuration
     if isnothing(aws_config_in_usage)
         # Get region according to ENV, then credentials, then config files
-        profile = get(ENV, "AWS_PROFILE", get(ENV, "AWS_DEFAULT_PROFILE", "banyan_nothing"))
+        profile = get(ENV, "AWS_DEFAULT_PROFILE", get(ENV, "AWS_DEFAULT_PROFILE", "banyan_nothing"))
         env_region = get(ENV, "AWS_DEFAULT_REGION", "")
         credentialsfile = read(Inifile(), joinpath(homedir(), ".aws", "credentials"))
         configfile = read(Inifile(), joinpath(homedir(), ".aws", "config"))
@@ -186,12 +186,13 @@ function get_aws_config()
         region = isempty(region) ? credentials_region : region
         region = isempty(region) ? config_region : region
 
-        println(region)
+        #println(region)
 
         if isempty(region)
             throw(ErrorException("Could not discover AWS region to use from looking at AWS_PROFILE, AWS_DEFAULT_PROFILE, AWS_DEFAULT_REGION, HOME/.aws/credentials, and HOME/.aws/config"))
         end
 
+	#println(AWSCredentials())
         aws_config_in_usage = Dict(
             :creds => AWSCredentials(),
             :region => region
@@ -215,7 +216,7 @@ get_aws_config_region() = get_aws_config()[:region]
 # ENVIRONMENT VARIABLES #
 #########################
 
-is_debug_on() = "JULIA_DEBUG" in keys(ENV) && ENV["JULIA_DEBUG"] == "all"
+is_debug_on() = "JULIA_DEBUG" in keys(ENV)
 
 macro in_env(key)
     return :(string("BANYAN_", getpid(), "_", $key) in keys(ENV))
@@ -264,8 +265,7 @@ function send_request_get_response(method, content::Dict)
     configuration = load_config()
     user_id = configuration["banyan"]["user_id"]
     api_key = configuration["banyan"]["api_key"]
-    # TODO: Allow content["debug"]
-    # content["debug"] = is_debug_on()
+    content["debug"] = is_debug_on()
     url = string(BANYAN_API_ENDPOINT, method_to_string(method))
     headers = (
         ("content-type", "application/json"),
