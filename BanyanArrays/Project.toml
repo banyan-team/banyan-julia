@@ -8,6 +8,7 @@ Banyan = "706d138b-e922-45b9-a636-baf8ae0d5317"
 
 [compat]
 Banyan = "0.1.0"
+julia = "1.6.0"
 
 [extras]
 Banyan = "706d138b-e922-45b9-a636-baf8ae0d5317"
