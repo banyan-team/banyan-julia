@@ -398,7 +398,9 @@ function SplitGroup(
         throw(ArgumentError("Expected array or dataframe to distribute and shuffle"))
     end
     worker_idx = get_worker_idx(comm)
-    @show batch_idx worker_idx src res
+    if is_debug_on() == true
+    	@show batch_idx worker_idx src res
+    end
 
     # Store divisions
     global splitting_divisions
@@ -455,7 +457,9 @@ function Merge(
             if nworkers > 1
                 src = Consolidate(src, params, Dict(), comm)
             end
-            @show partial_merges
+            if is_debug_on() == true
+	    	@show partial_merges
+	    end
             # delete!(partial_merges, src)
         end
     end

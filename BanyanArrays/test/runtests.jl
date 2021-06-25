@@ -36,6 +36,7 @@ function run_with_job(test_fn, name)
     api_key = get(ENV, "BANYAN_API_KEY", nothing)
     cluster_name = get(ENV, "BANYAN_CLUSTER_NAME", nothing)
     nworkers = get(ENV, "BANYAN_NWORKERS", nothing)
+    num_trials = parse(Int, get(ENV, "NUM_TRIALS", "1"))
 
     if isempty(get_enabled_tests()) ||
        any([occursin(t, lowercase(name)) for t in get_enabled_tests()])
@@ -61,7 +62,9 @@ function run_with_job(test_fn, name)
                 banyanfile_path = "file://res/Banyanfile.json",
                 user_id = user_id,
             ) do j
-                test_fn(j)
+		for i in 1:num_trials
+                    @time test_fn(j)
+                end
             end
         end
     end
@@ -78,4 +81,4 @@ function run(test_fn, name)
     end
 end
 
-include_tests_to_run("test_simple.jl")
+include_tests_to_run("test_simple.jl", "scholes.jl")
