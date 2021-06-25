@@ -580,7 +580,7 @@ function Divide(
     loc_name,
     loc_params,
 )
-    dim = dst_params["key"]
+    dim = params["key"]
     part = CopyFrom(src, params, batch_idx, nbatches, comm, loc_name, loc_params)
     if part isa Tuple
         newpartdim = length(split_len(part[dim], batch_idx, nbatches, comm))

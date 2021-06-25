@@ -81,4 +81,6 @@ function run(test_fn, name)
     end
 end
 
-include_tests_to_run("test_simple.jl", "scholes.jl")
+include_tests_to_run("test_mapreduce.jl")
+include_tests_to_run("test_hdf5.jl")
+include_tests_to_run("scholes.jl"
