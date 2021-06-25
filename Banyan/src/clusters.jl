@@ -6,7 +6,8 @@ function load_json(path::String)
         error("S3 path not currently supported")
         # JSON.parsefile(S3Path(path, config=get_aws_config()))
     elseif startswith(path, "http://") || startswith(path, "https://")
-        JSON.parse(HTTP.get(path).body)
+        JSON.parse(String(HTTP.request("GET", path)))
+	#JSON.parse(HTTP.get(path).body)
     else
         error(
             "Path $path must start with \"file://\", \"s3://\", or \"http(s)://\"",
@@ -269,7 +270,7 @@ function upload_banyanfile(banyanfile_path::String, s3_bucket_arn::String, clust
     code *= "sudo chmod 777 setup_log.txt\n"
     if reinstall_julia || for_creation_or_update == :creation
         code *= "sudo su - ec2-user -c \"wget https://julialang-s3.julialang.org/bin/linux/x64/1.6/julia-1.6.1-linux-x86_64.tar.gz -O julia.tar.gz &>> setup_log.txt\"\n"
-        code *= "mkdir julia &>> setup_log.txt\n"
+        code *= "sudo su - ec2-user -c \"mkdir julia &>> setup_log.txt\"\n"
         code *= "sudo su - ec2-user -c \"tar zxvf julia.tar.gz -C julia --strip-components 1 &>> setup_log.txt\"\n"
         code *= "rm julia.tar.gz &>> setup_log.txt\n"
         code *= "sudo su - ec2-user -c \"julia/bin/julia --project -e 'using Pkg; Pkg.add(name=\\\"AWSS3\\\", version=\\\"0.7\\\"); Pkg.add([\\\"AWSCore\\\", \\\"AWSSQS\\\", \\\"JSON\\\", \\\"MPI\\\", \\\"BenchmarkTools\\\"]); ENV[\\\"JULIA_MPIEXEC\\\"]=\\\"srun\\\"; ENV[\\\"JULIA_MPI_LIBRARY\\\"]=\\\"/opt/amazon/openmpi/lib64/libmpi\\\"; Pkg.build(\\\"MPI\\\"; verbose=true)' &>> setup_log.txt\"\n"
@@ -312,7 +313,7 @@ function upload_banyanfile(banyanfile_path::String, s3_bucket_arn::String, clust
         "touch /home/ec2-user/update_finished\n" *
         "aws s3 cp /home/ec2-user/update_finished " *
         "s3://" * s3_bucket_name * "/\n"
-    println(s3_bucket_name)
+    #println(s3_bucket_name)
     s3_put(get_aws_config(), s3_bucket_name, post_install_script, code)
     @debug code
     @debug pt_lib_info
@@ -321,13 +322,13 @@ end
 
 # Required: cluster_name
 function create_cluster(;
-    name::String = nothing,
-    instance_type::String = "m4.4xlarge",
-    max_num_nodes::Int = 8,
+    name::Union{String, Nothing} = nothing,
+    instance_type::Union{String, Nothing} = "m4.4xlarge",
+    max_num_nodes::Union{Int, Nothing} = 8,
     banyanfile_path::String = nothing,
-    iam_policy_arn::String = nothing,
-    s3_bucket_arn::String = nothing,
-    s3_bucket_name::String = nothing,
+    iam_policy_arn::Union{String, Nothing} = nothing,
+    s3_bucket_arn::Union{String, Nothing} = nothing,
+    s3_bucket_name::Union{String, Nothing} = nothing,
     vpc_id = nothing,
     subnet_id = nothing,
     kwargs...,
@@ -335,9 +336,6 @@ function create_cluster(;
     @debug "Creating cluster"
 
     # Construct arguments
-    if isnothing(s3_bucket_arn)
-        s3_bucket_arn = "arn:aws:s3:::$s3_bucket_name*"
-    end
 
     # Configure using parameters
     c = configure(; require_ec2_key_pair_name = true, kwargs...)
@@ -346,12 +344,20 @@ function create_cluster(;
     else
         "banyan-cluster-" * randstring(6)
     end
-    if isnothing(s3_bucket_arn)
-        s3_bucket_arn = "arn:aws:s3:::banyan-cluster-data-" * name * bytes2hex(rand(UInt8, 16))
+ 
+    if isnothing(s3_bucket_arn) && isnothing(s3_bucket_name)
+        s3_bucket_arn = "arn:aws:s3:::banyan-cluster-data-" * name * "-" * bytes2hex(rand(UInt8, 16))
         s3_bucket_name = last(split(s3_bucket_arn, ":"))
-        s3_create_bucket(get_aws_config(), s3_bucket_name)
-    elseif !(s3_bucket_arn in s3_list_buckets(get_aws_config()))
-        error("Bucket $s3_bucket_arn does not exist in connected AWS account")
+	s3_create_bucket(get_aws_config(), s3_bucket_name)
+    elseif isnothing(s3_bucket_arn)
+        s3_bucket_arn = "arn:aws:s3:::$s3_bucket_name*"
+    elseif isnothing(s3_bucket_name)
+        s3_bucket_name = last(split(s3_bucket_arn, ":"))
+    end
+    #println(get_aws_config())
+    #println(s3_list_buckets(get_aws_config()))
+    if !(s3_bucket_name in s3_list_buckets(get_aws_config()))
+        error("Bucket $s3_bucket_name does not exist in connected AWS account")
     end
 
     # Construct cluster creation
@@ -384,7 +390,7 @@ end
 function destroy_cluster(name::String; kwargs...)
     @debug "Destroying cluster"
     configure(; kwargs...)
-    send_request_get_response(:destroy_cluster, Dict("cluster_name" => name))
+    send_request_get_response(:destroy_cluster, Dict{String, Any}("cluster_name" => name))
 end
 
 # TODO: Update website display
@@ -455,7 +461,7 @@ function assert_cluster_is_ready(;
 
     send_request_get_response(
         :set_cluster_ready,
-	Dict(
+	Dict{String, Any}(
 	     "cluster_name" => name,
 	),
     )
@@ -496,7 +502,9 @@ function get_clusters(; kwargs...)
     configure(; kwargs...)
     response =
         send_request_get_response(:describe_clusters, Dict{String,Any}())
-    @show response
+    if is_debug_on() == true
+    	@show response
+    end
     Dict(
         name => Cluster(
             name,
