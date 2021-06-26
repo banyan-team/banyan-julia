@@ -33,6 +33,7 @@ user_id = get(ENV, "BANYAN_USER_ID", nothing)
 api_key = get(ENV, "BANYAN_API_KEY", nothing)
 cluster_name = get(ENV, "BANYAN_CLUSTER_NAME", nothing)
 nworkers = get(ENV, "BANYAN_NWORKERS", nothing)
+ntrials = parse(Int, get(ENV, "NUM_TRIALS", "1")) # TODO: Make this BANYAN_NTRIALS
 
 global job = create_job(
     username = username,
@@ -65,7 +66,13 @@ function run_with_job(test_fn, name)
             end
         elseif !isnothing(nworkers)
             with_job(job=job) do j
-                test_fn(j)
+                for i in 1:ntrials
+                    if ntrials > 1
+                        @time test_fn(j)
+                    else
+                        test_fn(j)
+                    end
+                end
             end
         end
     end
@@ -84,6 +91,7 @@ end
 
 include_tests_to_run("test_mapreduce.jl")
 include_tests_to_run("test_hdf5.jl")
+include_tests_to_run("test_black_scholes.jl")
 
 # TODO: Test that job gets destroyed here and if not fix here and also BDF's
 # runtests.jl

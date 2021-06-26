@@ -18,9 +18,11 @@ end
 
 function finish_task()
     global curr_delayed_task
-    @show "finishing task"
-    @show curr_delayed_task.mutation
-    @show curr_delayed_task.effects
+    if is_debug_on()
+	@show "finishing task"
+        @show curr_delayed_task.mutation
+        @show curr_delayed_task.effects
+    end
     curr_delayed_task = DelayedTask()
 end
 

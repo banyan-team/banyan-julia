@@ -49,8 +49,10 @@ function compute(fut::AbstractFuture)
         # This allows sample properties to propagate in both directions. We
         # must also make sure to apply mutations in each task appropriately.
         for t in tasks
-            @show t.mutation
-            @show t.effects
+            if is_debug_on() == true
+	        @show t.mutation
+                @show t.effects
+            end
         end
         for t in Iterators.reverse(tasks)
             apply_mutation(invert(t.mutation))
@@ -139,15 +141,19 @@ function compute(fut::AbstractFuture)
 
         # Iterate through tasks for further processing before recording them
         for t in tasks
-            @show t.code
-            @show t.value_names
-            @show t.mutation
-            @show t.effects
+            if is_debug_on() == true
+		@show t.code
+                @show t.value_names
+                @show t.mutation
+                @show t.effects
+            end
             # Apply defaults to PAs
             for pa in t.pa_union
                 apply_default_constraints!(pa)
                 duplicate_for_batching!(pa)
-                @show pa
+                if is_debug_on() == true
+		    @show pa
+                end
             end
 
             # Destroy all closures so that all references to `Future`s are dropped
@@ -200,7 +206,6 @@ function compute(fut::AbstractFuture)
             message = receive_next_message(gather_queue)
             @debug message
             message_type = message["kind"]
-            # message_end = message["end"]
             if message_type == "SCATTER_REQUEST"
                 @debug "Received scatter request"
                 # Send scatter
