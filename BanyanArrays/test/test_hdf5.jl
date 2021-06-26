@@ -4,12 +4,12 @@
         # file from test/res for testing
         # TODO: Use version of `pt_lib_info.json` with replication actually removed
         for path in [
-            "fillval.h5/DS1",
+            "https://github.com/banyan-team/banyan-julia/raw/v0.1.1/BanyanArrays/test/res/fillval.h5/DS1",
             # The file is produced in S3 using:
             # AWS_DEFAULT_PROFILE=banyan-testing aws s3 \
             # cp https://support.hdfgroup.org/ftp/HDF5/examples/files/exbyapi/h5ex_d_fillval.h5 \
             # banyan-cluster-data-pumpkincluster0-3e15290827c0c584/h5ex_d_fillval.h5
-            "fillval.h5/DS1"
+            "s3://banyan-cluster-data-pumpkincluster0-3e15290827c0c584/fillval.h5/DS1"
         ]
             x = read_hdf5("path")
             x = map(e -> e * 10, x)

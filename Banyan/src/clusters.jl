@@ -7,7 +7,7 @@ function load_json(path::String)
         # JSON.parsefile(S3Path(path, config=get_aws_config()))
     elseif startswith(path, "http://") || startswith(path, "https://")
         JSON.parse(String(HTTP.request("GET", path)))
-	#JSON.parse(HTTP.get(path).body)
+        #JSON.parse(HTTP.get(path).body)
     else
         error("Path $path must start with \"file://\", \"s3://\", or \"http(s)://\"")
     end
@@ -219,12 +219,7 @@ function upload_banyanfile(
     banyanfile = load_json(banyanfile_path)
     merge_banyanfile_with_defaults!(banyanfile, banyanfile_path)
     for included in banyanfile["include"]
-        merge_banyanfile_with!(
-            banyanfile,
-            included,
-            :cluster,
-            for_creation_or_update,
-        )
+        merge_banyanfile_with!(banyanfile, included, :cluster, for_creation_or_update)
     end
 
     # Load pt_lib_info if path provided
@@ -317,7 +312,9 @@ function upload_banyanfile(
     code *=
         "touch /home/ec2-user/update_finished\n" *
         "aws s3 cp /home/ec2-user/update_finished " *
-        "s3://" * s3_bucket_name * "/\n"
+        "s3://" *
+        s3_bucket_name *
+        "/\n"
     #println(s3_bucket_name)
     s3_put(get_aws_config(), s3_bucket_name, post_install_script, code)
     @debug code
@@ -327,13 +324,13 @@ end
 
 # Required: cluster_name
 function create_cluster(;
-    name::Union{String, Nothing} = nothing,
-    instance_type::Union{String, Nothing} = "m4.4xlarge",
-    max_num_nodes::Union{Int, Nothing} = 8,
+    name::Union{String,Nothing} = nothing,
+    instance_type::Union{String,Nothing} = "m4.4xlarge",
+    max_num_nodes::Union{Int,Nothing} = 8,
     banyanfile_path::String = nothing,
-    iam_policy_arn::Union{String, Nothing} = nothing,
-    s3_bucket_arn::Union{String, Nothing} = nothing,
-    s3_bucket_name::Union{String, Nothing} = nothing,
+    iam_policy_arn::Union{String,Nothing} = nothing,
+    s3_bucket_arn::Union{String,Nothing} = nothing,
+    s3_bucket_name::Union{String,Nothing} = nothing,
     vpc_id = nothing,
     subnet_id = nothing,
     kwargs...,
@@ -349,11 +346,12 @@ function create_cluster(;
     else
         "banyan-cluster-" * randstring(6)
     end
- 
+
     if isnothing(s3_bucket_arn) && isnothing(s3_bucket_name)
-        s3_bucket_arn = "arn:aws:s3:::banyan-cluster-data-" * name * "-" * bytes2hex(rand(UInt8, 16))
+        s3_bucket_arn =
+            "arn:aws:s3:::banyan-cluster-data-" * name * "-" * bytes2hex(rand(UInt8, 16))
         s3_bucket_name = last(split(s3_bucket_arn, ":"))
-	s3_create_bucket(get_aws_config(), s3_bucket_name)
+        s3_create_bucket(get_aws_config(), s3_bucket_name)
     elseif isnothing(s3_bucket_arn)
         s3_bucket_arn = "arn:aws:s3:::$s3_bucket_name*"
     elseif isnothing(s3_bucket_name)
@@ -395,7 +393,7 @@ end
 function destroy_cluster(name::String; kwargs...)
     @debug "Destroying cluster"
     configure(; kwargs...)
-    send_request_get_response(:destroy_cluster, Dict{String, Any}("cluster_name" => name))
+    send_request_get_response(:destroy_cluster, Dict{String,Any}("cluster_name" => name))
 end
 
 # TODO: Update website display
@@ -467,16 +465,7 @@ function assert_cluster_is_ready(; name::String, kwargs...)
     # Configure
     configure(; kwargs...)
 
-<<<<<<< HEAD
-    send_request_get_response(:set_cluster_ready, Dict("cluster_name" => name))
-=======
-    send_request_get_response(
-        :set_cluster_ready,
-	Dict{String, Any}(
-	     "cluster_name" => name,
-	),
-    )
->>>>>>> 586ad43c2407edec0f5fd29c109315d435ae23c0
+    send_request_get_response(:set_cluster_ready, Dict{String,Any}("cluster_name" => name))
 end
 
 struct Cluster
@@ -512,16 +501,10 @@ parsestatus(status) =
 function get_clusters(; kwargs...)
     @debug "Downloading description of clusters"
     configure(; kwargs...)
-<<<<<<< HEAD
     response = send_request_get_response(:describe_clusters, Dict{String,Any}())
-    @show response
-=======
-    response =
-        send_request_get_response(:describe_clusters, Dict{String,Any}())
     if is_debug_on() == true
-    	@show response
+        @show response
     end
->>>>>>> 586ad43c2407edec0f5fd29c109315d435ae23c0
     Dict(
         name => Cluster(
             name,
