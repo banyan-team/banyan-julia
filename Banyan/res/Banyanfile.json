@@ -5,13 +5,13 @@
         "cluster": {
             "files": ["file://utils.jl"],
             "scripts": [],
-            "packages": ["DataFrames", "CSV", "Parquet", "Arrow"],
+            "packages": ["DataFrames", "CSV", "Parquet", "Arrow", "HDF5"],
             "pt_lib_info": "file://pt_lib_info.json",
             "pt_lib": "file://pt_lib.jl"
         },
         "job": {
             "code": [
-                "using DataFrames, CSV, Parquet, Arrow"
+                "using DataFrames, CSV, Parquet, Arrow, HDF5"
             ]
         }
     }

@@ -18,6 +18,21 @@
 #############################
 
 function compute(fut::AbstractFuture)
+    # NOTE: Right now, `compute` wil generally spill to disk (or write to some
+    # remote location or download to the client). It will not just persist data
+    # in memory. In Spark or Dask, it is recommended that you call persist or
+    # compute or something like that in order to cache data in memory and then
+    # ensure it stays there as you do logistic regression or some iterative
+    # computation like that. With an iterative computation like logistic
+    # regression in Banyan, you would only call `compute` on the result and we
+    # would be using a same future for each iteration. Each iteration would
+    # correspond to a separate stage with casting happening between them. And
+    # the scheduler would try as hard as possible to keep the whole thing in
+    # memory. This is because unlike Dask, we allow a Future to be reused
+    # across tasks. If we need `compute` to only evaluate and persist in-memory
+    # we should modify the way we schedule the final merging stage to not
+    # require the last value to be merged simply because it is being evaluated.
+
     # TODO: Refactor `current_job_status` out into the `Job`s stored in
     # `global jobs`
     global current_job_status

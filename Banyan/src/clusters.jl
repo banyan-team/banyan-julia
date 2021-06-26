@@ -8,9 +8,7 @@ function load_json(path::String)
     elseif startswith(path, "http://") || startswith(path, "https://")
         JSON.parse(HTTP.get(path).body)
     else
-        error(
-            "Path $path must start with \"file://\", \"s3://\", or \"http(s)://\"",
-        )
+        error("Path $path must start with \"file://\", \"s3://\", or \"http(s)://\"")
     end
 end
 
@@ -23,17 +21,11 @@ function load_file(path::String)
     elseif startswith(path, "http://") || startswith(path, "https://")
         String(HTTP.get(path).body)
     else
-        error(
-            "Path $path must start with \"file://\", \"s3://\", or \"http(s)://\"",
-        )
+        error("Path $path must start with \"file://\", \"s3://\", or \"http(s)://\"")
     end
 end
 
-function merge_with(
-    banyanfile_so_far::Dict,
-    banyanfile::Dict,
-    selector::Function,
-)
+function merge_with(banyanfile_so_far::Dict, banyanfile::Dict, selector::Function)
     # Merge where we combine arrays by taking unions of their unique elements
     so_far = selector(banyanfile_so_far)
     curr = selector(banyanfile)
@@ -48,10 +40,10 @@ function merge_paths_with(
 )
     # Merge where we combine arrays by taking unions of their unique elements
     so_far = selector(banyanfile_so_far)
-    curr = [getnormpath(banyanfile_path, p) for p in selector(banyanfile)]
+    # curr = [getnormpath(banyanfile_path, p) for p in selector(banyanfile)]
+    curr = selector(banyanfile)
     deduplicated_absolute_locations = collect(union(Set(so_far), Set(curr)))
-    deduplicated_relative_locations =
-        unique(loc -> basename(loc), vcat(so_far, curr))
+    deduplicated_relative_locations = unique(loc -> basename(loc), vcat(so_far, curr))
     if deduplicated_relative_locations < deduplicated_absolute_locations
         error(
             "Files and scripts must have unique base names: $so_far and $curr have the same base name",
@@ -61,11 +53,7 @@ function merge_paths_with(
     end
 end
 
-function keep_same(
-    banyanfile_so_far::Dict,
-    banyanfile::Dict,
-    selector::Function
-)
+function keep_same(banyanfile_so_far::Dict, banyanfile::Dict, selector::Function)
     so_far = selector(banyanfile_so_far)
     curr = selector(banyanfile)
     if !isnothing(so_far) && !isnothing(curr) && so_far != curr
@@ -78,11 +66,11 @@ function keep_same_path(
     banyanfile_so_far::Dict,
     banyanfile_path::String,
     banyanfile::Dict,
-    selector::Function
+    selector::Function,
 )
     so_far = selector(banyanfile_so_far)
     curr_selected = selector(banyanfile)
-    curr = isnothing(curr_selected) ? nothing : getnormpath(banyanfile_path, curr_selected)
+    curr = isnothing(curr_selected) ? nothing : curr_selected #getnormpath(banyanfile_path, curr_selected)
     if !isnothing(so_far) && !isnothing(curr) && so_far != curr
         @warn "$so_far does not match $curr in included Banyanfiles"
     end
@@ -93,31 +81,22 @@ function getnormpath(banyanfile_path, p)
     if startswith(p, "file://")
         prefix, suffix = split(banyanfile_path, "://")
         banyanfile_location_path = dirname(suffix)
+        @debug banyanfile_location_path
         prefix * "://" * normpath(banyanfile_location_path, last(split(p, "://")))
     else
         p
     end
 end
 
-function merge_banyanfile_with_defaults!(banyanfile)
+function merge_banyanfile_with_defaults!(banyanfile, banyanfile_path)
     # Populate with defaults
+    mergewith!((a, b) -> a, banyanfile, Dict("include" => [], "require" => Dict()))
     mergewith!(
-        (a,b)->a,
-        banyanfile,
-        Dict(
-            "include" => [],
-            "require" => Dict()
-        )
-    )
-    mergewith!(
-        (a,b)->a,
+        (a, b) -> a,
         banyanfile["require"],
-        Dict(
-            "language" => "jl",
-            "cluster" => Dict(),
-            "job" => Dict()
-        )
+        Dict("language" => "jl", "cluster" => Dict(), "job" => Dict()),
     )
+    # TODO: Fix `update_cluster`
     mergewith!(
         (a, b) -> a,
         banyanfile["require"]["cluster"],
@@ -129,11 +108,22 @@ function merge_banyanfile_with_defaults!(banyanfile)
             "pt_lib_info" => nothing,
         ),
     )
-    mergewith!(
-        (a,b)->a,
-        banyanfile["require"]["job"],
-        Dict("code" => [])
-    )
+    mergewith!((a, b) -> a, banyanfile["require"]["job"], Dict("code" => []))
+
+    # Ensure all paths are normalized
+    banyanfile["include"] = [getnormpath(banyanfile_path, f) for f in banyanfile["include"]]
+    banyanfile["require"]["cluster"]["files"] =
+        [getnormpath(banyanfile_path, f) for f in banyanfile["require"]["cluster"]["files"]]
+    banyanfile["require"]["cluster"]["scripts"] = [
+        getnormpath(banyanfile_path, f) for
+        f in banyanfile["require"]["cluster"]["scripts"]
+    ]
+    banyanfile["require"]["cluster"]["pt_lib"] =
+        isnothing(banyanfile["require"]["cluster"]["pt_lib"]) ? nothing :
+        getnormpath(banyanfile_path, banyanfile["require"]["cluster"]["pt_lib"])
+    banyanfile["require"]["cluster"]["pt_lib_info"] =
+        isnothing(banyanfile["require"]["cluster"]["pt_lib"]) ? nothing :
+        getnormpath(banyanfile_path, banyanfile["require"]["cluster"]["pt_lib_info"])
 end
 
 function merge_banyanfile_with!(
@@ -146,11 +136,16 @@ function merge_banyanfile_with!(
     banyanfile = load_json(banyanfile_path)
 
     # Merge Banyanfile with defaults
-    merge_banyanfile_with_defaults!(banyanfile)
+    merge_banyanfile_with_defaults!(banyanfile, banyanfile_path)
 
     # Merge with all included
     for included in banyanfile["include"]
-        merge_banyanfile_with!(banyanfile_so_far, getnormpath(banyanfile_path, included), for_cluster_or_job, for_creation_or_update)
+        merge_banyanfile_with!(
+            banyanfile_so_far,
+            included,
+            for_cluster_or_job,
+            for_creation_or_update,
+        )
     end
     banyanfile_so_far["include"] = []
 
@@ -198,11 +193,8 @@ function merge_banyanfile_with!(
         )
     elseif for_cluster_or_job == :job
         # Merge code
-        banyanfile_so_far["require"]["job"]["code"] = merge_with(
-            banyanfile_so_far,
-            banyanfile,
-            b -> b["require"]["job"]["code"],
-        )
+        banyanfile_so_far["require"]["job"]["code"] =
+            merge_with(banyanfile_so_far, banyanfile, b -> b["require"]["job"]["code"])
         # TODO: If code is too large, upload to S3 bucket and replace code with
         # an include statement
     else
@@ -210,7 +202,13 @@ function merge_banyanfile_with!(
     end
 end
 
-function upload_banyanfile(banyanfile_path::String, s3_bucket_arn::String, cluster_name::String, for_creation_or_update::Symbol; reinstall_julia::Bool = false)
+function upload_banyanfile(
+    banyanfile_path::String,
+    s3_bucket_arn::String,
+    cluster_name::String,
+    for_creation_or_update::Symbol;
+    reinstall_julia::Bool = false,
+)
     # TODO: Implement this to load Banyanfile, referenced pt_lib_info, pt_lib,
     # code files
 
@@ -218,9 +216,14 @@ function upload_banyanfile(banyanfile_path::String, s3_bucket_arn::String, clust
 
     # Load Banyanfile and merge with all included
     banyanfile = load_json(banyanfile_path)
-    merge_banyanfile_with_defaults!(banyanfile)
+    merge_banyanfile_with_defaults!(banyanfile, banyanfile_path)
     for included in banyanfile["include"]
-        merge_banyanfile_with!(banyanfile, getnormpath(banyanfile_path, included), :cluster, for_creation_or_update)
+        merge_banyanfile_with!(
+            banyanfile,
+            included,
+            :cluster,
+            for_creation_or_update,
+        )
     end
 
     # Load pt_lib_info if path provided
@@ -284,7 +287,9 @@ function upload_banyanfile(banyanfile_path::String, s3_bucket_arn::String, clust
     # Append to post-install script downloading files, scripts, pt_lib onto cluster
     for f in vcat(files, scripts, pt_lib)
         code *=
-            "sudo su - ec2-user -c \"aws s3 cp s3://" * s3_bucket_name * "/" *
+            "sudo su - ec2-user -c \"aws s3 cp s3://" *
+            s3_bucket_name *
+            "/" *
             basename(f) *
             " /home/ec2-user/\"\n"
     end
@@ -297,11 +302,11 @@ function upload_banyanfile(banyanfile_path::String, s3_bucket_arn::String, clust
 
     # Append to post-install script installing Julia dependencies
     for pkg in packages
-	pkg_spec = split(pkg, "@")
-	if length(pkg_spec) == 1
-	    code *= "sudo su - ec2-user -c \"julia/bin/julia --project -e 'using Pkg; Pkg.add(name=\\\"$pkg\\\")' &>> setup_log.txt \"\n"
-	elseif length(pkg_spec) == 2
-	    name, version = pkg_spec
+        pkg_spec = split(pkg, "@")
+        if length(pkg_spec) == 1
+            code *= "sudo su - ec2-user -c \"julia/bin/julia --project -e 'using Pkg; Pkg.add(name=\\\"$pkg\\\")' &>> setup_log.txt \"\n"
+        elseif length(pkg_spec) == 2
+            name, version = pkg_spec
             code *= "sudo su - ec2-user -c \"julia/bin/julia --project -e 'using Pkg; Pkg.add(name=\\\"$name\\\", version=\\\"$version\\\")' &>> setup_log.txt \"\n"
         end
     end
@@ -311,7 +316,9 @@ function upload_banyanfile(banyanfile_path::String, s3_bucket_arn::String, clust
     code *=
         "touch /home/ec2-user/update_finished\n" *
         "aws s3 cp /home/ec2-user/update_finished " *
-        "s3://" * s3_bucket_name * "/\n"
+        "s3://" *
+        s3_bucket_name *
+        "/\n"
     println(s3_bucket_name)
     s3_put(get_aws_config(), s3_bucket_name, post_install_script, code)
     @debug code
@@ -347,7 +354,8 @@ function create_cluster(;
         "banyan-cluster-" * randstring(6)
     end
     if isnothing(s3_bucket_arn)
-        s3_bucket_arn = "arn:aws:s3:::banyan-cluster-data-" * name * bytes2hex(rand(UInt8, 16))
+        s3_bucket_arn =
+            "arn:aws:s3:::banyan-cluster-data-" * name * bytes2hex(rand(UInt8, 16))
         s3_bucket_name = last(split(s3_bucket_arn, ":"))
         s3_create_bucket(get_aws_config(), s3_bucket_name)
     elseif !(s3_bucket_arn in s3_list_buckets(get_aws_config()))
@@ -411,7 +419,7 @@ function update_cluster(;
 
     # Force by setting cluster to running
     if force
-        assert_cluster_is_ready(name=name)
+        assert_cluster_is_ready(name = name)
     end
 
     # Require restart: pcluster_additional_policy, s3_read_write_resource, num_nodes
@@ -421,7 +429,7 @@ function update_cluster(;
         # Retrieve the location of the current post_install script in S3 and upload
         # the updated version to the same location
         s3_bucket_arn = get_cluster(name).s3_bucket_arn
-	    if endswith(s3_bucket_arn, "/")
+        if endswith(s3_bucket_arn, "/")
             s3_bucket_arn = s3_bucket_arn[1:end-1]
         elseif endswith(s3_bucket_arn, "/*")
             s3_bucket_arn = s3_bucket_arn[1:end-2]
@@ -430,35 +438,33 @@ function update_cluster(;
         end
 
         # Upload to S3
-        pt_lib_info = upload_banyanfile(banyanfile_path, s3_bucket_arn, cluster_name, :update, reinstall_julia=get(kwargs, :reinstall_julia, false))
+        pt_lib_info = upload_banyanfile(
+            banyanfile_path,
+            s3_bucket_arn,
+            cluster_name,
+            :update,
+            reinstall_julia = get(kwargs, :reinstall_julia, false),
+        )
 
         # Upload pt_lib_info
         send_request_get_response(
             :update_cluster,
             Dict(
                 "cluster_name" => name,
-                "pt_lib_info" => pt_lib_info
+                "pt_lib_info" => pt_lib_info,
                 # TODO: Send banyanfile here
             ),
         )
     end
 end
 
-function assert_cluster_is_ready(;
-    name::String,
-    kwargs...,
-)
+function assert_cluster_is_ready(; name::String, kwargs...)
     @info "Setting cluster status to running"
 
     # Configure
     configure(; kwargs...)
 
-    send_request_get_response(
-        :set_cluster_ready,
-	Dict(
-	     "cluster_name" => name,
-	),
-    )
+    send_request_get_response(:set_cluster_ready, Dict("cluster_name" => name))
 end
 
 struct Cluster
@@ -472,7 +478,7 @@ parsestatus(status) =
     if status == "creating"
         :creating
     elseif status == "notready"
-	:notready
+        :notready
     elseif status == "destroying"
         :destroying
     elseif status == "updating"
@@ -486,7 +492,7 @@ parsestatus(status) =
     elseif status == "running"
         :running
     elseif status == "terminated"
-    	:terminated
+        :terminated
     else
         error("Unexpected status ", status)
     end
@@ -494,8 +500,7 @@ parsestatus(status) =
 function get_clusters(; kwargs...)
     @debug "Downloading description of clusters"
     configure(; kwargs...)
-    response =
-        send_request_get_response(:describe_clusters, Dict{String,Any}())
+    response = send_request_get_response(:describe_clusters, Dict{String,Any}())
     @show response
     Dict(
         name => Cluster(
