@@ -30,6 +30,10 @@ ReturnNull(
     loc_params,
 ) = nothing
 
+# TODO: Simplify the way we do locations. Locations should be in separate
+# packages with separate location constructors and separate splitting/merging
+# functions
+
 function ReadBlock(
     src,
     params,
@@ -46,28 +50,36 @@ function ReadBlock(
     # Handle single-file nd-arrays
     # We check if it's a file because for items on disk, files are HDF5
     # datasets while directories contain Parquet, CSV, or Arrow datasets
-    if (loc_name == "Disk" && isfile(loc_params["path"])) || (
+    path = getpath(loc_params["path"])
+    if (loc_name == "Disk" && HDF5.ishdf5(loc_params["path"])) || (
         loc_name == "Remote" &&
         (occursin(".h5", loc_params["path"]) || occursin(".hdf5", loc_params["path"]))
     )
-
-        path = getpath(loc_params["path"])
-        f = h5open(path, "w")
+        f = h5open(path, "r")
         dset = loc_name == "Disk" ? f["part"] : f[loc_params["subpath"]]
 
         ismapping = false
         # TODO: Use `view` instead of `getindex` in the call to
         # `split_on_executor` here if HDF5 doesn't support this kind of usage
-        if ismmappable(dset)
-            ismapping = true
-            dset = readmmap(dset)
-            close(f)
+        # TODO: Support modifying a memory-mappable file here without having
+        # to read and then write back
+        # if ismmappable(dset)
+        #     ismapping = true
+        #     dset = readmmap(dset)
+        #     close(f)
+        #     dset = split_on_executor(dset, params["key"], batch_idx, nbatches, comm)
+        # else
             dset = split_on_executor(dset, params["key"], batch_idx, nbatches, comm)
-        else
-            dset = split_on_executor(dset, params["key"], batch_idx, nbatches, comm)
             close(f)
-        end
+        # end
+        println("In ReadBlock")
+        @show first(dset)
         return dset
+    end
+
+    # Handle single-file replicated objects
+    if isfile(path)
+        return deserialize(path)
     end
 
     # Handle multi-file tabular datasets
@@ -314,7 +326,7 @@ function Write(
         MPI.Barrier(comm)
 
         # Write part to the dataset
-        f = h5open(path)
+        f = h5open(path, "r+")
         @show f
         @show keys(f)
         dset = f[group]
@@ -329,9 +341,15 @@ function Write(
         #     dsubset = split_on_executor(dset, dim, batch_idx, nbatches, comm)
         #     dsubset .= part
         # else
-        dset = read(dset)
-        dsubset = split_on_executor(dset, dim, batch_idx, nbatches, comm)
-        dsubset .= part
+        # dset = read(dset)
+        setindex!(dset, part, [d == dim ? split_len(size(dset, dim), batch_idx, nbatches, comm) : Colon() for d in ndims(dset)]...)
+        # dsubset = split_on_executor(dset, dim, batch_idx, nbatches, comm)
+        # NOTE: For writing to HDF5 datasets we can't just use
+        # split_on_executor because we aren't reading a copy; instead, we are
+        # writing to a slice
+        @show first(part)
+        @show first(dset[:])
+        # dsubset .= part
         close(f)
         # end
         println("Done writing")
@@ -339,8 +357,11 @@ function Write(
         # TODO: Make this work for variable-sized element type
         # TODO: Support arrays and reductions with variable-sized elements
         # TODO: Maybe use Arrow
-    else
-        error("Only Array or DataFrame is currently supported for writing as Block")
+    elseif get_partition_idx(batch_idx, nbatches, comm) == get_npartitions(nbatches, comm)
+        if isa_gdf(part)
+            part = nothing
+        end
+        serialize(path, part)
     end
 end
 
@@ -545,8 +566,14 @@ function CopyFrom(
         # else
         #     nothing
         # end
-        ReadBlock(src, params, 1, 1, MPI.COMM_SELF, loc_name, loc_params)
+        params["key"] = 1
+        res = ReadBlock(src, params, 1, 1, MPI.COMM_SELF, loc_name, loc_params)
+        println("In CopyFrom")
+        @show length(res)
+        @show res
+        res
     elseif loc_name == "Remote"
+        params["key"] = 1
         ReadBlock(src, params, 1, 1, MPI.COMM_SELF, loc_name, loc_params)
     elseif loc_name == "Client" && get_partition_idx(batch_idx, nbatches, comm) == 1
         receive_from_client(loc_params["value_id"])
@@ -565,6 +592,13 @@ function CopyTo(
     loc_name,
     loc_params,
 )
+    println("In CopyTo")
+    @show get_partition_idx(batch_idx, nbatches, comm)
+    @show get_npartitions(nbatches, comm)
+    @show get_worker_idx(comm)
+    @show MPI.Comm_rank(MPI.COMM_WORLD)
+    @show part
+    @show loc_name
     if loc_name == "Memory"
         src = part
     elseif get_partition_idx(batch_idx, nbatches, comm) == 1
@@ -583,17 +617,24 @@ function CopyTo(
             #         serialize(f, part)
             #     end
             # end
+            # TODO: Don't rely on ReadBlock, Write in CopyFrom, CopyTo and
+            # instead do something more elegant
+            params["key"] = 1
             Write(src, part, params, 1, 1, MPI.COMM_SELF, loc_name, loc_params)
         elseif loc_name == "Remote"
+            params["key"] = 1
             Write(src, part, params, 1, 1, MPI.COMM_SELF, loc_name, loc_params)
         elseif loc_name == "Client"
             # TODO: Ensure this only sends once
+            println("Sending to client")
+            @show part
             send_to_client(loc_params["value_id"], part)
         else
             error("Unexpected location")
         end
     end
-    src
+    @show src
+    part
 end
 
 function ReduceAndCopyTo(
@@ -609,15 +650,18 @@ function ReduceAndCopyTo(
     # Merge reductions from batches
     op = params["reducer"]
     op = params["with_key"] ? op(params["key"]) : op
+    # TODO: Ensure that we handle reductions that can produce nothing
     src = isnothing(src) ? part : op(src, part)
 
+    println("In ReduceAndCopyTo")
+    @show src
     # Merge reductions across workers
     if batch_idx == nbatches
         src = Reduce(src, params, Dict(), comm)
     end
 
     if loc_name != "Memory"
-        CopyTo(src, part, params, batch_idx, nbatches, comm, loc_name, loc_params)
+        CopyTo(src, src, params, batch_idx, nbatches, comm, loc_name, loc_params)
     end
 
     src
@@ -661,6 +705,9 @@ function Reduce(part, src_params, dst_params, comm)
     # @show kind
 
     # Perform reduction
+    println("In Reduce")
+    @show src_params["with_key"] ? op(src_params["key"]) : "no key"
+    @show part
     part = MPI.Allreduce(
         part,
         # sendbuf,
@@ -671,6 +718,7 @@ function Reduce(part, src_params, dst_params, comm)
         op,
         comm,
     )
+    @show part
     part
 end
 
@@ -757,13 +805,16 @@ function Rebalance(part, src_params, dst_params, comm)
     MPI.Alltoallv!(sendbuf, recvbuf, comm)
 
     # Return the concatenated array
-    cat(
+    res = cat(
         [
             de(view(recvbuf.data, displ+1:displ+count)) for
             (displ, count) in zip(recvbuf.displs, recvbuf.counts)
         ]...;
         dims = dim,
     )
+    println("After rebalancing...")
+    @show length(res)
+    res
 end
 
 function Distribute(part, src_params, dst_params, comm)

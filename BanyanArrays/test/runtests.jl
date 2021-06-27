@@ -6,6 +6,7 @@ using Banyan
 using BanyanArrays
 
 function include_tests_to_run(args...)
+    # TODO: Probably remove the `clear_jobs`
     clear_jobs()
     for arg in args
         include(arg)
@@ -103,10 +104,15 @@ function run(test_fn, name)
     end
 end
 
-include_tests_to_run("test_mapreduce.jl")
-include_tests_to_run("test_hdf5.jl")
-include_tests_to_run("test_black_scholes.jl")
-
-# TODO: Test that job gets destroyed here and if not fix here and also BDF's
-# runtests.jl
-destroy_job(job)
+with_job(job=job) do j
+    # NOTE: We need to wrap the `include`s in `with_job` because if the tests
+    # fail without an error occuring, then a `LoadError` gets thrown. If an
+    # error occurs inside a test, the job gets destroyed and the error is
+    # rethrown and then caught here. So if an error occurs, `destroy_job` gets
+    # called twice. But that's OK. And because we store
+    # `jobs_destroyed_recently`, we will only submit a single call to
+    # `destroy-job`.
+    include_tests_to_run("test_mapreduce.jl")
+    include_tests_to_run("test_hdf5.jl")
+    include_tests_to_run("test_black_scholes.jl")
+end
