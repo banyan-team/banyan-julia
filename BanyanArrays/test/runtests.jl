@@ -79,6 +79,20 @@ function run_with_job(test_fn, name)
     end
 end
 
+function run_without_job(test_fn, name)
+    # This function should be used for tests that don't need a job
+    # and are run locally, such as those for baselines.
+
+    num_trials = parse(Int, get(ENV, "NUM_TRIALS", "1"))
+
+    if isempty(get_enabled_tests()) ||
+       any([occursin(t, lowercase(name)) for t in get_enabled_tests()])
+       for i in 1:num_trials
+            @time test_fn(1)
+        end
+    end
+end
+
 function run(test_fn, name)
     # This function should be used for tests that test cluster/job managemnt
     # and so they only need environment variables to dictate how to
