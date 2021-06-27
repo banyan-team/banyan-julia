@@ -1,15 +1,32 @@
 @testset "Loading BanyanArrays from HDF5 datasets" begin
     run_with_job("Load from HDF5 on the Internet") do job
-        println(typeof(Base.fill(1.0, 2048)))
-        x = BanyanArrays.fill(10.0, 2048)
-        println(typeof(x))
-        x = map(e -> e / 10, x)
-        println(typeof(x))
-        res = sum(x)
+        # TODO: Make this more general by creating S3 bucket and uploading
+        # file from test/res for testing
+        # TODO: Use version of `pt_lib_info.json` with replication actually removed
+        for path in [
+            "https://github.com/banyan-team/banyan-julia/raw/v0.1.1/BanyanArrays/test/res/fillval.h5/DS1",
+            # The file is produced in S3 using:
+            # AWS_DEFAULT_PROFILE=banyan-testing aws s3 \
+            # cp https://support.hdfgroup.org/ftp/HDF5/examples/files/exbyapi/h5ex_d_fillval.h5 \
+            # banyan-cluster-data-pumpkincluster0-3e15290827c0c584/h5ex_d_fillval.h5
+            "s3://banyan-cluster-data-pumpkincluster0-3e15290827c0c584/fillval.h5/DS1"
+        ]
+            x = read_hdf5("path")
+            x = map(e -> e * 10, x)
 
-        res = collect(res)
-        @test typeof(res) == Float64
-        @test res == 2048
+            @test collect(length(x)) == 60
+            @test collect(size(x)) == (10,6)
+            @test collect(sum(x)) == 32100
+            @test collect(minimum(x)) == 0
+            @test collect(maximum(x)) == 990
+            @test collect(length(x)) == 60
+            @test collect(size(x)) == (10,6)
+        end
+
+        # TODO: Add test case for vlen, vlstring
+        # TODO: Duplicate 100 times size for testing
+        # TODO: Add test case for S3
+        # TODO: Add test case for writing dataset back to a subgroup and then reading it
     end
 
     # run_with_job("Multiple evaluations apart") do job

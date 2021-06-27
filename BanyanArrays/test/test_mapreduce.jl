@@ -39,11 +39,15 @@
     end
 
     run_with_job("Computing") do job
+        # NOTE: This also tests simple writing to and reading from local disk
         x = BanyanArrays.fill(10.0, 2048)
         x = map(e -> e / 10, x)
+        @show typeof(x)
         compute(x)
         compute(x)
+        @show typeof(x)
         @test collect(x) == Base.fill(1.0, 2048)
+        @show typeof(x)
         compute(x)
         @test collect(x) == Base.fill(1.0, 2048)
         @test collect(x) == Base.fill(1.0, 2048)

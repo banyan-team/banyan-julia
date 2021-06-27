@@ -46,8 +46,10 @@ function ReadBlock(
     # Handle single-file nd-arrays
     # We check if it's a file because for items on disk, files are HDF5
     # datasets while directories contain Parquet, CSV, or Arrow datasets
-    if (loc_name == "Disk" && isfile(loc_params["path"])) ||
-        (loc_name == "Remote" && (occursin(".h5", loc_params["path"]) || occursin(".hdf5", loc_params["path"])))
+    if (loc_name == "Disk" && isfile(loc_params["path"])) || (
+        loc_name == "Remote" &&
+        (occursin(".h5", loc_params["path"]) || occursin(".hdf5", loc_params["path"]))
+    )
 
         path = getpath(loc_params["path"])
         f = h5open(path, "w")
@@ -80,14 +82,11 @@ function ReadBlock(
             for partfilename in readdir(name)
                 part_nrows = parse(
                     Int64,
-                    replace(split(partfilename, "_nrows=")[end], ".arrow" => "")
+                    replace(split(partfilename, "_nrows=")[end], ".arrow" => ""),
                 )
                 push!(
                     files,
-                    Dict(
-                        "nrows" => part_nrows,
-                        "path" => joinpath(name, partfilename)
-                    )
+                    Dict("nrows" => part_nrows, "path" => joinpath(name, partfilename)),
                 )
                 nrows += part_nrows
             end
@@ -116,12 +115,16 @@ function ReadBlock(
             path = getpath(file["path"])
 
             # Read from location depending on data format
-            readrange = max(rowrange.start, filerowrange.start):min(rowrange.stop, filerowrange.stop)
+            readrange =
+                max(rowrange.start, filerowrange.start):min(
+                    rowrange.stop,
+                    filerowrange.stop,
+                )
             header = 1
             if endswith(path, ".csv")
                 f = CSV.File(
                     path,
-                    header=header,
+                    header = header,
                     skipto = header + readrange.start - filerowrange.start + 1,
                     footerskip = filerowrange.stop - readrange.stop,
                 )
@@ -129,7 +132,7 @@ function ReadBlock(
             elseif endswith(path, ".parquet")
                 f = Parquet.File(
                     path,
-                    rows=(readrange.start-filerowrange.start+1):(readrange.stop-filerowrange.start+1)
+                    rows = (readrange.start-filerowrange.start+1):(readrange.stop-filerowrange.start+1),
                 )
                 push!(dfs, DataFrame(Arrow.Table(Arrow.tobuffer(f))))
             elseif endswith(path, ".arrow")
@@ -137,9 +140,16 @@ function ReadBlock(
                 for tbl in Arrow.Stream(path)
                     rbrowrange = (rbrowrange.stop+1):(rbrowrange.stop+length(tbl))
                     if isoverlapping(rbrowrange, rowrange)
-                        readrange = max(rowrange.start, rbrowrange.start):min(rowrange.stop, rbrowrange.stop)
+                        readrange =
+                            max(rowrange.start, rbrowrange.start):min(
+                                rowrange.stop,
+                                rbrowrange.stop,
+                            )
                         df = DataFrame(tbl)
-                        df = df[(readrange.start-rbrowrange.start+1):(readrange.stop-rbrowrange.start+1), :]
+                        df = df[
+                            (readrange.start-rbrowrange.start+1):(readrange.stop-rbrowrange.start+1),
+                            :,
+                        ]
                         push!(dfs, df)
                     end
                 end
@@ -151,6 +161,11 @@ function ReadBlock(
     end
 
     # Concatenate and return
+    # NOTE: If this partition is empty, it is possible that the result is
+    # schemaless (unlike the case with HDF5 where the resulting array is
+    # guaranteed to have its ndims correct) and so if a split/merge/cast
+    # function requires the schema (for example for grouping) then it must be
+    # sure to take that account
     vcat(dfs...)
 end
 
@@ -175,43 +190,50 @@ function ReadGroup(
     nworkers = get_nworkers(comm)
     npartitions = nworkers * nbatches
     partition_divisions = get_divisions(divisions, npartitions)
-    
+
     # Get the divisions that are relevant to this batch by iterating
     # through the divisions in a stride and consolidating the list of divisions
     # for each partition. Then, ensure we use boundedlower=true only for the
     # first batch and boundedupper=true for the last batch.
     curr_partition_divisions = []
-    for worker_division_idx in 1:nworkers
-        for batch_division_idx in 1:nbatches
-            partition_division_idx = (worker_division_idx-1)*nbatches + batch_division_idx
+    for worker_division_idx = 1:nworkers
+        for batch_division_idx = 1:nbatches
+            partition_division_idx =
+                (worker_division_idx - 1) * nbatches + batch_division_idx
             if batch_division_idx == batch_idx
                 p_divisions = partition_divisions[partition_division_idx]
-                push!(curr_partition_divisions, (first(p_divisions)[1], last(p_divisions)[2]))
+                push!(
+                    curr_partition_divisions,
+                    (first(p_divisions)[1], last(p_divisions)[2]),
+                )
             end
         end
     end
 
     # Read in each batch and shuffle it to get the data for this partition
     parts = []
-    for i in 1:nbatches
+    for i = 1:nbatches
         # Read in data for this batch
         part = ReadBlock(src, params, i, nbatches, comm, loc_name, loc_params)
 
         # Shuffle the batch and add it to the set of data for this partition
-        push!(parts, Shuffle(
-            part,
-            Dict(),
-            params,
-            comm,
-            boundedlower = i == 1,
-            boundedupper = i == nbatches,
-        ))
+        push!(
+            parts,
+            Shuffle(
+                part,
+                Dict(),
+                params,
+                comm,
+                boundedlower = i == 1,
+                boundedupper = i == nbatches,
+            ),
+        )
     end
 
     # Concatenate together the data for this partition
     # res = merge_on_executor(parts, dims=isa_array(first(parts)) ? key : 1)
     # @show parts
-    res = merge_on_executor(parts...; key=key)
+    res = merge_on_executor(parts...; key = key)
     # @show res
 
     # Store divisions
@@ -274,41 +296,45 @@ function Write(
         # end
         dim = params["key"]
         # TODO: Ensure this works where some partitions are empty
-        whole_size = MPI.Reduce(
-            size(part),
-            (a, b) -> indexapply(+, a, b, index=dim),
-            0,
-            comm,
-        )
+        whole_size =
+            MPI.Reduce(size(part), (a, b) -> indexapply(+, a, b, index = dim), 0, comm)
 
         # TODO: Check if HDF5 dataset is created. If not, wait for the master
         # node to create it.
         group = loc_name == "Disk" ? "part" : loc_params["subpath"]
         if get_partition_idx(batch_idx, nbatches, comm) == 1
-            hfopen(path, "w") do fid
+            h5open(path, "w") do fid
                 create_dataset(fid, group, similar(part, whole_size))
             end
-            touch(path * "_is_ready")
+            # touch(path * "_is_ready")
         end
 
         # Wait till the dataset is created
-        while !isfile(path * "_is_ready") end
+        println("Starting to wait")
+        MPI.Barrier(comm)
 
         # Write part to the dataset
-        f = h5open(path, "w")
+        f = h5open(path)
+        @show f
+        @show keys(f)
         dset = f[group]
+        println("Opened")
         # TODO: Use `view` instead of `getindex` in the call to
         # `split_on_executor` here if HDF5 doesn't support this kind of usage
-        if ismmappable(dset)
-            dset = readmmap(dset)
-            close(f)
-            dsubset = split_on_executor(dset, dim, batch_idx, nbatches, comm)
-            dsubset .= part
-        else
-            dsubset = split_on_executor(dset, dim, batch_idx, nbatches, comm)
-            dsubset .= part
-            close(f)
-        end
+        # TODO: Determine why `readmmap` gave an "Error getting offset"
+        # TODO: Don't merge back into an mmapped dataset if not needed
+        # if HDF5.ismmappable(dset)
+        #     dset = HDF5.readmmap(dset)
+        #     close(f)
+        #     dsubset = split_on_executor(dset, dim, batch_idx, nbatches, comm)
+        #     dsubset .= part
+        # else
+        dset = read(dset)
+        dsubset = split_on_executor(dset, dim, batch_idx, nbatches, comm)
+        dsubset .= part
+        close(f)
+        # end
+        println("Done writing")
 
         # TODO: Make this work for variable-sized element type
         # TODO: Support arrays and reductions with variable-sized elements
@@ -333,7 +359,13 @@ function SplitBlock(
     if isnothing(src) || objectid(src) in partial_merges
         src
     else
-        split_on_executor(src, isa_array(src) ? params["key"] : 1, batch_idx, nbatches, comm)
+        split_on_executor(
+            src,
+            isa_array(src) ? params["key"] : 1,
+            batch_idx,
+            nbatches,
+            comm,
+        )
     end
 end
 
@@ -344,8 +376,19 @@ function SplitGroup(
     nbatches::Integer,
     comm::MPI.Comm,
     loc_name,
-    loc_params
+    loc_params,
 )
+    # NOTE: The way we have `partial_merges` requires us to be splitting from
+    # `nothing` and then merging back. If we are splitting from some value and
+    # then expecting to merge back in some way then that won't work. If we are
+    # splitting from a value we assume that we don't have to merge back either
+    # because we split with a view (so the source was directly mutated) or we
+    # didn't mutate this value at all. If we are doing in-place mutations where
+    # we split from some value and then merge back up, then we might have to
+    # add support for that. Right now, because of the way `SplitBlock`,
+    # `SplitGroup`, and `Merge` are implemented, we unnecessarily concatenate
+    # in the case where we are doing things like `setindex!` with a somewhat
+    # faked mutation.
     global partial_merges
     if isnothing(src) || objectid(src) in partial_merges
         # src is [] if we are partially merged (because as we iterate over
@@ -355,6 +398,18 @@ function SplitGroup(
 
     partition_idx = get_partition_idx(batch_idx, nbatches, comm)
     npartitions = get_npartitions(nbatches, comm)
+
+    # Ensure that this partition has a schema that is suitable for usage
+    # here. We have to do this for `Shuffle` and `SplitGroup` (which is
+    # used by `DistributeAndShuffle`)
+    # if isa_df(src) && isempty(src)
+    if isempty(src)
+        # inv: !(key in names(df))
+        # src[!, key] = []
+        # TODO: Ensure we can return here like this and don't need the above
+        # (which is copied from `Shuffle`)
+        return src
+    end
 
     # Get divisions stored with src
     global splitting_divisions
@@ -376,8 +431,8 @@ function SplitGroup(
     partition_idx_getter(val) = get_partition_idx_from_divisions(
         val,
         divisions_by_partition,
-        boundedlower=boundedlower,
-        boundedupper=boundedupper
+        boundedlower = boundedlower,
+        boundedupper = boundedupper,
     )
 
     # Apply divisions to get only the elements relevant to this worker
@@ -404,12 +459,11 @@ function SplitGroup(
 
     # Store divisions
     global splitting_divisions
-    splitting_divisions[res] =
-        (
-            divisions_by_partition[partition_idx],
-            boundedlower || partition_idx > 1,
-            boundedupper || partition_idx < npartitions
-        )
+    splitting_divisions[res] = (
+        divisions_by_partition[partition_idx],
+        boundedlower || partition_idx > 1,
+        boundedupper || partition_idx < npartitions,
+    )
 
     res
 end
@@ -450,7 +504,7 @@ function Merge(
 
             # TODO: Test that this merges correctly
             # src = merge_on_executor(src...; dims=dim)
-            src = merge_on_executor(src...; key=key)
+            src = merge_on_executor(src...; key = key)
 
             # Concatenate across workers
             nworkers = get_nworkers(comm)
@@ -584,7 +638,7 @@ function Divide(
     part = CopyFrom(src, params, batch_idx, nbatches, comm, loc_name, loc_params)
     if part isa Tuple
         newpartdim = length(split_len(part[dim], batch_idx, nbatches, comm))
-        indexapply(_->newpartdim, part, index=dim)
+        indexapply(_ -> newpartdim, part, index = dim)
     else
         length(split_len(part[dim], batch_idx, nbatches, comm))
     end
@@ -594,12 +648,7 @@ end
 # Casting functions #
 #####################
 
-function Reduce(
-    part,
-    src_params,
-    dst_params,
-    comm
-)
+function Reduce(part, src_params, dst_params, comm)
     # Get operator for reduction
     op = src_params["reducer"]
     op = src_params["with_key"] ? op(src_params["key"]) : op
@@ -610,7 +659,7 @@ function Reduce(
     # sendbuf and where sendbuf is not isbitstype
 
     # @show kind
-    
+
     # Perform reduction
     part = MPI.Allreduce(
         part,
@@ -627,12 +676,7 @@ end
 
 ReduceWithKey = Reduce
 
-function Rebalance(
-    part,
-    src_params,
-    dst_params,
-    comm
-)
+function Rebalance(part, src_params, dst_params, comm)
     # Get the range owned by this worker
     dim = isa_array(part) ? dst_params["key"] : 1
     worker_idx, nworkers = get_worker_idx(comm), get_nworkers(comm)
@@ -643,66 +687,86 @@ function Rebalance(
 
     # Get functions for serializing/deserializing
     ser = isa_array(part) ? serialize : Arrow.write
-    de = isa_array(part) ? (IOBuffer |> deserialize) : (Arrow.Table |> DataFrame)
-    
+    # TODO: Use JLD for ser/de for arrays
+    # TODO: Ensure that we are properly handling intermediate arrays or
+    # dataframes that are empty (especially because they may not have their
+    # ndims or dtype or schema). We probably are because dataframes that are
+    # empty should concatenate properly. We just need to be sure to not expect
+    # every partition to know what its schema is. We can however expect each
+    # partition of an array to know its ndims.
+    de = if isa_array(part)
+        x -> deserialize(IOBuffer(x))
+    else
+        x -> DataFrame(Arrow.Table(x))
+    end
+
     # Construct buffer to send parts to all workers who own in this range
     nworkers = get_nworkers(comm)
-    npartitions = nbatches * nworkers
-    whole_len = MPI.bcast(endidx, nworkers-1, comm)
+    # npartitions = nbatches * nworkers
+    npartitions = nworkers
+    whole_len = MPI.bcast(endidx, nworkers - 1, comm)
     io = IOBuffer()
     nbyteswritten = 0
     counts::Vector{Int64} = []
-    for partition_idx in npartitions
+    @show nworkers
+    @show npartitions
+    for partition_idx = 1:npartitions
         # `split_len` gives us the range that this partition needs
         partitionrange = split_len(whole_len, partition_idx, npartitions)
 
         # Check if the range overlaps with the range owned by this worker
-        rangesoverlap = max(startidx, partitionrange.start) <= min(endidx, partitionrange.start.stop)
+        rangesoverlap =
+            max(startidx, partitionrange.start) <= min(endidx, partitionrange.stop)
 
         # If they do overlap, then serialize the overlapping slice
-        if rangesoverlap
-            ser(
-                io,
-                view(
-                    part,
-                    fill(:, dim - 1)...,
+        ser(
+            io,
+            view(
+                part,
+                fill(:, dim - 1)...,
+                if rangesoverlap
                     max(1, partitionrange.start - startidx + 1):min(
                         size(part, dim),
-                        partitionrange.end - startidx + 1,
-                    ),
-                    fill(:, ndims(part) - dim)...,
-                ),
-            )
-        end
+                        partitionrange.stop - startidx + 1,
+                    )
+                else
+                    # Return zero length for this dimension
+                    1:0
+                end,
+                fill(:, ndims(part) - dim)...,
+            ),
+        )
 
         # Add the count of the size of this chunk in bytes
         push!(counts, io.size - nbyteswritten)
         nbyteswritten = io.size
+        @show nbyteswritten
+
     end
-    sendbuf = MPI.VBuffer(MPI.Buffer(view(io.data, 1:nbyteswritten)), counts)
+    sendbuf = MPI.VBuffer(view(io.data, 1:nbyteswritten), counts)
 
     # Create buffer for receiving pieces
     # TODO: Refactor the intermediate part starting from there if we add
     # more cases for this function
-    sizes = MPI.Alltoall(MPI.UBuffer(counts, length(counts)), comm)
+    @show counts
+    @show MPI.Comm_size(comm)
+    sizes = MPI.Alltoall(MPI.UBuffer(counts, 1), comm)
     recvbuf = MPI.VBuffer(similar(io.data, sum(sizes)), sizes)
 
     # Perform the shuffle
     MPI.Alltoallv!(sendbuf, recvbuf, comm)
 
     # Return the concatenated array
-    cat([
-        de(view(recvbuf.data, displ+1:displ+count))
-        for (displ, count) in zip(recvbuf.displs, recvbuf.counts)
-    ]...; dims=dim)
+    cat(
+        [
+            de(view(recvbuf.data, displ+1:displ+count)) for
+            (displ, count) in zip(recvbuf.displs, recvbuf.counts)
+        ]...;
+        dims = dim,
+    )
 end
 
-function Distribute(
-    part,
-    src_params,
-    dst_params,
-    comm
-)
+function Distribute(part, src_params, dst_params, comm)
     # dim = isa_array(part) ? dst_params["key"] : 1
     # TODO: Determine whether copy is needed
     SplitBlock(part, dst_params, 1, 1, comm, "Memory", Dict())
@@ -710,12 +774,7 @@ function Distribute(
     # part
 end
 
-function Consolidate(
-    part,
-    src_params,
-    dst_params,
-    comm
-)
+function Consolidate(part, src_params, dst_params, comm)
     kind, sendbuf = tobuf(part)
     recvvbuf = buftovbuf(sendbuf, comm)
     # TODO: Maybe sometimes use gatherv if all sendbuf's are known to be equally sized
@@ -729,24 +788,25 @@ function Consolidate(
     #     throw(ArgumentError("Expected either array or dataframe to consolidate"))
     # end
     MPI.Allgatherv!(sendbuf, recvvbuf, comm)
-    part = merge_on_executor(kind, recvvbuf, get_nworkers(comm); key=(isa_array(part) ? src_params["key"] : 1))
+    part = merge_on_executor(
+        kind,
+        recvvbuf,
+        get_nworkers(comm);
+        key = (isa_array(part) ? src_params["key"] : 1),
+    )
     part
 end
 
-DistributeAndShuffle(
-    part,
-    src_params,
-    dst_params,
-    comm
-) = SplitGroup(part, dst_params, 1, 1, comm, "Memory", Dict())
+DistributeAndShuffle(part, src_params, dst_params, comm) =
+    SplitGroup(part, dst_params, 1, 1, comm, "Memory", Dict())
 
 function Shuffle(
     part,
     src_params,
     dst_params,
     comm;
-    boundedlower=false,
-    boundedupper=false
+    boundedlower = false,
+    boundedupper = false,
 )
     # Get the divisions to apply
     divisions = dst_params["divisions"] # list of min-max tuples
@@ -763,22 +823,30 @@ function Shuffle(
     partition_idx_getter(val) = get_partition_idx_from_divisions(
         val,
         divisions_by_worker,
-        boundedlower=boundedlower,
-        boundedupper=boundedupper
+        boundedlower = boundedlower,
+        boundedupper = boundedupper,
     )
     res = if isa_df(part)
+        # Ensure that this partition has a schema that is suitable for usage
+        # here. We have to do this for `Shuffle` and `SplitGroup` (which is
+        # used by `DistributeAndShuffle`)
+        if isempty(part)
+            # inv: !(key in names(df))
+            part[!, key] = []
+        end
+
         # Compute the partition to send each row of the dataframe to
         transform!(part, key => ByRow(partition_idx_getter) => :banyan_shuffling_key)
 
         # Group the dataframe's rows by what partition to send to
-        gdf = groupby(part, :banyan_shuffling_key, sort=true)
+        gdf = groupby(part, :banyan_shuffling_key, sort = true)
 
         # Create buffer for sending dataframe's rows to all the partitions
         io = IOBuffer()
         nbyteswritten = 0
         df_counts::Vector{Int64} = []
-        for partition_idx in 1:nworkers
-            Arrow.write(io, partition_idx in keys(gdf) ? gdf[partition_idx] : DataFrame())
+        for partition_idx = 1:nworkers
+            Arrow.write(io, partition_idx in keys(gdf) ? gdf[partition_idx] : part[1:0, :])
             push!(df_counts, io.size - nbyteswritten)
             nbyteswritten = io.size
         end
@@ -792,18 +860,22 @@ function Shuffle(
         MPI.Alltoallv!(sendbuf, recvbuf, comm)
 
         # Return the concatenated dataframe
-        res = vcat([
-            DataFrame(Arrow.Table(IOBuffer(view(recvbuf.data, displ+1:displ+count))), copycols=false)
-            for (displ, count) in zip(recvbuf.displs, recvbuf.counts)
-        ]...)
+        res = vcat(
+            [
+                DataFrame(
+                    Arrow.Table(IOBuffer(view(recvbuf.data, displ+1:displ+count))),
+                    copycols = false,
+                ) for (displ, count) in zip(recvbuf.displs, recvbuf.counts)
+            ]...,
+        )
         select!(res, Not(:banyan_shuffling_key))
 
         res
     elseif isa_array(part)
         # Group the data along the splitting axis (specified by the "key"
         # parameter)
-        partition_idx_to_e = [[] for partition_idx in 1:nworkers]
-        for e in eachslice(part, dims=key)
+        partition_idx_to_e = [[] for partition_idx = 1:nworkers]
+        for e in eachslice(part, dims = key)
             partition_idx = get_partition_idx_from_divisions(e, divisions_by_worker)
             push!(partition_idx_to_e[partition_idx], e)
         end
@@ -812,36 +884,50 @@ function Shuffle(
         io = IOBuffer()
         nbyteswritten = 0
         a_counts::Vector{Int64} = []
-        for partition_idx in 1:nworkers
+        for partition_idx = 1:nworkers
             # TODO: If `isbitstype(eltype(e))`, we may want to pass it in
             # directly as an MPI buffer (if there is such a thing) instead of
             # serializing
             # Append to serialized buffer
             e = partition_idx_to_e[partition_idx]
-            if !isempty(e)
-                serialize(io, cat(e...; dims=key))
-            end
+            # NOTE: We ensure that we serialize something (even if its an
+            # empty array) for each partition to ensure that we can
+            # deserialize each item
+            serialize(
+                io,
+                !isempty(e) ? cat(e...; dims = key) :
+                view(part, [
+                    if d == key
+                        1:0
+                    else
+                        Colon()
+                    end for d = 1:ndims(part)
+                ]...),
+            )
 
             # Add the count of the size of this chunk in bytes
             push!(a_counts, io.size - nbyteswritten)
             nbyteswritten = io.size
         end
-        sendbuf = MPI.VBuffer(MPI.Buffer(view(io.data, 1:nbyteswritten)), a_counts)
+        sendbuf = MPI.VBuffer(view(io.data, 1:nbyteswritten), a_counts)
 
         # Create buffer for receiving pieces
         # TODO: Refactor the intermediate part starting from there if we add
         # more cases for this function
-        sizes = MPI.Alltoall(MPI.UBuffer(a_counts, length(a_counts)), comm)
+        sizes = MPI.Alltoall(MPI.UBuffer(a_counts, 1), comm)
         recvbuf = MPI.VBuffer(similar(io.data, sum(sizes)), sizes)
 
         # Perform the shuffle
         MPI.Alltoallv!(sendbuf, recvbuf, comm)
 
         # Return the concatenated array
-        cat([
-            deserialize(IOBuffer(view(recvbuf.data, displ+1:displ+count)))
-            for (displ, count) in zip(recvbuf.displs, recvbuf.counts)
-        ]...; dims=key)
+        cat(
+            [
+                deserialize(IOBuffer(view(recvbuf.data, displ+1:displ+count))) for
+                (displ, count) in zip(recvbuf.displs, recvbuf.counts)
+            ]...;
+            dims = key,
+        )
     else
         throw(ArgumentError("Expected array or dataframe to distribute and shuffle"))
     end

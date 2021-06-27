@@ -80,9 +80,9 @@ function create_job(;
     )
     if !isnothing(banyanfile_path)
         banyanfile = load_json(banyanfile_path)
-        merge_banyanfile_with_defaults!(banyanfile)
+        merge_banyanfile_with_defaults!(banyanfile, banyanfile_path)
         for included in banyanfile["include"]
-            merge_banyanfile_with!(banyanfile, getnormpath(banyanfile_path, included), :job, :creation)
+            merge_banyanfile_with!(banyanfile, included, :job, :creation)
         end
         job_configuration["banyanfile"] = banyanfile
     end
@@ -171,16 +171,22 @@ end
 function with_job(f::Function; kwargs...)
     # This is not a constructor; this is just a function that ensures that
     # every job is always destroyed even in the case of an error
-    j = create_job(;kwargs...)
+    use_existing_job = :job in keys(kwargs)
+    j = use_existing_job ? kwargs[:job] : create_job(;kwargs...)
     j_destroyed = false
     try
         f(j)
     catch err
+        # If there is an error we definitely destroy the job
+        # TODO: Cache the job so that even if there is a failure we can still
+        # reuse it
         destroy_job(j)
         j_destroyed = true
         rethrow(err)
     finally
-        if !j_destroyed
+        # We only destroy the job if it hasn't already been destroyed because
+        # of an error and if we don't intend to reuse a job
+        if !j_destroyed && !use_existing_job
     	    destroy_job(j)
         end
     end

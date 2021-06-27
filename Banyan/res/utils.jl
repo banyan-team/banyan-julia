@@ -5,7 +5,7 @@ using Base: Integer, AbstractVecOrTuple
 ####################
 
 isa_df(obj) = @isdefined(AbstractDataFrame) && obj isa AbstractDataFrame
-isa_array(obj) = obj isa AbstractArray
+isa_array(obj) = obj isa AbstractArray || obj isa HDF5.Dataset
 
 get_worker_idx(comm::MPI.Comm) = MPI.Comm_rank(comm) + 1
 get_nworkers(comm::MPI.Comm) = MPI.Comm_size(comm)

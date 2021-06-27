@@ -29,16 +29,25 @@ get_enabled_tests() = lowercase.(ARGS)
 # If these are not specified, we will only run tests that don't require a
 # configured job to be created first.
 
+username = get(ENV, "BANYAN_USERNAME", nothing)
+user_id = get(ENV, "BANYAN_USER_ID", nothing)
+api_key = get(ENV, "BANYAN_API_KEY", nothing)
+cluster_name = get(ENV, "BANYAN_CLUSTER_NAME", nothing)
+nworkers = get(ENV, "BANYAN_NWORKERS", nothing)
+
+global job = create_job(
+    username = username,
+    user_id = user_id,
+    api_key = api_key,
+    cluster_name = cluster_name,
+    nworkers = parse(Int32, nworkers),
+    banyanfile_path = "file://res/Banyanfile.json",
+)
+
 function run_with_job(test_fn, name)
     # This function should be used for tests that need a job to be already
     # created to run. We look at environment variables for a specification for
     # how to authenticate and what cluster to run on
-
-    username = get(ENV, "BANYAN_USERNAME", nothing)
-    user_id = get(ENV, "BANYAN_USER_ID", nothing)
-    api_key = get(ENV, "BANYAN_API_KEY", nothing)
-    cluster_name = get(ENV, "BANYAN_CLUSTER_NAME", nothing)
-    nworkers = get(ENV, "BANYAN_NWORKERS", nothing)
 
     if isempty(get_enabled_tests()) ||
        any([occursin(t, lowercase(name)) for t in get_enabled_tests()])
@@ -46,24 +55,17 @@ function run_with_job(test_fn, name)
             for nworkers in [16, 8, 4, 2, 1]
                 with_job(
                     username = username,
-                    user_id = user_id,
                     api_key = api_key,
                     cluster_name = cluster_name,
                     nworkers = parse(Int32, nworkers),
                     banyanfile_path = "file://res/Banyanfile.json",
+                    user_id = user_id,
                 ) do j
                     test_fn(j)
                 end
             end
         elseif !isnothing(nworkers)
-            with_job(
-                username = username,
-                api_key = api_key,
-                cluster_name = cluster_name,
-                nworkers = parse(Int32, nworkers),
-                banyanfile_path = "file://res/Banyanfile.json",
-                user_id = user_id,
-            ) do j
+            with_job(job=job) do j
                 test_fn(j)
             end
         end
@@ -82,3 +84,5 @@ function run(test_fn, name)
 end
 
 include_tests_to_run("test_simple.jl")
+
+destroy_job(job)

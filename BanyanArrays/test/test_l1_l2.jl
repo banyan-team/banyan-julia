@@ -322,10 +322,10 @@ function run_bs(size::Integer)
     # evaluate(call)
 end
 
-@testset "Black Scholes" begin
-    run_with_job("Black Scholes", j -> begin
-        size = Integer(1e9)
-        run_bs(size)
-        # evaluate(put)
-    end)
-end
+#@testset "Black Scholes" begin
+#    run_with_job("Black Scholes", j -> begin
+#        size = Integer(1e9)
+#        run_bs(size)
+#        # evaluate(put)
+#    end)
+#end

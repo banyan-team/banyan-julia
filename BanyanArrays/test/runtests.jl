@@ -26,17 +26,28 @@ get_enabled_tests() = lowercase.(ARGS)
 # If these are not specified, we will only run tests that don't require a
 # configured job to be created first.
 
+# TODO: Copy the below to other Banyan projects' test suites if changes are made
+
+username = get(ENV, "BANYAN_USERNAME", nothing)
+user_id = get(ENV, "BANYAN_USER_ID", nothing)
+api_key = get(ENV, "BANYAN_API_KEY", nothing)
+cluster_name = get(ENV, "BANYAN_CLUSTER_NAME", nothing)
+nworkers = get(ENV, "BANYAN_NWORKERS", nothing)
+ntrials = parse(Int, get(ENV, "NUM_TRIALS", "1")) # TODO: Make this BANYAN_NTRIALS
+
+global job = create_job(
+    username = username,
+    user_id = user_id,
+    api_key = api_key,
+    cluster_name = cluster_name,
+    nworkers = parse(Int32, nworkers),
+    banyanfile_path = "file://res/Banyanfile.json",
+)
+
 function run_with_job(test_fn, name)
     # This function should be used for tests that need a job to be already
     # created to run. We look at environment variables for a specification for
     # how to authenticate and what cluster to run on
-
-    username = get(ENV, "BANYAN_USERNAME", nothing)
-    user_id = get(ENV, "BANYAN_USER_ID", nothing)
-    api_key = get(ENV, "BANYAN_API_KEY", nothing)
-    cluster_name = get(ENV, "BANYAN_CLUSTER_NAME", nothing)
-    nworkers = get(ENV, "BANYAN_NWORKERS", nothing)
-    num_trials = parse(Int, get(ENV, "NUM_TRIALS", "1"))
 
     if isempty(get_enabled_tests()) ||
        any([occursin(t, lowercase(name)) for t in get_enabled_tests()])
@@ -44,28 +55,39 @@ function run_with_job(test_fn, name)
             for nworkers in [16, 8, 4, 2, 1]
                 with_job(
                     username = username,
-                    user_id = user_id,
                     api_key = api_key,
                     cluster_name = cluster_name,
                     nworkers = parse(Int32, nworkers),
                     banyanfile_path = "file://res/Banyanfile.json",
+                    user_id = user_id,
                 ) do j
                     test_fn(j)
                 end
             end
         elseif !isnothing(nworkers)
-            with_job(
-                username = username,
-                api_key = api_key,
-                cluster_name = cluster_name,
-                nworkers = parse(Int32, nworkers),
-                banyanfile_path = "file://res/Banyanfile.json",
-                user_id = user_id,
-            ) do j
-		for i in 1:num_trials
-                    @time test_fn(j)
+            with_job(job=job) do j
+                for i in 1:ntrials
+                    if ntrials > 1
+                        @time test_fn(j)
+                    else
+                        test_fn(j)
+                    end
                 end
             end
+        end
+    end
+end
+
+function run_without_job(test_fn, name)
+    # This function should be used for tests that don't need a job
+    # and are run locally, such as those for baselines.
+
+    num_trials = parse(Int, get(ENV, "NUM_TRIALS", "1"))
+
+    if isempty(get_enabled_tests()) ||
+       any([occursin(t, lowercase(name)) for t in get_enabled_tests()])
+       for i in 1:num_trials
+            @time test_fn(1)
         end
     end
 end
@@ -83,4 +105,8 @@ end
 
 include_tests_to_run("test_mapreduce.jl")
 include_tests_to_run("test_hdf5.jl")
-include_tests_to_run("scholes.jl")
+include_tests_to_run("test_black_scholes.jl")
+
+# TODO: Test that job gets destroyed here and if not fix here and also BDF's
+# runtests.jl
+destroy_job(job)

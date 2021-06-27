@@ -8,15 +8,15 @@ mutable struct Location
     # A location may be usable as either a source or destination for data or
     # both.
 
-    src_name::Union{String,Nothing}
-    dst_name::Union{String,Nothing}
+    src_name::String
+    dst_name::String
     src_parameters::LocationParameters
     dst_parameters::LocationParameters
     sample::Sample
 
     function Location(
-        src_name::Union{String,Nothing},
-        dst_name::Union{String,Nothing},
+        src_name::String,
+        dst_name::String,
         src_parameters::Dict{String,<:Any},
         dst_parameters::Dict{String,<:Any},
         sample::Sample = Sample(),
@@ -41,13 +41,13 @@ LocationSource(
     name::String,
     parameters::Dict{String,<:Any},
     sample::Sample = Sample(),
-) = Location(name, nothing, parameters, LocationParameters(), sample)
+) = Location(name, "None", parameters, LocationParameters(), sample)
 
 LocationDestination(
     name::String,
     parameters::Dict{String,<:Any},
     sample::Sample = Sample(),
-) = Location(nothing, name, LocationParameters(), parameters, sample)
+) = Location("None", name, LocationParameters(), parameters, sample)
 
 function Base.getproperty(loc::Location, name::Symbol)
     if hasfield(Location, name)
@@ -95,7 +95,7 @@ function sourced(fut, loc::Location)
         fut,
         Location(
             loc.src_name,
-            isnothing(fut_location) ? nothing : fut_location.dst_name,
+            isnothing(fut_location) ? "None" : fut_location.dst_name,
             loc.src_parameters,
             isnothing(fut_location) ? Dict{String,Any}() : fut_location.dst_parameters,
             (isnothing(fut_location) || sample(loc.sample, :memory_usage) > sample(fut_location.sample, :memory_usage)) ? loc.sample : fut_location.sample,
@@ -113,7 +113,7 @@ function destined(fut, loc::Location)
     located(
         fut,
         Location(
-            isnothing(fut_location) ? nothing : fut_location.src_name,
+            isnothing(fut_location) ? "None" : fut_location.src_name,
             loc.dst_name,
             isnothing(fut_location) ? Dict{String,Any}() : fut_location.src_parameters,
             loc.dst_parameters,
