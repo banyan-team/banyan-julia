@@ -73,6 +73,9 @@ function to_jl(lt::Location)
         # NOTE: sample.properties[:rate] is always set in the Sample
         # constructor to the configured sample rate (default 1/nworkers) for
         # this job
+        # TODO: Instead of computing the total memory usage here, compute it
+        # at the end of each `@partitioned`. That way we will count twice for
+        # mutation
         "total_memory_usage" =>
             sample(lt.sample, :memory_usage) * sample(lt.sample, :rate),
     )

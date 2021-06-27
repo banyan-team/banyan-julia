@@ -1,59 +1,101 @@
-@testset "Loading BanyanArrays from HDF5 datasets" begin
-    run_with_job("Load from HDF5 on the Internet") do job
+@testset "HDF5" begin
+    run_with_job("Reading/writing 2D arrays with HDF5") do job
         # TODO: Make this more general by creating S3 bucket and uploading
         # file from test/res for testing
         # TODO: Use version of `pt_lib_info.json` with replication actually removed
         for path in [
-            "https://github.com/banyan-team/banyan-julia/raw/v0.1.1/BanyanArrays/test/res/fillval.h5/DS1",
+            "https://github.com/banyan-team/banyan-julia/raw/v0.1.1/BanyanArrays/test/res/fillval.h5",
             # The file is produced in S3 using:
             # AWS_DEFAULT_PROFILE=banyan-testing aws s3 \
             # cp https://support.hdfgroup.org/ftp/HDF5/examples/files/exbyapi/h5ex_d_fillval.h5 \
             # banyan-cluster-data-pumpkincluster0-3e15290827c0c584/h5ex_d_fillval.h5
-            "s3://banyan-cluster-data-pumpkincluster0-3e15290827c0c584/fillval.h5/DS1"
+            "s3://banyan-cluster-data-pumpkincluster0-3e15290827c0c584/fillval.h5",
         ]
-            x = read_hdf5("path")
+            x = read_hdf5(joinpath(path, "DS1"))
             x = map(e -> e * 10, x)
 
-            @test collect(length(x)) == 60
-            @test collect(size(x)) == (10,6)
-            @test collect(sum(x)) == 32100
-            @test collect(minimum(x)) == 0
-            @test collect(maximum(x)) == 990
-            @test collect(length(x)) == 60
-            @test collect(size(x)) == (10,6)
+            steps = if startswith(path, "s3://")
+                1:3
+            else
+                # It's fine to ignore steps 2 and 3 b/c there's no reason I
+                # can think of for why reading from Internet and then writing
+                # to S3 would not work just because we read from the Internet
+                1:1
+            end
+            for step in steps
+                if step == 2
+                    # Test writing to and reading from dataset in group in
+                    # group in same file
+                    copied_path = joinpath(path, "copies", "DS2")
+                    write_hdf5(x, copied_path)
+                    x = read_hdf5(copied_path)
+                elseif step == 3
+                    # Test writing to different file and then reading from it
+                    copied_path = path[1:end-3] * "_copy.h5"
+                    write_hdf5(x, copied_path)
+                    x = read_hdf5(copied_path)
+                end
+
+                # Test basic case of reading from remote file
+                x_length_collect = collect(length(x))
+                @test x_length_collect == 600000
+                x_size_collect = collect(size(x))
+                @test x_size_collect == (1000, 600)
+                x_sum_collect = collect(sum(x))
+                @test collect(sum(x)) == 321000000
+                x_minimum_collect = collect(minimum(x))
+                @test x_minimum_collect == -60
+                x_maximum_collect = collect(maximum(x))
+                @test x_maximum_collect == 990
+                x_length_collect = collect(length(x))
+                @test x_length_collect == 600000
+                x_size_collect = collect(size(x))
+                @test x_size_collect == (1000, 600)
+            end
         end
 
-        # TODO: Add test case for vlen, vlstring
-        # TODO: Duplicate 100 times size for testing
-        # TODO: Add test case for S3
-        # TODO: Add test case for writing dataset back to a subgroup and then reading it
+        run_with_job("Reading/writing string arrays with HDF5") do job
+            for path in [
+                "https://github.com/banyan-team/banyan-julia/raw/v0.1.1/BanyanArrays/test/res/vlstring.h5",
+                "s3://banyan-cluster-data-pumpkincluster0-3e15290827c0c584/vlstring.h5",
+            ]
+                x = read_hdf5(joinpath(path, "DS1"))
+                x = map(identity, x)
+
+                steps = if startswith(path, "s3://")
+                    1:3
+                else
+                    1:1
+                end
+                for step in steps
+                    if step == 2
+                        # Test writing to and reading from dataset in group in
+                        # group in same file
+                        copied_path = joinpath(path, "copies", "DS2")
+                        write_hdf5(x, copied_path)
+                        x = read_hdf5(copied_path)
+                    elseif step == 3
+                        # Test writing to different file and then reading from it
+                        copied_path = path[1:end-3] * "_copy.h5"
+                        write_hdf5(x, copied_path)
+                        x = read_hdf5(copied_path)
+                    end
+
+                    # Test basic case of reading from remote file
+                    x_length_collect = collect(length(x))
+                    @test x_length_collect == 400
+                    x_size_collect = collect(size(x))
+                    @test collect(size(x)) == (400,)
+                    x_minimum_collect = collect(minimum(x))
+                    @test collect(minimum(x)) == "Parting"
+                    x_maximum_collect = collect(maximum(x))
+                    @test collect(maximum(x)) == "sweet"
+                    x_length_collect = collect(length(x))
+                    @test collect(length(x)) == 400
+                    x_size_collect = collect(size(x))
+                    @test collect(size(x)) == (400,)
+                end
+            end
+        end
     end
-
-    # run_with_job("Multiple evaluations apart") do job
-    #     x = BanyanArrays.fill(10.0, 2048)
-    #     x = map(e -> e / 10, x)
-    #     res1 = collect(sum(x))
-    #     res2 = collect(minimum(x))
-
-    #     @test typeof(res1) == Float64
-    #     @test res1 == 2048
-    #     @test typeof(res2) == Float64
-    #     @test res2 == 1.0
-    # end
-
-    # run_with_job("Multiple evaluations together") do job
-    #     x = BanyanArrays.fill(10.0, 2048)
-    #     x = map(e -> e / 10, x)
-    #     res1 = sum(x)
-    #     res2 = minimum(x)
-
-    #     res1 = collect(res1)
-    #     res2 = collect(res2)
-    #     @test typeof(res1) == Float64
-    #     @test res1 == 2048
-    #     @test typeof(res2) == Float64
-    #     @test res2 == 1.0
-    # end
-
-    # TODO: Test HDF5 from URL and from S3
 end

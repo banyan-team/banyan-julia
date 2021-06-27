@@ -4,7 +4,8 @@ using Base: Integer, AbstractVecOrTuple
 # Helper functions #
 ####################
 
-isa_df(obj) = @isdefined(AbstractDataFrame) && obj isa AbstractDataFrame
+isa_df(obj) = (@isdefined(AbstractDataFrame)) && obj isa AbstractDataFrame
+isa_gdf(obj) = (@isdefined(GroupedDataFrame)) && obj isa GroupedDataFrame
 isa_array(obj) = obj isa AbstractArray || obj isa HDF5.Dataset
 
 get_worker_idx(comm::MPI.Comm) = MPI.Comm_rank(comm) + 1
@@ -13,8 +14,7 @@ get_nworkers(comm::MPI.Comm) = MPI.Comm_size(comm)
 get_partition_idx(batch_idx, nbatches, comm::MPI.Comm) =
     (get_worker_idx(comm) - 1) * nbatches + batch_idx
 
-get_npartitions(nbatches, comm::MPI.Comm) =
-    nbatches * get_nworkers(comm)
+get_npartitions(nbatches, comm::MPI.Comm) = nbatches * get_nworkers(comm)
 
 split_len(src_len::Integer, idx::Integer, npartitions::Integer) =
     if npartitions > 1
@@ -27,12 +27,11 @@ split_len(src_len::Integer, idx::Integer, npartitions::Integer) =
         1:src_len
     end
 
-split_len(src_len, batch_idx::Integer, nbatches::Integer, comm::MPI.Comm) =
-    split_len(
-        src_len,
-        get_partition_idx(batch_idx, nbatches, comm),
-        get_npartitions(nbatches, comm)
-    )
+split_len(src_len, batch_idx::Integer, nbatches::Integer, comm::MPI.Comm) = split_len(
+    src_len,
+    get_partition_idx(batch_idx, nbatches, comm),
+    get_npartitions(nbatches, comm),
+)
 
 split_on_executor(src, d::Integer, i) =
     if isa_df(src)
@@ -40,28 +39,35 @@ split_on_executor(src, d::Integer, i) =
     elseif isa_array(src)
         selectdim(src, d, i)
     else
-        error("Expected split across either dimension of an AbstractArray or rows of an AbstractDataFrame")
+        error(
+            "Expected split across either dimension of an AbstractArray or rows of an AbstractDataFrame",
+        )
     end
 
-split_on_executor(src, dim::Integer, batch_idx::Integer, nbatches::Integer, comm::MPI.Comm) =
-    begin
-        npartitions = get_npartitions(nbatches, comm)
-        if npartitions > 1
-            split_on_executor(
-                src,
-                dim,
-                split_len(
-                    size(src, dim),
-                    get_partition_idx(batch_idx, nbatches, comm),
-                    npartitions
-                )
-            )
-        else
-            src
-        end
+split_on_executor(
+    src,
+    dim::Integer,
+    batch_idx::Integer,
+    nbatches::Integer,
+    comm::MPI.Comm,
+) = begin
+    npartitions = get_npartitions(nbatches, comm)
+    if npartitions > 1
+        split_on_executor(
+            src,
+            dim,
+            split_len(
+                size(src, dim),
+                get_partition_idx(batch_idx, nbatches, comm),
+                npartitions,
+            ),
+        )
+    else
+        getindex(src, fill(Colon(), ndims(src))...)
     end
+end
 
-function merge_on_executor(obj...; key=nothing)
+function merge_on_executor(obj...; key = nothing)
     # @show obj
     # @show length(obj)
     # @show typeof(obj)
@@ -74,7 +80,7 @@ function merge_on_executor(obj...; key=nothing)
         vcat(obj...)
     elseif isa_array(first_obj)
         # @show obj
-        cat(obj...; dims=key)
+        cat(obj...; dims = key)
     else
         # error("Expected either AbstractDataFrame or AbstractArray for concatenation")
         first_obj
@@ -84,11 +90,7 @@ end
 function merge_on_executor(kind::Symbol, vbuf::MPI.VBuffer, nchunks::Integer; key)
     chunks = [
         begin
-            chunk = view(
-                vbuf.data,
-                (vbuf.displs[i]+1):
-                (vbuf.displs[i] + vbuf.counts[i])
-            )
+            chunk = view(vbuf.data, (vbuf.displs[i]+1):(vbuf.displs[i]+vbuf.counts[i]))
             if kind == :df
                 DataFrame(Arrow.Table(IOBuffer(chunk)))
             elseif kind == :bits
@@ -96,13 +98,17 @@ function merge_on_executor(kind::Symbol, vbuf::MPI.VBuffer, nchunks::Integer; ke
             else
                 deserialize(IOBuffer(chunk))
             end
-        end
-        for i in 1:nchunks
+        end for i = 1:nchunks
     ]
-    merge_on_executor(chunks...; key=key)
+    merge_on_executor(chunks...; key = key)
 end
 
-function get_partition_idx_from_divisions(val, divisions; boundedlower=false, boundedupper=false)
+function get_partition_idx_from_divisions(
+    val,
+    divisions;
+    boundedlower = false,
+    boundedupper = false,
+)
     # The given divisions may be returned from `get_divisions`
     oh = orderinghash(val)
     for (i, div) in enumerate(divisions)
@@ -111,13 +117,12 @@ function get_partition_idx_from_divisions(val, divisions; boundedlower=false, bo
         if ((!boundedlower && isfirstdivision) || oh >= first(div)[1]) &&
            ((!boundedupper && islastdivision) || oh < last(div)[2])
             return i
-        end        
+        end
     end
     -1
 end
 
-isoverlapping(a::AbstractRange, b::AbstractRange) =
-    a.start ≤ b.stop && b.start ≤ a.stop
+isoverlapping(a::AbstractRange, b::AbstractRange) = a.start ≤ b.stop && b.start ≤ a.stop
 
 # NOTE: This function is shared between the client library and the PT library
 to_jl_value_contents(jl) = begin
@@ -155,7 +160,8 @@ end
 
 # NOTE: This is duplicated between pt_lib.jl and the client library
 orderinghash(x::Any) = x # This lets us handle numbers and dates
-orderinghash(s::String) = Integer.(codepoint.(collect(first(s, 32) * repeat(" ", 32-length(s)))))
+orderinghash(s::String) =
+    Integer.(codepoint.(collect(first(s, 32) * repeat(" ", 32 - length(s)))))
 orderinghash(A::Array) = orderinghash(first(A))
 
 to_vector(v::Vector) = v
@@ -184,8 +190,7 @@ function get_divisions(divisions, npartitions)
                 # lastdivisioni = islastpartition ? ndivisions : partition_idx * ndivisions_per_partition
                 # divisions[firstdivisioni:lastdivisioni]
                 divisions[split_len(ndivisions, partition_idx, npartitions)]
-            end
-            for partition_idx in 1:npartitions
+            end for partition_idx = 1:npartitions
         ]
     else
         # Otherwise, each division must be shared among 1 or more partitions
@@ -220,7 +225,8 @@ function get_divisions(divisions, npartitions)
             # @show divisionend
 
             # Initialize divisions for each split
-            splitdivisions = [[copy(divisionbegin), copy(divisionend)] for _ in 1:ndivisionsplits]
+            splitdivisions =
+                [[copy(divisionbegin), copy(divisionend)] for _ = 1:ndivisionsplits]
 
             # Adjust the divisions for each split to interpolate. The result
             # of an `orderinghash` call can be an array (in the case of
@@ -237,11 +243,11 @@ function get_divisions(divisions, npartitions)
                     # @show dbegin
                     # @show dend
                     start = copy(dbegin)
-                    for j in 1:ndivisionsplits
+                    for j = 1:ndivisionsplits
                         # Update the start and end of the division
                         # islastsplit = j == ndivisionsplits
                         splitdivisions[j][1][i] = j == 1 ? dbegin : start
-                        start += cld(dend-dbegin, ndivisionsplits)
+                        start += cld(dend - dbegin, ndivisionsplits)
                         start = min(start, dend)
                         splitdivisions[j][2][i] = j == ndivisionsplits ? dend : start
                         # splitdivisions[j][1][i] = dbegin + (dpersplit * (j-1))
@@ -265,8 +271,8 @@ function get_divisions(divisions, npartitions)
                     # NOTE: When porting this stuff to Python, be sure
                     # to take into account the fact that Julia treats
                     # many values as arrays
-                    (first(splitdivisionbegin), first(splitdivisionend))
-                    for (splitdivisionbegin, splitdivisionend) in splitdivisions
+                    (first(splitdivisionbegin), first(splitdivisionend)) for
+                    (splitdivisionbegin, splitdivisionend) in splitdivisions
                 ]
             end
 
@@ -402,7 +408,7 @@ end
 
 function bufstosendvbuf(bufs::Vector{MPI.Buffer}, comm::MPI.Comm)::MPI.VBuffer
     sizes = [length(buf.data) for buf in bufs]
-    VBuffer(vcat(map(buf->buf.data, bufs)), sizes)
+    VBuffer(vcat(map(buf -> buf.data, bufs)), sizes)
 end
 
 function bufstorecvvbuf(bufs::Vector{MPI.Buffer}, comm::MPI.Comm)::MPI.VBuffer
@@ -423,7 +429,7 @@ function frombuf(kind, obj)
     elseif kind == :bits
         obj
     elseif kind == :df
-        DataFrame(Arrow.Table(obj), copycols=false)
+        DataFrame(Arrow.Table(obj), copycols = false)
     else
         deserialize(obj)
     end
@@ -449,6 +455,7 @@ function getpath(path)
         # NOTE: We expect that the ParallelCluster instance was set up
         # to have the S3 filesystem mounted at /mnt/<bucket name>
     else
+        # Case of local paths to things stored on disk
         path
     end
 end

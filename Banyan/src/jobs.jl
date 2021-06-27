@@ -102,9 +102,19 @@ function create_job(;
     return job_id
 end
 
-function destroy_job(job_id::JobId; failed = false, kwargs...)
+global jobs_destroyed_recently = Set()
+
+function destroy_job(job_id::JobId; failed = false, force=false, kwargs...)
     global current_job_id
     global current_job_status
+    global jobs_destroyed_recently
+    
+    if force || job_id in jobs_destroyed_recently
+        @debug "Job already destroyed; use force=true to destroy anyway"
+        return nothing
+    else
+        push!(jobs_destroyed_recently, job_id)
+    end
 
     failed = false
     if current_job_status == "failed"
@@ -173,20 +183,20 @@ function with_job(f::Function; kwargs...)
     # every job is always destroyed even in the case of an error
     use_existing_job = :job in keys(kwargs)
     j = use_existing_job ? kwargs[:job] : create_job(;kwargs...)
-    j_destroyed = false
+    error_occurred = false
     try
         f(j)
     catch err
         # If there is an error we definitely destroy the job
         # TODO: Cache the job so that even if there is a failure we can still
         # reuse it
+        error_occurred = true
         destroy_job(j)
-        j_destroyed = true
         rethrow(err)
     finally
         # We only destroy the job if it hasn't already been destroyed because
         # of an error and if we don't intend to reuse a job
-        if !j_destroyed && !use_existing_job
+        if !error_occurred && !use_existing_job
     	    destroy_job(j)
         end
     end

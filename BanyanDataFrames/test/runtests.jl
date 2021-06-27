@@ -83,6 +83,6 @@ function run(test_fn, name)
     end
 end
 
-include_tests_to_run("test_simple.jl")
-
-destroy_job(job)
+with_job(job=job) do j
+    include_tests_to_run("test_simple.jl")
+end

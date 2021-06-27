@@ -46,11 +46,18 @@
         compute(x)
         compute(x)
         @show typeof(x)
-        @test collect(x) == Base.fill(1.0, 2048)
+        # NOTE: The only reason why we're not putting `collect(x)` inside the
+        # the `@test` is because `@test` will catch exceptions and prevent the
+        # job from getting destroyed when an exception occurs and we can't keep
+        # running this test if the job ends
+        x_collect = collect(x)
+        @test x_collect == Base.fill(1.0, 2048)
         @show typeof(x)
         compute(x)
-        @test collect(x) == Base.fill(1.0, 2048)
-        @test collect(x) == Base.fill(1.0, 2048)
+        x_collect = collect(x)
+        @test x_collect == Base.fill(1.0, 2048)
+        x_collect = collect(x)
+        @test x_collect == Base.fill(1.0, 2048)
     end
 
     run_with_job("Re-computing") do job
@@ -59,10 +66,34 @@
         x = map(e -> e / 10, x)
         compute(x)
         compute(x_sum)
-        @test collect(x_sum) == 10.0 * 2048
+        x_sum_collect = collect(x_sum)
+        @test x_sum_collect == 10.0 * 2048
         compute(x_sum)
-        @test collect(x) == Base.fill(1.0, 2048)
+        x_collect = collect(x)
+        @test x_collect == Base.fill(1.0, 2048)
         collect(x_sum)
+    end
+
+    run_with_job("Complex dependency graphs") do job
+        # Here we test more complex dependency graphs where some values are destroyed
+        x = BanyanArrays.fill(10.0, 2048)
+        y = BanyanArrays.fill(10.0, 2048)
+        a = BanyanArrays.fill(10.0, 2048)
+        x += y
+        x += a
+        y_sum_collect = collect(sum(y))
+        @test y_sum_collect == 2048 * 10.0
+        a = nothing
+        x_sum_collect = collect(sum(x))
+        @test x_sum_collect == 2048 * 10.0
+        y = nothing
+        z = x + x
+        z_sum_collect = collect(sum(x))
+        @test z_sum_collect == 2048 * 10.0
+        x_sum = sum(x)
+        x=nothing
+        x_sum_collect = collect(x_sum)
+        @test x_sum_collect == 2048 * 10.0
     end
 
     run_with_job("Multiple arrays") do job
@@ -70,8 +101,10 @@
         x2 = BanyanArrays.fill(10.0, 2048)
         res = map((a, b) ->  a * b, x1, x2)
 
-        @test collect(sum(res)) == 204_800.0
-        @test collect(minimum(res)) == 100.0
+        res_sum_collect = collect(sum(res))
+        @test res_sum_collect == 204_800.0
+        res_minimum_collect = collect(minimum(res))
+        @test res_minimum_collect == 100.0
     end
 
     run_with_job("2D arrays") do job
@@ -80,8 +113,10 @@
         res = map((a, b) ->  a * b, x1, x2) 
         res += ones((2048, 2048))
 
-        @test collect(sum(res)) == 3.0 * 2048 * 2048
-        @test collect(maximum(res)) == 3.0
+        res_sum_collect = collect(sum(res))
+        @test res_sum_collect == 3.0 * 2048 * 2048
+        res_maximum_collect = collect(maximum(res))
+        @test res_maximum_collect == 3.0
     end
 
     run_with_job("String arrays") do job
@@ -90,12 +125,14 @@
         x3 = BanyanArrays.fill("world\n", 2048)
         res = map(*, x1, x2, x3)
 
-        @test collect(minimum(res)) == "hello\nhello\nworld\n"
+        res_minimum_collect = collect(minimum(res))
+        @test res_minimum_collect == "hello\nhello\nworld\n"
 
         x = BanyanArrays.fill("hi\n", 8)
         res = reduce(*, x)
 
-        @test collect(res) == "hi\nhi\nhi\nhi\nhi\nhi\nhi\nhi\n"
+        res_collect = collect(res)
+        @test res_collect == "hi\nhi\nhi\nhi\nhi\nhi\nhi\nhi\n"
     end
 
     # TODO: Test HDF5 from URL and from S3
