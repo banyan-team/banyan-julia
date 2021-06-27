@@ -47,59 +47,75 @@ using Distributions
 end
 
 
-#function run_bs(size::Integer)
+@testset "Black Scholes" begin
+    run_without_job("scholes_baseline") do job
+        size = 256000000
+        price = Base.fill(4.0, size)
+        strike = Base.fill(4.0, size)
+        t = Base.fill(4.0, size)
+        rate = Base.fill(4.0, size)
+        vol = Base.fill(4.0, size)
 
-# c05 = Float64(3.0)
-# c10 = Float64(1.5)
-# invsqrt2 = 1.0 / sqrt(2.0)
+        d1 = Base.map(
+                (p, s, t, r, v)->(
+                        (log(p / s) + (r + v ^ 2 * 0.5) * t) / (v * sqrt(t))
+                ),
+                price,
+                strike,
+                t,
+                rate,
+                vol
+        )
 
-# # rsig = rate + (vol.^2) * c05
-# rsig = vol .^ 2 # TODO: Fix issue in FutureArray where operands are same
-# rsig = rsig .* c05
-# rsig = rsig .+ rate
+        d2 = Base.map(
+                (d1, v, t)->(
+                        d1 - (v * sqrt(t))
+                ),
+                d1,
+                vol,
+                t
+        )
 
-# # rsig
+        call = Base.map(
+                  (d1, d2, p, s, t, r)->(
+                        (cdf(Normal(), d1) * p) - (cdf(Normal(), d2) * s * exp(-r * t))
+                  ),
+                  d1,
+                  d2,
+                  price,
+                  strike,
+                  t,
+                  rate
+        )
 
-# # vol_sqrt = vol .* sqrt.(t)
-# vol_sqrt = sqrt.(t)
-# vol_sqrt = vol_sqrt .* vol
+        call_sum = sum(call)
+        res = Base.collect(call_sum)
+        println(res)
+        # @test typeof(res) == Base.Vector{Float64}
+        # @test all(v->v==3.999999985812889, res)
+    end
+end
 
-# # d1 = (log.(price ./ strike) + rsig .* t) ./ vol_sqrt
-# d1 = price ./ strike
-# d1 = log.(d1)
-# tmp = rsig .* t
-# d1 = d1 .+ tmp
-# d1 = d1 ./ vol_sqrt
 
-# # d1
+@testset "Black Scholes" begin
+    run_without_job("scholes_baseline_vectorized") do job
+        size = 256000000
+        price = Base.fill(4.0, size)
+        strike = Base.fill(4.0, size)
+        t = Base.fill(4.0, size)
+        rate = Base.fill(4.0, size)
+        vol = Base.fill(4.0, size)
 
-# d2 = d1 .- vol_sqrt
+        d1 = (log.(price ./ strike) .+ (rate .+ vol .^ 2 .* 0.5) .* t) ./ (vol .* sqrt.(t))
 
-# # d2
 
-# # d1 = c05 .+ c05 .* exp.(d1 .* invsqrt2)
-# # d2 = c05 .+ c05 .* exp.(d2 .* invsqrt2)
-# d1 = d1 * invsqrt2
-# d1 = exp.(d1)
-# d1 = d1 .* c05
-# d1 = d1 .+ c05
-# d2 = d2 .* invsqrt2
-# d2 = exp.(d2)
-# d2 = d2 .* c05
-# d2 = d2 .+ c05
+        d2 = d1 .- (vol .* sqrt.(t))
 
-# # e_rt = exp.((-rate) .* t)
-# e_rt = -rate
-# e_rt = e_rt .* t
-# e_rt = exp.(e_rt)
+        call = (cdf.(Normal(), d1) .* price) - (cdf.(Normal(), d2) .* strike .* exp.(-rate .* t))
 
-# # call = price .* d1 - e_rt .* strike .* d2
-# call = price .* d1
-# tmp = e_rt .* strike
-# tmp = tmp .* d2
-# call = call .- tmp
+        call_sum = sum(call)
+        res = Base.collect(call_sum)
+        println(res)
 
-# put = e_rt .* strike .* (c10 .- d2) - price .* (c10 .- d1)
-
-# evaluate(call)
-#end
+    end
+end
