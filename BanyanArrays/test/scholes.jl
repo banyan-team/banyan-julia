@@ -5,7 +5,7 @@ using Distributions
     #start_time = now()
     #end_time = now()
     run_with_job("scholes") do job
-        size = 128000000
+        size = 512000000  # 256000000
 	price = BanyanArrays.fill(4.0, size)
 	strike = BanyanArrays.fill(4.0, size)
 	t = BanyanArrays.fill(4.0, size)
@@ -14,7 +14,7 @@ using Distributions
 
 	d1 = map(
 		(p, s, t, r, v)->(
-			(log.(p ./ s) .+ (r .+ v .^ 2 .* 0.5) .* t) ./ (v .* sqrt.(t))
+			(log(p / s) + (r + v ^ 2 * 0.5) * t) / (v * sqrt(t))
 		),
 		price,
 		strike,
@@ -25,7 +25,7 @@ using Distributions
 
 	d2 = map(
 		(d1, v, t)->(
-			d1 .- (v .* sqrt.(t))
+			d1 - (v * sqrt(t))
 		),
 		d1,
 		vol,
@@ -34,7 +34,7 @@ using Distributions
 
 	call = map(
 		  (d1, d2, p, s, t, r)->(
-			(cdf(Normal(), d1) .* p) - (cdf(Normal(), d2) .* s .* exp.(-r .* t))
+			(cdf(Normal(), d1) * p) - (cdf(Normal(), d2) * s * exp(-r * t))
 		  ),
 		  d1,
 		  d2,
