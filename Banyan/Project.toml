@@ -27,7 +27,7 @@ TOML = "fa267f1f-6049-4f14-aa54-33bafae1ed76"
 [compat]
 AWS = "1.36.0"
 AWSCore = "0.6.17"
-AWSS3 = "0.8.3"
+AWSS3 = "0.7"
 AWSSQS = "0.6.4"
 Arrow = "1.5.0"
 CSV = "0.8.5"
