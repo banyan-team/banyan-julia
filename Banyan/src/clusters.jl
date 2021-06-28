@@ -6,8 +6,8 @@ function load_json(path::String)
         error("S3 path not currently supported")
         # JSON.parsefile(S3Path(path, config=get_aws_config()))
     elseif startswith(path, "http://") || startswith(path, "https://")
-        JSON.parse(String(HTTP.request("GET", path)))
-        #JSON.parse(HTTP.get(path).body)
+        # TODO: This does not currently work
+	JSON.parse(HTTP.get(path).body)
     else
         error("Path $path must start with \"file://\", \"s3://\", or \"http(s)://\"")
     end
