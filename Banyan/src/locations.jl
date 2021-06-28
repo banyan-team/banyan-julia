@@ -589,7 +589,7 @@ function get_remote_location(remotepath)
 
     # Adjust sample to have samplenrows
     samplenrows = getsamplenrows(totalnrows) # Either a subset of rows or the whole thing
-    if is_debug_on() == true
+    if is_debug_on()
         @show samplenrows
     end
     if nrow(randomsample) < samplenrows

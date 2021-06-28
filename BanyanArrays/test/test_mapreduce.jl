@@ -74,8 +74,17 @@
         collect(x_sum)
     end
 
+    run_with_job("Map with multiple values") do job
+        a = BanyanArrays.fill(10.0, 2048)
+        b = BanyanArrays.fill(10.0, 2048)
+        c = a + b
+        c_sum_collect = collect(sum(c))
+        @test c_sum_collect == 2048 * 10.0 * 2
+    end
+
     run_with_job("Complex dependency graphs") do job
         # Here we test more complex dependency graphs where some values are destroyed
+
         x = BanyanArrays.fill(10.0, 2048)
         y = BanyanArrays.fill(10.0, 2048)
         a = BanyanArrays.fill(10.0, 2048)
@@ -85,15 +94,15 @@
         @test y_sum_collect == 2048 * 10.0
         a = nothing
         x_sum_collect = collect(sum(x))
-        @test x_sum_collect == 2048 * 10.0
+        @test x_sum_collect == 2048 * 10.0 * 3
         y = nothing
         z = x + x
-        z_sum_collect = collect(sum(x))
-        @test z_sum_collect == 2048 * 10.0
+        z_sum_collect = collect(sum(z))
+        @test z_sum_collect == 2048 * 10.0 * 6
         x_sum = sum(x)
         x=nothing
         x_sum_collect = collect(x_sum)
-        @test x_sum_collect == 2048 * 10.0
+        @test x_sum_collect == 2048 * 10.0 * 3
     end
 
     run_with_job("Multiple arrays") do job
@@ -111,7 +120,7 @@
         x1 = BanyanArrays.fill(1.0, (2048, 2048))
         x2 = BanyanArrays.fill(2.0, (2048, 2048))
         res = map((a, b) ->  a * b, x1, x2) 
-        res += ones((2048, 2048))
+        res += BanyanArrays.ones((2048, 2048))
 
         res_sum_collect = collect(sum(res))
         @test res_sum_collect == 3.0 * 2048 * 2048
@@ -124,15 +133,28 @@
         x2 = deepcopy(x1)
         x3 = BanyanArrays.fill("world\n", 2048)
         res = map(*, x1, x2, x3)
+        res_lengths = map(s -> length(s), res)
 
-        res_minimum_collect = collect(minimum(res))
-        @test res_minimum_collect == "hello\nhello\nworld\n"
+        res_lengths_minimum_collect = collect(minimum(res_lengths))
+        @test res_lengths_minimum_collect == 18
 
-        x = BanyanArrays.fill("hi\n", 8)
-        res = reduce(*, x)
-
+        # This is unnecessary but will cache `res` on disk
+        compute(res)
         res_collect = collect(res)
-        @test res_collect == "hi\nhi\nhi\nhi\nhi\nhi\nhi\nhi\n"
+        @test res_collect == BanyanArrays.fill("hello\nhello\nworld\n", 2048)
+
+        # TODO: Test this once we implement a merging function for
+        # variable-sized reductions
+        # res_minimum_collect = collect(minimum(res))
+        # @test res_minimum_collect == "hello\nhello\nworld\n"
+
+        # TODO: Test this once we implement a merging function for
+        # variable-sized reductions
+        # x = BanyanArrays.fill("hi\n", 8)
+        # res = reduce(*, x)
+
+        # res_collect = collect(res)
+        # @test res_collect == "hi\nhi\nhi\nhi\nhi\nhi\nhi\nhi\n"
     end
 
     # TODO: Test HDF5 from URL and from S3

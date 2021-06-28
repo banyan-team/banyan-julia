@@ -502,7 +502,7 @@ function get_clusters(; kwargs...)
     @debug "Downloading description of clusters"
     configure(; kwargs...)
     response = send_request_get_response(:describe_clusters, Dict{String,Any}())
-    if is_debug_on() == true
+    if is_debug_on()
         @show response
     end
     Dict(

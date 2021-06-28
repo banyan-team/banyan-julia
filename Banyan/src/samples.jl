@@ -97,7 +97,11 @@ end
 # functions for `Future`s to compute and cache samples.
 
 sample(as::Any, properties...) =
-    if length(properties) == 1
+    if length(properties) <= 2 && first(properties) == :statistics
+        # If the statistic is not cached in `Sample.properties`, then we just
+        # return an empty dictionary
+        Dict()
+    elseif length(properties) == 1
         if first(properties) == :memory_usage
             sample_memory_usage(as)
         elseif first(properties) == :rate
@@ -118,8 +122,6 @@ sample(as::Any, properties...) =
             # println(typeof(as) <: Any)
             throw(ArgumentError("Invalid sample properties: $properties"))
         end
-    elseif length(properties) <= 2 && first(properties) == :statistics
-        Dict()
     elseif length(properties) == 3 && first(properties) == :statistics
         key = properties[2]
         query = properties[3]

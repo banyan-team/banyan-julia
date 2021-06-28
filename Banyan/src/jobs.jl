@@ -182,21 +182,25 @@ function with_job(f::Function; kwargs...)
     # This is not a constructor; this is just a function that ensures that
     # every job is always destroyed even in the case of an error
     use_existing_job = :job in keys(kwargs)
+    destroy_job_on_error = get(kwargs, :destroy_job_on_error, true)
+    destroy_job_on_exit = get(kwargs, :destroy_job_on_exit, true)
     j = use_existing_job ? kwargs[:job] : create_job(;kwargs...)
-    error_occurred = false
+    destroyed = false
     try
         f(j)
     catch err
         # If there is an error we definitely destroy the job
         # TODO: Cache the job so that even if there is a failure we can still
         # reuse it
-        error_occurred = true
-        destroy_job(j)
+        if destroy_job_on_error
+            destroy_job(j)
+            destroyed = true
+        end
         rethrow(err)
     finally
         # We only destroy the job if it hasn't already been destroyed because
         # of an error and if we don't intend to reuse a job
-        if !error_occurred && !use_existing_job
+        if destroy_job_on_exit && !destroyed
     	    destroy_job(j)
         end
     end

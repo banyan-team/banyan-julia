@@ -61,12 +61,13 @@ function run_with_job(test_fn, name)
                     nworkers = parse(Int32, nworkers),
                     banyanfile_path = "file://res/Banyanfile.json",
                     user_id = user_id,
+                    destroy_job_on_exit=false
                 ) do j
                     test_fn(j)
                 end
             end
         elseif !isnothing(nworkers)
-            with_job(job=job) do j
+            with_job(job=job, destroy_job_on_exit=false) do j
                 for i in 1:ntrials
                     if ntrials > 1
                         @time test_fn(j)
