@@ -19,7 +19,7 @@ end
 function finish_task()
     global curr_delayed_task
     if is_debug_on()
-	@show "finishing task"
+	    @show "finishing task"
         @show curr_delayed_task.mutation
         @show curr_delayed_task.effects
     end

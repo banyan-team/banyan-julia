@@ -223,8 +223,10 @@ end
 
 fill(v, dims::Integer...) = fill(v, Tuple(dims))
 
-zeros(::Type{T}=Float64, args...; kwargs...) where {T} = fill(zero(T), args...; kwargs...)
-ones(::Type{T}=Float64, args...; kwargs...) where {T} = fill(one(T), args...; kwargs...)
+zeros(::Type{T}, args...; kwargs...) where {T} = fill(zero(T), args...; kwargs...)
+zeros(args...; kwargs...) where {T} = zeros(Float64, args...; kwargs...)
+ones(::Type{T}, args...; kwargs...) where {T} = fill(one(T), args...; kwargs...)
+ones(args...; kwargs...) where {T} = ones(Float64, args...; kwargs...)
 trues(args...; kwargs...) where {T} = fill(true, args...; kwargs...)
 falses(args...; kwargs...) where {T} = fill(false, args...; kwargs...)
 
@@ -542,14 +544,14 @@ Base.sort(A::Array{T,N}; kwargs...) where {T,N} = sortslices(A, dims=:; kwargs..
 
 for op in [:-]
     @eval begin
-        Base.$op(X::Array) = map($op, X)
+        Base.$op(X::Array{T,N}) where {T,N} = map($op, X)
     end
 end
 
 for (op, agg) in [(:(sum), :(+)), (:(minimum), :(min)), (:(maximum), :(max))]
     # TODO: Maybe try ensuring that the Base.:+ here is not including the method from above
     @eval begin
-        Base.$op(X::Array; dims=:) = reduce($agg, X; dims=dims)
+        Base.$op(X::Array{T,N}; dims=:) where {T,N} = reduce($agg, X; dims=dims)
     end
 end
 
@@ -557,7 +559,7 @@ end
 
 for op in [:+, :-, :>, :<, :(>=), :(<=), :(==), :!=]
     @eval begin
-        Base.$op(A::Array, B::Array) = map($op, A, B)
+        Base.$op(A::Array{T,N}, B::Array{T,N}) where {T,N} = map($op, A, B)
     end
 end
 

@@ -49,7 +49,7 @@ function compute(fut::AbstractFuture)
         # This allows sample properties to propagate in both directions. We
         # must also make sure to apply mutations in each task appropriately.
         for t in tasks
-            if is_debug_on() == true
+            if is_debug_on()
 	        @show t.mutation
                 @show t.effects
             end
@@ -141,8 +141,8 @@ function compute(fut::AbstractFuture)
 
         # Iterate through tasks for further processing before recording them
         for t in tasks
-            if is_debug_on() == true
-		@show t.code
+            if is_debug_on()
+		        @show t.code
                 @show t.value_names
                 @show t.mutation
                 @show t.effects
@@ -151,8 +151,8 @@ function compute(fut::AbstractFuture)
             for pa in t.pa_union
                 apply_default_constraints!(pa)
                 duplicate_for_batching!(pa)
-                if is_debug_on() == true
-		    @show pa
+                if is_debug_on()
+		            @show pa
                 end
             end
 
