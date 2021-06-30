@@ -69,8 +69,8 @@ function ReadBlock(
         #     close(f)
         #     dset = split_on_executor(dset, params["key"], batch_idx, nbatches, comm)
         # else
-            dset = split_on_executor(dset, params["key"], batch_idx, nbatches, comm)
-            close(f)
+        dset = split_on_executor(dset, params["key"], batch_idx, nbatches, comm)
+        close(f)
         # end
         # println("In ReadBlock")
         # @show first(dset)
@@ -308,28 +308,36 @@ function Write(
         # end
         dim = params["key"]
         # TODO: Ensure this works where some partitions are empty
+        # If each worker has a single batch, compute the total size
         whole_size =
-            MPI.Reduce(size(part), (a, b) -> indexapply(+, a, b, index = dim), 0, comm)
+            nbatches == 1 ?
+            MPI.Reduce(size(part), (a, b) -> indexapply(+, a, b, index = dim), 0, comm) :
+            nothing
 
         # TODO: Check if HDF5 dataset is created. If not, wait for the master
         # node to create it.
-        group = loc_name == "Disk" ? "part" : loc_params["subpath"]
-        if get_partition_idx(batch_idx, nbatches, comm) == 1
+        # If each worker has a single batch, create a file on the first worker.
+        # Otherwise, if we need multiple batches for each partition, write each
+        # batch to a separate group. TODO: If we need multiple batches, don't
+        # write the last batch to its own group. Instead just write it into the
+        # aggregated group.
+        group_prefix = loc_name == "Disk" ? "part" : loc_params["subpath"]
+        group = nbatches == 1 ? group_prefix : group_prefix * "_part$idx" * "_dim=$dim"
+        if get_partition_idx(batch_idx, nbatches, comm) == 1 || nbatches > 1
             h5open(path, "w") do fid
-                create_dataset(fid, group, similar(part, whole_size))
+                # If there are multiple batches, each batch just gets written
+                # to its own group
+                create_dataset(fid, group, nbatches == 1 ? similar(part, whole_size) : part)
             end
             # touch(path * "_is_ready")
         end
 
         # Wait till the dataset is created
         # println("Starting to wait")
-        MPI.Barrier(comm)
 
         # Write part to the dataset
-        f = h5open(path, "r+")
         # @show f
         # @show keys(f)
-        dset = f[group]
         # println("Opened")
         # TODO: Use `view` instead of `getindex` in the call to
         # `split_on_executor` here if HDF5 doesn't support this kind of usage
@@ -345,11 +353,100 @@ function Write(
         @show size(dset, dim)
         @show batch_idx
         @show nbatches
-        @show whole_size[dim]
-        @show split_len(whole_size[dim], batch_idx, nbatches, comm)
+        @show whole_size
+        # @show split_len(whole_size[dim], batch_idx, nbatches, comm)
         @show size(dset)
         @show size(part)
-        setindex!(dset, part, [d == dim ? split_len(whole_size[dim], batch_idx, nbatches, comm) : Colon() for d in 1:ndims(dset)]...)
+        if nbatches == 1
+            # Wait until all workers have the file
+            # TODO: Maybe use a broadcast so that each node is only blocked on
+            # the main node
+            MPI.Barrier(comm)
+
+            # Open the file for writing
+            h5open(path, "r+") do f
+                # Get the group to write to
+                dset = f[group]
+
+                # Mutate only the relevant subsection
+                setindex!(
+                    dset,
+                    part,
+                    [
+                        d == dim ? split_len(whole_size[dim], batch_idx, nbatches, comm) :
+                        Colon() for d = 1:ndims(dset)
+                    ]...,
+                )
+            end
+        elseif batch_idx == nbatches
+            # Compute the size of all the batches on this worker
+            # concatenated
+            whole_batch_size = nothing
+            h5open(path, "r") do f
+                for group_name in keys(f)
+                    if startswith(group_name, group_prefix)
+                        part_idx, dim =
+                            parse.(Int64, split(last(split(group_name, "_part")), "_dim="))
+                        whole_batch_size =
+                            isnothing(whole_batch_size) ? size(f[group_name]) :
+                            indexapply(
+                                +,
+                                whole_batch_size,
+                                size(f[group_name]),
+                                index = dim,
+                            )
+                    end
+                end
+            end
+
+            # Compute the size of the whole dataset
+            whole_size = MPI.Reduce(
+                whole_batch_size,
+                (a, b) -> indexapply(+, a, b, index = dim),
+                0,
+                comm,
+            )
+
+            # Create the whole dataset on the main node
+            if get_worker_idx(comm) == 1
+                h5open(path, "w") do fid
+                    create_dataset(fid, group_prefix, similar(part, whole_size))
+                end
+            end
+
+            # Wait until all workers have the file
+            # TODO: Maybe use a broadcast so that each node is only blocked on
+            # the main node
+            MPI.Barrier(comm)
+
+            # Write out each batch
+            h5open(path, "r+") do f
+                dset = f[group_prefix]
+                for batch_idx = 1:nbatches
+                    # Determine what index partition this batch is
+                    idx = get_partition_idx(batch_idx, nbatches, comm)
+
+                    # Write
+                    group = group_prefix*"_part$idx"*"_dim=$dim"
+                    setindex!(
+                        # We are writing to the whole dataset that was just
+                        # created
+                        dset,
+                        # We are copying from the written HDF5 dataset for a
+                        # particular batch
+                        f[group][fill(Colon(), ndims(dset))...],
+                        # We write to the appropriate split of the whole
+                        # dataset
+                        [
+                            d == dim ?
+                            split_len(whole_size[dim], batch_idx, nbatches, comm) : Colon()
+                            for d = 1:ndims(dset)
+                        ]...,
+                    )
+                    # TODO: Delete f[group]
+                end
+            end
+        end
         # dsubset = split_on_executor(dset, dim, batch_idx, nbatches, comm)
         # NOTE: For writing to HDF5 datasets we can't just use
         # split_on_executor because we aren't reading a copy; instead, we are
@@ -357,7 +454,7 @@ function Write(
         # @show first(part)
         # @show first(dset[:])
         # dsubset .= part
-        close(f)
+        # close(f)
         # end
         # println("Done writing")
 
@@ -482,7 +579,7 @@ function SplitGroup(
     end
     worker_idx = get_worker_idx(comm)
     if is_debug_on()
-    	@show batch_idx worker_idx src res
+        @show batch_idx worker_idx src res
     end
 
     # Store divisions
@@ -540,8 +637,8 @@ function Merge(
                 src = Consolidate(src, params, Dict(), comm)
             end
             if is_debug_on()
-	    	@show partial_merges
-	    end
+                @show partial_merges
+            end
             # delete!(partial_merges, src)
         end
     end
