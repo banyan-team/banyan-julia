@@ -4,7 +4,7 @@
         # file from test/res for testing
         # TODO: Use version of `pt_lib_info.json` with replication actually removed
         for path in [
-            "https://github.com/banyan-team/banyan-julia/raw/v0.1.1/BanyanArrays/test/res/fillval.h5",
+            "https://github.com/banyan-team/banyan-julia/blob/v0.1.1/BanyanArrays/test/res/fillval.h5?raw=true",
             # The file is produced in S3 using:
             # AWS_DEFAULT_PROFILE=banyan-testing aws s3 \
             # cp https://support.hdfgroup.org/ftp/HDF5/examples/files/exbyapi/h5ex_d_fillval.h5 \
@@ -56,7 +56,7 @@
 
         run_with_job("Reading/writing string arrays with HDF5") do job
             for path in [
-                "https://github.com/banyan-team/banyan-julia/raw/v0.1.1/BanyanArrays/test/res/vlstring.h5",
+                "https://github.com/banyan-team/banyan-julia/blob/v0.1.1/BanyanArrays/test/res/vlstring.h5?raw=true",
                 "s3://banyan-cluster-data-pumpkincluster0-3e15290827c0c584/vlstring.h5",
             ]
                 x = read_hdf5(joinpath(path, "DS1"))

@@ -459,11 +459,11 @@ macro partitioned(ex...)
             end
         end
         task.code *= $(string(code))
-        task.value_names = Dict(
-            fut.value_id => var_name for (fut, var_name) in
+        task.value_names = [
+            (fut.value_id, var_name) for (fut, var_name) in
             # zip(futures, [$(variable_names...)])
             zip(splatted_futures, splatted_variable_names)
-        )
+        ]
         # task = DelayedTask(
         #     ,
         #     ,
@@ -513,14 +513,19 @@ macro partitioned(ex...)
         # future or a list of them.
         $(esc(code))
 
-        # Move results from variables back into the samples
+        # Move results from variables back into the samples. Also, update the
+        # memory usage accordingly.
+        # TODO: Determine if other sample properties need to be invalidated (or
+        # updated) after modified by an annotated code region.
         for (f, value) in zip(unsplatted_futures, [$(variables...)])
             if f isa Tuple
                 for (fe, ve) in zip(f, value)
                     setsample!(fe, ve)
+                    setsample!(fe, :memory_usage, sample_memory_usage(ve))
                 end
             else
                 setsample!(f, value)
+                setsample!(f, :memory_usage, sample_memory_usage(value))
             end
         end
         # end

@@ -65,6 +65,11 @@ function Base.getproperty(loc::Location, name::Symbol)
 end
 
 function to_jl(lt::Location)
+    if is_debug_on()
+        @show sample(lt.sample, :memory_usage)
+        @show sample(lt.sample, :memory_usage) * sample(lt.sample, :rate)
+        @show sample(lt.sample, :rate)
+    end
     return Dict(
         "src_name" => lt.src_name,
         "dst_name" => lt.dst_name,
@@ -350,13 +355,15 @@ function get_remote_location(remotepath)
 
     # Handle single-file nd-arrays
 
-    hdf5_ending = if occursin(p, ".h5")
+    hdf5_ending = if occursin(".h5", p)
         ".h5"
-    elseif occursin(p, ".hdf5")
+    elseif occursin(".hdf5", p)
         ".hdf5"
     else
         ""
     end
+    @show p
+    @show hdf5_ending
     if length(hdf5_ending) > 0
         filename, datasetpath = split(p, hdf5_ending)
         remotefilename, _ = split(remotepath, hdf5_ending)
