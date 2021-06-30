@@ -5,7 +5,7 @@
 mutable struct DelayedTask
     # Fields for use in processed task ready to be recorded
     code::String
-    value_names::Dict{ValueId,String}
+    value_names::Vector{Tuple{ValueId,String}}
     effects::Dict{ValueId,String}
     pa_union::Vector{PartitionAnnotation} # Enumeration of applicable PAs
     # Fields for use in task yet to be processed in a call to `compute`
@@ -14,7 +14,7 @@ mutable struct DelayedTask
     mutation::Dict{Future,Future} # This gets converted to `effects`
 end
 
-DelayedTask() = DelayedTask("", Dict(), Dict(), [PartitionAnnotation()], nothing, nothing, Dict())
+DelayedTask() = DelayedTask("", [], Dict(), [PartitionAnnotation()], nothing, nothing, Dict())
 
 function to_jl(task::DelayedTask)
     return Dict(

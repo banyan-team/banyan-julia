@@ -72,8 +72,8 @@ function ReadBlock(
             dset = split_on_executor(dset, params["key"], batch_idx, nbatches, comm)
             close(f)
         # end
-        println("In ReadBlock")
-        @show first(dset)
+        # println("In ReadBlock")
+        # @show first(dset)
         return dset
     end
 
@@ -322,15 +322,15 @@ function Write(
         end
 
         # Wait till the dataset is created
-        println("Starting to wait")
+        # println("Starting to wait")
         MPI.Barrier(comm)
 
         # Write part to the dataset
         f = h5open(path, "r+")
-        @show f
-        @show keys(f)
+        # @show f
+        # @show keys(f)
         dset = f[group]
-        println("Opened")
+        # println("Opened")
         # TODO: Use `view` instead of `getindex` in the call to
         # `split_on_executor` here if HDF5 doesn't support this kind of usage
         # TODO: Determine why `readmmap` gave an "Error getting offset"
@@ -342,17 +342,24 @@ function Write(
         #     dsubset .= part
         # else
         # dset = read(dset)
-        setindex!(dset, part, [d == dim ? split_len(size(dset, dim), batch_idx, nbatches, comm) : Colon() for d in ndims(dset)]...)
+        @show size(dset, dim)
+        @show batch_idx
+        @show nbatches
+        @show whole_size[dim]
+        @show split_len(whole_size[dim], batch_idx, nbatches, comm)
+        @show size(dset)
+        @show size(part)
+        setindex!(dset, part, [d == dim ? split_len(whole_size[dim], batch_idx, nbatches, comm) : Colon() for d in 1:ndims(dset)]...)
         # dsubset = split_on_executor(dset, dim, batch_idx, nbatches, comm)
         # NOTE: For writing to HDF5 datasets we can't just use
         # split_on_executor because we aren't reading a copy; instead, we are
         # writing to a slice
-        @show first(part)
-        @show first(dset[:])
+        # @show first(part)
+        # @show first(dset[:])
         # dsubset .= part
         close(f)
         # end
-        println("Done writing")
+        # println("Done writing")
 
         # TODO: Make this work for variable-sized element type
         # TODO: Support arrays and reductions with variable-sized elements

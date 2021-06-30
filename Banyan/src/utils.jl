@@ -17,6 +17,7 @@ axis_to_jl(axis) = reinterpret(UInt8, hash(string(key))) |> String
 total_memory_usage(val) =
     begin
         size = Base.summarysize(val)
+        @show size
         # TODO: Maybe make this larger
         if size ≤ 128
             0
