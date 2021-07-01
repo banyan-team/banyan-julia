@@ -6,8 +6,8 @@ function load_json(path::String)
         error("S3 path not currently supported")
         # JSON.parsefile(S3Path(path, config=get_aws_config()))
     elseif startswith(path, "http://") || startswith(path, "https://")
-        JSON.parse(String(HTTP.request("GET", path)))
-        #JSON.parse(HTTP.get(path).body)
+        # TODO: This does not currently work
+	JSON.parse(HTTP.get(path).body)
     else
         error("Path $path must start with \"file://\", \"s3://\", or \"http(s)://\"")
     end
@@ -266,7 +266,10 @@ function upload_banyanfile(
     code *= "cd /home/ec2-user\n"
     code *= "sudo yum update -y &>> setup_log.txt\n"
     code *= "sudo chmod 777 setup_log.txt\n"
+    @debug reinstall_julia
     if reinstall_julia || for_creation_or_update == :creation
+	code *= "sudo su - ec2-user -c \"rm -rf ~/julia\"\n"
+	code *= "sudo su - ec2-user -c \"rm -rf  ~/.julia\"\n"
         code *= "sudo su - ec2-user -c \"wget https://julialang-s3.julialang.org/bin/linux/x64/1.6/julia-1.6.1-linux-x86_64.tar.gz -O julia.tar.gz &>> setup_log.txt\"\n"
         code *= "sudo su - ec2-user -c \"mkdir julia &>> setup_log.txt\"\n"
         code *= "sudo su - ec2-user -c \"tar zxvf julia.tar.gz -C julia --strip-components 1 &>> setup_log.txt\"\n"
