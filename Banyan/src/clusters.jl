@@ -268,8 +268,8 @@ function upload_banyanfile(
     code *= "sudo chmod 777 setup_log.txt\n"
     @debug reinstall_julia
     if reinstall_julia || for_creation_or_update == :creation
-	code *= "sudo su - ec2-user -c \"rm -rf ~/julia\"\n"
-	code *= "sudo su - ec2-user -c \"rm -rf  ~/.julia\"\n"
+	#code *= "sudo su - ec2-user -c \"rm -rf ~/julia\"\n"
+	#code *= "sudo su - ec2-user -c \"rm -rf  ~/.julia\"\n"
         code *= "sudo su - ec2-user -c \"wget https://julialang-s3.julialang.org/bin/linux/x64/1.6/julia-1.6.1-linux-x86_64.tar.gz -O julia.tar.gz &>> setup_log.txt\"\n"
         code *= "sudo su - ec2-user -c \"mkdir julia &>> setup_log.txt\"\n"
         code *= "sudo su - ec2-user -c \"tar zxvf julia.tar.gz -C julia --strip-components 1 &>> setup_log.txt\"\n"
