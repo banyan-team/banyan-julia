@@ -350,12 +350,12 @@ function Write(
         #     dsubset .= part
         # else
         # dset = read(dset)
-        @show size(dset, dim)
+        # @show size(dset, dim)
         @show batch_idx
         @show nbatches
         @show whole_size
         # @show split_len(whole_size[dim], batch_idx, nbatches, comm)
-        @show size(dset)
+        # @show size(dset)
         @show size(part)
         if nbatches == 1
             # Wait until all workers have the file
