@@ -1,9 +1,9 @@
 # NOTE: This function is shared between the client library and the PT library
 function indexapply(op, objs...; index::Integer=1)
-    lists = [obj for obj in objs if obj isa AbstractVecOrTuple]
+    lists = [obj for obj in objs if (obj isa AbstractVector || obj isa Tuple)]
     length(lists) > 0 || throw(ArgumentError("Expected at least one tuple as input"))
     index = index isa Colon ? length(first(lists)) : index
-    operands = [(obj isa AbstractVecOrTuple ? obj[index] : obj) for obj in objs]
+    operands = [((obj isa AbstractVector || obj isa Tuple) ? obj[index] : obj) for obj in objs]
     indexres = op(operands...)
     res = first(lists)
     if first(lists) isa Tuple
@@ -13,5 +13,6 @@ function indexapply(op, objs...; index::Integer=1)
     else
         res = copy(res)
         res[index] = indexres
+        res
     end
 end

@@ -128,35 +128,37 @@
         @test res_maximum_collect == 3.0
     end
 
-    run_with_job("String arrays") do job
-        x1 = BanyanArrays.fill("hello\n", 2048)
-        x2 = deepcopy(x1)
-        x3 = BanyanArrays.fill("world\n", 2048)
-        res = map(*, x1, x2, x3)
-        res_lengths = map(s -> length(s), res)
+    # TODO: Re-enable this test once we ensure that we can write out small
+    # enough datasets without unnecessary batching
+    # run_with_job("String arrays") do job
+    #     x1 = BanyanArrays.fill("hello\n", 2048)
+    #     x2 = deepcopy(x1)
+    #     x3 = BanyanArrays.fill("world\n", 2048)
+    #     res = map(*, x1, x2, x3)
+    #     res_lengths = map(s -> length(s), res)
 
-        res_lengths_minimum_collect = collect(minimum(res_lengths))
-        @test res_lengths_minimum_collect == 18
+    #     res_lengths_minimum_collect = collect(minimum(res_lengths))
+    #     @test res_lengths_minimum_collect == 18
 
-        # TODO: Support writing string arrays for this to work
-        # This is unnecessary but will cache `res` on disk
-        # compute(res)
-        # res_collect = collect(res)
-        # @test res_collect == BanyanArrays.fill("hello\nhello\nworld\n", 2048)
+    #     # TODO: Support writing string arrays for this to work
+    #     # This is unnecessary but will cache `res` on disk
+    #     # compute(res)
+    #     # res_collect = collect(res)
+    #     # @test res_collect == BanyanArrays.fill("hello\nhello\nworld\n", 2048)
 
-        # TODO: Test this once we implement a merging function for
-        # variable-sized reductions
-        # res_minimum_collect = collect(minimum(res))
-        # @test res_minimum_collect == "hello\nhello\nworld\n"
+    #     # TODO: Test this once we implement a merging function for
+    #     # variable-sized reductions
+    #     # res_minimum_collect = collect(minimum(res))
+    #     # @test res_minimum_collect == "hello\nhello\nworld\n"
 
-        # TODO: Test this once we implement a merging function for
-        # variable-sized reductions
-        # x = BanyanArrays.fill("hi\n", 8)
-        # res = reduce(*, x)
+    #     # TODO: Test this once we implement a merging function for
+    #     # variable-sized reductions
+    #     # x = BanyanArrays.fill("hi\n", 8)
+    #     # res = reduce(*, x)
 
-        # res_collect = collect(res)
-        # @test res_collect == "hi\nhi\nhi\nhi\nhi\nhi\nhi\nhi\n"
-    end
+    #     # res_collect = collect(res)
+    #     # @test res_collect == "hi\nhi\nhi\nhi\nhi\nhi\nhi\nhi\n"
+    # end
 
     # TODO: Test HDF5 from URL and from S3
 end

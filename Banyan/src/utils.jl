@@ -31,10 +31,10 @@ to_vector(v) = [v]
 
 # NOTE: This function is shared between the client library and the PT library
 function indexapply(op, objs...; index::Integer=1)
-    lists = [obj for obj in objs if obj isa AbstractVecOrTuple]
+    lists = [obj for obj in objs if (obj isa AbstractVector || obj isa Tuple)]
     length(lists) > 0 || throw(ArgumentError("Expected at least one tuple as input"))
     index = index isa Colon ? length(first(lists)) : index
-    operands = [(obj isa AbstractVecOrTuple ? obj[index] : obj) for obj in objs]
+    operands = [((obj isa AbstractVector || obj isa Tuple) ? obj[index] : obj) for obj in objs]
     indexres = op(operands...)
     res = first(lists)
     if first(lists) isa Tuple
@@ -44,6 +44,7 @@ function indexapply(op, objs...; index::Integer=1)
     else
         res = copy(res)
         res[index] = indexres
+        res
     end
 end
 
@@ -338,12 +339,29 @@ function get_s3fs_path(path)
     mount = joinpath(homedir(), ".banyan", "mnt", "s3", bucket)
 
     # Ensure path to mount exists
-    if !isdir(mount)
-        mkpath(mount)
+    no_mount = false
+    try
+        if !isdir(mount)
+            mkpath(mount)
+            # TODO: Ensure that no directory really means there is no mount
+            no_mount = true
+        end
+        if !ismount(mount)
+            no_mount = true
+        end
+    catch
+        no_mount = true
+        @info "Attempting to remount S3FS because unable to stat the directory"
     end
 
     # Ensure something is mounted
-    if !ismount(mount)
+    if no_mount
+        try
+            run(`umount -fq $mount`)
+        catch e
+            @warn "Failed to unmount with error: $e. Please try to force unmounting with \`umount -fq $mount\`"
+        end
+
         # TODO: Store buckets from different accounts/IAMs/etc. seperately
         try
             ACCESS_KEY_ID = get_aws_config()[:creds].access_key_id

@@ -149,8 +149,10 @@ Banyan.sample_max(A::Base.Array{T,N}, key) where {T,N} = maximum(mapslices(first
 
 function read_hdf5(path)
     A_loc = Remote(path)
+    @show A_loc.src_parameters
+    @show A_loc.size
     A = Future(A_loc)
-    Array{eltype(A),ndims(A)}(A, Future(A_loc.size))
+    Array{A_loc.eltype,A_loc.ndims}(A, Future(A_loc.size))
 end
 
 function write_hdf5(A, path)
@@ -232,10 +234,10 @@ falses(args...; kwargs...) where {T} = fill(false, args...; kwargs...)
 
 # Array properties
 
-Base.ndims(A::Array) = ndims(sample(A))
-Base.size(A::Array) = compute(A.size)
-Base.length(V::Vector) = compute(V.size)[1]
-Base.eltype(A::Array) = eltype(sample(A))
+Base.ndims(A::Array{T,N}) where {T,N} = ndims(sample(A))
+Base.size(A::Array{T,N}) where {T,N} = collect(A.size)
+Base.length(V::Array{T,N}) where {T,N} = prod(collect(V.size))
+Base.eltype(A::Array{T,N}) where {T,N} = eltype(sample(A))
 
 function pts_for_copying(A, res)
     # balanced
@@ -329,10 +331,10 @@ end
 
 # NOTE: This function is shared between the client library and the PT library
 function indexapply(op, objs...; index::Integer=1)
-    lists = [obj for obj in objs if obj isa AbstractVecOrTuple]
+    lists = [obj for obj in objs if (obj isa AbstractVector || obj isa Tuple)]
     length(lists) > 0 || throw(ArgumentError("Expected at least one tuple as input"))
     index = index isa Colon ? length(first(lists)) : index
-    operands = [(obj isa AbstractVecOrTuple ? obj[index] : obj) for obj in objs]
+    operands = [((obj isa AbstractVector || obj isa Tuple) ? obj[index] : obj) for obj in objs]
     indexres = op(operands...)
     res = first(lists)
     if first(lists) isa Tuple
@@ -342,6 +344,7 @@ function indexapply(op, objs...; index::Integer=1)
     else
         res = copy(res)
         res[index] = indexres
+        res
     end
 end
 
@@ -426,6 +429,7 @@ function Base.reduce(op, A::Array{T,N}; dims=:, kwargs...) where {T,N}
     end
 
     @partitioned op A dims kwargs res res_size begin
+        @show size(A)
         res = Base.reduce(op, A; dims=dims, kwargs...)
         if res isa Array
             res_size = Base.size(res)

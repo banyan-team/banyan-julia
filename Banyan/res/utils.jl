@@ -12,7 +12,10 @@ get_worker_idx(comm::MPI.Comm) = MPI.Comm_rank(comm) + 1
 get_nworkers(comm::MPI.Comm) = MPI.Comm_size(comm)
 
 get_partition_idx(batch_idx, nbatches, comm::MPI.Comm) =
-    (get_worker_idx(comm) - 1) * nbatches + batch_idx
+    get_partition_idx(batch_idx, nbatches, get_worker_idx(comm))
+
+get_partition_idx(batch_idx, nbatches, worker_idx) =
+    (worker_idx - 1) * nbatches + batch_idx
 
 get_npartitions(nbatches, comm::MPI.Comm) = nbatches * get_nworkers(comm)
 
@@ -439,8 +442,10 @@ function getpath(path)
     if startswith(path, "http://") || startswith(path, "https://")
         # TODO: First check for size of file and only download to
         # disk if it doesn't fit in free memory
+        # TODO: Add option for Internet locations as to whether or not to
+        # cache on disk
         hashed_path = string(hash(path))
-        joined_path = joinpath(tempdir(), hashed_path)
+        joined_path = "banyan_hdf5_dataset_" * hashed_path
         if !isfile(joined_path)
             # NOTE: Even though we are storing in /tmp, this is
             # effectively caching the download. If this is undesirable

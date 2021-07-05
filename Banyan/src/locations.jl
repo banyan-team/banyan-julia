@@ -146,7 +146,7 @@ function located(fut, location::Location)
     job.locations[value_id] = location
     record_request(RecordLocationRequest(value_id, location))
     @debug value_id
-    @debug location
+    # @debug size(location.sample.value)
 end
 
 function located(futs...)
@@ -263,6 +263,12 @@ end
 
 # NOTE: Currently, we only support s3:// or http(s):// and only either a
 # single file or a directory containing files that comprise the dataset.
+# What we currently support:
+# - Single HDF5 files (with .h5 or .hdf5 extension) with group at end of name
+# - Single CSV/Parquet/Arrow files (with appropraite extensions)
+# - Directories containing CSV/Parquet/Arrow files
+# - s3:// or http(s):// (but directories and writing are not supported over the
+# Internet)
 
 # TODO: Add support for Client
 
@@ -272,9 +278,6 @@ end
 ####################
 # Remote locations #
 ####################
-
-# TODO: Call a function Cailin is making to ensure that the bucket is already
-# mounted at a known location and use that returned location
 
 # NOTE: Sampling may be the source of weird and annoying bugs for users.
 # Different values tracked by Banyan might have different sampling rates
@@ -332,10 +335,31 @@ end
 function get_remote_location(remotepath)
     Random.seed!(hash(get_job_id()))
 
+    # Get the actual remote path by checking if this is an HDF5 file which (if
+    # it is) must have a group specified
+    hdf5_ending = if occursin(".h5", remotepath)
+        ".h5"
+    elseif occursin(".hdf5", remotepath)
+        ".hdf5"
+    else
+        ""
+    end
+    remotepath, datasetpath = if hdf5_ending == ""
+        remotepath, nothing
+    else
+        remotepath, datasetpath = split(remotepath, hdf5_ending)
+        remotepath *= hdf5_ending # Add back the file extension
+        datasetpath = datasetpath[2:end] # Chop off the /
+        remotepath, datasetpath
+    end
+
     # TODO: Cache stuff
     p = if startswith(remotepath, "s3://")
         get_s3fs_path(remotepath)
+        # `p` is the local version of the path while `remotepath` is the
+        # external one
     elseif startswith(remotepath, "http://") || startswith(remotepath, "https://")
+        @show remotepath
         download(remotepath)
     else
         throw(
@@ -355,52 +379,62 @@ function get_remote_location(remotepath)
 
     # Handle single-file nd-arrays
 
-    hdf5_ending = if occursin(".h5", p)
-        ".h5"
-    elseif occursin(".hdf5", p)
-        ".hdf5"
-    else
-        ""
-    end
+    # TODO: Support HDF5 files that don't have .h5 in their filenmae
     @show p
     @show hdf5_ending
     if length(hdf5_ending) > 0
-        filename, datasetpath = split(p, hdf5_ending)
-        remotefilename, _ = split(remotepath, hdf5_ending)
-        filename *= hdf5_ending
-        remotefilename *= hdf5_ending
+        # filename, datasetpath = split(p, hdf5_ending)
+        # remotefilename, _ = split(remotepath, hdf5_ending)
+        # filename *= hdf5_ending
+        # remotefilename *= hdf5_ending
         # datasetpath = datasetpath[2:end] # Chop off the /
 
         # Load metadata for reading
 
+        # TODO: Determine why sample size is so huge
+        # TODO: Determine why location parameters are not getting populated
+
         # Open HDF5 file
         sample = []
         datasize = [0]
+        datandims = nothing
+        dataeltype = nothing
+        @show dataeltype
         if isfile(p)
+            @show dataeltype
             f = h5open(p, "r")
+            if !(datasetpath in keys(f))
+                throw(ArgumentError("Dataset \"$datasetpath\" could not be found in the HDF5 file at $remotepath"))
+            end
             dset = f[datasetpath]
             ismapping = false
-            if ismmappable(dset)
+            if HDF5.ismmappable(dset)
                 ismapping = true
-                dset = readmmap(dset)
+                dset = HDF5.readmmap(dset)
                 close(f)
             end
 
             # Collect metadata
-            nbytes += sizeof(length(dset) * eltype(dset))
+            nbytes += length(dset) * sizeof(eltype(dset))
             datasize = size(dset)
+            @show datasize
 
             # Collect sample
             datalength = first(datasize)
             remainingcolons = repeat([:], ndims(dset) - 1)
+            sample = dset[1:0, remainingcolons...]
             if datalength < MAX_EXACT_SAMPLE_LENGTH
                 sampleindices =
                     randsubseq(1:datalength, 1 / get_job().sample_rate)
+                @show sampleindices
                 sample = dset[sampleindices, remainingcolons...]
+                @show sampleindices
             end
+            @show datalength
 
             # Extend or chop sample as needed
             samplelength = getsamplenrows(datalength)
+            @show samplelength
             if size(sample, 1) < samplelength
                 sample = vcat(
                     sample,
@@ -409,6 +443,10 @@ function get_remote_location(remotepath)
             else
                 dset = dset[1:samplelength, remainingcolons...]
             end
+
+            # Get ndims and eltype
+            datandims = ndims(dset)
+            dataeltype = eltype(dset)
 
             # Close HDF5 file
             if !ismapping
@@ -420,18 +458,21 @@ function get_remote_location(remotepath)
             (
                 "Remote",
                 Dict(
-                    "path" => remotefilename,
+                    "path" => remotepath,
                     "subpath" => datasetpath,
                     "size" => datasize,
+                    "ndims" => datandims,
+                    "eltype" => dataeltype
                 ),
             )
         else
             (nothing, Dict{String,Any}())
         end
+        @show metadata_for_reading
 
         # Load metadata for writing to HDF5 file
         loc_for_writing, metadata_for_writing =
-            ("Remote", Dict("path" => remotefilename, "subpath" => datasetpath))
+            ("Remote", Dict("path" => remotepath, "subpath" => datasetpath))
 
         # Construct location with metadata
         return Location(
