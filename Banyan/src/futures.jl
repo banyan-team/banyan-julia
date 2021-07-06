@@ -21,6 +21,8 @@ function Future(location::Location = None(); mutate_from::Union{<:AbstractFuture
 
     # TODO: Add Size location here if needed
     # Handle locations that have an associated value
+    println(location)
+    println(location.src_name)
     if location.src_name in ["None", "Client", "Value"]
         new_future.value = location.sample.value
         new_future.stale = false

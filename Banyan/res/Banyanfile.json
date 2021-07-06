@@ -11,7 +11,7 @@
         },
         "job": {
             "code": [
-                "using DataFrames, CSV, Parquet, Arrow, HDF5"
+                "using DataFrames, CSV, Parquet, Arrow, HDF5, Distributions"
             ]
         }
     }

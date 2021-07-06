@@ -1,13 +1,15 @@
 
 function load_json(path::String)
     if startswith(path, "file://")
+        if !isfile(path[8:end])
+            error("File $path does not exist")
+        end
         JSON.parsefile(path[8:end])
     elseif startswith(path, "s3://")
         error("S3 path not currently supported")
         # JSON.parsefile(S3Path(path, config=get_aws_config()))
     elseif startswith(path, "http://") || startswith(path, "https://")
-        # TODO: This does not currently work
-	JSON.parse(HTTP.get(path).body)
+	JSON.parse(String(HTTP.get(path).body))
     else
         error("Path $path must start with \"file://\", \"s3://\", or \"http(s)://\"")
     end
@@ -16,8 +18,12 @@ end
 # Loads file into String and returns
 function load_file(path::String)
     if startswith(path, "file://")
+        if !isfile(path[8:end])
+            error("File $path does not exist")
+        end
         String(read(open(path[8:end])))
     elseif startswith(path, "s3://")
+        error("S3 path not currently supported")
         String(read(S3Path(path)))
     elseif startswith(path, "http://") || startswith(path, "https://")
         String(HTTP.get(path).body)
@@ -35,7 +41,7 @@ end
 
 function merge_paths_with(
     banyanfile_so_far::Dict,
-    banyanfile_path::String,
+    banyanfile_path::String,  # TODO: Remove this unused parameter
     banyanfile::Dict,
     selector::Function,
 )
@@ -45,7 +51,7 @@ function merge_paths_with(
     curr = selector(banyanfile)
     deduplicated_absolute_locations = collect(union(Set(so_far), Set(curr)))
     deduplicated_relative_locations = unique(loc -> basename(loc), vcat(so_far, curr))
-    if deduplicated_relative_locations < deduplicated_absolute_locations
+    if length(deduplicated_relative_locations) < length(deduplicated_absolute_locations)
         error(
             "Files and scripts must have unique base names: $so_far and $curr have the same base name",
         )
@@ -65,7 +71,7 @@ end
 
 function keep_same_path(
     banyanfile_so_far::Dict,
-    banyanfile_path::String,
+    banyanfile_path::String,  # TODO: Remove unused parameter
     banyanfile::Dict,
     selector::Function,
 )
@@ -98,6 +104,7 @@ function merge_banyanfile_with_defaults!(banyanfile, banyanfile_path)
         Dict("language" => "jl", "cluster" => Dict(), "job" => Dict()),
     )
     # TODO: Fix `update_cluster`
+    banyan_dir = dirname(dirname(pathof(Banyan)))
     mergewith!(
         (a, b) -> a,
         banyanfile["require"]["cluster"],
@@ -105,8 +112,8 @@ function merge_banyanfile_with_defaults!(banyanfile, banyanfile_path)
             "files" => [],
             "scripts" => [],
             "packages" => [],
-            "pt_lib" => nothing,
-            "pt_lib_info" => nothing,
+            "pt_lib" => "file://$banyan_dir/res/pt_lib.jl",
+            "pt_lib_info" => "file://$banyan_dir/res/pt_lib_info.json",
         ),
     )
     mergewith!((a, b) -> a, banyanfile["require"]["job"], Dict("code" => []))
@@ -213,7 +220,18 @@ function upload_banyanfile(
     # TODO: Implement this to load Banyanfile, referenced pt_lib_info, pt_lib,
     # code files
 
-    # TODO: Validate that s3_bucket_arn exists
+    # Get s3 bucket name from arn
+    s3_bucket_name = last(split(s3_bucket_arn, ":"))
+    if endswith(s3_bucket_name, "/")
+        s3_bucket_name = s3_bucket_name[1:end-1]
+    elseif endswith(s3_bucket_name, "/*")
+        s3_bucket_name = s3_bucket_name[1:end-2]
+    elseif endswith(s3_bucket_name, "*")
+        s3_bucket_name = s3_bucket_name[1:end-1]
+    end
+
+    # Validate that s3_bucket_arn exists
+    s3_exists(get_aws_config(), s3_bucket_name, "")
 
     # Load Banyanfile and merge with all included
     banyanfile = load_json(banyanfile_path)
@@ -245,14 +263,6 @@ function upload_banyanfile(
     end
 
     # Upload all files, scripts, and pt_lib to s3 bucket
-    s3_bucket_name = last(split(s3_bucket_arn, ":"))
-    if endswith(s3_bucket_name, "/")
-        s3_bucket_name = s3_bucket_name[1:end-1]
-    elseif endswith(s3_bucket_name, "/*")
-        s3_bucket_name = s3_bucket_name[1:end-2]
-    elseif endswith(s3_bucket_name, "*")
-        s3_bucket_name = s3_bucket_name[1:end-1]
-    end
     for f in vcat(files, scripts, pt_lib)
         s3_put(get_aws_config(), s3_bucket_name, basename(f), load_file(f))
     end

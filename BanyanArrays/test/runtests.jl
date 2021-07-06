@@ -72,7 +72,7 @@ function run_with_job(test_fn, name)
                     if ntrials > 1
                         @time test_fn(j)
                     else
-                        test_fn(j)
+                        @time test_fn(j)
                     end
                 end
             end

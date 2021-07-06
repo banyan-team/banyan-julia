@@ -1,0 +1,10 @@
+{
+    "require": {
+        "cluster": {
+            "packages": ["Plots"]
+        },
+        "job": {
+            "code": ["using Plots"]
+        }
+    }
+}

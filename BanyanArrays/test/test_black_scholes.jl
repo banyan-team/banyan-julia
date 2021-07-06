@@ -5,7 +5,7 @@ using Distributions
     #start_time = now()
     #end_time = now()
     run_with_job("scholes") do job
-        size = size = 512000000  # 256000000
+        size = 256000000  ##512000000  # 256000000
         price = BanyanArrays.fill(4.0, size)
         strike = BanyanArrays.fill(4.0, size)
         t = BanyanArrays.fill(4.0, size)
@@ -36,7 +36,9 @@ using Distributions
         )
 
         call_sum = sum(call)
+        call = nothing
         res = collect(call_sum)
+	println(res)
         #res = collect(res)
         #end = now()
         #@test typeof(res) == Base.Vector{Float64}
@@ -49,7 +51,7 @@ end
 
 @testset "Black Scholes" begin
     run_without_job("scholes_baseline") do job
-        size = 256000000
+        size = 128  #256000000
         price = Base.fill(4.0, size)
         strike = Base.fill(4.0, size)
         t = Base.fill(4.0, size)
@@ -88,7 +90,7 @@ end
                   rate
         )
 
-        call_sum = sum(call)
+        call_sum = Base.sum(call)
         res = Base.collect(call_sum)
         println(res)
         # @test typeof(res) == Base.Vector{Float64}
@@ -99,7 +101,7 @@ end
 
 @testset "Black Scholes" begin
     run_without_job("scholes_baseline_vectorized") do job
-        size = 256000000
+        size = 128  #256000000
         price = Base.fill(4.0, size)
         strike = Base.fill(4.0, size)
         t = Base.fill(4.0, size)
@@ -113,7 +115,7 @@ end
 
         call = (cdf.(Normal(), d1) .* price) - (cdf.(Normal(), d2) .* strike .* exp.(-rate .* t))
 
-        call_sum = sum(call)
+        call_sum = Base.sum(call)
         res = Base.collect(call_sum)
         println(res)
 
