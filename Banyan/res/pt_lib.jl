@@ -98,6 +98,7 @@ function ReadBlock(
         @show path
         res = deserialize(path)
         @show res
+        return res
     end
 
     # Handle multi-file tabular datasets
@@ -393,15 +394,20 @@ function Write(
                 whole_size = indexapply(+, size(part), offset, index=dim)
                 if force_overwrite && isfile(path)
                     h5open(path, "r+") do f
-                        delete_object(f[group_prefix])
+                        if haskey(f, group_prefix)
+                            delete_object(f[group_prefix])
+                        end
                     end
                 end
                 h5open(path, dataset_writing_permission) do fid
                     # If there are multiple batches, each batch just gets written
                     # to its own group
+                    # TODO: Use `dataspace` instead of similar since the array
+                    # may not fit in memory
                     fid[group] = similar(part, whole_size)
                     @show keys(fid)
                     @show fid
+                    close(fid[group])
                 end
                 println("Exiting if")
             end
@@ -433,8 +439,17 @@ function Write(
                         for d = 1:ndims(dset)
                     ]...,
                 )
+
+                close(dset)
             end
         else
+            fsync_file() = begin
+                file_fd = open(path) do f
+                    fd(f)
+                end
+                ccall(:fsync, Cint, (Cint,), file_fd)
+            end
+
             # Create dataset on head node
             if partition_idx == 1
                 # # Force delete any existing dataset if needed
@@ -498,19 +513,24 @@ function Write(
             # node and making calls from there
             part_lengths = MPI.Gather(size(part, dim), 0, comm)
             if worker_idx == 1
-                for (worker_i, part_length) in enumerate(part_lengths)
-                    idx = get_partition_idx(batch_idx, nbatches, worker_i)
-                    group = group_prefix*"_part$idx"*"_dim=$dim"
-                    h5open(path, "r+") do fid
+                h5open(path, "r+") do fid
+                    for (worker_i, part_length) in enumerate(part_lengths)
+                        idx = get_partition_idx(batch_idx, nbatches, worker_i)
+                        group = group_prefix*"_part$idx"*"_dim=$dim"
                         @show keys(fid)
                         # If there are multiple batches, each batch just gets written
                         # to its own group
+                        # TODO: Use `dataspace` instead of similar since the array
+                        # may not fit in memory'
+                        @show indexapply(_ -> part_length, size(part), index=dim)
                         fid[group] = similar(part, indexapply(_ -> part_length, size(part), index=dim))
                         @show eltype(part)
                         # @show keys(fid)
                         # @show fid
+                        close(fid[group])
                     end
                 end
+                fsync_file()
             end
 
             # Wait for the head node to allocate all the datasets for this
@@ -526,7 +546,11 @@ function Write(
             h5open(path, "r+") do fid
                 # @show keys(fid)
                 fid[group][fill(Colon(), ndims(part))...] = part
+                close(fid[group])
             end
+            fsync_file()
+
+            # TODO: Maybe do a proper barrier or something other than exscan to ensure each dataset gets written out
 
             # Collect datasets from each batch and write into the final result dataset
             if batch_idx == nbatches
@@ -575,12 +599,13 @@ function Write(
                     @show group
                     @show nbatches
                     whole_size = indexapply(_ -> offset + whole_batch_length, size(part), index=dim)
+                    @show whole_size
                     # The permission used here is "r+" because we already
                     # created the file on the head node
                     h5open(path, "r+") do fid
                         # Delete the dataset if needed before we write the
                         # dataset to which each batch will write its chunk
-                        if force_overwrite && group_prefix in keys(fid)
+                        if force_overwrite && haskey(fid, group_prefix)
                             delete_object(fid[group_prefix])
                         end
 
@@ -593,6 +618,7 @@ function Write(
                         @show keys(fid)
                         # @show keys(fid)
                         # @show fid
+                        close(fid[group_prefix])
                     end
                     println("Exiting if")
                 end
@@ -621,6 +647,8 @@ function Write(
                         @show eltype(f[group])
                         @show HDF5.ishdf5(path)
                         @show keys(f)
+                        @show sum(f[group][fill(Colon(), ndims(dset))...])
+                        # TOODO: Maynee remoce printlns to make it work
                         setindex!(
                             # We are writing to the whole dataset that was just
                             # created
@@ -640,21 +668,36 @@ function Write(
                                 for d = 1:ndims(dset)
                             ]...,
                         )
+                        @show sum(getindex(dset, [
+                            if d == dim
+                                (batchoffset+1):batchoffset+size(f[group], dim)
+                            else
+                                Colon()
+                            end
+                            # split_len(whole_size[dim], batch_idx, nbatches, comm) : Colon()
+                            for d = 1:ndims(dset)
+                        ]...))
 
                         # @show size(dset)
 
                         # Update the offset of this batch
                         batchoffset += size(f[group], dim)
+                        close(f[group])
                     end
+                    close(dset)
                 end
+                fsync_file()
 
                 # Wait until all the data is written
                 MPI.Barrier(comm)
+                # NOTE: Issue is that the barrier here doesn't ensure that all
+                # processes have written in the previous step
                 # TODO: Use a broadcast here
 
                 # Then, delete all data for all groups on the head node
                 if worker_idx == 1
                     h5open(path, "r+") do f
+                        @show sum(f[group_prefix][fill(Colon(), ndims(f[group_prefix]))...])
                         for worker_i = 1:nworkers
                             for batch_i = 1:nbatches
                                 idx = get_partition_idx(batch_i, nbatches, worker_i)
@@ -666,7 +709,13 @@ function Write(
                                 @show keys(f)
                             end
                         end
+                        # TODO: Ensure that closing (flushing) HDF5 datasets
+                        # and files is sufficient. We might additionally have
+                        # to sync to ensure that the content is actually
+                        # written to disk or to S3
+                        # TODO: Use create_dataset passing in dtype and dimensions
                     end
+                    fsync_file()
                 end
 
                 # TODO: Determine whether this is necessary. This barrier might
@@ -719,7 +768,7 @@ function Write(
         # TODO: Make this work for variable-sized element type
         # TODO: Support arrays and reductions with variable-sized elements
         # TODO: Maybe use Arrow
-    elseif get_partition_idx(batch_idx, nbatches, comm) == get_npartitions(nbatches, comm)
+    elseif get_partition_idx(batch_idx, nbatches, comm) == 1
         if isa_gdf(part)
             part = nothing
         end
@@ -916,6 +965,7 @@ function CopyFrom(
     loc_name,
     loc_params,
 )
+    @show loc_name
     if loc_name == "Value"
         loc_params["value"]
     elseif loc_name == "Disk"
@@ -1033,6 +1083,12 @@ function ReduceAndCopyTo(
 
     # TODO: Ensure we don't have issues where with batched execution we are
     # merging to the thing we are splitting from
+    # NOTE: We are probably okay for now because we never split and then
+    # re-merge new results to the same variable. We always merge to a new
+    # variable. But in the future to be more robust, we may want to store
+    # partial merges in a global `IdDict` and then only mutate `src` once we
+    # are finished with the last batch and we know we won't be splitting
+    # from the value again.
     src
 end
 

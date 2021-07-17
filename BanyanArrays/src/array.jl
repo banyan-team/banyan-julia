@@ -395,6 +395,7 @@ function Base.reduce(op, A::Array{T,N}; dims=:, kwargs...) where {T,N}
     op = Future(op)
     res_size = Future()
     res = dims isa Colon ? Future() : Array{Any,Any}(Future(), res_size)
+    @show dims # TODO: Ensure this isn't a function
     dims = Future(dims)
     kwargs = Future(kwargs)
 
@@ -430,6 +431,7 @@ function Base.reduce(op, A::Array{T,N}; dims=:, kwargs...) where {T,N}
 
     @partitioned op A dims kwargs res res_size begin
         @show size(A)
+        @show dims # TODO: Figure out why dims is sometimes a function
         res = Base.reduce(op, A; dims=dims, kwargs...)
         if res isa Array
             res_size = Base.size(res)

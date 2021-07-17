@@ -433,7 +433,7 @@ macro partitioned(ex...)
         #     end
         # end
 
-        # Fill in task with code and value names pulled using the macro
+        # Fill in task with code and value names pulled using the macror
         unsplatted_variable_names = [$(variable_names...)]
         splatted_variable_names = []
         task = get_task()
@@ -511,6 +511,16 @@ macro partitioned(ex...)
         # Run the actual code. We don't have to do any splatting here
         # because the variables already each contain either a single
         # future or a list of them.
+        # TODO: Fix error 
+        # MethodError: Cannot `convert` an object of type Int32 to an object of type Symbol
+        # Closest candidates are:
+        #   convert(::Type{T}, ::PropertyDicts.PropertyDict) where T at /home/calebwin/.julia/packages/PropertyDicts/6Kqy6/src/PropertyDicts.jl:24
+        #   convert(::Type{T}, ::LazyJSON.Object) where T at /home/calebwin/.julia/packages/LazyJSON/LpIGF/src/AbstractDict.jl:80
+        #   convert(::Type{T}, ::T) where T at essentials.jl:205
+        #   ...
+        # Stacktrace:
+        #   [1] merge(a::NamedTuple{(:dims,), Tuple{Colon}}, itr::Int32)
+        #     @ Base ./namedtuple.jl:281      
         $(esc(code))
 
         # Move results from variables back into the samples. Also, update the

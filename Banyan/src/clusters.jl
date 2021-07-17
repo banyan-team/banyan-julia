@@ -51,6 +51,7 @@ function merge_paths_with(
     curr = selector(banyanfile)
     deduplicated_absolute_locations = collect(union(Set(so_far), Set(curr)))
     deduplicated_relative_locations = unique(loc -> basename(loc), vcat(so_far, curr))
+    # TODO: Use the normalize path here
     if length(deduplicated_relative_locations) < length(deduplicated_absolute_locations)
         error(
             "Files and scripts must have unique base names: $so_far and $curr have the same base name",
@@ -77,6 +78,7 @@ function keep_same_path(
 )
     so_far = selector(banyanfile_so_far)
     curr_selected = selector(banyanfile)
+    # TODO: Use the normalized path here
     curr = isnothing(curr_selected) ? nothing : curr_selected #getnormpath(banyanfile_path, curr_selected)
     if !isnothing(so_far) && !isnothing(curr) && so_far != curr
         @warn "$so_far does not match $curr in included Banyanfiles"
