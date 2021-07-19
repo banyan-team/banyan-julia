@@ -16,6 +16,8 @@ function get_gather_queue(job_id::JobId)
 end
 
 function receive_next_message(queue_name)
+    global jobs
+    job_id = get_job_id()
     m = sqs_receive_message(queue_name)
     while isnothing(m)
         m = sqs_receive_message(queue_name)
@@ -31,8 +33,7 @@ function receive_next_message(queue_name)
         response
     elseif startswith(content, "JOB_FAILURE")
         @debug "Job failed"
-        global current_job_status
-        current_job_status = "failed"
+        jobs[job_id].current_status = "failed"
         # TODO: Document why the 12 here is necessary
         println(content[12:end])
         error("Job failed; see preceding output")

@@ -15,7 +15,6 @@ global jobs = Dict()
 # modifications would be required to make sharing a job between threads
 # ergonomic.
 global current_job_id = nothing
-global current_job_status = nothing
 
 function set_job_id(job_id::Union{JobId, Nothing})
     global current_job_id
@@ -47,7 +46,6 @@ function create_job(;
 )
     global jobs
     global current_job_id
-    global current_job_status
 
     @debug "Creating job"
     if cluster_name == ""
@@ -95,8 +93,8 @@ function create_job(;
 
     # Store in global state
     current_job_id = job_id
-    current_job_status = "running"
     jobs[current_job_id] = Job(cluster_name, current_job_id, nworkers, sample_rate)
+    jobs[current_job_id].current_status = "running"
 
     @debug "Finished creating job $job_id"
     return job_id
@@ -104,9 +102,8 @@ end
 
 global jobs_destroyed_recently = Set()
 
-function destroy_job(job_id::JobId; failed = false, force=false, kwargs...)
+function destroy_job(job_id::JobId; failed = Nothing, force=false, kwargs...)
     global current_job_id
-    global current_job_status
     global jobs_destroyed_recently
     
     if job_id in jobs_destroyed_recently && !force
@@ -116,9 +113,11 @@ function destroy_job(job_id::JobId; failed = false, force=false, kwargs...)
         push!(jobs_destroyed_recently, job_id)
     end
 
-    failed = false
-    if current_job_status == "failed"
-    	failed = true
+    if failed == Nothing
+        failed = false
+        if !isnothing(current_job_id) && get_job().current_status == "failed"
+    	    failed = true
+        end
     end
 
 
@@ -165,22 +164,6 @@ function destroy_all_jobs(cluster_name::String; kwargs...)
 end
 
 # destroy_job() = destroy_job(get_job_id())
-
-# mutable struct Job
-#     job_id::JobId
-#     failed::Bool
-
-#     # function Job(; kwargs...)
-#     #     new_job_id = create_job(; kwargs...)
-#     #     #new_job_id = create_job(;cluster_name="banyancluster", nworkers=2)
-#     #     new_job = new(new_job_id)
-#     #     finalizer(new_job) do j
-#     #         destroy_job(j.job_id)
-#     #     end
-
-#     #     new_job
-#     # end
-# end
 
 function with_job(f::Function; kwargs...)
     # This is not a constructor; this is just a function that ensures that
