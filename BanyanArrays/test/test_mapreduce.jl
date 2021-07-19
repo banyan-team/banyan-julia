@@ -48,6 +48,7 @@
             # compute(x)
             @show typeof(x)
             sleep(15)
+            @show typeof(x)
             # NOTE: The only reason why we're not putting `collect(x)` inside the
             # the `@test` is because `@test` will catch exceptions and prevent the
             # job from getting destroyed when an exception occurs and we can't keep
