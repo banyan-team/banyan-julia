@@ -33,9 +33,7 @@ function compute(fut::AbstractFuture)
     # we should modify the way we schedule the final merging stage to not
     # require the last value to be merged simply because it is being evaluated.
 
-    # TODO: Refactor `current_job_status` out into the `Job`s stored in
-    # `global jobs`
-    global current_job_status
+    global jobs
 
     fut = convert(Future, fut)
     job_id = get_job_id()
@@ -189,7 +187,7 @@ function compute(fut::AbstractFuture)
         try
             response = send_evaluation(fut.value_id, job_id)
         catch
-            current_job_status = "failed"
+            jobs[job_id].current_status = "failed"
             rethrow()
         end
     
