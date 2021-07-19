@@ -109,7 +109,7 @@ function destroy_job(job_id::JobId; failed = false, force=false, kwargs...)
     global current_job_status
     global jobs_destroyed_recently
     
-    if force || job_id in jobs_destroyed_recently
+    if job_id in jobs_destroyed_recently && !force
         @debug "Job already destroyed; use force=true to destroy anyway"
         return nothing
     else
@@ -153,13 +153,12 @@ function get_jobs(cluster_name=Nothing, status=Nothing; kwargs...)
 end
 
 function destroy_all_jobs(cluster_name::String; kwargs...)
-    @debug "Destroying all jobs for cluster"
+    @debug "Destroying all running jobs for cluster"
     configure(; kwargs...)
     jobs = get_jobs(cluster_name, "running")
     for (job_id, job) in jobs
-        @info job_id
         if job["status"] == "running"
-	    @info "is running"
+	    @info "Destroying job id $job_id"
             destroy_job(job_id; kwargs...)
 	end
     end
