@@ -38,6 +38,25 @@
         @test res2 == 1.0
     end
 
+    run_with_job("Simple computing") do job
+        for _ in 1:8
+            # NOTE: This also tests simple writing to and reading from local disk
+            x = BanyanArrays.fill(10.0, 2048)
+            # x = map(e -> e / 10, x)
+            @show typeof(x)
+            compute(x)
+            # compute(x)
+            @show typeof(x)
+            sleep(15)
+            # NOTE: The only reason why we're not putting `collect(x)` inside the
+            # the `@test` is because `@test` will catch exceptions and prevent the
+            # job from getting destroyed when an exception occurs and we can't keep
+            # running this test if the job ends
+            x_collect = collect(x)
+            @test x_collect == Base.fill(10.0, 2048)
+        end
+    end
+
     run_with_job("Computing") do job
         # NOTE: This also tests simple writing to and reading from local disk
         x = BanyanArrays.fill(10.0, 2048)
@@ -70,8 +89,11 @@
         @test x_sum_collect == 10.0 * 2048
         compute(x_sum)
         x_collect = collect(x)
+        @show length(x_collect)
         @test x_collect == Base.fill(1.0, 2048)
         collect(x_sum)
+        x_sum_collect = collect(x_sum)
+        @test x_sum_collect == 10.0 * 2048
     end
 
     run_with_job("Map with multiple values") do job

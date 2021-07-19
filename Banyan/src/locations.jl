@@ -21,11 +21,13 @@ mutable struct Location
         dst_parameters::Dict{String,<:Any},
         sample::Sample = Sample(),
     )
-        if isnothing(src_name) && isnothing(dst_name)
-            error(
-                "Location must either be usable as a source or as a destination for data",
-            )
-        end
+        # NOTE: A file might be None and None if it is simply to be cached on
+        # disk and then read from
+        # if src_name == "None" && dst_name == "None"
+        #     error(
+        #         "Location must either be usable as a source or as a destination for data",
+        #     )
+        # end
 
         new(src_name, dst_name, src_parameters, dst_parameters, sample)
     end
@@ -311,6 +313,7 @@ getsamplenrows(totalnrows) =
     end
 
 function Remote(p; read_from_cache = true, write_to_cache = true)
+    # TODO: Document the caching behavior better
     # Read location from cache. The location will include metadata like the
     # number of rows in each file as well as a sample that can be used on the
     # client side for estimating memory usage and data skew among other things.
@@ -400,61 +403,70 @@ function get_remote_location(remotepath)
         datandims = nothing
         dataeltype = nothing
         @show dataeltype
+        dataset_to_read_from_exists = false
         if isfile(p)
             @show dataeltype
             f = h5open(p, "r")
-            if !(datasetpath in keys(f))
-                throw(ArgumentError("Dataset \"$datasetpath\" could not be found in the HDF5 file at $remotepath"))
-            end
-            dset = f[datasetpath]
-            ismapping = false
-            if HDF5.ismmappable(dset)
-                ismapping = true
-                dset = HDF5.readmmap(dset)
-                close(f)
-            end
 
-            # Collect metadata
-            nbytes += length(dset) * sizeof(eltype(dset))
-            datasize = size(dset)
-            @show datasize
+            # if !(datasetpath in keys(f))
+            #     throw(ArgumentError("Dataset \"$datasetpath\" could not be found in the HDF5 file at $remotepath"))
+            # end
+            @show f
+            @show keys(f)
+            @show datasetpath
+            if haskey(f, datasetpath)
+                dataset_to_read_from_exists = true
 
-            # Collect sample
-            datalength = first(datasize)
-            remainingcolons = repeat([:], ndims(dset) - 1)
-            sample = dset[1:0, remainingcolons...]
-            if datalength < MAX_EXACT_SAMPLE_LENGTH
-                sampleindices =
-                    randsubseq(1:datalength, 1 / get_job().sample_rate)
-                @show sampleindices
-                sample = dset[sampleindices, remainingcolons...]
-                @show sampleindices
-            end
-            @show datalength
+                dset = f[datasetpath]
+                ismapping = false
+                if HDF5.ismmappable(dset)
+                    ismapping = true
+                    dset = HDF5.readmmap(dset)
+                    close(f)
+                end
 
-            # Extend or chop sample as needed
-            samplelength = getsamplenrows(datalength)
-            @show samplelength
-            if size(sample, 1) < samplelength
-                sample = vcat(
-                    sample,
-                    dset[1:(samplelength-size(sample, 1)), remainingcolons...],
-                )
-            else
-                dset = dset[1:samplelength, remainingcolons...]
-            end
+                # Collect metadata
+                nbytes += length(dset) * sizeof(eltype(dset))
+                datasize = size(dset)
+                @show datasize
 
-            # Get ndims and eltype
-            datandims = ndims(dset)
-            dataeltype = eltype(dset)
+                # Collect sample
+                datalength = first(datasize)
+                remainingcolons = repeat([:], ndims(dset) - 1)
+                sample = dset[1:0, remainingcolons...]
+                if datalength < MAX_EXACT_SAMPLE_LENGTH
+                    sampleindices =
+                        randsubseq(1:datalength, 1 / get_job().sample_rate)
+                    @show sampleindices
+                    sample = dset[sampleindices, remainingcolons...]
+                    @show sampleindices
+                end
+                @show datalength
 
-            # Close HDF5 file
-            if !ismapping
-                close(f)
+                # Extend or chop sample as needed
+                samplelength = getsamplenrows(datalength)
+                @show samplelength
+                if size(sample, 1) < samplelength
+                    sample = vcat(
+                        sample,
+                        dset[1:(samplelength-size(sample, 1)), remainingcolons...],
+                    )
+                else
+                    dset = dset[1:samplelength, remainingcolons...]
+                end
+
+                # Get ndims and eltype
+                datandims = ndims(dset)
+                dataeltype = eltype(dset)
+
+                # Close HDF5 file
+                if !ismapping
+                    close(f)
+                end
             end
         end
 
-        loc_for_reading, metadata_for_reading = if isfile(p)
+        loc_for_reading, metadata_for_reading = if dataset_to_read_from_exists
             (
                 "Remote",
                 Dict(
@@ -466,7 +478,7 @@ function get_remote_location(remotepath)
                 ),
             )
         else
-            (nothing, Dict{String,Any}())
+            ("None", Dict{String,Any}())
         end
         @show metadata_for_reading
 
@@ -656,7 +668,7 @@ function get_remote_location(remotepath)
     loc_for_reading, metadata_for_reading = if !isempty(files)
         ("Remote", Dict("path" => remotepath, "files" => files, "nrows" => totalnrows))
     else
-        (nothing, Dict{String,Any}())
+        ("None", Dict{String,Any}())
     end
 
     # Load metadata for writing
@@ -665,7 +677,7 @@ function get_remote_location(remotepath)
         # or CSV dataset is desired to be created
         ("Remote", Dict("path" => remotepath))
     else
-        (nothing, Dict{String,Any}())
+        ("None", Dict{String,Any}())
     end
 
     # TODO: Cache sample on disk
