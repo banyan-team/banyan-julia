@@ -83,7 +83,7 @@
                 x = map(identity, x)
 
                 # TODO: Use all 3 steps so that we can test out writing once
-                # we get that to work
+                # we get writing strings to work
                 steps = 1:1
                 # steps = if startswith(path, "s3://")
                 #     1:3

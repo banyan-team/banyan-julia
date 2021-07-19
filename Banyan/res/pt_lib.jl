@@ -375,6 +375,8 @@ function Write(
         dataset_writing_permission = "cw"
         force_overwrite = true
 
+        info = MPI.Info()
+
         # Write out to an HDF5 dataset differently depending on whether there
         # are multiple batches per worker or just one per worker
         if nbatches == 1
@@ -385,65 +387,103 @@ function Write(
                 offset = 0
             end
 
-            # Make the last worker create the dataset (since it can compute
-            # the total dataset size using its offset)
-            if worker_idx == nworkers
-                println("Entering if")
-                @show group
-                @show nbatches
-                whole_size = indexapply(+, size(part), offset, index=dim)
-                if force_overwrite && isfile(path)
-                    h5open(path, "r+") do f
-                        if haskey(f, group_prefix)
-                            delete_object(f[group_prefix])
-                        end
+            # Create file if not yet created
+            f = h5open(path, "cw", comm, info)
+            close(f)
+
+            # Open file for writing data
+            f = h5open(path, "r+", comm, info)
+
+            # Overwrite existing dataset if found
+            # TODO: Return error on client side if we don't want to allow this
+            if force_overwrite && haskey(f, group)
+                delete_object(f[group])
+            end
+
+            # Create dataset
+            whole_size = indexapply(+, size(part), offset, index=dim)
+            whole_size = MPI.bcast(whole_size, nworkers-1, comm) # Broadcast dataset size to all workers
+            dset = create_dataset(f, group, eltype(part), (whole_size, whole_size))
+
+            # Write out each partition
+            setindex!(
+                dset,
+                part,
+                [
+                    # d == dim ? split_len(whole_size[dim], batch_idx, nbatches, comm) :
+                    if d == dim
+                        (offset+1):(offset+size(part, dim))
+                    else 
+                        Colon()
                     end
-                end
-                h5open(path, dataset_writing_permission) do fid
-                    # If there are multiple batches, each batch just gets written
-                    # to its own group
-                    # TODO: Use `dataspace` instead of similar since the array
-                    # may not fit in memory
-                    fid[group] = similar(part, whole_size)
-                    @show keys(fid)
-                    @show fid
-                    close(fid[group])
-                end
-                println("Exiting if")
-            end
-            # touch(path * "_is_ready")
+                    for d = 1:ndims(dset)
+                ]...,
+            )
 
-            # Wait until all workers have the file
-            # TODO: Maybe use a broadcast so that each node is only blocked on
-            # the main node
-            MPI.Barrier(comm)
+            # Close file
+            close(dset)
+            close(f)
 
-            # Open the file for writing
-            h5open(path, "r+") do f
-                # Get the group to write to
-                dset = f[group]
+            # # Make the last worker create the dataset (since it can compute
+            # # the total dataset size using its offset)
+            # if worker_idx == nworkers
+            #     println("Entering if")
+            #     @show group
+            #     @show nbatches
+            #     whole_size = indexapply(+, size(part), offset, index=dim)
+            #     if force_overwrite && isfile(path)
+            #         h5open(path, "r+") do f
+            #             if haskey(f, group_prefix)
+            #                 delete_object(f[group_prefix])
+            #             end
+            #         end
+            #     end
+            #     h5open(path, dataset_writing_permission) do fid
+            #         # If there are multiple batches, each batch just gets written
+            #         # to its own group
+            #         # TODO: Use `dataspace` instead of similar since the array
+            #         # may not fit in memory
+            #         fid[group] = similar(part, whole_size)
+            #         @show keys(fid)
+            #         @show fid
+            #         close(fid[group])
+            #     end
+            #     println("Exiting if")
+            # end
+            # # touch(path * "_is_ready")
 
-                # Mutate only the relevant subsection
-                # TODO: Use Exscan here and below to determine range to write to
-                # scannedstartidx = MPI.Exscan(len, +, comm)
-                setindex!(
-                    dset,
-                    part,
-                    [
-                        # d == dim ? split_len(whole_size[dim], batch_idx, nbatches, comm) :
-                        if d == dim
-                            (offset+1):(offset+size(part, dim))
-                        else 
-                            Colon()
-                        end
-                        for d = 1:ndims(dset)
-                    ]...,
-                )
+            # # Wait until all workers have the file
+            # # TODO: Maybe use a broadcast so that each node is only blocked on
+            # # the main node
+            # MPI.Barrier(comm)
 
-                close(dset)
-            end
+            # # Open the file for writing
+            # h5open(path, "r+") do f
+            #     # Get the group to write to
+            #     dset = f[group]
+
+            #     # Mutate only the relevant subsection
+            #     # TODO: Use Exscan here and below to determine range to write to
+            #     # scannedstartidx = MPI.Exscan(len, +, comm)
+            #     setindex!(
+            #         dset,
+            #         part,
+            #         [
+            #             # d == dim ? split_len(whole_size[dim], batch_idx, nbatches, comm) :
+            #             if d == dim
+            #                 (offset+1):(offset+size(part, dim))
+            #             else 
+            #                 Colon()
+            #             end
+            #             for d = 1:ndims(dset)
+            #         ]...,
+            #     )
+
+            #     close(dset)
+            # end
         else
-            fsync_file() = open(path) do f
+            # TODO: See if we have missing `close`s or missing `fsync`s or extra `MPI.Barrier`s
+            fsync_file(p) = open(p) do f
                 ccall(:fsync, Cint, (Cint,), fd(f))
             end
 
@@ -505,8 +545,6 @@ function Write(
             # # will send the requested length to the head node and then
             # # immediately proceed to trying to create 
             # MPI.Barrier(comm)
-
-            info = MPI.Info()
 
             # Create the file if not yet created
             if batch_idx == 1
