@@ -36,7 +36,9 @@ function receive_next_message(queue_name)
         jobs[job_id].current_status = "failed"
         # TODO: Document why the 12 here is necessary
         println(content[12:end])
-        error("Job failed; see preceding output")
+        if endswith(content, "MESSAGE_END")
+            error("Job failed; see preceding output")
+        end
     else
         @debug "Received scatter or gather request"
         JSON.parse(content)
