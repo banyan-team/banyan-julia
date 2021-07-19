@@ -61,7 +61,7 @@ read_arrow(p) = read_csv(p)
 # TODO: For writing functions, if a file is specified, enforce Replicated
 
 function write_csv(A, path)
-    destined(df, Remote(path))
+    destined(df, Remote(path, delete_from_cache=true))
     mutated(df)
     partitioned_with() do
         pt(df, Partitioned(A))

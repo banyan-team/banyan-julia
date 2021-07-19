@@ -312,7 +312,7 @@ getsamplenrows(totalnrows) =
         cld(totalnrows, get_job().sample_rate)
     end
 
-function Remote(p; read_from_cache = true, write_to_cache = true)
+function Remote(p; read_from_cache = true, write_to_cache = true, delete_from_cache = false)
     # TODO: Document the caching behavior better
     # Read location from cache. The location will include metadata like the
     # number of rows in each file as well as a sample that can be used on the
@@ -327,9 +327,15 @@ function Remote(p; read_from_cache = true, write_to_cache = true)
     end
 
     # Store location in cache
-    if write_to_cache
+    if write_to_cache && !delete_from_cache
         mkpath(locationspath)
         serialize(locationpath, location)
+    end
+
+    # Invalidate cache if this location is immediately going to be used for
+    # writing to
+    if delete_from_cache && isfile(locationpath)
+        rm(locationpath)
     end
 
     location
@@ -353,7 +359,9 @@ function get_remote_location(remotepath)
         remotepath, datasetpath = split(remotepath, hdf5_ending)
         remotepath *= hdf5_ending # Add back the file extension
         datasetpath = datasetpath[2:end] # Chop off the /
-        remotepath, datasetpath
+        # NOTE: It's critical that we convert `datasetpath` from a SubString
+        # to a String because then the `haspath` on an `HDF5.File` will fail
+        remotepath, String(datasetpath)
     end
 
     # TODO: Cache stuff
@@ -413,8 +421,10 @@ function get_remote_location(remotepath)
             # end
             @show f
             @show keys(f)
+            @show typeof(f)
             @show datasetpath
             if haskey(f, datasetpath)
+                println("Inside if")
                 dataset_to_read_from_exists = true
 
                 dset = f[datasetpath]

@@ -390,6 +390,7 @@ function Write(
             # Create file if not yet created
             f = h5open(path, "cw", comm, info)
             close(f)
+            MPI.Barrier(comm)
 
             # Open file for writing data
             f = h5open(path, "r+", comm, info)
@@ -423,6 +424,7 @@ function Write(
             # Close file
             close(dset)
             close(f)
+            MPI.Barrier(comm)
 
             # # Make the last worker create the dataset (since it can compute
             # # the total dataset size using its offset)
@@ -484,6 +486,7 @@ function Write(
         else
             # TODO: See if we have missing `close`s or missing `fsync`s or extra `MPI.Barrier`s
             fsync_file(p) = open(p) do f
+                # TODO: Maybe use MPI I/O method for fsync instead
                 ccall(:fsync, Cint, (Cint,), fd(f))
             end
 
@@ -551,12 +554,15 @@ function Write(
                 # f = h5open(path, "cw", comm, info) do _ end
                 f = h5open(path, "cw", comm, info)
                 close(f)
+                MPI.Barrier(comm)
                 # h5open(path * "_intermediates", "w", comm, info) do _ end
             end
 
             # TODO: Maybe use collective I/O with
             # `dxpl_mpio=HDF5.H5FD_MPIO_COLLECTIVE` for higher performance
             # TODO: Maybe use fsync to flush out after the file is closed
+            # TODO: Use a separate file for intermediate datasets so that we
+            # don't create a bunch of extra datasets everytime we try to write
 
             # h5open(path, "r+", comm, info) do f
             f = h5open(path, "r+", comm, info)
@@ -588,6 +594,7 @@ function Write(
             # TODO: Ensure that nothing doesn't cause bcast to just become a
             # no-op or something like that
             # MPI.bcast(nothing, 0, comm)
+            # TODO: Try removing this barrier
             MPI.Barrier(comm)
 
             # Each worker then writes their partition to a separate dataset
@@ -598,10 +605,12 @@ function Write(
             # close(fid[group])
 
             # Close (flush) all the intermediate datasets that we have created
+            # TODO: Try removing this barrier
             MPI.Barrier(comm)
             for partdset in partdsets
                 close(partdset)
             end
+            # TODO: Try removing this barrier
             MPI.Barrier(comm)
 
             # # If we aren't yet on the last batch, then we are only
@@ -709,6 +718,7 @@ function Write(
                 # Wait until all workers have the file
                 # TODO: Maybe use a broadcast so that each node is only blocked on
                 # the last node which is where the file is creating
+                # TODO: Try removing this barrier
                 MPI.Barrier(comm)
     
                 # Write out each batch
@@ -781,6 +791,7 @@ function Write(
                 
                 # TODO: Delete data by keeping intermediates in separate file
                 # Wait until all the data is written
+                # TODO: Try removing this barrier
                 MPI.Barrier(comm)
                 # NOTE: Issue is that the barrier here doesn't ensure that all
                 # processes have written in the previous step
@@ -818,9 +829,11 @@ function Write(
                 @show worker_idx 
             end
             close(f)
-            # @show worker_idx
-            # MPI.Barrier(comm)
-            # @show worker_idx 
+            # TODO: Ensure that we are closing stuff everywhere before trying
+            # to write
+            @show worker_idx
+            MPI.Barrier(comm)
+            @show worker_idx 
 
             # # Allocate all datasets needed by gathering all sizes to the head
             # # node and making calls from there

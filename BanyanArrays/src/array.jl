@@ -157,7 +157,7 @@ end
 
 function write_hdf5(A, path)
     # A_loc = Remote(pathname, mount)
-    destined(A, Remote(path))
+    destined(A, Remote(path, delete_from_cache=true))
     mutated(A)
     # This doesn't rely on any sample properties so we don't need to wrap this
     # in a `partitioned_with` to delay the PT construction to after sample
