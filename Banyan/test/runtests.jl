@@ -35,7 +35,7 @@ cluster_name = get(ENV, "BANYAN_CLUSTER_NAME", nothing)
 nworkers = get(ENV, "BANYAN_NWORKERS", nothing)
 ntrials = parse(Int, get(ENV, "NUM_TRIALS", "1")) # TODO: Make this BANYAN_NTRIALS
 
-function run_with_job(test_fn, name, job)
+function run_with_job(test_fn, name)
     # This function should be used for tests that need a job to be already
     # created to run. We look at environment variables for a specification for
     # how to authenticate and what cluster to run on
@@ -57,13 +57,17 @@ function run_with_job(test_fn, name, job)
                 end
             end
         elseif !isnothing(nworkers)
-            with_job(job=job, destroy_job_on_exit=false) do j
+            with_job(
+                username = username,
+		api_key = api_key,
+		cluster_name = cluster_name,
+		nworkers = parse(Int32, nworkers),
+		banyanfile_path = "file://res/Banyanfile.json",
+		user_id = user_id,
+		destroy_job_on_exit=false
+	    ) do j
                 for i in 1:ntrials
-                    if ntrials > 1
-                        @time test_fn(j)
-                    else
-                        test_fn(j)
-                    end
+                    @time test_fn(j)
                 end
             end
         end
@@ -98,3 +102,4 @@ end
 include_tests_to_run("test_cluster.jl")
 include_tests_to_run("test_job.jl")
 include_tests_to_run("test_future.jl")
+include_tests_to_run("test_logs.jl")

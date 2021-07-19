@@ -21,6 +21,7 @@ function receive_next_message(queue_name)
     m = sqs_receive_message(queue_name)
     while isnothing(m)
         m = sqs_receive_message(queue_name)
+        println("waiting for msg")
     end
     content = m[:message]
     sqs_delete_message(queue_name, m)
@@ -39,6 +40,7 @@ function receive_next_message(queue_name)
         if endswith(content, "MESSAGE_END")
             error("Job failed; see preceding output")
         end
+        response = Dict{String,Any}("kind" => "JOB_FAILURE")
     else
         @debug "Received scatter or gather request"
         JSON.parse(content)
