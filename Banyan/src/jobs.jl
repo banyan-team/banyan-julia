@@ -93,6 +93,10 @@ function create_job(;
 
     # Store in global state
     current_job_id = job_id
+    if is_debug_on()
+        @show nworkers
+        @show sample_rate
+    end
     jobs[current_job_id] = Job(cluster_name, current_job_id, nworkers, sample_rate)
     jobs[current_job_id].current_status = "running"
 

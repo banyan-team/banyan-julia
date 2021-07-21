@@ -380,12 +380,14 @@ function Write(
         # Write out to an HDF5 dataset differently depending on whether there
         # are multiple batches per worker or just one per worker
         if nbatches == 1
+            println("In Write where nbatches==1")
             # Determine the offset into the resulting HDF5 dataset where this
             # worker should write
             offset = MPI.Exscan(size(part, dim), +, comm)
             if worker_idx == 1
                 offset = 0
             end
+            @show offset
 
             # Create file if not yet created
             f = h5open(path, "cw", comm, info)
@@ -404,6 +406,8 @@ function Write(
             # Create dataset
             whole_size = indexapply(+, size(part), offset, index=dim)
             whole_size = MPI.bcast(whole_size, nworkers-1, comm) # Broadcast dataset size to all workers
+            @show eltype(part)
+            @show whole_size
             dset = create_dataset(f, group, eltype(part), (whole_size, whole_size))
 
             # Write out each partition
@@ -422,9 +426,13 @@ function Write(
             )
 
             # Close file
+            println("Before close dset")
             close(dset)
+            println("Before close f")
             close(f)
+            println("Before barrier")
             MPI.Barrier(comm)
+            println("After barrier")
 
             # # Make the last worker create the dataset (since it can compute
             # # the total dataset size using its offset)
