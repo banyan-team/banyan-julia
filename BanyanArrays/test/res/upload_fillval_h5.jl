@@ -7,3 +7,5 @@ new["DS1"] = repeat(original["DS1"][:,:], 100, 100)
 
 close(new)
 close(original)
+
+rm(joinpath(homedir(), ".banyan/mnt/s3/banyan-cluster-data-pumpkincluster0-3e15290827c0c584/fillval_copy.h5"), force=true)

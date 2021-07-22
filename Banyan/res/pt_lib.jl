@@ -390,9 +390,40 @@ function Write(
             @show offset
 
             # Create file if not yet created
-            f = h5open(path, "cw", comm, info)
+            @show path
+            # TODO: Figure out why sometimes a deleted file still `isfile`
+            @show isfile(path) # This is true while below is false
+            @show HDF5.ishdf5(path)
+            # NOTE: We used INDEPENDENT here on the most recent run
+            # f = h5open(path, "cw", fapl_mpio=(comm, info), dxpl_mpio=HDF5.H5FD_MPIO_INDEPENDENT)
+            f = h5open(path, "cw", fapl_mpio=(comm, info), dxpl_mpio=HDF5.H5FD_MPIO_COLLECTIVE)
             close(f)
+            
+            # NOTE: The below is an alternative
+            # MPI.Barrier(comm)
+            # if worker_idx == 1
+            #     println("Before h5open")
+            #     # f = h5open(path, "cw", comm, info)
+            #     # f = h5open(path, "cw", fapl_mpio=(comm, info), dxpl_mpio=HDF5.H5FD_MPIO_INDEPENDENT)
+            #     f = h5open(path, "cw")
+            #     println("Before close")
+            #     close(f)
+            #     println("After close")    
+            # end
+
             MPI.Barrier(comm)
+
+            
+            # pathexists = HDF5.ishdf5(path)
+            # pathexists = MPI.bcast(pathexists, 0, comm)
+            # if !pathexists
+            #     println("Before h5open")
+            #     f = h5open(path, "w", comm, info)
+            #     println("Before close")
+            #     close(f)
+            #     println("After close")
+            # end
+            # MPI.Barrier(comm)
 
             # Open file for writing data
             f = h5open(path, "r+", comm, info)
@@ -426,13 +457,19 @@ function Write(
             )
 
             # Close file
-            println("Before close dset")
+            println("Before close dset on $worker_idx")
             close(dset)
-            println("Before close f")
+            println("Before close f on $worker_idx")
             close(f)
-            println("Before barrier")
+            println("Before barrier on $worker_idx")
             MPI.Barrier(comm)
-            println("After barrier")
+            println("After barrier on $worker_idx")
+
+            # NOTE: If we are removing MPI barriers it might be a good idea to
+            # keep the last barrier because of an issue mentioned here:
+            # https://support.hdfgroup.org/HDF5/release/known_problems/previssues.html
+            # > the application should close the file, issue an MPI_Barrier(comm),
+            # > then reopen the file before and after each collective write. 
 
             # # Make the last worker create the dataset (since it can compute
             # # the total dataset size using its offset)
@@ -560,10 +597,32 @@ function Write(
             # Create the file if not yet created
             if batch_idx == 1
                 # f = h5open(path, "cw", comm, info) do _ end
-                f = h5open(path, "cw", comm, info)
+                # f = h5open(path, "cw", comm, info)
+                @show isfile(path)
+                @show HDF5.ishdf5(path)
+                f = h5open(path, "cw", fapl_mpio=(comm, info), dxpl_mpio=HDF5.H5FD_MPIO_COLLECTIVE)
                 close(f)
+
+                # # Substitute for `h5open` with "cw" which doesn't seem to work
+                # pathexists = HDF5.ishdf5(path)
+                # # pathexists = MPI.bcast(pathexists, 0, comm)
+                # MPI.Barrier(comm)
+                # if !pathexists
+                #     # println("Before h5open")
+                #     # f = h5open(path, "w", comm, info)
+                #     # println("Before close")
+                #     # close(f)
+                #     # println("After close")
+                #     if worker_idx == 1
+                #         f = h5open(path, "w")
+                #         close(f)
+                #     end
+                #     # MPI.bcast(-1, 0, comm)
+                # end
+                # MPI.Barrier(comm)
+                # # h5open(path * "_intermediates", "w", comm, info) do _ end
+
                 MPI.Barrier(comm)
-                # h5open(path * "_intermediates", "w", comm, info) do _ end
             end
 
             # TODO: Maybe use collective I/O with
