@@ -95,6 +95,14 @@ function configure(; kwargs...)
     # `$HOME/.banyan/banyanconfig.toml` so they don't have to be entered in again
     # each time a program using the Banyan client library is run
 
+    # Credentials are checked in the following locations in this order:
+    #   1) function arguments, specified in kwargs
+    #   2) environment variables
+    #   3) `$HOME/.banyan/banyanconfig.toml`
+
+    load_config()
+    global banyan_config
+
     # Load arguments
     kwargs = Dict(kwargs)
     username = if_in_or(:username, kwargs)
@@ -104,8 +112,24 @@ function configure(; kwargs...)
     require_ec2_key_pair_name =
         if_in_or(:require_ec2_key_pair_name, kwargs, false)
 
+    # Check environment variables
+    if user_id == nothing && haskey(ENV, "BANYAN_USER_ID")
+        user_id = ENV["BANYAN_USER_ID"]
+    end
+    if api_key == nothing && haskey(ENV, "BANYAN_API_KEY")
+        api_key = ENV["BANYAN_API_KEY"]
+    end
+
+    # Check banyanconfig file
+    if user_id == nothing && haskey(banyan_config, "banyan") && haskey(banyan_config["banyan"], "user_id")
+        user_id = banyan_config["banyan"]["user_id"]
+    end
+    if api_key == nothing && haskey(banyan_config, "banyan") && haskey(banyan_config["banyan"], "api_key")
+        api_key = banyan_config["banyan"]["api_key"]
+    end
+    
+
     # Initialize
-    global banyan_config
     is_modified = false
     is_valid = true
 
@@ -166,7 +190,7 @@ function configure(; kwargs...)
 
     # Update config file if it was modified
     if is_modified
-        write_config()  #update_config()
+        write_config()
     end
 
     return banyan_config
