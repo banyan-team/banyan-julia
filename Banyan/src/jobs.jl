@@ -42,6 +42,7 @@ function create_job(;
     banyanfile_path::String = "",
     logs_location::String = "",
     sample_rate::Integer = nworkers,
+    job_name = nothing,
     kwargs...,
 )
     global jobs
@@ -76,6 +77,9 @@ function create_job(;
         "num_workers" => nworkers,
     	"logs_location" => "s3",  #logs_location,
     )
+    if job_name != nothing
+        job_configuration["job_name" = job_name
+    end
     if !isnothing(banyanfile_path)
         banyanfile = load_json(banyanfile_path)
         merge_banyanfile_with_defaults!(banyanfile, banyanfile_path)
