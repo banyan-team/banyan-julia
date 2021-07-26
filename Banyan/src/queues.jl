@@ -27,7 +27,9 @@ function receive_next_message(queue_name)
     sqs_delete_message(queue_name, m)
     if startswith(content, "EVALUATION_END")
         @debug "Received evaluation end"
-        println(content[15:end])
+        if is_debug_on()
+            println(content[15:end])
+        end
         response = Dict{String,Any}("kind" => "EVALUATION_END")
         response["end"] = (endswith(content, "MESSAGE_END"))
         # TODO: Maybe truncate by chopping off the MESSAGE_END
@@ -36,7 +38,9 @@ function receive_next_message(queue_name)
         @debug "Job failed"
         jobs[job_id].current_status = "failed"
         # TODO: Document why the 12 here is necessary
-        println(content[12:end])
+        if is_debug_on()
+            println(content[12:end])
+        end
         if endswith(content, "MESSAGE_END")
             error("Job failed; see preceding output")
         end
