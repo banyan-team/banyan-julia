@@ -296,6 +296,8 @@ function Write(
         # to have the S3 filesystem mounted at mnt/<bucket name>
     end
 
+    println("In Write where batch_idx=$batch_idx")
+
     # Write file for this partition
     idx = get_partition_idx(batch_idx, nbatches, comm)
     if isa_df(part)
@@ -1308,6 +1310,8 @@ function Merge(
 )
     global partial_merges
 
+    println("In Merge where batch_idx==$batch_idx")
+
     # TODO: To allow for mutation of a value, we may want to remove this
     # condition
     if isnothing(src) || objectid(src) in partial_merges
@@ -1461,7 +1465,7 @@ function ReduceAndCopyTo(
     # TODO: Ensure that we handle reductions that can produce nothing
     src = isnothing(src) ? part : op(src, part)
 
-    println("In ReduceAndCopyTo")
+    println("In ReduceAndCopyTo where batch_idx=$batch_idx")
     @show src
     # Merge reductions across workers
     if batch_idx == nbatches

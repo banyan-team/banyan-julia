@@ -63,10 +63,10 @@
                 @test x_length_collect == 600000
                 x_size_collect = size(x)
                 @test x_size_collect == (1000, 600)
+                x_sum_collect = collect(sum(x)) # here?
+                @test x_sum_collect == 321000000 # incorrect
                 x_sum_collect = collect(sum(x))
-                @test x_sum_collect == 321000000
-                x_sum_collect = collect(sum(x))
-                @test x_sum_collect == 321000000
+                @test x_sum_collect == 321000000 # incorrect
                 x_minimum_collect = collect(minimum(x))
                 @test x_minimum_collect == -60
                 x_maximum_collect = collect(maximum(x))
