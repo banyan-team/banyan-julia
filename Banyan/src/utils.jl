@@ -83,7 +83,7 @@ function write_config()
 end
 
 if_in_or(key, obj, el = nothing) =
-    if key in keys(obj)
+    if key in keys(obj) && !isnothing(obj[key])
         obj[key]
     else
         el
