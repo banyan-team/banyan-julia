@@ -299,9 +299,8 @@ end
 # overall data size. This way, two arrays that have the same actual size will
 # be guaranteed to have the same sample size.
 
-# TODO: Set this back to a proper number
 # MAX_EXACT_SAMPLE_LENGTH = 1024
-MAX_EXACT_SAMPLE_LENGTH = 50
+MAX_EXACT_SAMPLE_LENGTH = if is_debug_on() 50 else 1024 end
 
 getsamplenrows(totalnrows) =
     if totalnrows <= MAX_EXACT_SAMPLE_LENGTH

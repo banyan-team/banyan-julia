@@ -112,6 +112,9 @@ export partitioned_using,
     keep_sample_keys,
     keep_sample_rate
 
+# Debugging
+export is_debug_on
+
 using AWS: _get_ini_value
 using AWSCore
 using AWSS3

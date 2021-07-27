@@ -21,7 +21,9 @@ function receive_next_message(queue_name)
     m = sqs_receive_message(queue_name)
     while isnothing(m)
         m = sqs_receive_message(queue_name)
-        println("waiting for msg")
+        if is_debug_on()
+            println("Waiting for message")
+        end
     end
     content = m[:message]
     sqs_delete_message(queue_name, m)

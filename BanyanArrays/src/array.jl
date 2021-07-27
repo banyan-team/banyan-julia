@@ -149,8 +149,10 @@ Banyan.sample_max(A::Base.Array{T,N}, key) where {T,N} = maximum(mapslices(first
 
 function read_hdf5(path)
     A_loc = Remote(path)
-    @show A_loc.src_parameters
-    @show A_loc.size
+    if is_debug_on()
+        @show A_loc.src_parameters
+        @show A_loc.size
+    end
     A = Future(A_loc)
     Array{A_loc.eltype,A_loc.ndims}(A, Future(A_loc.size))
 end
@@ -215,9 +217,15 @@ function fill(v, dims::NTuple{N,Integer}) where {N}
     #     println(v)
     #     A = fill(v, fillingdims)
     # end end)
-    @partitioned A v fillingdims begin
-        A = Base.fill(v, fillingdims)
-        println(size(A))
+    if is_debug_on()
+        @partitioned A v fillingdims begin
+            A = Base.fill(v, fillingdims)
+            println(size(A))
+        end
+    else
+        @partitioned A v fillingdims begin
+            A = Base.fill(v, fillingdims)
+        end
     end
 
     A
@@ -316,7 +324,9 @@ function Base.map(f, c::Array{T,N}...) where {T,N}
         pt(c[2:end]..., res, Unbalanced(scaled_by_same_as=first(c)), match=first(c))
 
         # replicated
-        pt(c..., res, f, Replicated())
+        if !is_debug_on()
+            pt(c..., res, f, Replicated())
+        end
     end
 
     # println(@macroexpand begin @partitioned f c res begin
@@ -395,7 +405,9 @@ function Base.reduce(op, A::Array{T,N}; dims=:, kwargs...) where {T,N}
     op = Future(op)
     res_size = Future()
     res = dims isa Colon ? Future() : Array{Any,Any}(Future(), res_size)
-    @show dims # TODO: Ensure this isn't a function
+    if is_debug_on()
+        @show dims # TODO: Ensure this isn't a function
+    end
     dims = Future(dims)
     kwargs = Future(kwargs)
 
@@ -425,13 +437,17 @@ function Base.reduce(op, A::Array{T,N}; dims=:, kwargs...) where {T,N}
         end
         pt(res_size, ReducingWithKey(quote axis -> (a, b) -> indexapply(+, a, b, index=axis) end), match=A, on="key")
         # TODO: Allow replication
-        # pt(A, res, res_size, dims, kwargs, Replicated())
+        if !is_debug_on()
+            pt(A, res, res_size, dims, kwargs, Replicated())
+        end
         pt(dims, kwargs, op, Replicated())
     end
 
     @partitioned op A dims kwargs res res_size begin
-        @show size(A)
-        @show dims # TODO: Figure out why dims is sometimes a function
+        if is_debug_on()
+            @show size(A)
+            @show dims # TODO: Figure out why dims is sometimes a function
+        end
         res = Base.reduce(op, A; dims=dims, kwargs...)
         if res isa Array
             res_size = Base.size(res)
