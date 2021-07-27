@@ -352,6 +352,19 @@ function create_cluster(;
 )
     @debug "Creating cluster"
 
+    # Check if the configuration for this cluster name already exists
+    # If it does, then recreate cluster
+    clusters = get_clusters()
+    if haskey(clusters, name)
+        if clusters[name][status] == "terminated"
+            @warn Cluster configuration with name $name already exists. Ignoring new configuration and re-creating cluster.
+            send_request_get_response(:create_cluster, Dict("cluster_name" => name))
+            return
+        else
+            error("Cluster with name $name already exists")
+        end
+    end
+
     # Construct arguments
 
     # Configure using parameters
@@ -364,7 +377,7 @@ function create_cluster(;
 
     if isnothing(s3_bucket_arn) && isnothing(s3_bucket_name)
         s3_bucket_arn =
-            "arn:aws:s3:::banyan-cluster-data-" * name * "-" * bytes2hex(rand(UInt8, 16))
+            "arn:aws:s3:::banyan-cluster-data-" * name * "-" * bytes2hex(rand(UInt8, 8))
         s3_bucket_name = last(split(s3_bucket_arn, ":"))
         s3_create_bucket(get_aws_config(), s3_bucket_name)
     elseif isnothing(s3_bucket_arn)
@@ -372,8 +385,6 @@ function create_cluster(;
     elseif isnothing(s3_bucket_name)
         s3_bucket_name = last(split(s3_bucket_arn, ":"))
     end
-    #println(get_aws_config())
-    #println(s3_list_buckets(get_aws_config()))
     if !(s3_bucket_name in s3_list_buckets(get_aws_config()))
         error("Bucket $s3_bucket_name does not exist in connected AWS account")
     end
@@ -381,7 +392,7 @@ function create_cluster(;
     # Construct cluster creation
     cluster_config = Dict(
         "cluster_name" => name,
-        "instance_type" => instance_type, #"t3.large", "c5.2xlarge"
+        "instance_type" => instance_type,
         "num_nodes" => max_num_nodes,
         "ec2_key_pair" => c["aws"]["ec2_key_pair_name"],
         "aws_region" => get_aws_config_region(),
@@ -392,7 +403,7 @@ function create_cluster(;
         cluster_config["pt_lib_info"] = pt_lib_info
     end
     if !isnothing(iam_policy_arn)
-        cluster_config["additional_policy"] = iam_policy_arn # "arn:aws:s3:::banyanexecutor*"
+        cluster_config["additional_policy"] = iam_policy_arn
     end
     if !isnothing(vpc_id)
         cluster_config["vpc_id"] = vpc_id

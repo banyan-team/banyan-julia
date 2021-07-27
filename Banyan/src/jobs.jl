@@ -159,6 +159,18 @@ function get_jobs(cluster_name=Nothing, status=Nothing; kwargs...)
     response["jobs"]
 end
 
+function get_running_jobs(cluster_name; kwargs...)
+    @debug "Downloading description of jobs in each cluster"
+    configure(; kwargs...)
+    filters = Dict(
+        "cluster_name" => cluster_name,
+	"status" => "running"
+    )
+    response = 
+        send_request_get_response(:describe_jobs, Dict{String,Any}("filters"=>filters))
+    response["jobs"]
+end
+
 function destroy_all_jobs(cluster_name::String; kwargs...)
     @debug "Destroying all running jobs for cluster"
     configure(; kwargs...)
