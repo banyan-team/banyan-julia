@@ -78,7 +78,7 @@ function create_job(;
     	"logs_location" => "s3",  #logs_location,
     )
     if job_name != nothing
-        job_configuration["job_name" = job_name
+        job_configuration["job_name"] = job_name
     end
     if !isnothing(banyanfile_path)
         banyanfile = load_json(banyanfile_path)

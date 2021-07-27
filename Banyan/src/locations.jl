@@ -370,7 +370,9 @@ function get_remote_location(remotepath)
         # `p` is the local version of the path while `remotepath` is the
         # external one
     elseif startswith(remotepath, "http://") || startswith(remotepath, "https://")
-        @show remotepath
+        if is_debug_on()
+            @show remotepath
+        end
         download(remotepath)
     else
         throw(
@@ -391,8 +393,10 @@ function get_remote_location(remotepath)
     # Handle single-file nd-arrays
 
     # TODO: Support HDF5 files that don't have .h5 in their filenmae
-    @show p
-    @show hdf5_ending
+    if is_debug_on()
+        @show p
+        @show hdf5_ending
+    end
     if length(hdf5_ending) > 0
         # filename, datasetpath = split(p, hdf5_ending)
         # remotefilename, _ = split(remotepath, hdf5_ending)
@@ -410,21 +414,29 @@ function get_remote_location(remotepath)
         datasize = [0]
         datandims = nothing
         dataeltype = nothing
-        @show dataeltype
+        if is_debug_on()
+            @show dataeltype
+        end
         dataset_to_read_from_exists = false
         if isfile(p)
-            @show dataeltype
+            if is_debug_on()
+                @show dataeltype
+            end
             f = h5open(p, "r")
 
             # if !(datasetpath in keys(f))
             #     throw(ArgumentError("Dataset \"$datasetpath\" could not be found in the HDF5 file at $remotepath"))
             # end
-            @show f
-            @show keys(f)
-            @show typeof(f)
-            @show datasetpath
+            if is_debug_on()
+                @show f
+                @show keys(f)
+                @show typeof(f)
+                @show datasetpath
+            end
             if haskey(f, datasetpath)
-                println("Inside if")
+                if is_debug_on()
+                    println("Inside if")
+                end
                 dataset_to_read_from_exists = true
 
                 dset = f[datasetpath]
@@ -438,7 +450,9 @@ function get_remote_location(remotepath)
                 # Collect metadata
                 nbytes += length(dset) * sizeof(eltype(dset))
                 datasize = size(dset)
-                @show datasize
+                if is_debug_on()
+                    @show datasize
+                end
 
                 # Collect sample
                 datalength = first(datasize)
@@ -447,15 +461,23 @@ function get_remote_location(remotepath)
                 if datalength < MAX_EXACT_SAMPLE_LENGTH
                     sampleindices =
                         randsubseq(1:datalength, 1 / get_job().sample_rate)
-                    @show sampleindices
+                    if is_debug_on()
+                        @show sampleindices
+                    end
                     sample = dset[sampleindices, remainingcolons...]
-                    @show sampleindices
+                    if is_debug_on()
+                        @show sampleindices
+                    end
                 end
-                @show datalength
+                if is_debug_on()
+                    @show datalength
+                end
 
                 # Extend or chop sample as needed
                 samplelength = getsamplenrows(datalength)
-                @show samplelength
+                if is_debug_on()
+                    @show samplelength
+                end
                 if size(sample, 1) < samplelength
                     sample = vcat(
                         sample,
@@ -490,7 +512,9 @@ function get_remote_location(remotepath)
         else
             ("None", Dict{String,Any}())
         end
-        @show metadata_for_reading
+        if is_debug_on()
+            @show metadata_for_reading
+        end
 
         # Load metadata for writing to HDF5 file
         loc_for_writing, metadata_for_writing =

@@ -212,16 +212,7 @@ function merge_banyanfile_with!(
     end
 end
 
-function upload_banyanfile(
-    banyanfile_path::String,
-    s3_bucket_arn::String,
-    cluster_name::String,
-    for_creation_or_update::Symbol;
-    reinstall_julia::Bool = false,
-)
-    # TODO: Implement this to load Banyanfile, referenced pt_lib_info, pt_lib,
-    # code files
-
+function s3_bucket_arn_to_name(s3_bucket_arn)
     # Get s3 bucket name from arn
     s3_bucket_name = last(split(s3_bucket_arn, ":"))
     if endswith(s3_bucket_name, "/")
@@ -231,9 +222,29 @@ function upload_banyanfile(
     elseif endswith(s3_bucket_name, "*")
         s3_bucket_name = s3_bucket_name[1:end-1]
     end
+    return s3_bucket_name
+end
 
-    # Validate that s3_bucket_arn exists
+function upload_banyanfile(
+    banyanfile_path::String,
+    s3_bucket_arn::String,
+    cluster_name::String,
+)
+
+    # Get s3 bucket name from arn
+    s3_bucket_name = s3_bucket_arn_to_name(s3_bucket_arn)
+
+    # Validate that s3 bucket exists
     s3_exists(get_aws_config(), s3_bucket_name, "")
+
+    # Check if postinstall script exists. If so, append.
+    post_install_script_name = "banyan_" * cluster_name * "_script.sh"
+    post_install_script =  ""
+    try
+        post_install_script = s3_get(get_aws_config(), s3_bucket_name, post_install_script_name)
+    catch
+        @debug "Creating new post install script for cluster"
+    end
 
     # Load Banyanfile and merge with all included
     banyanfile = load_json(banyanfile_path)
@@ -377,7 +388,7 @@ function create_cluster(;
 
     if isnothing(s3_bucket_arn) && isnothing(s3_bucket_name)
         s3_bucket_arn =
-            "arn:aws:s3:::banyan-cluster-data-" * name * "-" * bytes2hex(rand(UInt8, 8))
+            "arn:aws:s3:::banyan-cluster-data-" * name * "-" * bytes2hex(rand(UInt8, 4))
         s3_bucket_name = last(split(s3_bucket_arn, ":"))
         s3_create_bucket(get_aws_config(), s3_bucket_name)
     elseif isnothing(s3_bucket_arn)
