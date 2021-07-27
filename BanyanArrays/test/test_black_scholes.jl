@@ -4,8 +4,10 @@ using Distributions
 @testset "Black Scholes" begin
     #start_time = now()
     #end_time = now()
-    run_with_job("scholes") do job
-        size = 256000000  ##512000000  # 256000000
+    run_with_job("Black Scholes with Banyan") do job
+        # size = 256_000_000  ##512000000  # 256000000
+        size = 256_000_000
+        # NOTE: 64M works but 128M doesn't (and also doesn't batch the I/O)
         price = BanyanArrays.fill(4.0, size)
         strike = BanyanArrays.fill(4.0, size)
         t = BanyanArrays.fill(4.0, size)
@@ -38,7 +40,8 @@ using Distributions
         call_sum = sum(call)
         call = nothing
         res = collect(call_sum)
-	println(res)
+	    # println(res)
+        @show res
         #res = collect(res)
         #end = now()
         #@test typeof(res) == Base.Vector{Float64}
@@ -50,7 +53,7 @@ end
 
 
 @testset "Black Scholes" begin
-    run_without_job("scholes_baseline") do job
+    run_without_job("Black Scholes without Banyan") do job
         size = 128  #256000000
         price = Base.fill(4.0, size)
         strike = Base.fill(4.0, size)
@@ -100,7 +103,7 @@ end
 
 
 @testset "Black Scholes" begin
-    run_without_job("scholes_baseline_vectorized") do job
+    run_without_job("Black Scholes without Banyan vectorized") do job
         size = 128  #256000000
         price = Base.fill(4.0, size)
         strike = Base.fill(4.0, size)

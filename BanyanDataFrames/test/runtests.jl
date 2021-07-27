@@ -19,21 +19,21 @@ get_enabled_tests() = lowercase.(ARGS)
 
 # NOTE: For testing, please provide the following:
 # - AWS_DEFAULT_PROFILE (if you don't already have the desired default AWS account)
-# - BANYAN_USERNAME
-# - BANYAN_USER_ID
-# - BANYAN_API_KEY
-# - BANYAN_CLUSTER_NAME
-# - BANYAN_NWORKERS
-# - BANYAN_NWORKERS_ALL
-# 
-# If these are not specified, we will only run tests that don't require a
-# configured job to be created first.
+# - BANYAN_USERNAME (optional)
+# - BANYAN_USER_ID (optional)
+# - BANYAN_API_KEY (optional)
+# - BANYAN_CLUSTER_NAME (required)
+# - BANYAN_NWORKERS (defaults to 2)
+# - BANYAN_NWORKERS_ALL (defaults to "false")
+# - NUM_TRIALS (defaults to 1)
+
+# TODO: Copy the below to other Banyan projects' test suites if changes are made
 
 username = get(ENV, "BANYAN_USERNAME", nothing)
 user_id = get(ENV, "BANYAN_USER_ID", nothing)
 api_key = get(ENV, "BANYAN_API_KEY", nothing)
 cluster_name = get(ENV, "BANYAN_CLUSTER_NAME", nothing)
-nworkers = get(ENV, "BANYAN_NWORKERS", nothing)
+nworkers = get(ENV, "BANYAN_NWORKERS", "2")
 ntrials = parse(Int, get(ENV, "NUM_TRIALS", "1")) # TODO: Make this BANYAN_NTRIALS
 
 global job = create_job(
