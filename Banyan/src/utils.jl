@@ -399,7 +399,7 @@ function get_s3fs_path(path)
             run(`chmod 600 $HOME/.passwd-s3fs`)
             run(`s3fs $bucket $mount -o url=https://s3.$region.amazonaws.com -o endpoint=$region -o passwd_file=$HOME/.passwd-s3fs`)
         catch e
-            @error """Failed to mount S3 bucket \"$bucket\" at $mount using s3fs with error: $e. Please ensure s3fs is in PATH or mount manually."""
+            error("Failed to mount S3 bucket \"$bucket\" at $mount using s3fs with error: $e. Please ensure s3fs is in PATH or mount manually.")
         end
     end
 

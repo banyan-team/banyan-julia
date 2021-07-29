@@ -835,13 +835,16 @@ function Write(
                     # @show keys(f)
                     # @show sum(partdset[fill(Colon(), ndims(dset))...])
                     # TOODO: Maynee remoce printlns to make it work
+                    partdset_reading = partdset[fill(Colon(), ndims(dset))...]
+
+                    println("In writing worker_idx=$worker_idx, batch_idx=$batch_idx/$nbatches: after reading batch $batch_i")
                     setindex!(
                         # We are writing to the whole dataset that was just
                         # created
                         dset,
                         # We are copying from the written HDF5 dataset for a
                         # particular batch
-                        partdset[fill(Colon(), ndims(dset))...],
+                        partdset_reading,
                         # We write to the appropriate split of the whole
                         # dataset
                         [
@@ -854,6 +857,7 @@ function Write(
                             for d = 1:ndims(dset)
                         ]...,
                     )
+                    partdset_reading = nothing
                     # @show sum(getindex(dset, [
                     #     if d == dim
                     #         (batchoffset+1):batchoffset+size(partdset, dim)
@@ -869,10 +873,12 @@ function Write(
                     # Update the offset of this batch
                     batchoffset += size(partdset, dim)
                     close(partdset)
+                    partdset = nothing
 
                     println("In writing worker_idx=$worker_idx, batch_idx=$batch_idx/$nbatches: after writing batch $batch_i")
                 end
                 close(dset)
+                dset = nothing
                 # fsync_file()
                 
                 # TODO: Delete data by keeping intermediates in separate file
@@ -919,6 +925,7 @@ function Write(
                 println("In writing worker_idx=$worker_idx, batch_idx=$batch_idx/$nbatches: after deleting all objects")
             end
             close(f)
+            f = nothing
             # TODO: Ensure that we are closing stuff everywhere before trying
             # to write
             # @show worker_idx
