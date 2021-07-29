@@ -231,7 +231,7 @@ function upload_banyanfile(
     update_script_name = "banyan_$(cluster_name)_update_script.sh"
     update_script = ""
     try
-        post_install_script = s3_get(get_aws_config(), s3_bucket_name, post_install_script_name)
+        post_install_script = String(s3_get(get_aws_config(), s3_bucket_name, post_install_script_name))
     catch
         if for_creation_or_update == :update
             error("Script should already exist for created cluster or cluster to update does not exist")
