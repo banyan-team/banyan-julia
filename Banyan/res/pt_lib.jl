@@ -299,6 +299,10 @@ function Write(
     loc_name,
     loc_params,
 )
+    if batch_idx > 1
+        GC.gc()
+    end
+
     # Get path of directory to write to
     path = loc_params["path"]
     if startswith(path, "http://") || startswith(path, "https://")
@@ -1351,6 +1355,10 @@ function Merge(
     loc_params,
 )
     global partial_merges
+
+    if batch_idx == 1
+        GC.gc()
+    end
 
     # # println("In Merge where batch_idx==$batch_idx")
 

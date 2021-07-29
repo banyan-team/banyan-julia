@@ -312,7 +312,9 @@ function upload_banyanfile(
     #    "s3://" *
     #    s3_bucket_name *
     #    "/\n"
+    println(string(post_install_script))
     post_install_script *= "\n" * update_script
+    # TODO: Fix this
     s3_put(get_aws_config(), s3_bucket_name, post_install_script_name, post_install_script)
     if for_creation_or_update == :update
         update_script *=
@@ -469,6 +471,7 @@ function update_cluster(;
             banyanfile_path,
             s3_bucket_arn,
             cluster_name,
+            :update
         )
 
         # Upload pt_lib_info
