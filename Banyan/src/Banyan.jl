@@ -57,11 +57,11 @@ export configure
 
 # Cluster management
 export Cluster,
-    create_cluster, update_cluster, destroy_cluster, get_clusters, get_cluster, assert_cluster_is_ready
+    create_cluster, update_cluster, destroy_cluster, delete_cluster, get_clusters, get_cluster, assert_cluster_is_ready
 
 # Job management
 export Job, with_job, create_job, destroy_job, destroy_all_jobs, clear_jobs, get_jobs,
-    get_job, get_job_id, get_cluster_name
+    get_running_jobs, get_job, get_job_id, get_cluster_name
 
 # Futures
 export AbstractFuture, Future, compute, collect

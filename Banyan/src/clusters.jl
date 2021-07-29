@@ -229,6 +229,7 @@ function upload_banyanfile(
     banyanfile_path::String,
     s3_bucket_arn::String,
     cluster_name::String,
+    for_creation_or_update::Symbol
 )
 
     # Get s3 bucket name from arn
@@ -238,11 +239,16 @@ function upload_banyanfile(
     s3_exists(get_aws_config(), s3_bucket_name, "")
 
     # Check if postinstall script exists. If so, append.
-    post_install_script_name = "banyan_" * cluster_name * "_script.sh"
+    post_install_script_name = "banyan_$(cluster_name)_script.sh"
     post_install_script =  ""
+    update_script_name = "banyan_$(cluster_name)_update_script.sh"
+    update_script = ""
     try
         post_install_script = s3_get(get_aws_config(), s3_bucket_name, post_install_script_name)
     catch
+        if for_creation_or_update == :update
+            error("Script should already exist for created cluster or cluster to update does not exist")
+        end
         @debug "Creating new post install script for cluster"
     end
 
@@ -283,32 +289,10 @@ function upload_banyanfile(
     bucket = s3_bucket_name
     region = get_aws_config_region()
 
-    # Create post-install script with base commands
-    code = "#!/bin/bash\n"
-    code *= "mv setup_log.txt /tmp\n"
-    code *= "cd /home/ec2-user\n"
-    code *= "sudo yum update -y &>> setup_log.txt\n"
-    code *= "sudo chmod 777 setup_log.txt\n"
-    @debug reinstall_julia
-    if reinstall_julia || for_creation_or_update == :creation
-	#code *= "sudo su - ec2-user -c \"rm -rf ~/julia\"\n"
-	#code *= "sudo su - ec2-user -c \"rm -rf  ~/.julia\"\n"
-        code *= "sudo su - ec2-user -c \"wget https://julialang-s3.julialang.org/bin/linux/x64/1.6/julia-1.6.1-linux-x86_64.tar.gz -O julia.tar.gz &>> setup_log.txt\"\n"
-        code *= "sudo su - ec2-user -c \"mkdir julia &>> setup_log.txt\"\n"
-        code *= "sudo su - ec2-user -c \"tar zxvf julia.tar.gz -C julia --strip-components 1 &>> setup_log.txt\"\n"
-        code *= "rm julia.tar.gz &>> setup_log.txt\n"
-        code *= "sudo su - ec2-user -c \"julia/bin/julia --project -e 'using Pkg; Pkg.add(name=\\\"AWSS3\\\", version=\\\"0.7\\\"); Pkg.add([\\\"AWSCore\\\", \\\"AWSSQS\\\", \\\"JSON\\\", \\\"MPI\\\", \\\"BenchmarkTools\\\"]); ENV[\\\"JULIA_MPIEXEC\\\"]=\\\"srun\\\"; ENV[\\\"JULIA_MPI_LIBRARY\\\"]=\\\"/opt/amazon/openmpi/lib64/libmpi\\\"; Pkg.build(\\\"MPI\\\"; verbose=true)' &>> setup_log.txt\"\n"
-    end
-    code *= "sudo amazon-linux-extras install epel\n"
-    code *= "aws s3 cp s3://banyan-executor /home/ec2-user --recursive\n"
-    code *= "sudo yum -y install s3fs-fuse\n"
-    code *= "sudo su - ec2-user -c \"mkdir /home/ec2-user/mnt/$bucket\"\n"
-    code *= "sudo su - ec2-user -c \"/usr/bin/s3fs $bucket /home/ec2-user/mnt/$bucket -o iam_role=auto -o url=https://s3.$region.amazonaws.com -o endpoint=$region\"\n"
-    code *= "sudo su - ec2-user -c \"aws configure set region $region\"\n"
-
     # Append to post-install script downloading files, scripts, pt_lib onto cluster
+    update_script *= "if [ \${cfn_node_type} == MasterServer ];\nthen\n"
     for f in vcat(files, scripts, pt_lib)
-        code *=
+        update_script *=
             "sudo su - ec2-user -c \"aws s3 cp s3://" *
             s3_bucket_name *
             "/" *
@@ -316,34 +300,40 @@ function upload_banyanfile(
             " /home/ec2-user/\"\n"
     end
 
-    # Append to post-install script running scripts onto cluster
-    for script in scripts
-        fname = basename(script)
-        code *= "sudo su - ec2-user -c \"bash /home/ec2-user/$fname\"\n"
-    end
-
     # Append to post-install script installing Julia dependencies
     for pkg in packages
         pkg_spec = split(pkg, "@")
         if length(pkg_spec) == 1
-            code *= "sudo su - ec2-user -c \"julia/bin/julia --project -e 'using Pkg; Pkg.add(name=\\\"$pkg\\\")' &>> setup_log.txt \"\n"
+            update_script *= "sudo su - ec2-user -c \"julia/bin/julia --project -e 'using Pkg; Pkg.add(name=\\\"$pkg\\\")' &>> setup_log.txt \"\n"
         elseif length(pkg_spec) == 2
             name, version = pkg_spec
-            code *= "sudo su - ec2-user -c \"julia/bin/julia --project -e 'using Pkg; Pkg.add(name=\\\"$name\\\", version=\\\"$version\\\")' &>> setup_log.txt \"\n"
+            update_script *= "sudo su - ec2-user -c \"julia/bin/julia --project -e 'using Pkg; Pkg.add(name=\\\"$name\\\", version=\\\"$version\\\")' &>> setup_log.txt \"\n"
         end
+    end
+    update_script *= "fi\n"
+
+    # Append to post-install script running scripts onto cluster
+    for script in scripts
+        fname = basename(script)
+        update_script *= "sudo su - ec2-user -c \"bash /home/ec2-user/$fname\"\n"
     end
 
     # Upload post_install script to s3 bucket
-    post_install_script = "banyan_" * cluster_name * "_script.sh"
-    code *=
-        "touch /home/ec2-user/update_finished\n" *
-        "aws s3 cp /home/ec2-user/update_finished " *
-        "s3://" *
-        s3_bucket_name *
-        "/\n"
-    #println(s3_bucket_name)
-    s3_put(get_aws_config(), s3_bucket_name, post_install_script, code)
-    @debug code
+    #post_install_script *=
+    #    "touch /home/ec2-user/update_finished\n" *
+    #    "aws s3 cp /home/ec2-user/update_finished " *
+    #    "s3://" *
+    #    s3_bucket_name *
+    #    "/\n"
+    post_install_script *= "\n" * update_script
+    s3_put(get_aws_config(), s3_bucket_name, post_install_script_name, post_install_script)
+    if for_creation_or_update == :update
+        update_script *=
+            "touch /home/ec2-user/update_finished\n" *
+            "aws s3 cp /home/ec2-user/update_finished s3://$(s3_bucket_name)/\n"
+        s3_put(get_aws_config(), s3_bucket_name, update_script_name, update_script)
+    end
+    @debug post_install_script
     @debug pt_lib_info
     return pt_lib_info
 end
@@ -368,8 +358,8 @@ function create_cluster(;
     clusters = get_clusters()
     if haskey(clusters, name)
         if clusters[name][status] == "terminated"
-            @warn Cluster configuration with name $name already exists. Ignoring new configuration and re-creating cluster.
-            send_request_get_response(:create_cluster, Dict("cluster_name" => name))
+            @warn "Cluster configuration with name $name already exists. Ignoring new configuration and re-creating cluster."
+            send_request_get_response(:create_cluster, Dict("cluster_name" => name, "recreate" => true))
             return
         else
             error("Cluster with name $name already exists")
@@ -408,6 +398,7 @@ function create_cluster(;
         "ec2_key_pair" => c["aws"]["ec2_key_pair_name"],
         "aws_region" => get_aws_config_region(),
         "s3_read_write_resource" => s3_bucket_arn,
+	"recreate" => false
     )
     if !isnothing(banyanfile_path)
         pt_lib_info = upload_banyanfile(banyanfile_path, s3_bucket_arn, name, :creation)
@@ -425,6 +416,13 @@ function create_cluster(;
 
     # Send request to create cluster
     send_request_get_response(:create_cluster, cluster_config)
+
+    return Cluster(
+	name,
+	:creating,
+	0,
+	s3_bucket_arn
+    )
 end
 
 function destroy_cluster(name::String; kwargs...)
@@ -433,11 +431,18 @@ function destroy_cluster(name::String; kwargs...)
     send_request_get_response(:destroy_cluster, Dict{String,Any}("cluster_name" => name))
 end
 
+function delete_cluster(name::String; kwargs...)
+    @debug "Deleting cluster"
+    configure(; kwargs...)
+    send_request_get_response(:destroy_cluster, Dict{String, Any}("cluster_name" => name, "permanently_delete" => true))
+end
+
 # TODO: Update website display
 # TODO: Implement load_banyanfile
 function update_cluster(;
     name::String = nothing,
     banyanfile_path::String = nothing,
+    reinstall_julia = false,
     force = false,
     kwargs...,
 )
@@ -448,7 +453,7 @@ function update_cluster(;
     cluster_name = if isnothing(name)
         clusters = get_clusters()
         if length(clusters) == 0
-            error("Failed to create job: you don't have any clusters created")
+            error("Failed to update cluster: you don't have any clusters created")
         end
         first(keys(clusters))
     else
@@ -459,9 +464,6 @@ function update_cluster(;
     if force
         assert_cluster_is_ready(name = name)
     end
-
-    # Require restart: pcluster_additional_policy, s3_read_write_resource, num_nodes
-    # No restart: Banyanfile
 
     if !isnothing(banyanfile_path)
         # Retrieve the location of the current post_install script in S3 and upload
@@ -480,8 +482,6 @@ function update_cluster(;
             banyanfile_path,
             s3_bucket_arn,
             cluster_name,
-            :update,
-            reinstall_julia = get(kwargs, :reinstall_julia, false),
         )
 
         # Upload pt_lib_info
@@ -490,6 +490,7 @@ function update_cluster(;
             Dict(
                 "cluster_name" => name,
                 "pt_lib_info" => pt_lib_info,
+		"reinstall_julia" => reinstall_julia,
                 # TODO: Send banyanfile here
             ),
         )
@@ -515,8 +516,6 @@ end
 parsestatus(status) =
     if status == "creating"
         :creating
-    elseif status == "notready"
-        :notready
     elseif status == "destroying"
         :destroying
     elseif status == "updating"
@@ -552,5 +551,5 @@ function get_clusters(; kwargs...)
     )
 end
 
-get_cluster(name::String; kwargs...) = get_clusters(; kwargs...)[name]
+get_cluster(;name::String, kwargs...) = get_clusters(; kwargs...)[name]
 get_cluster() = get_cluster(get_cluster_name())
