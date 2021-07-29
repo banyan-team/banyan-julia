@@ -212,19 +212,6 @@ function merge_banyanfile_with!(
     end
 end
 
-function s3_bucket_arn_to_name(s3_bucket_arn)
-    # Get s3 bucket name from arn
-    s3_bucket_name = last(split(s3_bucket_arn, ":"))
-    if endswith(s3_bucket_name, "/")
-        s3_bucket_name = s3_bucket_name[1:end-1]
-    elseif endswith(s3_bucket_name, "/*")
-        s3_bucket_name = s3_bucket_name[1:end-2]
-    elseif endswith(s3_bucket_name, "*")
-        s3_bucket_name = s3_bucket_name[1:end-1]
-    end
-    return s3_bucket_name
-end
-
 function upload_banyanfile(
     banyanfile_path::String,
     s3_bucket_arn::String,
@@ -551,5 +538,5 @@ function get_clusters(; kwargs...)
     )
 end
 
-get_cluster(;name::String, kwargs...) = get_clusters(; kwargs...)[name]
-get_cluster() = get_cluster(get_cluster_name())
+get_cluster(name::String, kwargs...) = get_clusters(;kwargs...)[name]
+get_cluster() = get_cluster(name=get_cluster_name())
