@@ -1,6 +1,22 @@
+using HDF5
+
 @testset "HDF5" begin
+    run_with_job("Prepare HDF5") do job
+        global s3fs_bucket_location
+
+        original = h5open(download("https://support.hdfgroup.org/ftp/HDF5/examples/files/exbyapi/h5ex_d_fillval.h5"))
+        new = h5open(get_s3fs_path(joinpath(s3_bucket_name, "fillval.h5")), "w")
+
+        new["DS1"] = repeat(original["DS1"][:,:], 100, 100)
+
+        close(new)
+        close(original)
+
+        rm(get_s3fs_path(joinpath(s3_bucket_name, "fillval_copy.h5")), force=true)
+    end
+
     run_with_job("Simple usage of HDF5") do job
-        x = read_hdf5("s3://banyan-cluster-data-pumpkincluster0-3e15290827c0c584/fillval.h5/DS1")
+        x = read_hdf5(joinpath(s3_bucket_name, "fillval.h5/DS1"))
 
         # Test basic case of reading from remote file
         x_length_collect = length(x)
@@ -27,7 +43,7 @@
             # h5ex_d_fillval.h5 \
             # s3://banyan-cluster-data-pumpkincluster0-3e15290827c0c584/fillval.h5
             # Then, repeat the dataset by (100, 100)
-            "s3://banyan-cluster-data-pumpkincluster0-3e15290827c0c584/fillval.h5",
+            joinpath(s3_bucket_name, "fillval.h5"),
         ]
             x = read_hdf5(joinpath(path, "DS1"))
             @show collect(length(x))

@@ -253,7 +253,30 @@ function compute(fut::AbstractFuture)
     fut
 end
 
+# Scheduling options
+report_schedule = false
+encourage_parallelism = false
+encourage_parallelism_with_batches = false
+
+function configure_scheduling(;kwargs...)
+    global report_schedule
+    global encourage_parallelism
+    global encourage_parallelism_with_batches
+    if haskey(kwargs, :report_schedule)
+        report_schedule = kwargs[:report_schedule]
+    end
+    if haskey(kwargs, :encourage_parallelism)
+        encourage_parallelism = kwargs[:encourage_parallelism]
+    end
+    if haskey(kwargs, :encourage_parallelism_with_batches)
+        encourage_parallelism_with_batches = kwargs[:encourage_parallelism_with_batches]
+    end
+end
+
 function send_evaluation(value_id::ValueId, job_id::JobId)
+    global encourage_parallelism
+    global encourage_parallelism_with_batches
+
     @debug "Sending evaluation request"
 
     # Submit evaluation request
@@ -262,7 +285,12 @@ function send_evaluation(value_id::ValueId, job_id::JobId)
         Dict{String,Any}(
             "value_id" => value_id,
             "job_id" => job_id,
-            "requests" => [to_jl(req) for req in get_job().pending_requests]
+            "requests" => [to_jl(req) for req in get_job().pending_requests],
+            "options" => Dict(
+                "report_schedule" => report_schedule,
+                "encourage_parallelism" => encourage_parallelism,
+                "encourage_parallelism_with_batches" => encourage_parallelism_with_batches
+            )
         ),
     )
 

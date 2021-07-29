@@ -23,6 +23,7 @@ get_enabled_tests() = lowercase.(ARGS)
 # - BANYAN_CLUSTER_NAME (required)
 # - BANYAN_NWORKERS (defaults to 2)
 # - BANYAN_NWORKERS_ALL (defaults to "false")
+# - BANYAN_SCHEDULING_CONFIG_ALL (defaults to "false")
 # - NUM_TRIALS (defaults to 1)
 
 # TODO: Copy the below to other Banyan projects' test suites if changes are made
@@ -33,6 +34,7 @@ api_key = get(ENV, "BANYAN_API_KEY", nothing)
 cluster_name = get(ENV, "BANYAN_CLUSTER_NAME", nothing)
 nworkers = get(ENV, "BANYAN_NWORKERS", "2")
 ntrials = parse(Int, get(ENV, "NUM_TRIALS", "1")) # TODO: Make this BANYAN_NTRIALS
+s3_bucket_name = get_s3_bucket_name(cluster_name)
 
 global job = create_job(
     username = username,
@@ -103,6 +105,12 @@ function run(test_fn, name)
     end
 end
 
+function include_all_tests()
+    include_tests_to_run("test_mapreduce.jl")
+    include_tests_to_run("test_hdf5.jl")
+    include_tests_to_run("test_black_scholes.jl")
+end
+
 with_job(job=job) do j
     # NOTE: We need to wrap the `include`s in `with_job` because if the tests
     # fail without an error occuring, then a `LoadError` gets thrown. If an
@@ -111,7 +119,14 @@ with_job(job=job) do j
     # called twice. But that's OK. And because we store
     # `jobs_destroyed_recently`, we will only submit a single call to
     # `destroy-job`.
-    include_tests_to_run("test_mapreduce.jl")
-    include_tests_to_run("test_hdf5.jl")
-    include_tests_to_run("test_black_scholes.jl")
+    configure_scheduling(report_schedule=true)
+    if get(ENV, "BANYAN_SCHEDULING_CONFIG_ALL", "false") == "true"
+        include_all_tests()
+        configure_scheduling(encourage_parallelism=true)
+        include_all_tests()
+        configure_scheduling(encourage_parallelism_with_batches=true)
+        include_all_tests()
+    else
+        include_all_tests()
+    end
 end

@@ -299,6 +299,8 @@ function Write(
     # println("In Write where batch_idx=$batch_idx")
 
     # Write file for this partition
+    worker_idx = get_worker_idx(comm)
+    println("Writing worker_idx=$worker_idx, batch_idx=$batch_idx/$nbatches")
     idx = get_partition_idx(batch_idx, nbatches, comm)
     if isa_df(part)
         # Create directory if it doesn't exist
@@ -331,6 +333,7 @@ function Write(
             Arrow.write(partfilepath, part)
         end
         src
+        MPI.Barrier(comm)
         # TODO: Delete all other part* files for this value if others exist
     elseif isa_array(part)
         # if loc_name == "Disk"
@@ -605,6 +608,8 @@ function Write(
                 f = h5open(path, "cw", fapl_mpio=(comm, info), dxpl_mpio=HDF5.H5FD_MPIO_COLLECTIVE)
                 close(f)
 
+                println("In writing worker_idx=$worker_idx, batch_idx=$batch_idx/$nbatches: after creating file")
+
                 # # Substitute for `h5open` with "cw" which doesn't seem to work
                 # pathexists = HDF5.ishdf5(path)
                 # # pathexists = MPI.bcast(pathexists, 0, comm)
@@ -638,6 +643,8 @@ function Write(
             # Allocate all datasets needed by gathering all sizes to the head
             # node and making calls from there
             part_lengths = MPI.Allgather(size(part, dim), comm)
+
+            println("In writing worker_idx=$worker_idx, batch_idx=$batch_idx/$nbatches: after Allgather")
             # @show part_lengths
             partdsets = [
                 begin
@@ -666,6 +673,8 @@ function Write(
             # TODO: Try removing this barrier
             MPI.Barrier(comm)
 
+            println("In writing worker_idx=$worker_idx, batch_idx=$batch_idx/$nbatches: after creating datasets")
+
             # Each worker then writes their partition to a separate dataset
             # in parallel
             # group = group_prefix*"_part$partition_idx"*"_dim=$dim"
@@ -681,6 +690,8 @@ function Write(
             end
             # TODO: Try removing this barrier
             MPI.Barrier(comm)
+
+            println("In writing worker_idx=$worker_idx, batch_idx=$batch_idx/$nbatches: after writing to each dataset")
 
             # # If we aren't yet on the last batch, then we are only
             # # creating and writing to intermediate datasets (a dataset
@@ -753,6 +764,8 @@ function Write(
                 if worker_idx == 1
                     offset = 0
                 end
+
+                println("In writing worker_idx=$worker_idx, batch_idx=$batch_idx/$nbatches: after Exscan")
     
                 # Make the last worker create the dataset (since it can compute
                 # the total dataset size using its offset)
@@ -789,6 +802,8 @@ function Write(
                 # the last node which is where the file is creating
                 # TODO: Try removing this barrier
                 MPI.Barrier(comm)
+
+                println("In writing worker_idx=$worker_idx, batch_idx=$batch_idx/$nbatches: after creating final dataset")
     
                 # Write out each batch
                 # @show HDF5.ishdf5(path)
@@ -820,13 +835,16 @@ function Write(
                     # @show keys(f)
                     # @show sum(partdset[fill(Colon(), ndims(dset))...])
                     # TOODO: Maynee remoce printlns to make it work
+                    partdset_reading = partdset[fill(Colon(), ndims(dset))...]
+
+                    println("In writing worker_idx=$worker_idx, batch_idx=$batch_idx/$nbatches: after reading batch $batch_i")
                     setindex!(
                         # We are writing to the whole dataset that was just
                         # created
                         dset,
                         # We are copying from the written HDF5 dataset for a
                         # particular batch
-                        partdset[fill(Colon(), ndims(dset))...],
+                        partdset_reading,
                         # We write to the appropriate split of the whole
                         # dataset
                         [
@@ -839,23 +857,28 @@ function Write(
                             for d = 1:ndims(dset)
                         ]...,
                     )
+                    partdset_reading = nothing
                     # @show sum(getindex(dset, [
-                        if d == dim
-                            (batchoffset+1):batchoffset+size(partdset, dim)
-                        else
-                            Colon()
-                        end
-                        # split_len(whole_size[dim], batch_idx, nbatches, comm) : Colon()
-                        for d = 1:ndims(dset)
-                    ]...))
+                    #     if d == dim
+                    #         (batchoffset+1):batchoffset+size(partdset, dim)
+                    #     else
+                    #         Colon()
+                    #     end
+                    #     # split_len(whole_size[dim], batch_idx, nbatches, comm) : Colon()
+                    #     for d = 1:ndims(dset)
+                    # ]...))
 
                     # # @show size(dset)
 
                     # Update the offset of this batch
                     batchoffset += size(partdset, dim)
                     close(partdset)
+                    partdset = nothing
+
+                    println("In writing worker_idx=$worker_idx, batch_idx=$batch_idx/$nbatches: after writing batch $batch_i")
                 end
                 close(dset)
+                dset = nothing
                 # fsync_file()
                 
                 # TODO: Delete data by keeping intermediates in separate file
@@ -865,6 +888,8 @@ function Write(
                 # NOTE: Issue is that the barrier here doesn't ensure that all
                 # processes have written in the previous step
                 # TODO: Use a broadcast here
+
+                println("In writing worker_idx=$worker_idx, batch_idx=$batch_idx/$nbatches: after writing each part")
 
                 # Then, delete all data for all groups on the head node
                 # # @show sum(dset[fill(Colon(), ndims(dset))...])
@@ -896,8 +921,11 @@ function Write(
                 # @show worker_idx
                 MPI.Barrier(comm)
                 # @show worker_idx 
+
+                println("In writing worker_idx=$worker_idx, batch_idx=$batch_idx/$nbatches: after deleting all objects")
             end
             close(f)
+            f = nothing
             # TODO: Ensure that we are closing stuff everywhere before trying
             # to write
             # @show worker_idx
@@ -1172,6 +1200,7 @@ function Write(
         # @show path
         serialize(path, part)
     end
+    println("End of writing worker_idx=$worker_idx, batch_idx=$batch_idx/$nbatches")
 end
 
 global partial_merges = Set()
@@ -1314,6 +1343,8 @@ function Merge(
 
     # TODO: To allow for mutation of a value, we may want to remove this
     # condition
+    worker_idx = get_worker_idx(comm)
+    println("Merging worker_idx=$worker_idx, batch_idx=$batch_idx/$nbatches")
     if isnothing(src) || objectid(src) in partial_merges
         # We only need to concatenate partitions if the source is nothing.
         # Because if the source is something, then part must be a view into it
@@ -1332,7 +1363,7 @@ function Merge(
         end
         push!(src, part)
         if batch_idx == nbatches
-            pop!(partial_merges, objectid(src))
+            delete!(partial_merges, objectid(src))
 
             # TODO: Test that this merges correctly
             # src = merge_on_executor(src...; dims=dim)
@@ -1413,7 +1444,7 @@ function CopyTo(
     # @show loc_name
     if loc_name == "Memory"
         src = part
-    elseif get_partition_idx(batch_idx, nbatches, comm) == 1
+    else
         # If we are copying to an external location we only want to do it on
         # the first worker since assuming that `on` is either `everywhere` or
         # `head`, so any batch on the first worker is guaranteed to have the
@@ -1431,16 +1462,28 @@ function CopyTo(
             # end
             # TODO: Don't rely on ReadBlock, Write in CopyFrom, CopyTo and
             # instead do something more elegant
-            params["key"] = 1
-            Write(src, part, params, 1, 1, MPI.COMM_SELF, loc_name, loc_params)
+            if get_partition_idx(batch_idx, nbatches, comm) == 1
+                params["key"] = 1
+                Write(src, part, params, 1, 1, MPI.COMM_SELF, loc_name, loc_params)
+            end
+            # TODO: Remove this barrier if not needed to ensure correctness
+            MPI.Barrier(comm)
         elseif loc_name == "Remote"
-            params["key"] = 1
-            Write(src, part, params, 1, 1, MPI.COMM_SELF, loc_name, loc_params)
+            if get_partition_idx(batch_idx, nbatches, comm) == 1
+                params["key"] = 1
+                Write(src, part, params, 1, 1, MPI.COMM_SELF, loc_name, loc_params)
+            end
+            # TODO: Remove this barrier if not needed to ensure correctness
+            MPI.Barrier(comm)
         elseif loc_name == "Client"
             # TODO: Ensure this only sends once
             # println("Sending to client")
             # @show part
-            send_to_client(loc_params["value_id"], part)
+            if get_partition_idx(batch_idx, nbatches, comm) == 1
+                send_to_client(loc_params["value_id"], part)
+            end
+            # TODO: Remove this barrier if not needed to ensure correctness
+            MPI.Barrier(comm)
         else
             error("Unexpected location")
         end

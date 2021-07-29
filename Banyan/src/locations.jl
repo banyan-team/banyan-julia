@@ -340,6 +340,13 @@ function Remote(p; read_from_cache = true, write_to_cache = true, delete_from_ca
     location
 end
 
+get_s3_bucket_arn(cluster_name) = get_cluster(cluster_name).s3_bucket_arn
+get_s3_bucket_name(cluster_name) = replace(get_cluster(cluster_name).s3_bucket_arn, "arn:aws:s3:::" => "s3://")
+function get_s3fs_bucket_path(cluster_name)
+    arn = get_cluster(cluster_name).s3_bucket_arn
+    joinpath(homedir(), ".banyan", "mnt", "s3", arn[findfirst("arn:aws:s3:::", arn).stop+1:end])
+end
+
 function get_remote_location(remotepath)
     Random.seed!(hash(get_job_id()))
 

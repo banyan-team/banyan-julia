@@ -204,6 +204,7 @@ function fill(v, dims::NTuple{N,Integer}) where {N}
     # having its sample taken
     partitioned_with() do
         # blocked
+        # TODO: Ensure that we are properly creating new PAs
         pt(A, Blocked(A))
         pt(fillingdims, Divided(), match=A, on="key")
 
@@ -326,6 +327,8 @@ function Base.map(f, c::Array{T,N}...) where {T,N}
         # replicated
         if !is_debug_on()
             pt(c..., res, f, Replicated())
+        else
+            pt(f, Replicated())
         end
     end
 
@@ -438,9 +441,10 @@ function Base.reduce(op, A::Array{T,N}; dims=:, kwargs...) where {T,N}
         pt(res_size, ReducingWithKey(quote axis -> (a, b) -> indexapply(+, a, b, index=axis) end), match=A, on="key")
         # TODO: Allow replication
         if !is_debug_on()
-            pt(A, res, res_size, dims, kwargs, Replicated())
+            pt(A, res, res_size, dims, kwargs, op, Replicated())
+        else
+            pt(dims, kwargs, op, Replicated())
         end
-        pt(dims, kwargs, op, Replicated())
     end
 
     @partitioned op A dims kwargs res res_size begin
