@@ -28,7 +28,9 @@ ReturnNull(
     comm::MPI.Comm,
     loc_name,
     loc_params,
-) = nothing
+) = begin
+    println("At start of returning null worker_idx=$worker_idx, batch_idx=$batch_idx/$nbatches with available memory: $(format_available_memory())")
+end
 
 # TODO: Simplify the way we do locations. Locations should be in separate
 # packages with separate location constructors and separate splitting/merging
@@ -51,7 +53,7 @@ function ReadBlock(
     # We check if it's a file because for items on disk, files are HDF5
     # datasets while directories contain Parquet, CSV, or Arrow datasets
     path = getpath(loc_params["path"])
-    # # println("In ReadBlock")
+    # # # println("In ReadBlock")
     # # @show path
     # # @show isfile(loc_params["path"])
     # # @show HDF5.ishdf5(loc_params["path"])
@@ -87,14 +89,14 @@ function ReadBlock(
         ]
         close(f)
         # end
-        # # println("In ReadBlock")
+        # # # println("In ReadBlock")
         # # @show first(dset)
         return dset
     end
 
     # Handle single-file replicated objects
     if isfile(path)
-        # println("In Read")
+        # # println("In Read")
         # @show path
         res = deserialize(path)
         # @show res
@@ -276,6 +278,17 @@ function ReadGroup(
     res
 end
 
+function format_bytes(bytes, decimals = 2)
+    bytes == 0 && return "0 Bytes"
+    k = 1024
+    dm = decimals < 0 ? 0 : decimals
+    sizes = ["Bytes", "KB", "MB", "GB", "TB", "PB", "EB", "ZB", "YB"]
+    i = convert(Int, floor(log(bytes) / log(k)))
+    return string(round((bytes / ^(k, i)), digits=dm)) * " " * sizes[i+1];
+end
+
+format_available_memory() = format_bytes(Sys.free_memory()) * " / " * format_bytes(Sys.total_memory())
+
 function Write(
     src,
     part,
@@ -296,11 +309,11 @@ function Write(
         # to have the S3 filesystem mounted at mnt/<bucket name>
     end
 
-    # println("In Write where batch_idx=$batch_idx")
+    # # println("In Write where batch_idx=$batch_idx")
 
     # Write file for this partition
     worker_idx = get_worker_idx(comm)
-    println("Writing worker_idx=$worker_idx, batch_idx=$batch_idx/$nbatches")
+    println("Writing worker_idx=$worker_idx, batch_idx=$batch_idx/$nbatches with available memory: $(format_available_memory())")
     idx = get_partition_idx(batch_idx, nbatches, comm)
     if isa_df(part)
         # Create directory if it doesn't exist
@@ -385,7 +398,7 @@ function Write(
         # Write out to an HDF5 dataset differently depending on whether there
         # are multiple batches per worker or just one per worker
         if nbatches == 1
-            # println("In Write where nbatches==1")
+            # # println("In Write where nbatches==1")
             # Determine the offset into the resulting HDF5 dataset where this
             # worker should write
             offset = MPI.Exscan(size(part, dim), +, comm)
@@ -407,13 +420,13 @@ function Write(
             # NOTE: The below is an alternative
             # MPI.Barrier(comm)
             # if worker_idx == 1
-            #     # println("Before h5open")
+            #     # # println("Before h5open")
             #     # f = h5open(path, "cw", comm, info)
             #     # f = h5open(path, "cw", fapl_mpio=(comm, info), dxpl_mpio=HDF5.H5FD_MPIO_INDEPENDENT)
             #     f = h5open(path, "cw")
-            #     # println("Before close")
+            #     # # println("Before close")
             #     close(f)
-            #     # println("After close")    
+            #     # # println("After close")    
             # end
 
             MPI.Barrier(comm)
@@ -422,11 +435,11 @@ function Write(
             # pathexists = HDF5.ishdf5(path)
             # pathexists = MPI.bcast(pathexists, 0, comm)
             # if !pathexists
-            #     # println("Before h5open")
+            #     # # println("Before h5open")
             #     f = h5open(path, "w", comm, info)
-            #     # println("Before close")
+            #     # # println("Before close")
             #     close(f)
-            #     # println("After close")
+            #     # # println("After close")
             # end
             # MPI.Barrier(comm)
 
@@ -462,13 +475,13 @@ function Write(
             )
 
             # Close file
-            # println("Before close dset on $worker_idx")
+            # # println("Before close dset on $worker_idx")
             close(dset)
-            # println("Before close f on $worker_idx")
+            # # println("Before close f on $worker_idx")
             close(f)
-            # println("Before barrier on $worker_idx")
+            # # println("Before barrier on $worker_idx")
             MPI.Barrier(comm)
-            # println("After barrier on $worker_idx")
+            # # println("After barrier on $worker_idx")
 
             # NOTE: If we are removing MPI barriers it might be a good idea to
             # keep the last barrier because of an issue mentioned here:
@@ -479,7 +492,7 @@ function Write(
             # # Make the last worker create the dataset (since it can compute
             # # the total dataset size using its offset)
             # if worker_idx == nworkers
-            #     # println("Entering if")
+            #     # # println("Entering if")
             #     # @show group
             #     # @show nbatches
             #     whole_size = indexapply(+, size(part), offset, index=dim)
@@ -500,7 +513,7 @@ function Write(
             #         # @show fid
             #         close(fid[group])
             #     end
-            #     # println("Exiting if")
+            #     # # println("Exiting if")
             # end
             # # touch(path * "_is_ready")
 
@@ -552,7 +565,7 @@ function Write(
             #     # # necessary or to keep the whole thing in memory if needed.
             #     # if force_overwrite && isfile(path)
             #     #     h5open(path, "r+") do f
-            #     #         # println("Deleting")
+            #     #         # # println("Deleting")
             #     #         # @show group_prefix
             #     #         # @show keys(f)
             #     #         delete_object(f[group_prefix])
@@ -563,7 +576,7 @@ function Write(
             #     # Create the file
             #     h5open(path, dataset_writing_permission) do fid end
             # end
-            # # println("Entering if")
+            # # # println("Entering if")
             # # @show group
             # # @show nbatches
             # if partition_idx == 1
@@ -591,7 +604,7 @@ function Write(
             #         # @show fid
             #     end
             # end
-            # # println("Exiting if")
+            # # # println("Exiting if")
 
             # # Wait for the file to be created
             # # NOTE: It is not sufficient to gather below because some nodes
@@ -608,18 +621,18 @@ function Write(
                 f = h5open(path, "cw", fapl_mpio=(comm, info), dxpl_mpio=HDF5.H5FD_MPIO_COLLECTIVE)
                 close(f)
 
-                println("In writing worker_idx=$worker_idx, batch_idx=$batch_idx/$nbatches: after creating file")
+                # println("In writing worker_idx=$worker_idx, batch_idx=$batch_idx/$nbatches: after creating file with available memory: $(format_available_memory())")
 
                 # # Substitute for `h5open` with "cw" which doesn't seem to work
                 # pathexists = HDF5.ishdf5(path)
                 # # pathexists = MPI.bcast(pathexists, 0, comm)
                 # MPI.Barrier(comm)
                 # if !pathexists
-                #     # # println("Before h5open")
+                #     # # # println("Before h5open")
                 #     # f = h5open(path, "w", comm, info)
-                #     # # println("Before close")
+                #     # # # println("Before close")
                 #     # close(f)
-                #     # # println("After close")
+                #     # # # println("After close")
                 #     if worker_idx == 1
                 #         f = h5open(path, "w")
                 #         close(f)
@@ -644,7 +657,7 @@ function Write(
             # node and making calls from there
             part_lengths = MPI.Allgather(size(part, dim), comm)
 
-            println("In writing worker_idx=$worker_idx, batch_idx=$batch_idx/$nbatches: after Allgather")
+            # println("In writing worker_idx=$worker_idx, batch_idx=$batch_idx/$nbatches: after Allgather with available memory: $(format_available_memory())")
             # @show part_lengths
             partdsets = [
                 begin
@@ -673,7 +686,7 @@ function Write(
             # TODO: Try removing this barrier
             MPI.Barrier(comm)
 
-            println("In writing worker_idx=$worker_idx, batch_idx=$batch_idx/$nbatches: after creating datasets")
+            # println("In writing worker_idx=$worker_idx, batch_idx=$batch_idx/$nbatches: after creating datasets with available memory: $(format_available_memory())")
 
             # Each worker then writes their partition to a separate dataset
             # in parallel
@@ -691,7 +704,7 @@ function Write(
             # TODO: Try removing this barrier
             MPI.Barrier(comm)
 
-            println("In writing worker_idx=$worker_idx, batch_idx=$batch_idx/$nbatches: after writing to each dataset")
+            # println("In writing worker_idx=$worker_idx, batch_idx=$batch_idx/$nbatches: after writing to each dataset with available memory: $(format_available_memory())")
 
             # # If we aren't yet on the last batch, then we are only
             # # creating and writing to intermediate datasets (a dataset
@@ -765,13 +778,13 @@ function Write(
                     offset = 0
                 end
 
-                println("In writing worker_idx=$worker_idx, batch_idx=$batch_idx/$nbatches: after Exscan")
+                # println("In writing worker_idx=$worker_idx, batch_idx=$batch_idx/$nbatches: after Exscan with available memory: $(format_available_memory())")
     
                 # Make the last worker create the dataset (since it can compute
                 # the total dataset size using its offset)
                 # NOTE: It's important that we use the last node since the
                 # last node has the scan result
-                # println("Entering if")
+                # # println("Entering if")
                 # @show group
                 # @show nbatches
                 whole_size = indexapply(_ -> offset + whole_batch_length, size(part), index=dim)
@@ -787,7 +800,7 @@ function Write(
 
                 # If there are multiple batches, each batch just gets written
                 # to its own group
-                # println("Creating")
+                # # println("Creating")
                 # @show group_prefix
                 # @show keys(f)
                 dset = create_dataset(f, group_prefix, eltype(part), (whole_size, whole_size))
@@ -795,7 +808,7 @@ function Write(
                 # # @show keys(fid)
                 # # @show fid
                 # close(fid[group_prefix])
-                # println("Exiting if")
+                # # println("Exiting if")
     
                 # Wait until all workers have the file
                 # TODO: Maybe use a broadcast so that each node is only blocked on
@@ -803,7 +816,7 @@ function Write(
                 # TODO: Try removing this barrier
                 MPI.Barrier(comm)
 
-                println("In writing worker_idx=$worker_idx, batch_idx=$batch_idx/$nbatches: after creating final dataset")
+                # println("In writing worker_idx=$worker_idx, batch_idx=$batch_idx/$nbatches: after creating final dataset with available memory: $(format_available_memory())")
     
                 # Write out each batch
                 # @show HDF5.ishdf5(path)
@@ -837,7 +850,7 @@ function Write(
                     # TOODO: Maynee remoce printlns to make it work
                     partdset_reading = partdset[fill(Colon(), ndims(dset))...]
 
-                    println("In writing worker_idx=$worker_idx, batch_idx=$batch_idx/$nbatches: after reading batch $batch_i")
+                    # println("In writing worker_idx=$worker_idx, batch_idx=$batch_idx/$nbatches: after reading batch $batch_i with available memory: $(format_available_memory())")
                     setindex!(
                         # We are writing to the whole dataset that was just
                         # created
@@ -875,7 +888,7 @@ function Write(
                     close(partdset)
                     partdset = nothing
 
-                    println("In writing worker_idx=$worker_idx, batch_idx=$batch_idx/$nbatches: after writing batch $batch_i")
+                    # println("In writing worker_idx=$worker_idx, batch_idx=$batch_idx/$nbatches: after writing batch $batch_i with available memory: $(format_available_memory())")
                 end
                 close(dset)
                 dset = nothing
@@ -889,7 +902,7 @@ function Write(
                 # processes have written in the previous step
                 # TODO: Use a broadcast here
 
-                println("In writing worker_idx=$worker_idx, batch_idx=$batch_idx/$nbatches: after writing each part")
+                # println("In writing worker_idx=$worker_idx, batch_idx=$batch_idx/$nbatches: after writing each part with available memory: $(format_available_memory())")
 
                 # Then, delete all data for all groups on the head node
                 # # @show sum(dset[fill(Colon(), ndims(dset))...])
@@ -897,7 +910,7 @@ function Write(
                     for batch_i = 1:nbatches
                         idx = get_partition_idx(batch_i, nbatches, worker_i)
                         group = group_prefix*"_part$idx"*"_dim=$dim"
-                        # println("Deleting a group")
+                        # # println("Deleting a group")
                         # @show group
                         # @show keys(f)
                         delete_object(f[group])
@@ -922,7 +935,7 @@ function Write(
                 MPI.Barrier(comm)
                 # @show worker_idx 
 
-                println("In writing worker_idx=$worker_idx, batch_idx=$batch_idx/$nbatches: after deleting all objects")
+                # println("In writing worker_idx=$worker_idx, batch_idx=$batch_idx/$nbatches: after deleting all objects with available memory: $(format_available_memory())")
             end
             close(f)
             f = nothing
@@ -1018,7 +1031,7 @@ function Write(
             #     if worker_idx == nworkers
             #         # NOTE: It's important that we use the last node since the
             #         # last node has the scan result
-            #         # println("Entering if")
+            #         # # println("Entering if")
             #         # @show group
             #         # @show nbatches
             #         whole_size = indexapply(_ -> offset + whole_batch_length, size(part), index=dim)
@@ -1034,7 +1047,7 @@ function Write(
 
             #             # If there are multiple batches, each batch just gets written
             #             # to its own group
-            #             # println("Creating")
+            #             # # println("Creating")
             #             # @show group_prefix
             #             # @show keys(fid)
             #             fid[group_prefix] = similar(part, whole_size)
@@ -1043,7 +1056,7 @@ function Write(
             #             # # @show fid
             #             close(fid[group_prefix])
             #         end
-            #         # println("Exiting if")
+            #         # # println("Exiting if")
             #     end
     
             #     # Wait until all workers have the file
@@ -1125,7 +1138,7 @@ function Write(
             #                 for batch_i = 1:nbatches
             #                     idx = get_partition_idx(batch_i, nbatches, worker_i)
             #                     group = group_prefix*"_part$idx"*"_dim=$dim"
-            #                     # println("Deleting a group")
+            #                     # # println("Deleting a group")
             #                     # @show group
             #                     # @show keys(f)
             #                     delete_object(f[group])
@@ -1152,12 +1165,12 @@ function Write(
         # @show HDF5.ishdf5(path)
 
         # Wait till the dataset is created
-        # # println("Starting to wait")
+        # # # println("Starting to wait")
 
         # Write part to the dataset
         # # @show f
         # # @show keys(f)
-        # # println("Opened")
+        # # # println("Opened")
         # TODO: Use `view` instead of `getindex` in the call to
         # `split_on_executor` here if HDF5 doesn't support this kind of usage
         # TODO: Determine why `readmmap` gave an "Error getting offset"
@@ -1186,7 +1199,7 @@ function Write(
         # dsubset .= part
         # close(f)
         # end
-        # # println("Done writing")
+        # # # println("Done writing")
 
         # TODO: Make this work for variable-sized element type
         # TODO: Support arrays and reductions with variable-sized elements
@@ -1195,12 +1208,12 @@ function Write(
         if isa_gdf(part)
             part = nothing
         end
-        # println("In Write")
+        # # println("In Write")
         # @show part
         # @show path
         serialize(path, part)
     end
-    println("End of writing worker_idx=$worker_idx, batch_idx=$batch_idx/$nbatches")
+    # println("End of writing worker_idx=$worker_idx, batch_idx=$batch_idx/$nbatches")
 end
 
 global partial_merges = Set()
@@ -1339,12 +1352,12 @@ function Merge(
 )
     global partial_merges
 
-    # println("In Merge where batch_idx==$batch_idx")
+    # # println("In Merge where batch_idx==$batch_idx")
 
     # TODO: To allow for mutation of a value, we may want to remove this
     # condition
     worker_idx = get_worker_idx(comm)
-    println("Merging worker_idx=$worker_idx, batch_idx=$batch_idx/$nbatches")
+    # println("Merging worker_idx=$worker_idx, batch_idx=$batch_idx/$nbatches with available memory: $(format_available_memory())")
     if isnothing(src) || objectid(src) in partial_merges
         # We only need to concatenate partitions if the source is nothing.
         # Because if the source is something, then part must be a view into it
@@ -1362,17 +1375,23 @@ function Merge(
             push!(partial_merges, objectid(src))
         end
         push!(src, part)
+        if batch_idx == 1 || batch_idx == nbatches
+            println("At start of merging worker_idx=$worker_idx, batch_idx=$batch_idx/$nbatches with available memory: $(format_available_memory()) and used: $(format_bytes(Base.summarysize(src)))")
+        end
         if batch_idx == nbatches
+            println("At start of merging worker_idx=$worker_idx, batch_idx=$batch_idx/$nbatches with available memory: $(format_available_memory())")
             delete!(partial_merges, objectid(src))
 
             # TODO: Test that this merges correctly
             # src = merge_on_executor(src...; dims=dim)
             src = merge_on_executor(src...; key = key)
+            println("After locally merging worker_idx=$worker_idx, batch_idx=$batch_idx/$nbatches with available memory: $(format_available_memory())")
 
             # Concatenate across workers
             nworkers = get_nworkers(comm)
             if nworkers > 1
                 src = Consolidate(src, params, Dict(), comm)
+                println("After distributing and merging worker_idx=$worker_idx, batch_idx=$batch_idx/$nbatches with available memory: $(format_available_memory())")
             end
             if is_debug_on()
                 # @show partial_merges
@@ -1411,7 +1430,7 @@ function CopyFrom(
         # end
         params["key"] = 1
         res = ReadBlock(src, params, 1, 1, MPI.COMM_SELF, loc_name, loc_params)
-        # println("In CopyFrom")
+        # # println("In CopyFrom")
         # # @show length(res)
         # @show res
         res
@@ -1435,7 +1454,7 @@ function CopyTo(
     loc_name,
     loc_params,
 )
-    # println("In CopyTo")
+    # # println("In CopyTo")
     # @show get_partition_idx(batch_idx, nbatches, comm)
     # @show get_npartitions(nbatches, comm)
     # @show get_worker_idx(comm)
@@ -1477,7 +1496,7 @@ function CopyTo(
             MPI.Barrier(comm)
         elseif loc_name == "Client"
             # TODO: Ensure this only sends once
-            # println("Sending to client")
+            # # println("Sending to client")
             # @show part
             if get_partition_idx(batch_idx, nbatches, comm) == 1
                 send_to_client(loc_params["value_id"], part)
@@ -1508,7 +1527,7 @@ function ReduceAndCopyTo(
     # TODO: Ensure that we handle reductions that can produce nothing
     src = isnothing(src) ? part : op(src, part)
 
-    # println("In ReduceAndCopyTo where batch_idx=$batch_idx")
+    # # println("In ReduceAndCopyTo where batch_idx=$batch_idx")
     # @show src
     # Merge reductions across workers
     if batch_idx == nbatches
@@ -1570,7 +1589,7 @@ function Reduce(part, src_params, dst_params, comm)
     # # @show kind
 
     # Perform reduction
-    # println("In Reduce")
+    # # println("In Reduce")
     # @show src_params["with_key"] ? op(src_params["key"]) : "no key"
     # @show part
     part = MPI.Allreduce(
@@ -1677,7 +1696,7 @@ function Rebalance(part, src_params, dst_params, comm)
         ]...;
         dims = dim,
     )
-    # println("After rebalancing...")
+    # # println("After rebalancing...")
     # # @show length(res)
     res
 end
