@@ -25,6 +25,7 @@ get_enabled_tests() = lowercase.(ARGS)
 # - BANYAN_CLUSTER_NAME (required)
 # - BANYAN_NWORKERS (defaults to 2)
 # - BANYAN_NWORKERS_ALL (defaults to "false")
+# - BANYAN_SCHEDULING_CONFIG_ALL (defaults to "false")
 # - NUM_TRIALS (defaults to 1)
 
 # TODO: Copy the below to other Banyan projects' test suites if changes are made
@@ -91,6 +92,18 @@ function run(test_fn, name)
     end
 end
 
-with_job(job=job) do j
+function include_all_tests()
     include_tests_to_run("test_simple.jl")
+end
+
+with_job(job=job) do j
+    if get(ENV, "BANYAN_SCHEDULING_CONFIG_ALL", "false") == "true"
+        include_all_tests()
+        configure_scheduling(encourage_parallelism=true)
+        include_all_tests()
+        configure_scheduling(encourage_parallelism_with_batches=true)
+        include_all_tests()
+    else
+        include_all_tests()
+    end
 end
