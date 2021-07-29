@@ -36,11 +36,25 @@ end
 
 get_cluster_name() = get_job().cluster_name
 
+function s3_bucket_arn_to_name(s3_bucket_arn)
+    # Get s3 bucket name from arn
+    s3_bucket_name = last(split(s3_bucket_arn, ":"))
+    if endswith(s3_bucket_name, "/")
+        s3_bucket_name = s3_bucket_name[1:end-1]
+    elseif endswith(s3_bucket_name, "/*")
+        s3_bucket_name = s3_bucket_name[1:end-2]
+    elseif endswith(s3_bucket_name, "*")
+        s3_bucket_name = s3_bucket_name[1:end-1]
+    end
+    return s3_bucket_name
+end
+
 function create_job(;
     cluster_name::String = nothing,
     nworkers::Integer = 2,
     banyanfile_path::String = "",
-    logs_location::String = "",
+    return_logs::Bool = false,
+    store_logs_in_s3::Bool = true,
     sample_rate::Integer = nworkers,
     job_name = nothing,
     kwargs...,
@@ -54,9 +68,6 @@ function create_job(;
     end
     if banyanfile_path == ""
         banyanfile_path = nothing
-    end
-    if logs_location == ""
-        logs_location = "client"
     end
 
     # Configure
@@ -75,7 +86,8 @@ function create_job(;
     job_configuration = Dict{String,Any}(
         "cluster_name" => cluster_name,
         "num_workers" => nworkers,
-    	"logs_location" => "s3",  #logs_location,
+    	"return_logs" => return_logs,
+	"store_logs_in_s3" => store_logs_in_s3
     )
     if job_name != nothing
         job_configuration["job_name"] = job_name
@@ -91,8 +103,21 @@ function create_job(;
 
     # Create the job
     @debug "Sending request for job creation"
-    job_id = send_request_get_response(:create_job, job_configuration)
-    job_id = job_id["job_id"]
+    job_response = send_request_get_response(:create_job, job_configuration)
+    if !job_response["ready_for_jobs"]
+        # Upload/send defaults for pt_lib.jl and pt_lib_info.json
+        banyan_dir = dirname(dirname(pathof(Banyan)))
+	s3_bucket_name = s3_bucket_arn_to_name(get_cluster(name=cluster_name).s3_bucket_arn)
+	pt_lib_path = "file://$banyan_dir/res/pt_lib.jl"
+	s3_put(get_aws_config(), s3_bucket_name, basename(pt_lib_path), String(read(open(pt_lib_path[8:end]))))
+	job_configuration["pt_lib_info"] = load_json("file://$banyan_dir/res/pt_lib_info.json")
+        # Try again
+	job_response = send_request_get_response(:create_job, job_configuration)
+    end
+    if !job_response["ready_for_jobs"]
+        error("Please update the cluster with a pt_lib_info.json and pt_lib.jl")
+    end
+    job_id = job_response["job_id"]
     @debug "Creating job $job_id"
 
     # Store in global state
@@ -110,7 +135,7 @@ end
 
 global jobs_destroyed_recently = Set()
 
-function destroy_job(job_id::JobId; failed = Nothing, force=false, kwargs...)
+function destroy_job(;job_id::JobId, failed = Nothing, force=false, kwargs...)
     global current_job_id
     global jobs_destroyed_recently
     
@@ -157,6 +182,29 @@ function get_jobs(cluster_name=Nothing, status=Nothing; kwargs...)
     response =
         send_request_get_response(:describe_jobs, Dict{String,Any}("filters"=>filters))
     response["jobs"]
+end
+
+function get_running_jobs(cluster_name=Nothing; kwargs...)
+    @debug "Downloading description of jobs in each cluster"
+    configure(; kwargs...)
+    filters = Dict(
+	"status" => "running"
+    )
+    if cluster_name != Nothing
+        filters["cluster_name"] = cluster_name
+    end
+    response = 
+        send_request_get_response(:describe_jobs, Dict{String,Any}("filters"=>filters))
+    response["jobs"]
+end
+
+function get_job_logs(cluster_name::String, job_id::JobId, filename::String; kwargs...)
+    @debug "Downloading logs for job"
+    configure(; kwargs...)
+    s3_bucket_arn = get_cluster(cluster_name).s3_bucket_arn
+    s3_bucket_name = s3_bucket_arn_to_name(s3_bucket_arn)
+    log_file_name = "banyan-log-for-job-$(job_id)"
+    s3_get_file(get_aws_config(), s3_bucket_name, log_file_name, filename)
 end
 
 function destroy_all_jobs(cluster_name::String; kwargs...)

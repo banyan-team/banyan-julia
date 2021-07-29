@@ -1,3 +1,5 @@
+using TimeZones
+
 using Base: AbstractVecOrTuple
 
 ##############
@@ -48,6 +50,10 @@ function indexapply(op, objs...; index::Integer=1)
         res[index] = indexres
         res
     end
+end
+
+function parse_time(time)
+    astimezone(ZonedDateTime(time * "0000", "yyyy-mm-dd-HH:MM:SSzzzz"), localzone())
 end
 
 ##################
