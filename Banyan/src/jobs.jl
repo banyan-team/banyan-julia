@@ -135,7 +135,7 @@ end
 
 global jobs_destroyed_recently = Set()
 
-function destroy_job(;job_id::JobId, failed = Nothing, force=false, kwargs...)
+function destroy_job(job_id::JobId; failed = nothing, force=false, kwargs...)
     global current_job_id
     global jobs_destroyed_recently
     
@@ -146,7 +146,7 @@ function destroy_job(;job_id::JobId, failed = Nothing, force=false, kwargs...)
         push!(jobs_destroyed_recently, job_id)
     end
 
-    if failed == Nothing
+    if isnothing(failed)
         failed = false
         if !isnothing(current_job_id) && get_job().current_status == "failed"
     	    failed = true
@@ -169,14 +169,14 @@ function destroy_job(;job_id::JobId, failed = Nothing, force=false, kwargs...)
     delete!(jobs, job_id)
 end
 
-function get_jobs(cluster_name=Nothing, status=Nothing; kwargs...)
+function get_jobs(cluster_name=nothing, status=nothing; kwargs...)
     @debug "Downloading description of jobs in each cluster"
     configure(; kwargs...)
     filters = Dict()
-    if cluster_name != Nothing
+    if !isnothing(cluster_name)
         filters["cluster_name"] = cluster_name
     end
-    if status != Nothing
+    if !isnothing(status)
         filters["status"] = status
     end
     response =
@@ -184,13 +184,13 @@ function get_jobs(cluster_name=Nothing, status=Nothing; kwargs...)
     response["jobs"]
 end
 
-function get_running_jobs(cluster_name=Nothing; kwargs...)
+function get_running_jobs(cluster_name=nothing; kwargs...)
     @debug "Downloading description of jobs in each cluster"
     configure(; kwargs...)
     filters = Dict(
 	"status" => "running"
     )
-    if cluster_name != Nothing
+    if !isnothing(cluster_name)
         filters["cluster_name"] = cluster_name
     end
     response = 
@@ -198,7 +198,7 @@ function get_running_jobs(cluster_name=Nothing; kwargs...)
     response["jobs"]
 end
 
-function get_job_logs(cluster_name::String, job_id::JobId, filename::String; kwargs...)
+function download_job_logs(job_id::JobId, cluster_name::String, filename::String; kwargs...)
     @debug "Downloading logs for job"
     configure(; kwargs...)
     s3_bucket_arn = get_cluster(cluster_name).s3_bucket_arn
@@ -214,7 +214,7 @@ function destroy_all_jobs(cluster_name::String; kwargs...)
     for (job_id, job) in jobs
         if job["status"] == "running"
 	    @info "Destroying job id $job_id"
-            destroy_job(job_id; kwargs...)
+            destroy_job(job_id, kwargs...)
 	end
     end
 end
