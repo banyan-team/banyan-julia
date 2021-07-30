@@ -184,7 +184,7 @@ function __init__()
     # - SSH key pair (used in cluster creation)
 
     global BANYAN_API_ENDPOINT
-    BANYAN_API_ENDPOINT = "https://hcohsbhhzf.execute-api.us-west-2.amazonaws.com/prod/"
+    BANYAN_API_ENDPOINT = "https://hcohsbhhzf.execute-api.us-west-2.amazonaws.com/dev/"
 
     load_config()
 end
