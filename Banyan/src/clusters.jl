@@ -312,7 +312,6 @@ function upload_banyanfile(
     #    "s3://" *
     #    s3_bucket_name *
     #    "/\n"
-    println(string(post_install_script))
     post_install_script *= "\n" * update_script
     # TODO: Fix this
     s3_put(get_aws_config(), s3_bucket_name, post_install_script_name, post_install_script)

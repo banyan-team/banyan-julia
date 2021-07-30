@@ -1,385 +1,92 @@
 [37m[1mTest Summary:               |[22m[39m
 MapReduce-style computation | [36mNo tests[39m
-[37m[1mTest Summary: |[22m[39m
-HDF5          | [36mNo tests[39m
-[37mBlack Scholes: [39m[91m[1mError During Test[22m[39m at [39m[1m/home/calebwin/Projects/banyan-julia/BanyanArrays/test/test_black_scholes.jl:4[22m
-  Got exception outside of a @test
-  "All partition annotations for code region must have partition types for all values that are used; value with ID 35 does not"
-  Stacktrace:
-    [1] [0m[1msend_request_get_response[22m[0m[1m([22m[90mmethod[39m::[0mSymbol, [90mcontent[39m::[0mDict[90m{String, Any}[39m[0m[1m)[22m
-  [90m    @ [39m[35mBanyan[39m [90m~/Projects/banyan-julia/Banyan/src/[39m[90;4mutils.jl:322[0m
-    [2] [0m[1msend_evaluation[22m[0m[1m([22m[90mvalue_id[39m::[0mString, [90mjob_id[39m::[0mString[0m[1m)[22m
-  [90m    @ [39m[35mBanyan[39m [90m~/Projects/banyan-julia/Banyan/src/[39m[90;4mrequests.jl:260[0m
-    [3] [0m[1mcompute[22m[0m[1m([22m[90mfut[39m::[0mFuture[0m[1m)[22m
-  [90m    @ [39m[35mBanyan[39m [90m~/Projects/banyan-julia/Banyan/src/[39m[90;4mrequests.jl:188[0m
-    [4] [0m[1mcollect[22m[0m[1m([22m[90mfut[39m::[0mFuture[0m[1m)[22m
-  [90m    @ [39m[35mBanyan[39m [90m~/Projects/banyan-julia/Banyan/src/[39m[90;4mrequests.jl:296[0m
-    [5] [0m[1m(::var"#53#57")[22m[0m[1m([22m[90mjob[39m::[0mString[0m[1m)[22m
-  [90m    @ [39m[36mMain[39m [90m~/Projects/banyan-julia/BanyanArrays/test/[39m[90;4mtest_black_scholes.jl:42[0m
-    [6] [0m[1mmacro expansion[22m
-  [90m    @ [39m[90m./[39m[90;4mtiming.jl:210[0m[90m [inlined][39m
-    [7] [0m[1m(::var"#3#6"{var"#53#57"})[22m[0m[1m([22m[90mj[39m::[0mString[0m[1m)[22m
-  [90m    @ [39m[36mMain[39m [90m~/Projects/banyan-julia/BanyanArrays/test/[39m[90;4mruntests.jl:74[0m
-    [8] [0m[1mwith_job[22m[0m[1m([22m[90mf[39m::[0mvar"#3#6"[90m{var"#53#57"}[39m; [90mkwargs[39m::[0mBase.Iterators.Pairs[90m{Symbol, Any, Tuple{Symbol, Symbol}, NamedTuple{(:job, :destroy_job_on_exit), Tuple{String, Bool}}}[39m[0m[1m)[22m
-  [90m    @ [39m[35mBanyan[39m [90m~/Projects/banyan-julia/Banyan/src/[39m[90;4mjobs.jl:185[0m
-    [9] [0m[1mrun_with_job[22m[0m[1m([22m[90mtest_fn[39m::[0mvar"#53#57", [90mname[39m::[0mString[0m[1m)[22m
-  [90m    @ [39m[36mMain[39m [90m~/Projects/banyan-julia/BanyanArrays/test/[39m[90;4mruntests.jl:69[0m
-   [10] [0m[1mmacro expansion[22m
-  [90m    @ [39m[90m~/Projects/banyan-julia/BanyanArrays/test/[39m[90;4mtest_black_scholes.jl:7[0m[90m [inlined][39m
-   [11] [0m[1mmacro expansion[22m
-  [90m    @ [39m[90m/buildworker/worker/package_linux64/build/usr/share/julia/stdlib/v1.6/Test/src/[39m[90;4mTest.jl:1151[0m[90m [inlined][39m
-   [12] top-level scope
-  [90m    @ [39m[90m~/Projects/banyan-julia/BanyanArrays/test/[39m[90;4mtest_black_scholes.jl:7[0m
-   [13] [0m[1minclude[22m
-  [90m    @ [39m[90m./[39m[90;4mclient.jl:444[0m[90m [inlined][39m
-   [14] [0m[1minclude_tests_to_run[22m
-  [90m    @ [39m[90m~/Projects/banyan-julia/BanyanArrays/test/[39m[90;4mruntests.jl:12[0m[90m [inlined][39m
-   [15] [0m[1m(::var"#11#12")[22m[0m[1m([22m[90mj[39m::[0mString[0m[1m)[22m
-  [90m    @ [39m[36mMain[39m [90m~/Projects/banyan-julia/BanyanArrays/test/[39m[90;4mruntests.jl:117[0m
-   [16] [0m[1mwith_job[22m[0m[1m([22m[90mf[39m::[0mvar"#11#12"; [90mkwargs[39m::[0mBase.Iterators.Pairs[90m{Symbol, String, Tuple{Symbol}, NamedTuple{(:job,), Tuple{String}}}[39m[0m[1m)[22m
-  [90m    @ [39m[35mBanyan[39m [90m~/Projects/banyan-julia/Banyan/src/[39m[90;4mjobs.jl:185[0m
-   [17] top-level scope
-  [90m    @ [39m[90m~/Projects/banyan-julia/BanyanArrays/test/[39m[90;4mruntests.jl:107[0m
-   [18] [0m[1minclude[22m[0m[1m([22m[90mfname[39m::[0mString[0m[1m)[22m
-  [90m    @ [39m[90mBase.MainInclude[39m [90m./[39m[90;4mclient.jl:444[0m
-   [19] top-level scope
-  [90m    @ [39m[90;4mnone:6[0m
-   [20] [0m[1meval[22m
-  [90m    @ [39m[90m./[39m[90;4mboot.jl:360[0m[90m [inlined][39m
-   [21] [0m[1mexec_options[22m[0m[1m([22m[90mopts[39m::[0mBase.JLOptions[0m[1m)[22m
-  [90m    @ [39m[90mBase[39m [90m./[39m[90;4mclient.jl:261[0m
-   [22] [0m[1m_start[22m[0m[1m([22m[0m[1m)[22m
-  [90m    @ [39m[90mBase[39m [90m./[39m[90;4mclient.jl:485[0m
-  
-  [91mcaused by: [39mHTTP.ExceptionRequest.StatusError(500, "POST", "/dev/evaluate", HTTP.Messages.Response:
-  """
-  HTTP/1.1 500 Internal Server Error
-  Date: Tue, 27 Jul 2021 08:49:37 GMT
-  Content-Type: application/json
-  Content-Length: 125
-  Connection: keep-alive
-  x-amzn-RequestId: 6acf16e0-40d4-4126-b50d-564375c65183
-  Access-Control-Allow-Origin: *
-  Access-Control-Allow-Headers: Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token
-  x-amz-apigw-id: DHxIoE07PHcFqJQ=
-  Access-Control-Allow-Methods: OPTIONS,POST
-  X-Requested-With: *
-  X-Amzn-Trace-Id: Root=1-60ffc89d-3c22401138a6a09445164f99;Sampled=0
-  Access-Control-Allow-Credentials: true
-  
-  "All partition annotations for code region must have partition types for all values that are used; value with ID 35 does not"""")
-  Stacktrace:
-    [1] [0m[1mrequest[22m[0m[1m([22m::[0mType[90m{HTTP.ExceptionRequest.ExceptionLayer{HTTP.ConnectionRequest.ConnectionPoolLayer{HTTP.StreamRequest.StreamLayer{Union{}}}}}[39m, ::[0mHTTP.URIs.URI, ::[0mVararg[90m{Any, N} where N[39m; [90mkw[39m::[0mBase.Iterators.Pairs[90m{Symbol, Union{Nothing, Bool}, Tuple{Symbol, Symbol}, NamedTuple{(:iofunction, :reached_redirect_limit), Tuple{Nothing, Bool}}}[39m[0m[1m)[22m
-  [90m    @ [39m[35mHTTP.ExceptionRequest[39m [90m~/.julia/packages/HTTP/IAI92/src/[39m[90;4mExceptionRequest.jl:22[0m
-    [2] [0m[1m(::Base.var"#70#72"{Base.var"#70#71#73"{ExponentialBackOff, HTTP.RetryRequest.var"#2#3"{Bool, HTTP.Messages.Request}, typeof(HTTP.request)}})[22m[0m[1m([22m::[0mType, ::[0mVararg[90m{Any, N} where N[39m; [90mkwargs[39m::[0mBase.Iterators.Pairs[90m{Symbol, Union{Nothing, Bool}, Tuple{Symbol, Symbol}, NamedTuple{(:iofunction, :reached_redirect_limit), Tuple{Nothing, Bool}}}[39m[0m[1m)[22m
-  [90m    @ [39m[90mBase[39m [90m./[39m[90;4merror.jl:288[0m
-    [3] [0m[1m#request#1[22m
-  [90m    @ [39m[90m~/.julia/packages/HTTP/IAI92/src/[39m[90;4mRetryRequest.jl:44[0m[90m [inlined][39m
-    [4] [0m[1mrequest[22m[0m[1m([22m::[0mType[90m{HTTP.MessageRequest.MessageLayer{HTTP.RetryRequest.RetryLayer{HTTP.ExceptionRequest.ExceptionLayer{HTTP.ConnectionRequest.ConnectionPoolLayer{HTTP.StreamRequest.StreamLayer{Union{}}}}}}}[39m, [90mmethod[39m::[0mString, [90murl[39m::[0mHTTP.URIs.URI, [90mheaders[39m::[0mBase.Vector[90m{Pair{SubString{String}, SubString{String}}}[39m, [90mbody[39m::[0mString; [90mhttp_version[39m::[0mVersionNumber, [90mtarget[39m::[0mString, [90mparent[39m::[0mNothing, [90miofunction[39m::[0mNothing, [90mkw[39m::[0mBase.Iterators.Pairs[90m{Symbol, Bool, Tuple{Symbol}, NamedTuple{(:reached_redirect_limit,), Tuple{Bool}}}[39m[0m[1m)[22m
-  [90m    @ [39m[35mHTTP.MessageRequest[39m [90m~/.julia/packages/HTTP/IAI92/src/[39m[90;4mMessageRequest.jl:51[0m
-    [5] [0m[1mrequest[22m[0m[1m([22m::[0mType[90m{HTTP.BasicAuthRequest.BasicAuthLayer{HTTP.MessageRequest.MessageLayer{HTTP.RetryRequest.RetryLayer{HTTP.ExceptionRequest.ExceptionLayer{HTTP.ConnectionRequest.ConnectionPoolLayer{HTTP.StreamRequest.StreamLayer{Union{}}}}}}}}[39m, [90mmethod[39m::[0mString, [90murl[39m::[0mHTTP.URIs.URI, [90mheaders[39m::[0mBase.Vector[90m{Pair{SubString{String}, SubString{String}}}[39m, [90mbody[39m::[0mString; [90mkw[39m::[0mBase.Iterators.Pairs[90m{Symbol, Bool, Tuple{Symbol}, NamedTuple{(:reached_redirect_limit,), Tuple{Bool}}}[39m[0m[1m)[22m
-  [90m    @ [39m[35mHTTP.BasicAuthRequest[39m [90m~/.julia/packages/HTTP/IAI92/src/[39m[90;4mBasicAuthRequest.jl:28[0m
-    [6] [0m[1mrequest[22m[0m[1m([22m::[0mType[90m{HTTP.RedirectRequest.RedirectLayer{HTTP.BasicAuthRequest.BasicAuthLayer{HTTP.MessageRequest.MessageLayer{HTTP.RetryRequest.RetryLayer{HTTP.ExceptionRequest.ExceptionLayer{HTTP.ConnectionRequest.ConnectionPoolLayer{HTTP.StreamRequest.StreamLayer{Union{}}}}}}}}}[39m, [90mmethod[39m::[0mString, [90murl[39m::[0mHTTP.URIs.URI, [90mheaders[39m::[0mBase.Vector[90m{Pair{SubString{String}, SubString{String}}}[39m, [90mbody[39m::[0mString; [90mredirect_limit[39m::[0mInt64, [90mforwardheaders[39m::[0mBool, [90mkw[39m::[0mBase.Iterators.Pairs[90m{Union{}, Union{}, Tuple{}, NamedTuple{(), Tuple{}}}[39m[0m[1m)[22m
-  [90m    @ [39m[35mHTTP.RedirectRequest[39m [90m~/.julia/packages/HTTP/IAI92/src/[39m[90;4mRedirectRequest.jl:24[0m
-    [7] [0m[1mrequest[22m[0m[1m([22m::[0mType[90m{HTTP.RedirectRequest.RedirectLayer{HTTP.BasicAuthRequest.BasicAuthLayer{HTTP.MessageRequest.MessageLayer{HTTP.RetryRequest.RetryLayer{HTTP.ExceptionRequest.ExceptionLayer{HTTP.ConnectionRequest.ConnectionPoolLayer{HTTP.StreamRequest.StreamLayer{Union{}}}}}}}}}[39m, [90mmethod[39m::[0mString, [90murl[39m::[0mHTTP.URIs.URI, [90mheaders[39m::[0mBase.Vector[90m{Pair{SubString{String}, SubString{String}}}[39m, [90mbody[39m::[0mString[0m[1m)[22m
-  [90m    @ [39m[35mHTTP.RedirectRequest[39m [90m~/.julia/packages/HTTP/IAI92/src/[39m[90;4mRedirectRequest.jl:21[0m
-    [8] [0m[1mrequest[22m[0m[1m([22m[90mmethod[39m::[0mString, [90murl[39m::[0mString, [90mh[39m::[0mTuple[90m{Tuple{String, String}, Tuple{String, String}}[39m, [90mb[39m::[0mString; [90mheaders[39m::[0mTuple[90m{Tuple{String, String}, Tuple{String, String}}[39m, [90mbody[39m::[0mString, [90mquery[39m::[0mNothing, [90mkw[39m::[0mBase.Iterators.Pairs[90m{Union{}, Union{}, Tuple{}, NamedTuple{(), Tuple{}}}[39m[0m[1m)[22m
-  [90m    @ [39m[35mHTTP[39m [90m~/.julia/packages/HTTP/IAI92/src/[39m[90;4mHTTP.jl:314[0m
-    [9] [0m[1mrequest[22m
-  [90m    @ [39m[90m~/.julia/packages/HTTP/IAI92/src/[39m[90;4mHTTP.jl:314[0m[90m [inlined][39m
-   [10] [0m[1m#post#14[22m
-  [90m    @ [39m[90m~/.julia/packages/HTTP/IAI92/src/[39m[90;4mHTTP.jl:405[0m[90m [inlined][39m
-   [11] [0m[1mpost[22m
-  [90m    @ [39m[90m~/.julia/packages/HTTP/IAI92/src/[39m[90;4mHTTP.jl:405[0m[90m [inlined][39m
-   [12] [0m[1msend_request_get_response[22m[0m[1m([22m[90mmethod[39m::[0mSymbol, [90mcontent[39m::[0mDict[90m{String, Any}[39m[0m[1m)[22m
-  [90m    @ [39m[36mBanyan[39m [90m~/Projects/banyan-julia/Banyan/src/[39m[90;4mutils.jl:307[0m
-   [13] [0m[1msend_evaluation[22m[0m[1m([22m[90mvalue_id[39m::[0mString, [90mjob_id[39m::[0mString[0m[1m)[22m
-  [90m    @ [39m[36mBanyan[39m [90m~/Projects/banyan-julia/Banyan/src/[39m[90;4mrequests.jl:260[0m
-   [14] [0m[1mcompute[22m[0m[1m([22m[90mfut[39m::[0mFuture[0m[1m)[22m
-  [90m    @ [39m[36mBanyan[39m [90m~/Projects/banyan-julia/Banyan/src/[39m[90;4mrequests.jl:188[0m
-   [15] [0m[1mcollect[22m[0m[1m([22m[90mfut[39m::[0mFuture[0m[1m)[22m
-  [90m    @ [39m[36mBanyan[39m [90m~/Projects/banyan-julia/Banyan/src/[39m[90;4mrequests.jl:296[0m
-   [16] [0m[1m(::var"#53#57")[22m[0m[1m([22m[90mjob[39m::[0mString[0m[1m)[22m
-  [90m    @ [39m[32mMain[39m [90m~/Projects/banyan-julia/BanyanArrays/test/[39m[90;4mtest_black_scholes.jl:42[0m
-   [17] [0m[1mmacro expansion[22m
-  [90m    @ [39m[90m./[39m[90;4mtiming.jl:210[0m[90m [inlined][39m
-   [18] [0m[1m(::var"#3#6"{var"#53#57"})[22m[0m[1m([22m[90mj[39m::[0mString[0m[1m)[22m
-  [90m    @ [39m[32mMain[39m [90m~/Projects/banyan-julia/BanyanArrays/test/[39m[90;4mruntests.jl:74[0m
-   [19] [0m[1mwith_job[22m[0m[1m([22m[90mf[39m::[0mvar"#3#6"[90m{var"#53#57"}[39m; [90mkwargs[39m::[0mBase.Iterators.Pairs[90m{Symbol, Any, Tuple{Symbol, Symbol}, NamedTuple{(:job, :destroy_job_on_exit), Tuple{String, Bool}}}[39m[0m[1m)[22m
-  [90m    @ [39m[36mBanyan[39m [90m~/Projects/banyan-julia/Banyan/src/[39m[90;4mjobs.jl:185[0m
-   [20] [0m[1mrun_with_job[22m[0m[1m([22m[90mtest_fn[39m::[0mvar"#53#57", [90mname[39m::[0mString[0m[1m)[22m
-  [90m    @ [39m[32mMain[39m [90m~/Projects/banyan-julia/BanyanArrays/test/[39m[90;4mruntests.jl:69[0m
-   [21] [0m[1mmacro expansion[22m
-  [90m    @ [39m[90m~/Projects/banyan-julia/BanyanArrays/test/[39m[90;4mtest_black_scholes.jl:7[0m[90m [inlined][39m
-   [22] [0m[1mmacro expansion[22m
-  [90m    @ [39m[90m/buildworker/worker/package_linux64/build/usr/share/julia/stdlib/v1.6/Test/src/[39m[90;4mTest.jl:1151[0m[90m [inlined][39m
-   [23] top-level scope
-  [90m    @ [39m[90m~/Projects/banyan-julia/BanyanArrays/test/[39m[90;4mtest_black_scholes.jl:7[0m
-   [24] [0m[1minclude[22m
-  [90m    @ [39m[90m./[39m[90;4mclient.jl:444[0m[90m [inlined][39m
-   [25] [0m[1minclude_tests_to_run[22m
-  [90m    @ [39m[90m~/Projects/banyan-julia/BanyanArrays/test/[39m[90;4mruntests.jl:12[0m[90m [inlined][39m
-   [26] [0m[1m(::var"#11#12")[22m[0m[1m([22m[90mj[39m::[0mString[0m[1m)[22m
-  [90m    @ [39m[32mMain[39m [90m~/Projects/banyan-julia/BanyanArrays/test/[39m[90;4mruntests.jl:117[0m
-   [27] [0m[1mwith_job[22m[0m[1m([22m[90mf[39m::[0mvar"#11#12"; [90mkwargs[39m::[0mBase.Iterators.Pairs[90m{Symbol, String, Tuple{Symbol}, NamedTuple{(:job,), Tuple{String}}}[39m[0m[1m)[22m
-  [90m    @ [39m[36mBanyan[39m [90m~/Projects/banyan-julia/Banyan/src/[39m[90;4mjobs.jl:185[0m
-   [28] top-level scope
-  [90m    @ [39m[90m~/Projects/banyan-julia/BanyanArrays/test/[39m[90;4mruntests.jl:107[0m
-   [29] [0m[1minclude[22m[0m[1m([22m[90mfname[39m::[0mString[0m[1m)[22m
-  [90m    @ [39m[90mBase.MainInclude[39m [90m./[39m[90;4mclient.jl:444[0m
-   [30] top-level scope
-  [90m    @ [39m[90;4mnone:6[0m
-   [31] [0m[1meval[22m
-  [90m    @ [39m[90m./[39m[90;4mboot.jl:360[0m[90m [inlined][39m
-   [32] [0m[1mexec_options[22m[0m[1m([22m[90mopts[39m::[0mBase.JLOptions[0m[1m)[22m
-  [90m    @ [39m[90mBase[39m [90m./[39m[90;4mclient.jl:261[0m
-   [33] [0m[1m_start[22m[0m[1m([22m[0m[1m)[22m
-  [90m    @ [39m[90mBase[39m [90m./[39m[90;4mclient.jl:485[0m
-[37m[1mTest Summary: | [22m[39m[91m[1mError  [22m[39m[36m[1mTotal[22m[39m
-Black Scholes | [91m    1  [39m[36m    1[39m
-Base.Vector{Float64}
-BanyanArrays.Vector{Float64}
-BanyanArrays.Vector{Float64}
+  6.072799 seconds (7.47 M allocations: 427.867 MiB, 2.31% gc time, 22.88% compilation time)
+typeof(x) = BanyanArrays.Vector{Float64}
 [37mMapReduce-style computation: [39m[91m[1mError During Test[22m[39m at [39m[1m/home/calebwin/Projects/banyan-julia/BanyanArrays/test/test_mapreduce.jl:1[22m
   Got exception outside of a @test
-  "All partition annotations for code region must have partition types for all values that are used; value with ID 9 does not"
-  Stacktrace:
-    [1] [0m[1msend_request_get_response[22m[0m[1m([22m[90mmethod[39m::[0mSymbol, [90mcontent[39m::[0mDict[90m{String, Any}[39m[0m[1m)[22m
-  [90m    @ [39m[35mBanyan[39m [90m~/Projects/banyan-julia/Banyan/src/[39m[90;4mutils.jl:322[0m
-    [2] [0m[1msend_evaluation[22m[0m[1m([22m[90mvalue_id[39m::[0mString, [90mjob_id[39m::[0mString[0m[1m)[22m
-  [90m    @ [39m[35mBanyan[39m [90m~/Projects/banyan-julia/Banyan/src/[39m[90;4mrequests.jl:260[0m
-    [3] [0m[1mcompute[22m[0m[1m([22m[90mfut[39m::[0mFuture[0m[1m)[22m
-  [90m    @ [39m[35mBanyan[39m [90m~/Projects/banyan-julia/Banyan/src/[39m[90;4mrequests.jl:188[0m
-    [4] [0m[1mcollect[22m[0m[1m([22m[90mfut[39m::[0mFuture[0m[1m)[22m
-  [90m    @ [39m[35mBanyan[39m [90m~/Projects/banyan-julia/Banyan/src/[39m[90;4mrequests.jl:296[0m
-    [5] [0m[1m(::var"#13#30")[22m[0m[1m([22m[90mjob[39m::[0mString[0m[1m)[22m
-  [90m    @ [39m[36mMain[39m [90m~/Projects/banyan-julia/BanyanArrays/test/[39m[90;4mtest_mapreduce.jl:10[0m
-    [6] [0m[1mmacro expansion[22m
-  [90m    @ [39m[90m./[39m[90;4mtiming.jl:210[0m[90m [inlined][39m
-    [7] [0m[1m(::var"#3#6"{var"#13#30"})[22m[0m[1m([22m[90mj[39m::[0mString[0m[1m)[22m
-  [90m    @ [39m[36mMain[39m [90m~/Projects/banyan-julia/BanyanArrays/test/[39m[90;4mruntests.jl:75[0m
-    [8] [0m[1mwith_job[22m[0m[1m([22m[90mf[39m::[0mvar"#3#6"[90m{var"#13#30"}[39m; [90mkwargs[39m::[0mBase.Iterators.Pairs[90m{Symbol, Any, Tuple{Symbol, Symbol}, NamedTuple{(:job, :destroy_job_on_exit), Tuple{String, Bool}}}[39m[0m[1m)[22m
-  [90m    @ [39m[35mBanyan[39m [90m~/Projects/banyan-julia/Banyan/src/[39m[90;4mjobs.jl:185[0m
-    [9] [0m[1mrun_with_job[22m[0m[1m([22m[90mtest_fn[39m::[0mvar"#13#30", [90mname[39m::[0mString[0m[1m)[22m
-  [90m    @ [39m[36mMain[39m [90m~/Projects/banyan-julia/BanyanArrays/test/[39m[90;4mruntests.jl:70[0m
-   [10] [0m[1mmacro expansion[22m
-  [90m    @ [39m[90m~/Projects/banyan-julia/BanyanArrays/test/[39m[90;4mtest_mapreduce.jl:2[0m[90m [inlined][39m
-   [11] [0m[1mmacro expansion[22m
-  [90m    @ [39m[90m/buildworker/worker/package_linux64/build/usr/share/julia/stdlib/v1.6/Test/src/[39m[90;4mTest.jl:1151[0m[90m [inlined][39m
-   [12] top-level scope
-  [90m    @ [39m[90m~/Projects/banyan-julia/BanyanArrays/test/[39m[90;4mtest_mapreduce.jl:2[0m
-   [13] [0m[1minclude[22m
-  [90m    @ [39m[90m./[39m[90;4mclient.jl:444[0m[90m [inlined][39m
-   [14] [0m[1minclude_tests_to_run[22m
-  [90m    @ [39m[90m~/Projects/banyan-julia/BanyanArrays/test/[39m[90;4mruntests.jl:12[0m[90m [inlined][39m
-   [15] [0m[1m(::var"#11#12")[22m[0m[1m([22m[90mj[39m::[0mString[0m[1m)[22m
-  [90m    @ [39m[36mMain[39m [90m~/Projects/banyan-julia/BanyanArrays/test/[39m[90;4mruntests.jl:116[0m
-   [16] [0m[1mwith_job[22m[0m[1m([22m[90mf[39m::[0mvar"#11#12"; [90mkwargs[39m::[0mBase.Iterators.Pairs[90m{Symbol, String, Tuple{Symbol}, NamedTuple{(:job,), Tuple{String}}}[39m[0m[1m)[22m
-  [90m    @ [39m[35mBanyan[39m [90m~/Projects/banyan-julia/Banyan/src/[39m[90;4mjobs.jl:185[0m
-   [17] top-level scope
-  [90m    @ [39m[90m~/Projects/banyan-julia/BanyanArrays/test/[39m[90;4mruntests.jl:108[0m
-   [18] [0m[1minclude[22m[0m[1m([22m[90mfname[39m::[0mString[0m[1m)[22m
-  [90m    @ [39m[90mBase.MainInclude[39m [90m./[39m[90;4mclient.jl:444[0m
-   [19] top-level scope
-  [90m    @ [39m[90;4mnone:6[0m
-   [20] [0m[1meval[22m
-  [90m    @ [39m[90m./[39m[90;4mboot.jl:360[0m[90m [inlined][39m
-   [21] [0m[1mexec_options[22m[0m[1m([22m[90mopts[39m::[0mBase.JLOptions[0m[1m)[22m
-  [90m    @ [39m[90mBase[39m [90m./[39m[90;4mclient.jl:261[0m
-   [22] [0m[1m_start[22m[0m[1m([22m[0m[1m)[22m
-  [90m    @ [39m[90mBase[39m [90m./[39m[90;4mclient.jl:485[0m
-  
-  [91mcaused by: [39mHTTP.ExceptionRequest.StatusError(500, "POST", "/dev/evaluate", HTTP.Messages.Response:
+  AWS.SimpleQueueService.NonExistentQueue -- The specified queue does not exist for this wsdl version.
+  HTTP.ExceptionRequest.StatusError(400, "POST", "/054866216572/banyan_2021-07-29-2304469922e7407670adbe661a869c9beae752_gather.fifo", HTTP.Messages.Response:
   """
-  HTTP/1.1 500 Internal Server Error
-  Date: Tue, 27 Jul 2021 09:39:44 GMT
+  HTTP/1.1 400 Bad Request
+  x-amzn-RequestId: 5805b88d-fb7a-5cc3-9268-e1f0c26ebf2e
+  Date: Thu, 29 Jul 2021 23:16:36 GMT
   Content-Type: application/json
-  Content-Length: 124
-  Connection: keep-alive
-  x-amzn-RequestId: 633f53d2-bb50-418e-bdd8-df4455fb5016
-  Access-Control-Allow-Origin: *
-  Access-Control-Allow-Headers: Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token
-  x-amz-apigw-id: DH4elEiCPHcFfMw=
-  Access-Control-Allow-Methods: OPTIONS,POST
-  X-Requested-With: *
-  X-Amzn-Trace-Id: Root=1-60ffd45d-6187659a63382b68649ecdf8;Sampled=0
-  Access-Control-Allow-Credentials: true
+  Content-Length: 197
   
-  "All partition annotations for code region must have partition types for all values that are used; value with ID 9 does not"""")
+  {"Error":{"Code":"AWS.SimpleQueueService.NonExistentQueue","Message":"The specified queue does not exist for this wsdl version.","Type":"Sender"},"RequestId":"5805b88d-fb7a-5cc3-9268-e1f0c26ebf2e"}""")
+  
   Stacktrace:
-    [1] [0m[1mrequest[22m[0m[1m([22m::[0mType[90m{HTTP.ExceptionRequest.ExceptionLayer{HTTP.ConnectionRequest.ConnectionPoolLayer{HTTP.StreamRequest.StreamLayer{Union{}}}}}[39m, ::[0mHTTP.URIs.URI, ::[0mVararg[90m{Any, N} where N[39m; [90mkw[39m::[0mBase.Iterators.Pairs[90m{Symbol, Union{Nothing, Bool}, Tuple{Symbol, Symbol}, NamedTuple{(:iofunction, :reached_redirect_limit), Tuple{Nothing, Bool}}}[39m[0m[1m)[22m
+    [1] [0m[1mrequest[22m[0m[1m([22m::[0mType[90m{HTTP.ExceptionRequest.ExceptionLayer{HTTP.ConnectionRequest.ConnectionPoolLayer{HTTP.StreamRequest.StreamLayer{Union{}}}}}[39m, ::[0mHTTP.URIs.URI, ::[0mVararg[90m{Any, N} where N[39m; [90mkw[39m::[0mBase.Iterators.Pairs[90m{Symbol, Union{Nothing, Integer}, Tuple{Symbol, Symbol, Symbol}, NamedTuple{(:iofunction, :verbose, :require_ssl_verification), Tuple{Nothing, Int64, Bool}}}[39m[0m[1m)[22m
   [90m    @ [39m[35mHTTP.ExceptionRequest[39m [90m~/.julia/packages/HTTP/IAI92/src/[39m[90;4mExceptionRequest.jl:22[0m
-    [2] [0m[1m(::Base.var"#70#72"{Base.var"#70#71#73"{ExponentialBackOff, HTTP.RetryRequest.var"#2#3"{Bool, HTTP.Messages.Request}, typeof(HTTP.request)}})[22m[0m[1m([22m::[0mType, ::[0mVararg[90m{Any, N} where N[39m; [90mkwargs[39m::[0mBase.Iterators.Pairs[90m{Symbol, Union{Nothing, Bool}, Tuple{Symbol, Symbol}, NamedTuple{(:iofunction, :reached_redirect_limit), Tuple{Nothing, Bool}}}[39m[0m[1m)[22m
-  [90m    @ [39m[90mBase[39m [90m./[39m[90;4merror.jl:288[0m
-    [3] [0m[1m#request#1[22m
-  [90m    @ [39m[90m~/.julia/packages/HTTP/IAI92/src/[39m[90;4mRetryRequest.jl:44[0m[90m [inlined][39m
-    [4] [0m[1mrequest[22m[0m[1m([22m::[0mType[90m{HTTP.MessageRequest.MessageLayer{HTTP.RetryRequest.RetryLayer{HTTP.ExceptionRequest.ExceptionLayer{HTTP.ConnectionRequest.ConnectionPoolLayer{HTTP.StreamRequest.StreamLayer{Union{}}}}}}}[39m, [90mmethod[39m::[0mString, [90murl[39m::[0mHTTP.URIs.URI, [90mheaders[39m::[0mBase.Vector[90m{Pair{SubString{String}, SubString{String}}}[39m, [90mbody[39m::[0mString; [90mhttp_version[39m::[0mVersionNumber, [90mtarget[39m::[0mString, [90mparent[39m::[0mNothing, [90miofunction[39m::[0mNothing, [90mkw[39m::[0mBase.Iterators.Pairs[90m{Symbol, Bool, Tuple{Symbol}, NamedTuple{(:reached_redirect_limit,), Tuple{Bool}}}[39m[0m[1m)[22m
+    [2] [0m[1mrequest[22m[0m[1m([22m::[0mType[90m{HTTP.MessageRequest.MessageLayer{HTTP.ExceptionRequest.ExceptionLayer{HTTP.ConnectionRequest.ConnectionPoolLayer{HTTP.StreamRequest.StreamLayer{Union{}}}}}}[39m, [90mmethod[39m::[0mString, [90murl[39m::[0mHTTP.URIs.URI, [90mheaders[39m::[0mBase.Vector[90m{Pair{SubString{String}, SubString{String}}}[39m, [90mbody[39m::[0mString; [90mhttp_version[39m::[0mVersionNumber, [90mtarget[39m::[0mString, [90mparent[39m::[0mNothing, [90miofunction[39m::[0mNothing, [90mkw[39m::[0mBase.Iterators.Pairs[90m{Symbol, Integer, Tuple{Symbol, Symbol}, NamedTuple{(:verbose, :require_ssl_verification), Tuple{Int64, Bool}}}[39m[0m[1m)[22m
   [90m    @ [39m[35mHTTP.MessageRequest[39m [90m~/.julia/packages/HTTP/IAI92/src/[39m[90;4mMessageRequest.jl:51[0m
-    [5] [0m[1mrequest[22m[0m[1m([22m::[0mType[90m{HTTP.BasicAuthRequest.BasicAuthLayer{HTTP.MessageRequest.MessageLayer{HTTP.RetryRequest.RetryLayer{HTTP.ExceptionRequest.ExceptionLayer{HTTP.ConnectionRequest.ConnectionPoolLayer{HTTP.StreamRequest.StreamLayer{Union{}}}}}}}}[39m, [90mmethod[39m::[0mString, [90murl[39m::[0mHTTP.URIs.URI, [90mheaders[39m::[0mBase.Vector[90m{Pair{SubString{String}, SubString{String}}}[39m, [90mbody[39m::[0mString; [90mkw[39m::[0mBase.Iterators.Pairs[90m{Symbol, Bool, Tuple{Symbol}, NamedTuple{(:reached_redirect_limit,), Tuple{Bool}}}[39m[0m[1m)[22m
+    [3] [0m[1mrequest[22m[0m[1m([22m::[0mType[90m{HTTP.BasicAuthRequest.BasicAuthLayer{HTTP.MessageRequest.MessageLayer{HTTP.ExceptionRequest.ExceptionLayer{HTTP.ConnectionRequest.ConnectionPoolLayer{HTTP.StreamRequest.StreamLayer{Union{}}}}}}}[39m, [90mmethod[39m::[0mString, [90murl[39m::[0mHTTP.URIs.URI, [90mheaders[39m::[0mBase.Vector[90m{Pair{SubString{String}, SubString{String}}}[39m, [90mbody[39m::[0mString; [90mkw[39m::[0mBase.Iterators.Pairs[90m{Symbol, Integer, Tuple{Symbol, Symbol}, NamedTuple{(:verbose, :require_ssl_verification), Tuple{Int64, Bool}}}[39m[0m[1m)[22m
   [90m    @ [39m[35mHTTP.BasicAuthRequest[39m [90m~/.julia/packages/HTTP/IAI92/src/[39m[90;4mBasicAuthRequest.jl:28[0m
-    [6] [0m[1mrequest[22m[0m[1m([22m::[0mType[90m{HTTP.RedirectRequest.RedirectLayer{HTTP.BasicAuthRequest.BasicAuthLayer{HTTP.MessageRequest.MessageLayer{HTTP.RetryRequest.RetryLayer{HTTP.ExceptionRequest.ExceptionLayer{HTTP.ConnectionRequest.ConnectionPoolLayer{HTTP.StreamRequest.StreamLayer{Union{}}}}}}}}}[39m, [90mmethod[39m::[0mString, [90murl[39m::[0mHTTP.URIs.URI, [90mheaders[39m::[0mBase.Vector[90m{Pair{SubString{String}, SubString{String}}}[39m, [90mbody[39m::[0mString; [90mredirect_limit[39m::[0mInt64, [90mforwardheaders[39m::[0mBool, [90mkw[39m::[0mBase.Iterators.Pairs[90m{Union{}, Union{}, Tuple{}, NamedTuple{(), Tuple{}}}[39m[0m[1m)[22m
-  [90m    @ [39m[35mHTTP.RedirectRequest[39m [90m~/.julia/packages/HTTP/IAI92/src/[39m[90;4mRedirectRequest.jl:24[0m
-    [7] [0m[1mrequest[22m[0m[1m([22m::[0mType[90m{HTTP.RedirectRequest.RedirectLayer{HTTP.BasicAuthRequest.BasicAuthLayer{HTTP.MessageRequest.MessageLayer{HTTP.RetryRequest.RetryLayer{HTTP.ExceptionRequest.ExceptionLayer{HTTP.ConnectionRequest.ConnectionPoolLayer{HTTP.StreamRequest.StreamLayer{Union{}}}}}}}}}[39m, [90mmethod[39m::[0mString, [90murl[39m::[0mHTTP.URIs.URI, [90mheaders[39m::[0mBase.Vector[90m{Pair{SubString{String}, SubString{String}}}[39m, [90mbody[39m::[0mString[0m[1m)[22m
-  [90m    @ [39m[35mHTTP.RedirectRequest[39m [90m~/.julia/packages/HTTP/IAI92/src/[39m[90;4mRedirectRequest.jl:21[0m
-    [8] [0m[1mrequest[22m[0m[1m([22m[90mmethod[39m::[0mString, [90murl[39m::[0mString, [90mh[39m::[0mTuple[90m{Tuple{String, String}, Tuple{String, String}}[39m, [90mb[39m::[0mString; [90mheaders[39m::[0mTuple[90m{Tuple{String, String}, Tuple{String, String}}[39m, [90mbody[39m::[0mString, [90mquery[39m::[0mNothing, [90mkw[39m::[0mBase.Iterators.Pairs[90m{Union{}, Union{}, Tuple{}, NamedTuple{(), Tuple{}}}[39m[0m[1m)[22m
-  [90m    @ [39m[35mHTTP[39m [90m~/.julia/packages/HTTP/IAI92/src/[39m[90;4mHTTP.jl:314[0m
-    [9] [0m[1mrequest[22m
-  [90m    @ [39m[90m~/.julia/packages/HTTP/IAI92/src/[39m[90;4mHTTP.jl:314[0m[90m [inlined][39m
-   [10] [0m[1m#post#14[22m
-  [90m    @ [39m[90m~/.julia/packages/HTTP/IAI92/src/[39m[90;4mHTTP.jl:405[0m[90m [inlined][39m
-   [11] [0m[1mpost[22m
-  [90m    @ [39m[90m~/.julia/packages/HTTP/IAI92/src/[39m[90;4mHTTP.jl:405[0m[90m [inlined][39m
-   [12] [0m[1msend_request_get_response[22m[0m[1m([22m[90mmethod[39m::[0mSymbol, [90mcontent[39m::[0mDict[90m{String, Any}[39m[0m[1m)[22m
-  [90m    @ [39m[36mBanyan[39m [90m~/Projects/banyan-julia/Banyan/src/[39m[90;4mutils.jl:307[0m
-   [13] [0m[1msend_evaluation[22m[0m[1m([22m[90mvalue_id[39m::[0mString, [90mjob_id[39m::[0mString[0m[1m)[22m
-  [90m    @ [39m[36mBanyan[39m [90m~/Projects/banyan-julia/Banyan/src/[39m[90;4mrequests.jl:260[0m
-   [14] [0m[1mcompute[22m[0m[1m([22m[90mfut[39m::[0mFuture[0m[1m)[22m
-  [90m    @ [39m[36mBanyan[39m [90m~/Projects/banyan-julia/Banyan/src/[39m[90;4mrequests.jl:188[0m
-   [15] [0m[1mcollect[22m[0m[1m([22m[90mfut[39m::[0mFuture[0m[1m)[22m
-  [90m    @ [39m[36mBanyan[39m [90m~/Projects/banyan-julia/Banyan/src/[39m[90;4mrequests.jl:296[0m
-   [16] [0m[1m(::var"#13#30")[22m[0m[1m([22m[90mjob[39m::[0mString[0m[1m)[22m
-  [90m    @ [39m[32mMain[39m [90m~/Projects/banyan-julia/BanyanArrays/test/[39m[90;4mtest_mapreduce.jl:10[0m
-   [17] [0m[1mmacro expansion[22m
+    [4] [0m[1mmacro expansion[22m
+  [90m    @ [39m[90m~/.julia/packages/AWSCore/wNWgl/src/[39m[90;4mhttp.jl:42[0m[90m [inlined][39m
+    [5] [0m[1mmacro expansion[22m
+  [90m    @ [39m[90m~/.julia/packages/Retry/vS1bg/src/[39m[90;4mrepeat_try.jl:192[0m[90m [inlined][39m
+    [6] [0m[1mhttp_request[22m[0m[1m([22m[90mrequest[39m::[0mDict[90m{Symbol, Any}[39m[0m[1m)[22m
+  [90m    @ [39m[36mAWSCore[39m [90m~/.julia/packages/AWSCore/wNWgl/src/[39m[90;4mhttp.jl:20[0m
+    [7] [0m[1mmacro expansion[22m
+  [90m    @ [39m[90m~/.julia/packages/AWSCore/wNWgl/src/[39m[90;4mAWSCore.jl:411[0m[90m [inlined][39m
+    [8] [0m[1mmacro expansion[22m
+  [90m    @ [39m[90m~/.julia/packages/Retry/vS1bg/src/[39m[90;4mrepeat_try.jl:192[0m[90m [inlined][39m
+    [9] [0m[1mdo_request[22m[0m[1m([22m[90mr[39m::[0mDict[90m{Symbol, Any}[39m; [90mreturn_headers[39m::[0mBool[0m[1m)[22m
+  [90m    @ [39m[36mAWSCore[39m [90m~/.julia/packages/AWSCore/wNWgl/src/[39m[90;4mAWSCore.jl:394[0m
+   [10] [0m[1mdo_request[22m
+  [90m    @ [39m[90m~/.julia/packages/AWSCore/wNWgl/src/[39m[90;4mAWSCore.jl:391[0m[90m [inlined][39m
+   [11] [0m[1mservice_query[22m[0m[1m([22m[90maws[39m::[0mDict[90m{Symbol, Any}[39m; [90margs[39m::[0mBase.Iterators.Pairs[90m{Symbol, Any, NTuple{4, Symbol}, NamedTuple{(:service, :version, :operation, :args), Tuple{String, String, String, Dict{String, Any}}}}[39m[0m[1m)[22m
+  [90m    @ [39m[36mAWSCore[39m [90m~/.julia/packages/AWSCore/wNWgl/src/[39m[90;4mAWSCore.jl:249[0m
+   [12] [0m[1msqs[22m
+  [90m    @ [39m[90m~/.julia/packages/AWSCore/wNWgl/src/[39m[90;4mServices.jl:3091[0m[90m [inlined][39m
+   [13] [0m[1msqs[22m
+  [90m    @ [39m[90m~/.julia/packages/AWSSQS/dkI0T/src/[39m[90;4mAWSSQS.jl:35[0m[90m [inlined][39m
+   [14] [0m[1m#sqs#1[22m
+  [90m    @ [39m[90m~/.julia/packages/AWSSQS/dkI0T/src/[39m[90;4mAWSSQS.jl:36[0m[90m [inlined][39m
+   [15] [0m[1msqs_receive_message[22m[0m[1m([22m[90mqueue[39m::[0mDict[90m{Symbol, Any}[39m[0m[1m)[22m
+  [90m    @ [39m[32mAWSSQS[39m [90m~/.julia/packages/AWSSQS/dkI0T/src/[39m[90;4mAWSSQS.jl:207[0m
+   [16] [0m[1mreceive_next_message[22m[0m[1m([22m[90mqueue_name[39m::[0mDict[90m{Symbol, Any}[39m[0m[1m)[22m
+  [90m    @ [39m[33mBanyan[39m [90m~/Projects/banyan-julia/Banyan/src/[39m[90;4mqueues.jl:23[0m
+   [17] [0m[1mcompute[22m[0m[1m([22m[90mfut[39m::[0mBanyanArrays.Vector[90m{Float64}[39m[0m[1m)[22m
+  [90m    @ [39m[33mBanyan[39m [90m~/Projects/banyan-julia/Banyan/src/[39m[90;4mrequests.jl:204[0m
+   [18] [0m[1m(::var"#19#36")[22m[0m[1m([22m[90mjob[39m::[0mString[0m[1m)[22m
+  [90m    @ [39m[35mMain[39m [90m~/Projects/banyan-julia/BanyanArrays/test/[39m[90;4mtest_mapreduce.jl:47[0m
+   [19] [0m[1mmacro expansion[22m
   [90m    @ [39m[90m./[39m[90;4mtiming.jl:210[0m[90m [inlined][39m
-   [18] [0m[1m(::var"#3#6"{var"#13#30"})[22m[0m[1m([22m[90mj[39m::[0mString[0m[1m)[22m
-  [90m    @ [39m[32mMain[39m [90m~/Projects/banyan-julia/BanyanArrays/test/[39m[90;4mruntests.jl:75[0m
-   [19] [0m[1mwith_job[22m[0m[1m([22m[90mf[39m::[0mvar"#3#6"[90m{var"#13#30"}[39m; [90mkwargs[39m::[0mBase.Iterators.Pairs[90m{Symbol, Any, Tuple{Symbol, Symbol}, NamedTuple{(:job, :destroy_job_on_exit), Tuple{String, Bool}}}[39m[0m[1m)[22m
-  [90m    @ [39m[36mBanyan[39m [90m~/Projects/banyan-julia/Banyan/src/[39m[90;4mjobs.jl:185[0m
-   [20] [0m[1mrun_with_job[22m[0m[1m([22m[90mtest_fn[39m::[0mvar"#13#30", [90mname[39m::[0mString[0m[1m)[22m
-  [90m    @ [39m[32mMain[39m [90m~/Projects/banyan-julia/BanyanArrays/test/[39m[90;4mruntests.jl:70[0m
-   [21] [0m[1mmacro expansion[22m
-  [90m    @ [39m[90m~/Projects/banyan-julia/BanyanArrays/test/[39m[90;4mtest_mapreduce.jl:2[0m[90m [inlined][39m
-   [22] [0m[1mmacro expansion[22m
+   [20] [0m[1m(::var"#3#6"{var"#19#36"})[22m[0m[1m([22m[90mj[39m::[0mString[0m[1m)[22m
+  [90m    @ [39m[35mMain[39m [90m~/Projects/banyan-julia/BanyanArrays/test/[39m[90;4mruntests.jl:75[0m
+   [21] [0m[1mwith_job[22m[0m[1m([22m[90mf[39m::[0mvar"#3#6"[90m{var"#19#36"}[39m; [90mkwargs[39m::[0mBase.Iterators.Pairs[90m{Symbol, Any, Tuple{Symbol, Symbol}, NamedTuple{(:job, :destroy_job_on_exit), Tuple{String, Bool}}}[39m[0m[1m)[22m
+  [90m    @ [39m[33mBanyan[39m [90m~/Projects/banyan-julia/Banyan/src/[39m[90;4mjobs.jl:233[0m
+   [22] [0m[1mrun_with_job[22m[0m[1m([22m[90mtest_fn[39m::[0mvar"#19#36", [90mname[39m::[0mString[0m[1m)[22m
+  [90m    @ [39m[35mMain[39m [90m~/Projects/banyan-julia/BanyanArrays/test/[39m[90;4mruntests.jl:70[0m
+   [23] [0m[1mmacro expansion[22m
+  [90m    @ [39m[90m~/Projects/banyan-julia/BanyanArrays/test/[39m[90;4mtest_mapreduce.jl:41[0m[90m [inlined][39m
+   [24] [0m[1mmacro expansion[22m
   [90m    @ [39m[90m/buildworker/worker/package_linux64/build/usr/share/julia/stdlib/v1.6/Test/src/[39m[90;4mTest.jl:1151[0m[90m [inlined][39m
-   [23] top-level scope
+   [25] top-level scope
   [90m    @ [39m[90m~/Projects/banyan-julia/BanyanArrays/test/[39m[90;4mtest_mapreduce.jl:2[0m
-   [24] [0m[1minclude[22m
+   [26] [0m[1minclude[22m
   [90m    @ [39m[90m./[39m[90;4mclient.jl:444[0m[90m [inlined][39m
-   [25] [0m[1minclude_tests_to_run[22m
+   [27] [0m[1minclude_tests_to_run[22m
   [90m    @ [39m[90m~/Projects/banyan-julia/BanyanArrays/test/[39m[90;4mruntests.jl:12[0m[90m [inlined][39m
-   [26] [0m[1m(::var"#11#12")[22m[0m[1m([22m[90mj[39m::[0mString[0m[1m)[22m
-  [90m    @ [39m[32mMain[39m [90m~/Projects/banyan-julia/BanyanArrays/test/[39m[90;4mruntests.jl:116[0m
-   [27] [0m[1mwith_job[22m[0m[1m([22m[90mf[39m::[0mvar"#11#12"; [90mkwargs[39m::[0mBase.Iterators.Pairs[90m{Symbol, String, Tuple{Symbol}, NamedTuple{(:job,), Tuple{String}}}[39m[0m[1m)[22m
-  [90m    @ [39m[36mBanyan[39m [90m~/Projects/banyan-julia/Banyan/src/[39m[90;4mjobs.jl:185[0m
-   [28] top-level scope
-  [90m    @ [39m[90m~/Projects/banyan-julia/BanyanArrays/test/[39m[90;4mruntests.jl:108[0m
-   [29] [0m[1minclude[22m[0m[1m([22m[90mfname[39m::[0mString[0m[1m)[22m
+   [28] [0m[1minclude_all_tests[22m[0m[1m([22m[0m[1m)[22m
+  [90m    @ [39m[35mMain[39m [90m~/Projects/banyan-julia/BanyanArrays/test/[39m[90;4mruntests.jl:109[0m
+   [29] [0m[1m(::var"#11#12")[22m[0m[1m([22m[90mj[39m::[0mString[0m[1m)[22m
+  [90m    @ [39m[35mMain[39m [90m~/Projects/banyan-julia/BanyanArrays/test/[39m[90;4mruntests.jl:0[0m
+   [30] [0m[1mwith_job[22m[0m[1m([22m[90mf[39m::[0mvar"#11#12"; [90mkwargs[39m::[0mBase.Iterators.Pairs[90m{Symbol, String, Tuple{Symbol}, NamedTuple{(:job,), Tuple{String}}}[39m[0m[1m)[22m
+  [90m    @ [39m[33mBanyan[39m [90m~/Projects/banyan-julia/Banyan/src/[39m[90;4mjobs.jl:233[0m
+   [31] top-level scope
+  [90m    @ [39m[90m~/Projects/banyan-julia/BanyanArrays/test/[39m[90;4mruntests.jl:114[0m
+   [32] [0m[1minclude[22m[0m[1m([22m[90mfname[39m::[0mString[0m[1m)[22m
   [90m    @ [39m[90mBase.MainInclude[39m [90m./[39m[90;4mclient.jl:444[0m
-   [30] top-level scope
+   [33] top-level scope
   [90m    @ [39m[90;4mnone:6[0m
-   [31] [0m[1meval[22m
+   [34] [0m[1meval[22m
   [90m    @ [39m[90m./[39m[90;4mboot.jl:360[0m[90m [inlined][39m
-   [32] [0m[1mexec_options[22m[0m[1m([22m[90mopts[39m::[0mBase.JLOptions[0m[1m)[22m
+   [35] [0m[1mexec_options[22m[0m[1m([22m[90mopts[39m::[0mBase.JLOptions[0m[1m)[22m
   [90m    @ [39m[90mBase[39m [90m./[39m[90;4mclient.jl:261[0m
-   [33] [0m[1m_start[22m[0m[1m([22m[0m[1m)[22m
+   [36] [0m[1m_start[22m[0m[1m([22m[0m[1m)[22m
   [90m    @ [39m[90mBase[39m [90m./[39m[90;4mclient.jl:485[0m
 [37m[1mTest Summary:               | [22m[39m[91m[1mError  [22m[39m[36m[1mTotal[22m[39m
 MapReduce-style computation | [91m    1  [39m[36m    1[39m
-[37m[1mTest Summary:               |[22m[39m
-MapReduce-style computation | [36mNo tests[39m
-[37m[1mTest Summary: |[22m[39m
-HDF5          | [36mNo tests[39m
-[37mBlack Scholes: [39m[91m[1mError During Test[22m[39m at [39m[1m/home/calebwin/Projects/banyan-julia/BanyanArrays/test/test_black_scholes.jl:4[22m
-  Got exception outside of a @test
-  Job failed; see preceding output
-  Stacktrace:
-    [1] [0m[1merror[22m[0m[1m([22m[90ms[39m::[0mString[0m[1m)[22m
-  [90m    @ [39m[90mBase[39m [90m./[39m[90;4merror.jl:33[0m
-    [2] [0m[1mreceive_next_message[22m[0m[1m([22m[90mqueue_name[39m::[0mDict[90m{Symbol, Any}[39m[0m[1m)[22m
-  [90m    @ [39m[35mBanyan[39m [90m~/Projects/banyan-julia/Banyan/src/[39m[90;4mqueues.jl:47[0m
-    [3] [0m[1mcompute[22m[0m[1m([22m[90mfut[39m::[0mFuture[0m[1m)[22m
-  [90m    @ [39m[35mBanyan[39m [90m~/Projects/banyan-julia/Banyan/src/[39m[90;4mrequests.jl:204[0m
-    [4] [0m[1mcollect[22m[0m[1m([22m[90mfut[39m::[0mFuture[0m[1m)[22m
-  [90m    @ [39m[35mBanyan[39m [90m~/Projects/banyan-julia/Banyan/src/[39m[90;4mrequests.jl:296[0m
-    [5] [0m[1m(::var"#55#59")[22m[0m[1m([22m[90mjob[39m::[0mString[0m[1m)[22m
-  [90m    @ [39m[36mMain[39m [90m~/Projects/banyan-julia/BanyanArrays/test/[39m[90;4mtest_black_scholes.jl:42[0m
-    [6] [0m[1mmacro expansion[22m
-  [90m    @ [39m[90m./[39m[90;4mtiming.jl:210[0m[90m [inlined][39m
-    [7] [0m[1m(::var"#3#6"{var"#55#59"})[22m[0m[1m([22m[90mj[39m::[0mString[0m[1m)[22m
-  [90m    @ [39m[36mMain[39m [90m~/Projects/banyan-julia/BanyanArrays/test/[39m[90;4mruntests.jl:74[0m
-    [8] [0m[1mwith_job[22m[0m[1m([22m[90mf[39m::[0mvar"#3#6"[90m{var"#55#59"}[39m; [90mkwargs[39m::[0mBase.Iterators.Pairs[90m{Symbol, Any, Tuple{Symbol, Symbol}, NamedTuple{(:job, :destroy_job_on_exit), Tuple{String, Bool}}}[39m[0m[1m)[22m
-  [90m    @ [39m[35mBanyan[39m [90m~/Projects/banyan-julia/Banyan/src/[39m[90;4mjobs.jl:185[0m
-    [9] [0m[1mrun_with_job[22m[0m[1m([22m[90mtest_fn[39m::[0mvar"#55#59", [90mname[39m::[0mString[0m[1m)[22m
-  [90m    @ [39m[36mMain[39m [90m~/Projects/banyan-julia/BanyanArrays/test/[39m[90;4mruntests.jl:69[0m
-   [10] [0m[1mmacro expansion[22m
-  [90m    @ [39m[90m~/Projects/banyan-julia/BanyanArrays/test/[39m[90;4mtest_black_scholes.jl:7[0m[90m [inlined][39m
-   [11] [0m[1mmacro expansion[22m
-  [90m    @ [39m[90m/buildworker/worker/package_linux64/build/usr/share/julia/stdlib/v1.6/Test/src/[39m[90;4mTest.jl:1151[0m[90m [inlined][39m
-   [12] top-level scope
-  [90m    @ [39m[90m~/Projects/banyan-julia/BanyanArrays/test/[39m[90;4mtest_black_scholes.jl:7[0m
-   [13] [0m[1minclude[22m
-  [90m    @ [39m[90m./[39m[90;4mclient.jl:444[0m[90m [inlined][39m
-   [14] [0m[1minclude_tests_to_run[22m
-  [90m    @ [39m[90m~/Projects/banyan-julia/BanyanArrays/test/[39m[90;4mruntests.jl:12[0m[90m [inlined][39m
-   [15] [0m[1m(::var"#11#12")[22m[0m[1m([22m[90mj[39m::[0mString[0m[1m)[22m
-  [90m    @ [39m[36mMain[39m [90m~/Projects/banyan-julia/BanyanArrays/test/[39m[90;4mruntests.jl:117[0m
-   [16] [0m[1mwith_job[22m[0m[1m([22m[90mf[39m::[0mvar"#11#12"; [90mkwargs[39m::[0mBase.Iterators.Pairs[90m{Symbol, String, Tuple{Symbol}, NamedTuple{(:job,), Tuple{String}}}[39m[0m[1m)[22m
-  [90m    @ [39m[35mBanyan[39m [90m~/Projects/banyan-julia/Banyan/src/[39m[90;4mjobs.jl:185[0m
-   [17] top-level scope
-  [90m    @ [39m[90m~/Projects/banyan-julia/BanyanArrays/test/[39m[90;4mruntests.jl:107[0m
-   [18] [0m[1minclude[22m[0m[1m([22m[90mfname[39m::[0mString[0m[1m)[22m
-  [90m    @ [39m[90mBase.MainInclude[39m [90m./[39m[90;4mclient.jl:444[0m
-   [19] top-level scope
-  [90m    @ [39m[90;4mnone:6[0m
-   [20] [0m[1meval[22m
-  [90m    @ [39m[90m./[39m[90;4mboot.jl:360[0m[90m [inlined][39m
-   [21] [0m[1mexec_options[22m[0m[1m([22m[90mopts[39m::[0mBase.JLOptions[0m[1m)[22m
-  [90m    @ [39m[90mBase[39m [90m./[39m[90;4mclient.jl:261[0m
-   [22] [0m[1m_start[22m[0m[1m([22m[0m[1m)[22m
-  [90m    @ [39m[90mBase[39m [90m./[39m[90;4mclient.jl:485[0m
-[37m[1mTest Summary: | [22m[39m[91m[1mError  [22m[39m[36m[1mTotal[22m[39m
-Black Scholes | [91m    1  [39m[36m    1[39m
-[37m[1mTest Summary:               |[22m[39m
-MapReduce-style computation | [36mNo tests[39m
-[37m[1mTest Summary: |[22m[39m
-HDF5          | [36mNo tests[39m
-[37mBlack Scholes: [39m[91m[1mError During Test[22m[39m at [39m[1m/home/calebwin/Projects/banyan-julia/BanyanArrays/test/test_black_scholes.jl:4[22m
-  Got exception outside of a @test
-  Job failed; see preceding output
-  Stacktrace:
-    [1] [0m[1merror[22m[0m[1m([22m[90ms[39m::[0mString[0m[1m)[22m
-  [90m    @ [39m[90mBase[39m [90m./[39m[90;4merror.jl:33[0m
-    [2] [0m[1mreceive_next_message[22m[0m[1m([22m[90mqueue_name[39m::[0mDict[90m{Symbol, Any}[39m[0m[1m)[22m
-  [90m    @ [39m[35mBanyan[39m [90m~/Projects/banyan-julia/Banyan/src/[39m[90;4mqueues.jl:47[0m
-    [3] [0m[1mcompute[22m[0m[1m([22m[90mfut[39m::[0mFuture[0m[1m)[22m
-  [90m    @ [39m[35mBanyan[39m [90m~/Projects/banyan-julia/Banyan/src/[39m[90;4mrequests.jl:204[0m
-    [4] [0m[1mcollect[22m[0m[1m([22m[90mfut[39m::[0mFuture[0m[1m)[22m
-  [90m    @ [39m[35mBanyan[39m [90m~/Projects/banyan-julia/Banyan/src/[39m[90;4mrequests.jl:296[0m
-    [5] [0m[1m(::var"#55#59")[22m[0m[1m([22m[90mjob[39m::[0mString[0m[1m)[22m
-  [90m    @ [39m[36mMain[39m [90m~/Projects/banyan-julia/BanyanArrays/test/[39m[90;4mtest_black_scholes.jl:42[0m
-    [6] [0m[1mmacro expansion[22m
-  [90m    @ [39m[90m./[39m[90;4mtiming.jl:210[0m[90m [inlined][39m
-    [7] [0m[1m(::var"#3#6"{var"#55#59"})[22m[0m[1m([22m[90mj[39m::[0mString[0m[1m)[22m
-  [90m    @ [39m[36mMain[39m [90m~/Projects/banyan-julia/BanyanArrays/test/[39m[90;4mruntests.jl:74[0m
-    [8] [0m[1mwith_job[22m[0m[1m([22m[90mf[39m::[0mvar"#3#6"[90m{var"#55#59"}[39m; [90mkwargs[39m::[0mBase.Iterators.Pairs[90m{Symbol, Any, Tuple{Symbol, Symbol}, NamedTuple{(:job, :destroy_job_on_exit), Tuple{String, Bool}}}[39m[0m[1m)[22m
-  [90m    @ [39m[35mBanyan[39m [90m~/Projects/banyan-julia/Banyan/src/[39m[90;4mjobs.jl:185[0m
-    [9] [0m[1mrun_with_job[22m[0m[1m([22m[90mtest_fn[39m::[0mvar"#55#59", [90mname[39m::[0mString[0m[1m)[22m
-  [90m    @ [39m[36mMain[39m [90m~/Projects/banyan-julia/BanyanArrays/test/[39m[90;4mruntests.jl:69[0m
-   [10] [0m[1mmacro expansion[22m
-  [90m    @ [39m[90m~/Projects/banyan-julia/BanyanArrays/test/[39m[90;4mtest_black_scholes.jl:7[0m[90m [inlined][39m
-   [11] [0m[1mmacro expansion[22m
-  [90m    @ [39m[90m/buildworker/worker/package_linux64/build/usr/share/julia/stdlib/v1.6/Test/src/[39m[90;4mTest.jl:1151[0m[90m [inlined][39m
-   [12] top-level scope
-  [90m    @ [39m[90m~/Projects/banyan-julia/BanyanArrays/test/[39m[90;4mtest_black_scholes.jl:7[0m
-   [13] [0m[1minclude[22m
-  [90m    @ [39m[90m./[39m[90;4mclient.jl:444[0m[90m [inlined][39m
-   [14] [0m[1minclude_tests_to_run[22m
-  [90m    @ [39m[90m~/Projects/banyan-julia/BanyanArrays/test/[39m[90;4mruntests.jl:12[0m[90m [inlined][39m
-   [15] [0m[1m(::var"#11#12")[22m[0m[1m([22m[90mj[39m::[0mString[0m[1m)[22m
-  [90m    @ [39m[36mMain[39m [90m~/Projects/banyan-julia/BanyanArrays/test/[39m[90;4mruntests.jl:117[0m
-   [16] [0m[1mwith_job[22m[0m[1m([22m[90mf[39m::[0mvar"#11#12"; [90mkwargs[39m::[0mBase.Iterators.Pairs[90m{Symbol, String, Tuple{Symbol}, NamedTuple{(:job,), Tuple{String}}}[39m[0m[1m)[22m
-  [90m    @ [39m[35mBanyan[39m [90m~/Projects/banyan-julia/Banyan/src/[39m[90;4mjobs.jl:185[0m
-   [17] top-level scope
-  [90m    @ [39m[90m~/Projects/banyan-julia/BanyanArrays/test/[39m[90;4mruntests.jl:107[0m
-   [18] [0m[1minclude[22m[0m[1m([22m[90mfname[39m::[0mString[0m[1m)[22m
-  [90m    @ [39m[90mBase.MainInclude[39m [90m./[39m[90;4mclient.jl:444[0m
-   [19] top-level scope
-  [90m    @ [39m[90;4mnone:6[0m
-   [20] [0m[1meval[22m
-  [90m    @ [39m[90m./[39m[90;4mboot.jl:360[0m[90m [inlined][39m
-   [21] [0m[1mexec_options[22m[0m[1m([22m[90mopts[39m::[0mBase.JLOptions[0m[1m)[22m
-  [90m    @ [39m[90mBase[39m [90m./[39m[90;4mclient.jl:261[0m
-   [22] [0m[1m_start[22m[0m[1m([22m[0m[1m)[22m
-  [90m    @ [39m[90mBase[39m [90m./[39m[90;4mclient.jl:485[0m
-[37m[1mTest Summary: | [22m[39m[91m[1mError  [22m[39m[36m[1mTotal[22m[39m
-Black Scholes | [91m    1  [39m[36m    1[39m

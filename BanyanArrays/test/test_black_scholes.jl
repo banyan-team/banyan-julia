@@ -6,7 +6,7 @@ using Distributions
     #end_time = now()
     run_with_job("Black Scholes with Banyan") do job
         # size = 256_000_000  ##512000000  # 256000000
-        size = 64_000_000
+        size = 128_000_000
         # NOTE: 64M works but 128M doesn't (and also doesn't batch the I/O)
         price = BanyanArrays.fill(4.0, size)
         strike = BanyanArrays.fill(4.0, size)

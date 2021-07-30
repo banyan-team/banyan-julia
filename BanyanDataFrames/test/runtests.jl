@@ -44,6 +44,7 @@ global job = create_job(
     cluster_name = cluster_name,
     nworkers = parse(Int32, nworkers),
     banyanfile_path = "file://res/Banyanfile.json",
+    return_logs = true
 )
 
 function run_with_job(test_fn, name)
