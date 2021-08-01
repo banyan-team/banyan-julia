@@ -9,4 +9,4 @@ Software libraries can be annotated with partition types and subsequent use of t
 
 Eventually, you will be able to use these libraries as drop-in replacements of the standard library Arrays and the DataFrames.jl library. By changing an import statement, you can run your code as is with Banyan scaling to arbitrary data or compute needs.
 
-Visit [Banyan Computing](https://www.banyancomputing.com/intro/) for full documentation.
+Visit [banyancomputing.com](https://www.banyancomputing.com/resources/) for full documentation.
