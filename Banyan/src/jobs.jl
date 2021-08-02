@@ -36,19 +36,6 @@ end
 
 get_cluster_name() = get_job().cluster_name
 
-function s3_bucket_arn_to_name(s3_bucket_arn)
-    # Get s3 bucket name from arn
-    s3_bucket_name = last(split(s3_bucket_arn, ":"))
-    if endswith(s3_bucket_name, "/")
-        s3_bucket_name = s3_bucket_name[1:end-1]
-    elseif endswith(s3_bucket_name, "/*")
-        s3_bucket_name = s3_bucket_name[1:end-2]
-    elseif endswith(s3_bucket_name, "*")
-        s3_bucket_name = s3_bucket_name[1:end-1]
-    end
-    return s3_bucket_name
-end
-
 function create_job(;
     cluster_name::String = nothing,
     nworkers::Integer = 2,
@@ -105,13 +92,31 @@ function create_job(;
     @debug "Sending request for job creation"
     job_response = send_request_get_response(:create_job, job_configuration)
     if !job_response["ready_for_jobs"]
+        @debug "Updating cluster with default banyanfile"
         # Upload/send defaults for pt_lib.jl and pt_lib_info.json
         banyan_dir = dirname(dirname(pathof(Banyan)))
-	s3_bucket_name = s3_bucket_arn_to_name(get_cluster(name=cluster_name).s3_bucket_arn)
-	pt_lib_path = "file://$banyan_dir/res/pt_lib.jl"
-	s3_put(get_aws_config(), s3_bucket_name, basename(pt_lib_path), String(read(open(pt_lib_path[8:end]))))
-	job_configuration["pt_lib_info"] = load_json("file://$banyan_dir/res/pt_lib_info.json")
-        # Try again
+	#s3_bucket_name = s3_bucket_arn_to_name(get_cluster(name=cluster_name).s3_bucket_arn)
+	#pt_lib_path = "file://$banyan_dir/res/pt_lib.jl"
+	#s3_put(get_aws_config(), s3_bucket_name, basename(pt_lib_path), String(read(open(pt_lib_path[8:end]))))
+	#job_configuration["pt_lib_info"] = load_json("file://$banyan_dir/res/pt_lib_info.json")
+        update_cluster(
+            name=cluster_name,
+	    banyanfile=Dict(
+		"include" => [],
+	        "require" => Dict(
+		    "language" => "jl",
+		    "cluster" => Dict(
+		        "files" => [],
+			"scripts" => [],
+			"packages" => [],
+		        "pt_lib" => "file://$(banyan_dir)/res/pt_lib.jl",
+			"pt_lib_info" => "file://$(banyan_dir)/res/pt_lib_info.json"
+		    ),
+		    "job" => Dict()
+		)
+	    )
+	)
+	# Try again
 	job_response = send_request_get_response(:create_job, job_configuration)
     end
     if !job_response["ready_for_jobs"]
@@ -181,6 +186,14 @@ function get_jobs(cluster_name=nothing, status=nothing; kwargs...)
     end
     response =
         send_request_get_response(:describe_jobs, Dict{String,Any}("filters"=>filters))
+    for (id, j) in response["jobs"]
+        if response["jobs"][id]["ended"] == ""
+	    response["jobs"][id]["ended"] = nothing
+	else
+	    response["jobs"][id]["ended"] = parse_time(response["jobs"][id]["ended"])
+	end
+	response["jobs"][id]["created"] = parse_time(response["jobs"][id]["created"])
+    end
     response["jobs"]
 end
 

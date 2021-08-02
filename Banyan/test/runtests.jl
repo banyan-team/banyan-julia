@@ -100,4 +100,3 @@ end
 include_tests_to_run("test_cluster.jl")
 include_tests_to_run("test_job.jl")
 include_tests_to_run("test_future.jl")
-include_tests_to_run("test_logs.jl")

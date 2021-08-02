@@ -155,8 +155,8 @@ include("id.jl")
 include("utils.jl")
 include("utils_abstract_types.jl")
 include("queues.jl")
-include("jobs.jl")
 include("clusters.jl")
+include("jobs.jl")
 
 # Futures
 include("future.jl")

@@ -208,11 +208,12 @@ function test_upload_banyanfile()
 	    :creation
         )
         objects = sort([obj["Key"] for obj in s3_list_objects(Banyan.get_aws_config(), bucket_name)])
-        local_files = ["file://../res/pt_lib.jl", "file://../res/utils.jl"]
-        @test objects == ["banyan_banyan-test-cluster-2021_script.sh", "pt_lib.jl", "utils.jl"]
+        local_files = ["file://../res/build_hdf5_jl.sh", "file://../res/pt_lib.jl", "file://../res/utils.jl"]
+        @test objects == ["banyan_banyan-test-cluster-2021_script.sh", "build_hdf5_jl.sh", "pt_lib.jl", "utils.jl"]
         s3_get(Banyan.get_aws_config(), bucket_name, objects[1])
         @test String(s3_get(Banyan.get_aws_config(), bucket_name, objects[2])) == Banyan.load_file(local_files[1])
         @test String(s3_get(Banyan.get_aws_config(), bucket_name, objects[3])) == Banyan.load_file(local_files[2])
+        @test String(s3_get(Banyan.get_aws_config(), bucket_name, objects[4])) == Banyan.load_file(local_files[3])
     catch
         for obj in s3_list_objects(Banyan.get_aws_config(), bucket_name)
             s3_delete(Banyan.get_aws_config(), bucket_name, obj["Key"])
