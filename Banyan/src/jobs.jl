@@ -101,20 +101,22 @@ function create_job(;
 	#job_configuration["pt_lib_info"] = load_json("file://$banyan_dir/res/pt_lib_info.json")
         update_cluster(
             name=cluster_name,
-	    banyanfile=Dict(
-		"include" => [],
-	        "require" => Dict(
-		    "language" => "jl",
-		    "cluster" => Dict(
-		        "files" => [],
-			"scripts" => [],
-			"packages" => [],
-		        "pt_lib" => "file://$(banyan_dir)/res/pt_lib.jl",
-			"pt_lib_info" => "file://$(banyan_dir)/res/pt_lib_info.json"
-		    ),
-		    "job" => Dict()
-		)
-	    )
+	    banyanfile_path="file://$(banyan_dir)/res/Banyanfile.json",
+	    for_creation_or_update=:update,
+#	    banyanfile=Dict(
+#		"include" => [],
+#	        "require" => Dict(
+#		    "language" => "jl",
+#		    "cluster" => Dict(
+#		        "files" => [],
+#			"scripts" => [],
+#			"packages" => [],
+#		        "pt_lib" => "file://$(banyan_dir)/res/pt_lib.jl",
+#			"pt_lib_info" => "file://$(banyan_dir)/res/pt_lib_info.json"
+#		    ),
+#		    "job" => Dict()
+#		)
+#	    )
 	)
 	# Try again
 	job_response = send_request_get_response(:create_job, job_configuration)
