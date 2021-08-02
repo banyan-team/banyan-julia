@@ -114,8 +114,8 @@ function merge_banyanfile_with_defaults!(banyanfile, banyanfile_path)
             "files" => [],
             "scripts" => [],
             "packages" => [],
-            "pt_lib" => "file://$banyan_dir/res/pt_lib.jl",
-            "pt_lib_info" => "file://$banyan_dir/res/pt_lib_info.json",
+            "pt_lib" => nothing,
+            "pt_lib_info" => nothing,
         ),
     )
     mergewith!((a, b) -> a, banyanfile["require"]["job"], Dict("code" => []))
@@ -262,15 +262,18 @@ function upload_banyanfile(
     pt_lib = isnothing(pt_lib) ? [] : [pt_lib]
 
     if isnothing(pt_lib)
-        error("No pt_lib.jl provided")
+        error("Either the provided Banyanfile or an included one must specify a pt_lib.jl containing implemented partitioning functions")
     end
     if isnothing(pt_lib_info)
-        error("No pt_lib_info.json provided")
+        error("Either the provided Banyanfile or an included one must specify a pt_lib_info.json containing annotations of partitioning functions")
     end
 
     # Upload all files, scripts, and pt_lib to s3 bucket
     for f in vcat(files, scripts, pt_lib)
         s3_put(get_aws_config(), s3_bucket_name, basename(f), load_file(f))
+    end
+    if is_debug_on()
+        println(load_file(pt_lib[1]))
     end
 
     bucket = s3_bucket_name
@@ -434,7 +437,7 @@ function update_cluster(;
     force = false,
     kwargs...,
 )
-    @info "Updating cluster"
+    @info "Starting cluster update"
 
     # Configure
     configure(; kwargs...)

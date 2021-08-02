@@ -94,17 +94,19 @@ function run(test_fn, name)
 end
 
 function include_all_tests()
-    include_tests_to_run("test_simple.jl")
+    include_tests_to_run("test_groupby_agg.jl")
 end
 
 with_job(job=job) do j
+    configure_scheduling(report_schedule=true)
     if get(ENV, "BANYAN_SCHEDULING_CONFIG_ALL", "false") == "true"
         include_all_tests()
-        configure_scheduling(encourage_parallelism=true)
-        include_all_tests()
+        # configure_scheduling(encourage_parallelism=true)
+        # include_all_tests()
         configure_scheduling(encourage_parallelism_with_batches=true)
         include_all_tests()
     else
+        configure_scheduling(encourage_parallelism=true)
         include_all_tests()
     end
 end
