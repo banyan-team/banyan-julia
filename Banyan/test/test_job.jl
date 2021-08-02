@@ -2,9 +2,11 @@
 
 #
 function test_jobs(test_job_failed)
+    if isnothing(get(ENV, "BANYAN_CLUSTER_NAME", nothing))
+        error("Please provide BANYAN_CLUSTER_NAME for testing.")
+    end
     # Create job
     job_id = Banyan.create_job(
-        username = get(ENV, "BANYAN_USERNAME", nothing),
         user_id = get(ENV, "BANYAN_USER_ID", nothing),
         api_key = get(ENV, "BANYAN_API_KEY", nothing),
         cluster_name = get(ENV, "BANYAN_CLUSTER_NAME", nothing),
@@ -48,9 +50,11 @@ end
 
 # 
 function test_concurrent_jobs()
+    if isnothing(get(ENV, "BANYAN_CLUSTER_NAME", nothing))
+        error("Please provide BANYAN_CLUSTER_NAME for testing.")
+    end
     # Create 2 jobs
     job_id_1 = Banyan.create_job(
-        username = get(ENV, "BANYAN_USERNAME", nothing),
         user_id = get(ENV, "BANYAN_USER_ID", nothing),
         api_key = get(ENV, "BANYAN_API_KEY", nothing),
         cluster_name = get(ENV, "BANYAN_CLUSTER_NAME", nothing),
@@ -58,7 +62,6 @@ function test_concurrent_jobs()
         banyanfile_path = "file://res/Banyanfile.json",
     )
     job_id_2 = Banyan.create_job(
-        username = get(ENV, "BANYAN_USERNAME", nothing),
         user_id = get(ENV, "BANYAN_USER_ID", nothing),
         api_key = get(ENV, "BANYAN_API_KEY", nothing),
         cluster_name = get(ENV, "BANYAN_CLUSTER_NAME", nothing),
@@ -88,6 +91,9 @@ end
 
 
 @testset "Test simple job management" begin
+    if isnothing(get(ENV, "BANYAN_CLUSTER_NAME", nothing))
+        error("Please provide BANYAN_CLUSTER_NAME for testing.")
+    end
     run("create/destroy job") do
         try
             destroy_all_jobs(get(ENV, "BANYAN_CLUSTER_NAME", nothing))
@@ -101,6 +107,9 @@ end
 end
 
 @testset "Test concurrent jobs" begin
+    if isnothing(get(ENV, "BANYAN_CLUSTER_NAME", nothing))
+        error("Please provide BANYAN_CLUSTER_NAME for testing.")
+    end
     run("create/destroy concurrent jobs") do
         try
             destroy_all_jobs(get(ENV, "BANYAN_CLUSTER_NAME", nothing))

@@ -213,7 +213,7 @@ function merge_banyanfile_with!(
 end
 
 function upload_banyanfile(
-    banyanfile_path::String,
+    banyanfile::Union{String, Dict},
     s3_bucket_arn::String,
     cluster_name::String,
     for_creation_or_update::Symbol
@@ -229,7 +229,7 @@ function upload_banyanfile(
     post_install_script_name = "banyan_$(cluster_name)_script.sh"
     post_install_script =  ""
     update_script_name = "banyan_$(cluster_name)_update_script.sh"
-    update_script = ""
+    update_script = "#!/bin/bash\n. \"/etc/parallelcluster/cfnconfig\"\n"
     try
         post_install_script = String(s3_get(get_aws_config(), s3_bucket_name, post_install_script_name))
     catch
@@ -240,7 +240,12 @@ function upload_banyanfile(
     end
 
     # Load Banyanfile and merge with all included
-    banyanfile = load_json(banyanfile_path)
+    if typeof(banyanfile) == String
+        banyanfile_path = banyanfile
+        banyanfile = load_json(banyanfile_path)
+    else
+        banyanfile_path = "file://"
+    end
     merge_banyanfile_with_defaults!(banyanfile, banyanfile_path)
     for included in banyanfile["include"]
         merge_banyanfile_with!(banyanfile, included, :cluster, for_creation_or_update)
@@ -259,18 +264,20 @@ function upload_banyanfile(
     scripts = banyanfile["require"]["cluster"]["scripts"]
     packages = banyanfile["require"]["cluster"]["packages"]
     pt_lib = banyanfile["require"]["cluster"]["pt_lib"]
-    pt_lib = isnothing(pt_lib) ? [] : [pt_lib]
 
     if isnothing(pt_lib)
-        error("Either the provided Banyanfile or an included one must specify a pt_lib.jl containing implemented partitioning functions")
+       error("No pt_lib.jl provided")
     end
     if isnothing(pt_lib_info)
-        error("Either the provided Banyanfile or an included one must specify a pt_lib_info.json containing annotations of partitioning functions")
+       error("No pt_lib_info.json provided")
     end
 
     # Upload all files, scripts, and pt_lib to s3 bucket
-    for f in vcat(files, scripts, pt_lib)
-        s3_put(get_aws_config(), s3_bucket_name, basename(f), load_file(f))
+    for f in [
+        [(basename(f), load_file(f)) for f in vcat(files, scripts)];
+        [("pt_lib.jl", load_file(pt_lib))]
+    ]
+        s3_put(get_aws_config(), s3_bucket_name, f[1], f[2])
     end
     if is_debug_on()
         println(load_file(pt_lib[1]))
@@ -280,13 +287,16 @@ function upload_banyanfile(
     region = get_aws_config_region()
 
     # Append to post-install script downloading files, scripts, pt_lib onto cluster
-    update_script *= "if [ \${cfn_node_type} == MasterServer ];\nthen\n"
-    for f in vcat(files, scripts, pt_lib)
+    update_script *= "if [ \"\${cfn_node_type}\" == MasterServer ];\nthen\n"
+    for filename in [
+        [basename(f) for f in vcat(files, scripts)];
+        ["pt_lib.jl"]
+    ]
         update_script *=
             "sudo su - ec2-user -c \"aws s3 cp s3://" *
             s3_bucket_name *
             "/" *
-            basename(f) *
+            filename *
             " /home/ec2-user/\"\n"
     end
 
@@ -431,8 +441,9 @@ end
 # TODO: Update website display
 # TODO: Implement load_banyanfile
 function update_cluster(;
-    name::String = nothing,
-    banyanfile_path::String = nothing,
+    name::Union{String, Nothing} = nothing,
+    banyanfile_path::Union{String, Nothing} = nothing,
+    banyanfile::Union{Dict, Nothing} = nothing,
     reinstall_julia = false,
     force = false,
     kwargs...,
@@ -451,6 +462,11 @@ function update_cluster(;
         name
     end
 
+    update_args = Dict(
+        "cluster_name" => cluster_name,
+	"reinstall_julia" => reinstall_julia
+    )
+
     # Force by setting cluster to running
     if force
         assert_cluster_is_ready(name = name)
@@ -459,14 +475,7 @@ function update_cluster(;
     if !isnothing(banyanfile_path)
         # Retrieve the location of the current post_install script in S3 and upload
         # the updated version to the same location
-        s3_bucket_arn = get_cluster(name).s3_bucket_arn
-        if endswith(s3_bucket_arn, "/")
-            s3_bucket_arn = s3_bucket_arn[1:end-1]
-        elseif endswith(s3_bucket_arn, "/*")
-            s3_bucket_arn = s3_bucket_arn[1:end-2]
-        elseif endswith(s3_bucket_arn, "*")
-            s3_bucket_arn = s3_bucket_arn[1:end-1]
-        end
+        s3_bucket_arn = s3_bucket_name_to_arn(get_cluster(name).s3_bucket_arn)
 
         # Upload to S3
         pt_lib_info = upload_banyanfile(
@@ -475,18 +484,27 @@ function update_cluster(;
             cluster_name,
             :update
         )
-
-        # Upload pt_lib_info
-        send_request_get_response(
-            :update_cluster,
-            Dict(
-                "cluster_name" => name,
-                "pt_lib_info" => pt_lib_info,
-		"reinstall_julia" => reinstall_julia,
-                # TODO: Send banyanfile here
-            ),
+	update_args["pt_lib_info"] = pt_lib_info
+	update_args["banyanfile"] = banyanfile
+    elseif !isnothing(banyanfile)
+        # Retrieve the location of the current post_install script in S3 and upload
+	# the updated version to the same location
+	s3_bucket_arn = s3_bucket_name_to_arn(get_cluster(name).s3_bucket_arn)
+        
+        # Upload to S3
+        pt_lib_info = upload_banyanfile(
+            banyanfile,
+            s3_bucket_arn,
+            cluster_name,
+            :update
         )
+        update_args["pt_lib_info"] = pt_lib_info
+        update_args["banyanfile"] = banyanfile
     end
+    send_request_get_response(
+        :update_cluster,
+        update_args,
+    )
 end
 
 function assert_cluster_is_ready(; name::String, kwargs...)

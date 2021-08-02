@@ -52,8 +52,35 @@ function indexapply(op, objs...; index::Integer=1)
     end
 end
 
+# converts give time as String to local timezone and returns DateTime
 function parse_time(time)
-    astimezone(ZonedDateTime(time * "0000", "yyyy-mm-dd-HH:MM:SSzzzz"), localzone())
+    DateTime(astimezone(ZonedDateTime(time * "0000", "yyyy-mm-dd-HH:MM:SSzzzz"), localzone()))
+end
+
+function s3_bucket_arn_to_name(s3_bucket_arn)
+    # Get s3 bucket name from arn
+    s3_bucket_name = last(split(s3_bucket_arn, ":"))
+    if endswith(s3_bucket_name, "/")
+        s3_bucket_name = s3_bucket_name[1:end-1]
+    elseif endswith(s3_bucket_name, "/*")
+        s3_bucket_name = s3_bucket_name[1:end-2]
+    elseif endswith(s3_bucket_name, "*")
+        s3_bucket_name = s3_bucket_name[1:end-1]
+    end
+    return s3_bucket_name
+end
+
+function s3_bucket_name_to_arn(s3_bucket_name)
+    # Get s3 bucket arn from name
+    s3_bucket_arn = s3_bucket_name
+    if endswith(s3_bucket_arn, "/")
+        s3_bucket_arn = s3_bucket_arn[1:end-1]
+    elseif endswith(s3_bucket_arn, "/*")
+        s3_bucket_arn = s3_bucket_arn[1:end-2]
+    elseif endswith(s3_bucket_arn, "*")
+        s3_bucket_arn = s3_bucket_arn[1:end-1]
+    end
+    return s3_bucket_arn
 end
 
 ##################
