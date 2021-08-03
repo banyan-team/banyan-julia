@@ -6,6 +6,9 @@
         lengths = collect(combine(gdf, :petal_length => mean))
         counts = collect(combine(gdf, nrow))
 
+        @show lengths
+        @show counts
+
         @test first(lengths)[:petal_length_mean] == 1.464
         @test first(counts)[:nrow] == 50
     end

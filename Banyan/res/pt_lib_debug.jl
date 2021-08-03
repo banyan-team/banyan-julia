@@ -278,6 +278,7 @@ function ReadGroup(
     splitting_divisions[res] =
         (partition_divisions[partition_idx], partition_idx > 1, partition_idx < npartitions)
 
+    @show typeof(res)
     res
 end
 
