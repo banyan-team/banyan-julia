@@ -1361,6 +1361,8 @@ function Merge(
     loc_name,
     loc_params,
 )
+    # TODO: Ensure we can merge grouped dataframes if computing them
+
     global partial_merges
 
     if batch_idx == 1 || batch_idx == nbatches

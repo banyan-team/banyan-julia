@@ -41,6 +41,8 @@ split_on_executor(src, d::Integer, i) =
         @view src[i, :]
     elseif isa_array(src)
         selectdim(src, d, i)
+    elseif isa_gdf(src)
+        nothing
     else
         error(
             "Expected split across either dimension of an AbstractArray or rows of an AbstractDataFrame",
@@ -86,6 +88,7 @@ function merge_on_executor(obj...; key = nothing)
         cat(obj...; dims = key)
     else
         # error("Expected either AbstractDataFrame or AbstractArray for concatenation")
+        # TODO: Handle grouped dataframe better
         first_obj
     end
 end
