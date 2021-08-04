@@ -118,8 +118,18 @@ function create_job(;
 #		)
 #	    )
 	)
+	sleep(5)
+	# Wait for cluster to finish updating
+	while get_cluster(cluster_name).status == "updating"
+	   sleep(5)
+	   @info "Updating cluster with default Banyanfile"
+	end
 	# Try again
-	job_response = send_request_get_response(:create_job, job_configuration)
+	if get_cluster(cluster_name).status != "running"
+	    job_response = send_request_get_response(:create_job, job_configuration)
+	else
+	    error("Please update the cluster with a pt_lib_info.json and pt_lib.jl")
+	end
     end
     if !job_response["ready_for_jobs"]
         error("Please update the cluster with a pt_lib_info.json and pt_lib.jl")
