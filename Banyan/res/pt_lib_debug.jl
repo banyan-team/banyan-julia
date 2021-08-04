@@ -278,6 +278,7 @@ function ReadGroup(
     splitting_divisions[res] =
         (partition_divisions[partition_idx], partition_idx > 1, partition_idx < npartitions)
 
+    @show typeof(res)
     res
 end
 
@@ -1360,6 +1361,8 @@ function Merge(
     loc_name,
     loc_params,
 )
+    # TODO: Ensure we can merge grouped dataframes if computing them
+
     global partial_merges
 
     if batch_idx == 1 || batch_idx == nbatches
