@@ -1,7 +1,7 @@
 name = "BanyanDataFrames"
 uuid = "dfdd4555-3ad7-41cc-a503-a251c9c652f9"
 authors = ["Caleb Winston <calebhwin@gmail.com>"]
-version = "0.1.1"
+version = "0.1.2"
 
 [deps]
 Banyan = "706d138b-e922-45b9-a636-baf8ae0d5317"
@@ -9,8 +9,8 @@ BanyanArrays = "369465de-032e-4609-9dcf-82b89c370a7b"
 DataFrames = "a93c6f00-e57d-5684-b7b6-d8193f3e46c0"
 
 [compat]
-Banyan = "0.1.1"
-BanyanArrays = "0.1.1"
+Banyan = "0.1.2"
+BanyanArrays = "0.1.2"
 DataFrames = "1.1.1"
 julia = "1.6.0"
 
