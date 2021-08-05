@@ -147,7 +147,13 @@ function create_job(;
     jobs[current_job_id].current_status = "running"
 
     @debug "Finished creating job $job_id"
+    @info "Created job with ID $job_id"
     return job_id
+end
+
+function copy_job_id_to_clipboard()
+    global current_job_id
+    clipboard(String(current_job_id))
 end
 
 global jobs_destroyed_recently = Set()

@@ -227,41 +227,48 @@ function ReadGroup(
     npartitions = nworkers * nbatches
     partition_divisions = get_divisions(divisions, npartitions)
 
-    # Get the divisions that are relevant to this batch by iterating
-    # through the divisions in a stride and consolidating the list of divisions
-    # for each partition. Then, ensure we use boundedlower=true only for the
-    # first batch and boundedupper=true for the last batch.
-    curr_partition_divisions = []
-    for worker_division_idx = 1:nworkers
-        for batch_division_idx = 1:nbatches
-            partition_division_idx =
-                (worker_division_idx - 1) * nbatches + batch_division_idx
-            if batch_division_idx == batch_idx
-                p_divisions = partition_divisions[partition_division_idx]
-                push!(
-                    curr_partition_divisions,
-                    (first(p_divisions)[1], last(p_divisions)[2]),
-                )
-            end
-        end
-    end
+    # # Get the divisions that are relevant to this batch by iterating
+    # # through the divisions in a stride and consolidating the list of divisions
+    # # for each partition. Then, ensure we use boundedlower=true only for the
+    # # first batch and boundedupper=true for the last batch.
+    # curr_partition_divisions = []
+    # for worker_division_idx = 1:nworkers
+    #     for batch_division_idx = 1:nbatches
+    #         partition_division_idx = get_partition_idx(batch_division_idx, nbatches, worker_division_idx)
+    #         if batch_division_idx == batch_idx
+    #             p_divisions = partition_divisions[partition_division_idx]
+    #             push!(
+    #                 curr_partition_divisions,
+    #                 (first(p_divisions)[1], last(p_divisions)[2]),
+    #             )
+    #         end
+    #     end
+    # end
 
     # Read in each batch and shuffle it to get the data for this partition
     parts = []
+    @show params["divisions"]
+    divisions_by_partition = get_divisions(params["divisions"], npartitions)
     for i = 1:nbatches
         # Read in data for this batch
         part = ReadBlock(src, params, i, nbatches, comm, loc_name, loc_params)
 
         # Shuffle the batch and add it to the set of data for this partition
+        @show [divisions_by_partition[get_partition_idx(i, nbatches, j)] for j = 1:nworkers]
         push!(
             parts,
             Shuffle(
                 part,
                 Dict(),
-                params,
+                Dict(
+                    "divisions" => vcat([divisions_by_partition[get_partition_idx(i, nbatches, j)] for j = 1:nworkers]...),
+                    # "divisions" => curr_partition_divisions,
+                    "key" => params["key"],
+                    "rev" => params["rev"],
+                ),
                 comm,
-                boundedlower = i == 1,
-                boundedupper = i == nbatches,
+                boundedlower = i > 1,
+                boundedupper = i < nbatches,
             ),
         )
     end
@@ -278,7 +285,9 @@ function ReadGroup(
     splitting_divisions[res] =
         (partition_divisions[partition_idx], partition_idx > 1, partition_idx < npartitions)
 
-    @show typeof(res)
+    # @show get_worker_idx(comm)
+    # @show parts
+
     res
 end
 
@@ -1320,6 +1329,9 @@ function SplitGroup(
 
     # Apply divisions to get only the elements relevant to this worker
     # # @show key
+    # @show partition_idx_getter("setosa")
+    # @show partition_idx_getter("versicolor")
+    # @show partition_idx_getter("virginica")
     res = if isa_df(src)
         # TODO: Do the groupby and filter on batch_idx == 1 and then share
         # among other batches
@@ -1347,6 +1359,9 @@ function SplitGroup(
         boundedlower || partition_idx > 1,
         boundedupper || partition_idx < npartitions,
     )
+
+    # @show batch_idx
+    # @show res
 
     res
 end
@@ -1790,6 +1805,7 @@ function Shuffle(
 
         # Compute the partition to send each row of the dataframe to
         transform!(part, key => ByRow(partition_idx_getter) => :banyan_shuffling_key)
+        # @show part
 
         # Group the dataframe's rows by what partition to send to
         gdf = groupby(part, :banyan_shuffling_key, sort = true)
@@ -1799,7 +1815,9 @@ function Shuffle(
         nbyteswritten = 0
         df_counts::Vector{Int64} = []
         for partition_idx = 1:nworkers
-            Arrow.write(io, partition_idx in keys(gdf) ? gdf[partition_idx] : part[1:0, :])
+            # @show worker_idx partition_idx (partition_idx in keys(gdf) ? gdf[partition_idx] : part[1:0, :])
+            # TODO: Ensure we are setting up the Alltoallv properly
+            Arrow.write(io, haskey(gdf, (banyan_shuffling_key=partition_idx,)) ? gdf[(banyan_shuffling_key=partition_idx,)] : part[1:0, :])
             push!(df_counts, io.size - nbyteswritten)
             nbyteswritten = io.size
         end
@@ -1813,6 +1831,12 @@ function Shuffle(
         MPI.Alltoallv!(sendbuf, recvbuf, comm)
 
         # Return the concatenated dataframe
+        @show worker_idx [
+            DataFrame(
+                Arrow.Table(IOBuffer(view(sendbuf.data, displ+1:displ+count))),
+                copycols = false,
+            ) for (displ, count) in zip(sendbuf.displs, sendbuf.counts)
+        ]
         res = vcat(
             [
                 DataFrame(
