@@ -344,7 +344,7 @@ function create_cluster(;
     name::Union{String,Nothing} = nothing,
     instance_type::Union{String,Nothing} = "m4.4xlarge",
     max_num_nodes::Union{Int,Nothing} = 8,
-    banyanfile_path::String = nothing,
+    banyanfile_path::Union{String,Nothing} = nothing,
     iam_policy_arn::Union{String,Nothing} = nothing,
     s3_bucket_arn::Union{String,Nothing} = nothing,
     s3_bucket_name::Union{String,Nothing} = nothing,
@@ -507,7 +507,7 @@ function update_cluster(;
     )
 end
 
-function assert_cluster_is_ready(; name::String, kwargs...)
+function assert_cluster_is_ready(name::String; kwargs...)
     @info "Setting cluster status to running"
 
     # Configure
