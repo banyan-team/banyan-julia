@@ -18,6 +18,10 @@
 #############################
 
 function compute(fut::AbstractFuture)
+    if isview(fut)
+        error("Computing a view (such as a GroupedDataFrame) is not currently supported")
+    end
+
     # NOTE: Right now, `compute` wil generally spill to disk (or write to some
     # remote location or download to the client). It will not just persist data
     # in memory. In Spark or Dask, it is recommended that you call persist or

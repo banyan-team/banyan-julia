@@ -324,6 +324,11 @@ function Write(
     # println("Writing worker_idx=$worker_idx, batch_idx=$batch_idx/$nbatches with available memory: $(format_available_memory())")
     idx = get_partition_idx(batch_idx, nbatches, comm)
     if isa_df(part)
+        actualpath = copy(path)
+        if nbatches > 1
+            path = path * "_tmp"
+        end
+
         # Create directory if it doesn't exist
         # TODO: Avoid this and other filesystem operations that would be costly
         # since S3FS is being used
@@ -342,6 +347,22 @@ function Write(
         # 3. Do another barrier on the last batch and delete the old directory
         # and link to the new one
 
+        # NOTE: This is only needed because we might be writing to the same
+        # place we are reading from. And so we want to make sure we finish
+        # reading before we write the last batch
+        if batch_idx == nbatches
+            MPI.Barrier(comm)
+        end
+
+        if nbatches == 1
+            # If there is no batching we can delete the original directory
+            # right away. Otherwise, we must delete the original directory
+            # only at the end.
+            # TODO: When refactoring the locations, think about how to allow
+            # stuff in the directory
+            rm(actualpath, force=true, recursive=true)
+        end
+
         nrows = size(part, 1)
         if endswith(path, ".parquet")
             partfilepath = joinpath(path, "part$idx" * "_nrows=$nrows.parquet")
@@ -353,8 +374,19 @@ function Write(
             partfilepath = joinpath(path, "part$idx" * "_nrows=$nrows.arrow")
             Arrow.write(partfilepath, part)
         end
-        src
         MPI.Barrier(comm)
+        if nbatches > 1 && batch_idx == nbatches
+            tmpdir = readdir(path)
+            rm(actualpath, force=true, recursive=true)
+            for batch_i in 1:nbatches
+                idx = get_partition_idx(batch_i, nbatches, worker_idx)
+                cp(join(path, tmpdir[idx]), join(actualpath, tmpdir[idx]))
+            end
+            MPI.Barrier(comm)
+            # TODO: Maybe somehow flush the above or fsync the directory
+            rm(path, force=true, recursive=true)
+        end
+        src
         # TODO: Delete all other part* files for this value if others exist
     elseif isa_array(part)
         # if loc_name == "Disk"

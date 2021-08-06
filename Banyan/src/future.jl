@@ -19,3 +19,5 @@ mutable struct Future <: AbstractFuture
         new_future
     end
 end
+
+isview(f::F) where F <: AbstractFuture = false

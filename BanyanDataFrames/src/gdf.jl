@@ -11,6 +11,7 @@ struct GroupedDataFrame <: AbstractFuture
 end
 
 Banyan.convert(::Type{Future}, gdf::GroupedDataFrame) = gdf.data
+Banyan.isview(gdf::GroupedDataFrame) = true
 
 Base.length(gdf::GroupedDataFrame) = compute(gdf.length)
 Base.size(gdf::GroupedDataFrame) = Tuple(length(gdf))

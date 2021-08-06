@@ -24,7 +24,7 @@ end
 function get_job_id()::JobId
     global current_job_id
     if isnothing(current_job_id)
-        error("No job selected using `with_job` or `create_job` or `set_job_id`")
+        error("No job selected using `with_job` or `create_job` or `set_job_id`. The current job may have been destroyed or no job may have been created yet")
     end
     current_job_id
 end
