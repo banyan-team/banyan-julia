@@ -62,6 +62,7 @@ export Cluster,
     destroy_cluster,
     get_clusters,
     get_cluster,
+    get_cluster_s3_bucket_name
     assert_cluster_is_ready
 
 # Job management

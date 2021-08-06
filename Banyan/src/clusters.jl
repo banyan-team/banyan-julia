@@ -561,5 +561,11 @@ function get_clusters(; kwargs...)
     )
 end
 
+function get_cluster_s3_bucket_name(cluster_name; kwargs...)
+    configure(; kwargs...)
+    cluster = get_cluster(cluster_name)
+    return s3_bucket_arn_to_name(cluster.s3_bucket_arn)
+end
+
 get_cluster(name::String, kwargs...) = get_clusters(;kwargs...)[name]
 get_cluster() = get_cluster(name=get_cluster_name())

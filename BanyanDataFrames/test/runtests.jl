@@ -95,6 +95,9 @@ end
 
 function include_all_tests()
     include_tests_to_run("test_groupby_agg.jl")
+    include_tests_to_run("test_io.jl")
+    include_tests_to_run("test_small_dataset.jl")
+    include_tests_to_run("test_stress.jl")
 end
 
 with_job(job=job) do j
