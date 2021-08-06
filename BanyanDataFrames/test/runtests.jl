@@ -35,7 +35,7 @@ user_id = get(ENV, "BANYAN_USER_ID", nothing)
 api_key = get(ENV, "BANYAN_API_KEY", nothing)
 cluster_name = get(ENV, "BANYAN_CLUSTER_NAME", nothing)
 nworkers = get(ENV, "BANYAN_NWORKERS", "2")
-ntrials = parse(Int, get(ENV, "NUM_TRIALS", "1")) # TODO: Make this BANYAN_NTRIALS
+ntrials = parse(Int, get(ENV, "BANYAN_NTRIALS", "1"))
 
 global job = create_job(
     username = username,
