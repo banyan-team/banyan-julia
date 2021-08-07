@@ -410,7 +410,7 @@ function get_s3fs_path(path)
         end
     catch
         no_mount = true
-        @info "Attempting to remount S3FS because unable to stat the directory"
+        @info "Attempting to remount S3FS because attempting to stat the directory failed"
     end
 
     # Ensure something is mounted
@@ -418,7 +418,7 @@ function get_s3fs_path(path)
         try
             run(`umount -fq $mount`)
         catch e
-            @warn "Failed to unmount with error: $e. Please try to force unmounting with \`umount -fq $mount\`"
+            @warn "Failed to unmount with error: $e. Please try to force unmounting with \`umount -fq $mount\` and then re-run."
         end
 
         # TODO: Store buckets from different accounts/IAMs/etc. seperately
