@@ -568,4 +568,4 @@ function get_cluster_s3_bucket_name(cluster_name; kwargs...)
 end
 
 get_cluster(name::String, kwargs...) = get_clusters(;kwargs...)[name]
-get_cluster() = get_cluster(name=get_cluster_name())
+get_cluster() = get_cluster(get_cluster_name())

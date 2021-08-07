@@ -75,3 +75,11 @@
     end
 end
 
+@testset "Complex usage of BanyanDataFrames on small dataset" begin
+    run_with_job("Multiple operation")
+        bucket = get_cluster_s3_bucket_name(get_cluster().name)
+        iris = read_csv("s3://{bucket}/iris.csv")
+
+        #  
+    end
+end
