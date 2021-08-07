@@ -98,7 +98,10 @@
         @test iris_mins[!, :petal_length_minimum] == [1.0, 3.0, 4.5]
 
         # Subset
-        long_petal_iris = combine(groupby(subset(iris, :petal_length => pl -> pl .>= 5.0), :species), nrow)
+        long_petal_iris = combine(
+            groupby(subset(iris, :petal_length => pl -> pl .>= 5.0), :species),
+            nrow,
+        )
         @test collect(long_petal_iris)[!, :nrow] == [2, 44]
         @test collect(long_petal_iris)[!, :species] == ["versicolor", "virginica"]
     end
@@ -134,11 +137,13 @@ end
         result_1 = collect(result_1)
         result_2 = collect(result_2)
 
-        @test isapprox(getindex(result_1, 7, 6), 0.14287, atol=1e-4)
-        @test isapprox(getindex(result_2, 7, 6), 0.14287, atol=1e-4)
+        @test isapprox(getindex(result_1, 7, 6), 0.14287, atol = 1e-4)
+        @test isapprox(getindex(result_2, 7, 6), 0.14287, atol = 1e-4)
         @test first(result_1)[:species] == first(result_2)[:species] == "setosa"
         @test last(result_1)[:species] == last(result_2)[:species] == "virginica"
-        @test last(result_1)[:petal_length_normalized] == last(result_1)[:petal_length_normalized] == 1.0
+        @test last(result_1)[:petal_length_normalized] ==
+              last(result_1)[:petal_length_normalized] ==
+              1.0
     end
 
     run_with_job("Multiple evaluations together - test 2") do job
