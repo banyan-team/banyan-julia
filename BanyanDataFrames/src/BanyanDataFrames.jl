@@ -3,7 +3,7 @@ module BanyanDataFrames
 using Banyan
 using BanyanArrays
 
-using DataFrames
+using DataFrames, Missings
 
 include("df.jl")
 include("gdf.jl")
@@ -34,5 +34,8 @@ export length, groupcols, valuecols
 
 # Grouped dataframe methods
 export groupby, select, transform, combine, subset
+
+# Missing
+export allowmissing, disallowmissing
 
 end # module

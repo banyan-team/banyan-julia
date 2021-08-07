@@ -79,14 +79,17 @@
         @test iris_mins[!, :petal_length_minimum] == [1.0, 3.0, 4.5]
 
         # Subset
-        long_petal_iris = combine(groupby(subset(iris, :petal_length => pl -> pl .>= 5.0), :species), nrow)
+        long_petal_iris = combine(
+            groupby(subset(iris, :petal_length => pl -> pl .>= 5.0), :species),
+            nrow,
+        )
         @test collect(long_petal_iris)[!, :nrow] == [2, 44]
         @test collect(long_petal_iris)[!, :species] == ["versicolor", "virginica"]
     end
 end
 
 @testset "Complex usage of BanyanDataFrames on small dataset" begin
-    run_with_job("Multiple operation")
+    run_with_job("Multiple operation") do job
         bucket = get_cluster_s3_bucket_name(get_cluster().name)
         iris = read_csv("s3://$(bucket)/iris.csv")
 
@@ -95,36 +98,56 @@ end
 
         # Method 1
         result_1 = sort(
-	    transform(gdf, :petal_length => x -> (x .- minimum(x)) ./ (maximum(x) - minimum(x))),
-            :petal_length_function
-	)
+            transform(
+                gdf,
+                :petal_length => x -> (x .- minimum(x)) ./ (maximum(x) - minimum(x)),
+            ),
+            :petal_length_function,
+        )
         rename(result_1, :petal_length_function => :petal_length_normalized)
         result_1 = collect(result_1)
-        
+
         # Method 2
         gdf = groupby(iris, :species)
         min_max = combine(gdf, :petal_length => minimum, :petal_length => maximum)
-        iris_new = innerjoin(iris, min_max, on=:species)
+        iris_new = innerjoin(iris, min_max, on = :species)
         result_2 = sort(
-	    select(iris_new, 1, 2, 3, 4, 5, [:petal_length, :petal_length_minimum, :petal_length_maximum] => (pl, min, max) ->(pl .- min) ./ (max .- min)),
-	    :petal_length_petal_length_minimum_petal_length_maximum_function
-	)
-        rename(result_2, :petal_length_petal_length_minimum_petal_length_maximum_function => :petal_length_normalized)
+            select(
+                iris_new,
+                1,
+                2,
+                3,
+                4,
+                5,
+                [:petal_length, :petal_length_minimum, :petal_length_maximum] =>
+                    (pl, min, max) -> (pl .- min) ./ (max .- min),
+            ),
+            :petal_length_petal_length_minimum_petal_length_maximum_function,
+        )
+        rename(
+            result_2,
+            :petal_length_petal_length_minimum_petal_length_maximum_function =>
+                :petal_length_normalized,
+        )
         result_2 = collect(result_2)
 
-        @test isapprox(getindex(result_1, 7, 6), 0.14287, atol=1e-4)
-        @test isapprox(getindex(result_2, 7, 6), 0.14287, atol=1e-4)
+        @test isapprox(getindex(result_1, 7, 6), 0.14287, atol = 1e-4)
+        @test isapprox(getindex(result_2, 7, 6), 0.14287, atol = 1e-4)
         @test first(result_1)[:species] == first(result_2)[:species] == "setosa"
         @test last(result_1)[:species] == last(result_2)[:species] == "virginica"
-        @test last(result_1)[:petal_length_normalized] == last(result_1)[:petal_length_normalized] == 1.0
+        @test last(result_1)[:petal_length_normalized] ==
+              last(result_1)[:petal_length_normalized] ==
+              1.0
     end
 end
 
 @testset "Complex usage of BanyanDataFrames on medium dataset" begin
-    run_with_job("")
+    run_with_job("") do job
         # Upload data to S3
         bucket = get_cluster_s3_bucket_name(get_cluster().name)
-        tripdata = read_csv("https://s3.amazonaws.com/nyc-tlc/trip+data/yellow_tripdata_2016-01.csv")
+        tripdata = read_csv(
+            "https://s3.amazonaws.com/nyc-tlc/trip+data/yellow_tripdata_2016-01.csv",
+        )
         write_csv(tripdata, get_s3fs_path(joinpath(bucket, "tripdata.csv")))
 
         # Read data and get properties
@@ -138,19 +161,14 @@ end
         # Get all trips with distance longer than 1.0, group by passenger count,
         # and get the average trip distance
         distances = collect(
-	    combine(
-                groupby(
-		    filter(
-		        row -> row.trip_distance > 1.0, tripdata
-		    ),
-		    :passenger_count
-		),
-		:trip_distance => mean
-            )
-	)
-        isapprox(first(distances)[:trip_distance_mean], 8.1954, atol=1e-3)
-        isapprox(last(distances)[:trip_distance_mean], 8.2757, atol=1e-3)
-        
+            combine(
+                groupby(filter(row -> row.trip_distance > 1.0, tripdata), :passenger_count),
+                :trip_distance => mean,
+            ),
+        )
+        isapprox(first(distances)[:trip_distance_mean], 8.1954, atol = 1e-3)
+        isapprox(last(distances)[:trip_distance_mean], 8.2757, atol = 1e-3)
+
         # 
     end
 end

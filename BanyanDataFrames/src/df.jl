@@ -309,6 +309,58 @@ end
 
 # DataFrame element-wise
 
+function Missings.allowmissing(df::DataFrame)::DataFrame
+    res = Future()
+
+    partitioned_using() do
+        keep_all_sample_keys(res, df)
+        keep_sample_rate(res, df)
+    end
+
+    partitioned_with() do
+        pt(df, Distributed(scaled_by_same_as=res))
+        pt(res, ScaledBySame(as=df), match=df)
+
+        # pt(df, Distributed(df, balanced=true))
+        # pt(res, Balanced(), match=df)
+
+        # pt(df, Distributed(df, balanced=false, scaled_by_same_as=res))
+        # pt(res, Unbalanced(scaled_by_same_as=df), match=df)
+        
+        pt(df, res, Replicated())
+    end
+
+    @partitioned df res begin res = allowmissing(df) end
+
+    DataFrame(res, copy(df.nrows))
+end
+
+function Missings.disallowmissing(df::DataFrame)::DataFrame
+    res = Future()
+
+    partitioned_using() do
+        keep_all_sample_keys(res, df)
+        keep_sample_rate(res, df)
+    end
+
+    partitioned_with() do
+        pt(df, Distributed(scaled_by_same_as=res))
+        pt(res, ScaledBySame(as=df), match=df)
+
+        # pt(df, Distributed(df, balanced=true))
+        # pt(res, Balanced(), match=df)
+
+        # pt(df, Distributed(df, balanced=false, scaled_by_same_as=res))
+        # pt(res, Unbalanced(scaled_by_same_as=df), match=df)
+        
+        pt(df, res, Replicated())
+    end
+
+    @partitioned df res begin res = disallowmissing(df) end
+
+    DataFrame(res, copy(df.nrows))
+end
+
 function Base.copy(df::DataFrame)::DataFrame
     res = Future()
 
@@ -495,7 +547,7 @@ function Base.getindex(df::DataFrame, rows=:, cols=:)
         end
     res =
         if return_vector
-            Vector{eltype(sample(df)[collect(cols)])}(Future(), res_size)
+            BanyanArrays.Vector{eltype(sample(df)[collect(cols)])}(Future(), res_size)
         else
             DataFrame(Future(), res_size)
         end
