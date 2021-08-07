@@ -1,7 +1,7 @@
 @testset "Read/Write to CSV" begin
     run_with_job("read/write small csv and compute properties") do job
         bucket = get_cluster_s3_bucket_name(get_cluster().name)
-        iris = read_csv("s3://{bucket}/iris.csv")
+        iris = read_csv("s3://$(bucket)/iris.csv")
         @test collect(nrow(iris)) == 150
         @test collect(ncol(iris)) == 5
         @test collect(names(iris)) ==
@@ -31,9 +31,9 @@
 
         # Append row and write to file
         push!(iris, (1.0, 2.0, 3.0, 4.0, "newspecies"))
-        write_csv(iris, "s3://{bucket}/iris_new.csv")
+        write_csv(iris, "s3://$(bucket)/iris_new.csv")
         # Read file and verify
-        iris_new = read_csv("s3://{bucket}/iris_new.csv")
+        iris_new = read_csv("s3://$(bucket)/iris_new.csv")
         @test collect(nrow(iris_new)) == 151
         @test collect(ncol(iris_new)) == 5
         @test collect(last(iris)) == DataFrameRow(
