@@ -135,7 +135,7 @@ Banyan.sample_max(df::DataFrames.DataFrame, key) = maximum(df[!, key])
 # DataFrame properties
 
 DataFrames.nrow(df::DataFrame) = compute(df.nrows)
-DataFrames.ncol(df::DataFrame) = sample(df.size)[2]
+DataFrames.ncol(df::DataFrame) = ncol(sample(df))
 Base.size(df::DataFrame) = (nrow(df), ncol(df))
 Base.ndims(df::DataFrame) = 2
 Base.names(df::DataFrame, args...) = names(sample(df), args...)
