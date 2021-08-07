@@ -1,5 +1,5 @@
 @testset "Basic usage of BanyanDataFrames on a small dataset" begin
-    run_with_job("Filtering") do job
+    run_with_job("Filtering small dataset") do job
         bucket = get_cluster_s3_bucket_name(get_cluster().name)
         iris = read_csv("s3://{bucket}/iris.csv")
 
@@ -14,7 +14,7 @@
         @test num_nonunique == 3
     end
 
-    run_with_job("Sorting") do job
+    run_with_job("Sorting small dataset") do job
         bucket = get_cluster_s3_bucket_name(get_cluster().name)
         iris = read_csv("s3://{bucket}/iris.csv")
 
@@ -26,7 +26,7 @@
         @test collect(last(new))[:petal_length] == 1.5
     end
 
-    run_with_job("Join and Groupby Aggregration") do job
+    run_with_job("Join and group-by-aggregate small dataset") do job
         # Join and groupby aggregration
         bucket = get_cluster_s3_bucket_name(get_cluster().name)
         iris = read_csv("s3://{bucket}/iris.csv")
@@ -56,7 +56,7 @@
         @test first(counts_species) == first(counts_region)
     end
 
-    run_with_job("Grouping and Mapping") do job
+    run_with_job("Group and map over small dataset") do job
         bucket = get_cluster_s3_bucket_name(get_cluster().name)
         iris = read_csv("s3://{bucket}/iris.csv")
 
