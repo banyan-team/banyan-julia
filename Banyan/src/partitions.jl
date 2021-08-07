@@ -196,21 +196,21 @@ Base.:&(a::PartitionType, b::PartitionType) =
         a.parameters[param_name] == b.parameters[param_name] for
         param_name in keys(a.parameters) if param_name in keys(b.parameters)
     )
-        PartitionType(
+        [PartitionType(
             merge(a.parameters, b.parameters),
             PartitioningConstraints(
                 [a.constraints.constraints; b.constraints.constraints]
             )
-        )
+        )]
     else
-        nothing
+        []
     end
 
 Base.:&(a::Vector{PartitionType}, b::PartitionType) =
-    filter(pt->!isnothing(pt), [pt & b for pt in a])
+    vcat([pt & b for pt in a]...)
 Base.:&(a::PartitionType, b::Vector{PartitionType}) = b & a
 Base.:&(a::Vector{PartitionType}, b::Vector{PartitionType}) =
-    filter(pt->!isnothing(pt), [aa & bb for aa in a for bb in b])
+    vcat([aa & bb for aa in a for bb in b]...)
 Base.:|(a::PTOrPTUnion, b::PTOrPTUnion) = [a; b]
 
 #########################
