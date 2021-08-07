@@ -281,9 +281,9 @@ end
 function Base.filter(f, df::DataFrame; kwargs...)
     !get(kwargs, :view, false) || throw(ArgumentError("Cannot return view of filtered dataframe"))
 
+    f = Future(f)
     res_nrows = Future()
     res = DataFrame(Future(), res_nrows)
-    args = Future(args)
     kwargs = Future(kwargs)
 
     partitioned_using() do
