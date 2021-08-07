@@ -2,8 +2,8 @@
     run_with_job("read/write small csv and compute properties") do job
         bucket = get_cluster_s3_bucket_name(get_cluster().name)
         iris = read_csv("s3://$(bucket)/iris.csv")
-        @test collect(nrow(iris)) == 150
-        @test collect(ncol(iris)) == 5
+        @test nrow(iris) == 150
+        @test ncol(iris) == 5
         @test collect(names(iris)) ==
               ["sepal_length", "sepal_width", "petal_length", "petal_width", "species"]
         @test collect(propertynames(iris)) ==
@@ -29,13 +29,17 @@
             1,
         )
 
-        # Append row and write to file
-        push!(iris, (1.0, 2.0, 3.0, 4.0, "newspecies"))
+        # Change last row and write to file
+        setindex!(iris, 1.0, nrow(iris), 1)
+        setindex!(iris, 2.0, nrow(iris), 2)
+        setindex!(iris, 3.0, nrow(iris), 3)
+        setindex!(iris, 4.0, nrow(iris), 4)
         write_csv(iris, "s3://$(bucket)/iris_new.csv")
         # Read file and verify
         iris_new = read_csv("s3://$(bucket)/iris_new.csv")
-        @test collect(nrow(iris_new)) == 151
-        @test collect(ncol(iris_new)) == 5
+        @test nrow(iris_new) == 15
+        @test ncol(iris_new) == 5
+        @test getindex(nrow(iris_new), 2) == 2.0
         @test last(collect(iris)) == DataFrameRow(
             DataFrame(
                 sepal_length = 1.0,
