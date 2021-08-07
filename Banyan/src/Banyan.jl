@@ -105,12 +105,11 @@ export Any,
     Reducing,
     ReducingWithKey,
     Distributing,
-    Blocked,
-    Grouped,
     ScaledBySame,
     Drifted,
     Balanced,
     Unbalanced,
+    Distributed,
     Blocked,
     Grouped
 

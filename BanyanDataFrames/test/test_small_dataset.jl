@@ -6,7 +6,7 @@
         # Filter
         iris_filtered =
             filter(row -> (row.sepal_length > 5.0 && row.sepal_width < 3.0), iris)
-        num_rows = collect(nrows(iris_filtered))
+        num_rows = nrow(iris_filtered)
         @test num_rows == 51
         unique_species = collect(unique(iris[!, :species]))
         @test unique_species == ["setosa", "versicolor", "virginica"]
