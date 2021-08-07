@@ -51,5 +51,27 @@
         @test first(lengths_species) == first(lengths_region)
         @test first(counts_species) == first(counts_region)
     end
+
+    run_with_job("Grouping and Mapping")
+        bucket = get_cluster_s3_bucket_name(get_cluster().name)
+        iris = read_csv("s3://{bucket}/iris.csv")
+
+        # Select
+        iris_sepal_area = select(iris, 1, 2, [:sepal_length, :sepal_width] => (a, b) -> a .* b)
+        first_row = collect(first(iris_sepal_area))
+        last_row = collect(last(iris_sepal_area))
+        @test first_row[:sepal_length_sepal_width_function] == 10.0
+        @test last_row[:sepal_length_sepal_width_function] == 30.02
+
+        # Transform
+        iris_new = transform(gdf, :species => x -> "iris-".*x, keepkeys=false)
+        species_names = collect(unique(iris_new[!, "species_function"]))
+        @test species_names == ["iris-setosa", "iris-versicolor", "iris-virginica"]
+
+        # Split-Apply-Combine
+	gdf = groupby(iris, :species)
+        iris_mins = collect(combine(gdf, :petal_length => minimum))
+        @test iris_mins[!, :petal_length_minimum] == [1.0, 3.0, 4.5]
+    end
 end
 
