@@ -263,7 +263,7 @@ function DataFrames.dropmissing(df::DataFrame, args...; kwargs...)
 
     partitioned_with() do
         pts_for_filtering(df, res, with=Distributed)
-        pt(res_nrows, Reducing((a, b) -> a .+ b))
+        pt(res_nrows, Reducing(quote (a, b) -> a .+ b end))
         pt(df, res, res_nrows, args, kwargs, Replicated())
     end
 
@@ -293,7 +293,7 @@ function Base.filter(f, df::DataFrame; kwargs...)
 
     partitioned_with() do
         pts_for_filtering(df, res, with=Distributed)
-        pt(res_nrows, Reducing((a, b) -> a .+ b))
+        pt(res_nrows, Reducing(quote (a, b) -> a .+ b end))
         pt(df, res, res_nrows, f, kwargs, Replicated())
     end
 
@@ -470,7 +470,7 @@ function Base.getindex(df::DataFrame, rows=:, cols=:)
     # in res (which is just cols of df if column selector is :), or unknown
     # and always with different ID unless row selector is :
     # and only allow : and copying columns without getting a view
-    (rows isa Colon || rows isa Vector{Bool}) ||
+    (rows isa Colon || rows isa BanyanArrays.Vector{Bool}) ||
         throw(ArgumentError("Expected selection of all rows with : or some rows with Vector{Bool}"))
     (cols != !) || throw(ArgumentError("! is not allowed for selecting all columns; use : instead"))
 
@@ -549,7 +549,7 @@ function Base.getindex(df::DataFrame, rows=:, cols=:)
             #     # TODO: Handle select_columns
             # end
 
-            pt(res_size, Reducing(return_vector ? (a, b) -> Tuple([a[1] + b[1], a[2:end]...]) : (a, b) -> a .+ b))
+            pt(res_size, Reducing(return_vector ? quote (a, b) -> Tuple([a[1] + b[1], a[2:end]...]) end : quote (a, b) -> a .+ b end))
         else
             for dpt in Distributed(df, scaled_by_same_as=res)
                 pt(df, dpt)
@@ -1249,7 +1249,7 @@ function DataFrames.innerjoin(dfs::DataFrame...; on, kwargs...)
         pt(res, Grouped(df, by=groupingkey, balanced=false, filtered_from=dfs) & Drifted())
         
         # "replicated join"
-        pt(res_nrows, Reducing((a, b) -> a .+ b))
+        pt(res_nrows, Reducing(quote (a, b) -> a .+ b end))
         pt(dfs..., res, kwargs, Replicated())
 
         # TODO: Support nested loop join where multiple are Block and Cross-ed and others are all Replicate
@@ -1325,7 +1325,7 @@ function DataFrames.unique(df::DataFrame, cols=nothing; kwargs...)
 
     partitioned_with() do
         pts_for_filtering(df, res, with=Grouped, by=first(collect(cols)))
-        pt(res_nrows, Reducing((a, b) -> a .+ b))
+        pt(res_nrows, Reducing(quote (a, b) -> a .+ b end))
         pt(df, res, res_nrows, f, kwargs, Replicated())
     end
 

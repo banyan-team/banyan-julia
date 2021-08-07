@@ -306,7 +306,7 @@ function DataFrames.subset(gdf::GroupedDataFrame, args...; kwargs...)
     partitioned_with() do
         pts_for_filtering(gdf_parent, res, with=Grouped, by=groupingkeys)
         pt(gdf, Blocked(along=1) & ScaledBySame(as=gdf_parent))
-        pt(res_nrows, Reducing((a, b) -> a .+ b))
+        pt(res_nrows, Reducing(quote (a, b) -> a .+ b end))
         pt(gdf_parent, res, gdf, res_nrows, groupcols, groupkwargs, args, kwargs, Replicated())
     end
 
