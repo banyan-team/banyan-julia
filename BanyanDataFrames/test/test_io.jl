@@ -8,7 +8,7 @@
               ["sepal_length", "sepal_width", "petal_length", "petal_width", "species"]
         @test collect(propertynames(iris)) ==
               [:sepal_length, :sepal_width, :petal_length, :petal_width, :species]
-        @test collect(first(iris)) == DataFrameRow(
+        @test first(collect(iris)) == DataFrameRow(
             DataFrame(
                 sepal_length = 5.1,
                 sepal_width = 3.5,
@@ -18,7 +18,7 @@
             ),
             1,
         )
-        @test collect(last(iris)) == DataFrameRow(
+        @test last(collect(iris)) == DataFrameRow(
             DataFrame(
                 sepal_length = 5.9,
                 sepal_width = 3.0,
@@ -36,7 +36,7 @@
         iris_new = read_csv("s3://$(bucket)/iris_new.csv")
         @test collect(nrow(iris_new)) == 151
         @test collect(ncol(iris_new)) == 5
-        @test collect(last(iris)) == DataFrameRow(
+        @test last(collect(iris)) == DataFrameRow(
             DataFrame(
                 sepal_length = 1.0,
                 sepal_width = 2.0,

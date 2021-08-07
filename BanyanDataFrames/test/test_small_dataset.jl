@@ -20,10 +20,11 @@
 
         # Sort
         new = sort(iris, :sepal_width)
-        @test collect(first(new))[:sepal_width] == 2.0
-        @test collect(first(new))[:petal_length] == 3.5
-        @test collect(last(new))[:sepal_width] == 4.4
-        @test collect(last(new))[:petal_length] == 1.5
+        sorted_iris = collect(new)
+        @test first(sorted_iris)[:sepal_width] == 2.0
+        @test first(sorted_iris)[:petal_length] == 3.5
+        @test last(sorted_iris)[:sepal_width] == 4.4
+        @test last(sorted_iris)[:petal_length] == 1.5
     end
 
     run_with_job("Join and Groupby Aggregration") do job
@@ -63,8 +64,8 @@
         # Select
         iris_sepal_area =
             select(iris, 1, 2, [:sepal_length, :sepal_width] => (a, b) -> a .* b)
-        first_row = collect(first(iris_sepal_area))
-        last_row = collect(last(iris_sepal_area))
+        first_row = first(collect(iris_sepal_area))
+        last_row = last(collect(iris_sepal_area))
         @test first_row[:sepal_length_sepal_width_function] == 10.0
         @test last_row[:sepal_length_sepal_width_function] == 30.02
 
