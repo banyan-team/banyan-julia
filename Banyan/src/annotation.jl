@@ -152,7 +152,7 @@ function pt(
     # Extract PT and args to assign the PT to from given arguments
     futs, sharedptype = args[1:end-1], last(args)
 
-    if length(futs) > 1 && sharedptype isa Vector
+    if length(futs) > 1 && sharedptype isa Vector && length(sharedptype) > 1
         throw(
             ArgumentError(
                 "Multiple partition types cannot be applied to multiple futures at once",
@@ -181,6 +181,8 @@ function pt(
             end
         elseif ptype isa PartitionType
             pt(fut, PartitionTypeComposition([ptype]); kwargs...)
+        elseif ptype isa Vector{PartitionType} && length(ptype) == 1
+            pt(fut, PartitionTypeComposition(ptype); kwargs...)
         elseif ptype isa PartitionTypeComposition
             # Handle constraints that have been delayed till PT assignment
             for pty in ptype.pts

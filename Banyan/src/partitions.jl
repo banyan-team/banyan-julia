@@ -203,13 +203,13 @@ Base.:&(a::PartitionType, b::PartitionType) =
             )
         )]
     else
-        []
+        PartitionType[]
     end
 
-Base.:&(a::Vector{PartitionType}, b::PartitionType) =
+Base.:&(a::Vector{PartitionType}, b::PartitionType)::Vector{PartitionType} =
     vcat([pt & b for pt in a]...)
 Base.:&(a::PartitionType, b::Vector{PartitionType}) = b & a
-Base.:&(a::Vector{PartitionType}, b::Vector{PartitionType}) =
+Base.:&(a::Vector{PartitionType}, b::Vector{PartitionType})::Vector{PartitionType} =
     vcat([aa & bb for aa in a for bb in b]...)
 Base.:|(a::PTOrPTUnion, b::PTOrPTUnion) = [a; b]
 
