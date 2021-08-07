@@ -2,7 +2,7 @@
     run_with_job("Simple group-by aggregation") do job
         # TODO: Use `get_cluster()` and `wget` to automatically load in iris.csv
         bucket = get_cluster_s3_bucket_name(get_cluster().name)
-        iris = read_csv("s3://{bucket}/iris.csv")
+        iris = read_csv("s3://$(bucket)/iris.csv")
 	# iris = read_csv("s3://banyan-cluster-data-pumpkincluster0-3e15290827c0c584/iris.csv")
         gdf = groupby(iris, :species)
         lengths = collect(combine(gdf, :petal_length => mean))

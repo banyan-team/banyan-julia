@@ -1,7 +1,7 @@
 @testset "Basic usage of BanyanDataFrames on a small dataset" begin
     run_with_job("Filtering small dataset") do job
         bucket = get_cluster_s3_bucket_name(get_cluster().name)
-        iris = read_csv("s3://{bucket}/iris.csv")
+        iris = read_csv("s3://$(bucket)/iris.csv")
 
         # Filter
         iris_filtered =
@@ -16,7 +16,7 @@
 
     run_with_job("Sorting small dataset") do job
         bucket = get_cluster_s3_bucket_name(get_cluster().name)
-        iris = read_csv("s3://{bucket}/iris.csv")
+        iris = read_csv("s3://$(bucket)/iris.csv")
 
         # Sort
         new = sort(iris, :sepal_width)
@@ -29,7 +29,7 @@
     run_with_job("Join and group-by-aggregate small dataset") do job
         # Join and groupby aggregration
         bucket = get_cluster_s3_bucket_name(get_cluster().name)
-        iris = read_csv("s3://{bucket}/iris.csv")
+        iris = read_csv("s3://$(bucket)/iris.csv")
         species_info = DataFrame(
             species = ["setosa", "versicolor", "virginica"],
             region = ["Arctic", "Eastern Canada", "Southeastern United States"],
@@ -58,7 +58,7 @@
 
     run_with_job("Group and map over small dataset") do job
         bucket = get_cluster_s3_bucket_name(get_cluster().name)
-        iris = read_csv("s3://{bucket}/iris.csv")
+        iris = read_csv("s3://$(bucket)/iris.csv")
 
         # Select
         iris_sepal_area =
@@ -80,3 +80,11 @@
     end
 end
 
+@testset "Complex usage of BanyanDataFrames on small dataset" begin
+    run_with_job("Multiple operation")
+        bucket = get_cluster_s3_bucket_name(get_cluster().name)
+        iris = read_csv("s3://$(bucket)/iris.csv")
+
+        #  
+    end
+end
