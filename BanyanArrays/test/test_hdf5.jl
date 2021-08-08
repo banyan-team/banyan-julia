@@ -13,6 +13,7 @@ using HDF5
         close(original)
 
         rm(get_s3fs_path(joinpath(s3_bucket_name, "fillval_copy.h5")), force=true)
+        # TODO: Maybe fsync here so that the directory gets properly updated
     end
 
     run_with_job("Simple usage of HDF5") do job

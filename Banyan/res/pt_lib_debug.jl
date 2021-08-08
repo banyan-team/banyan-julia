@@ -324,7 +324,7 @@ function Write(
     # println("Writing worker_idx=$worker_idx, batch_idx=$batch_idx/$nbatches with available memory: $(format_available_memory())")
     idx = get_partition_idx(batch_idx, nbatches, comm)
     if isa_df(part)
-        actualpath = copy(path)
+        actualpath = deepcopy(path)
         if nbatches > 1
             path = path * "_tmp"
         end
