@@ -7,13 +7,13 @@
         iris_filtered =
             filter(row -> (row.sepal_length > 5.0 && row.sepal_width < 3.0), iris)
         @test nrow(iris_filtered) == 51
-        @test collect(getindex(iris_filtered, 1, 2)) == 2.3
-        @test collect(getindex(iris_filtered, 46, 3)) == 6.1
-        @test collect(getindex(iris_filtered, 51, 1))
+        @test collect(iris_filtered[1, :])[:sepal_width] == 2.3
+        @test collect(iris_filtered[46, :])[:petal_length] == 6.1
+        @test collect(iris_filtered[51, :])[:sepal_length] == 6.3
 
         # Unique
-        unique_species = collect(unique(iris[:, :species]))
-        @test unique_species == ["setosa", "versicolor", "virginica"]
+        unique_species = collect(iris[:, [:species,]])
+        @test unique_species[!, :species] == ["setosa", "versicolor", "virginica"]
         @test collect(sum(nonunique(iris))) == 3
         @test findall(collect(nonunique(iris))) == [35, 38, 143]
 
@@ -31,9 +31,10 @@
         iris_cleaned = dropmissing(iris_allowmissing)
         iris_cleaned = disallowmissing(iris_cleaned)
         @test nrow(iris_cleaned) == 147
+        @test collect(iris_cleaned[123, :])[:sepal_length] == 6.7
+        iris_cleaned = collect(iris_cleaned)
         @test first(iris_cleaned)[:sepal_width] == 3.0
         @test last(iris_cleaned)[:petal_width] == 2.3
-        @test getindex(iris_cleaned, 123, 1) == 6.7
     end
 
     run_with_job("Sorting small dataset") do job
@@ -138,8 +139,8 @@ end
         result_1 = collect(result_1)
         result_2 = collect(result_2)
 
-        @test isapprox(getindex(result_1, 7, 6), 0.14287, atol = 1e-4)
-        @test isapprox(getindex(result_2, 7, 6), 0.14287, atol = 1e-4)
+        @test isapprox(result_1[7, 6], 0.14287, atol = 1e-4)
+        @test isapprox(result_2[7, 6], 0.14287, atol = 1e-4)
         @test first(result_1)[:species] == first(result_2)[:species] == "setosa"
         @test last(result_1)[:species] == last(result_2)[:species] == "virginica"
         @test last(result_1)[:petal_length_normalized] ==
