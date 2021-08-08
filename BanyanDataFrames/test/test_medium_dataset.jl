@@ -1,9 +1,7 @@
 @testset "Complex usage of BanyanDataFrames on medium dataset" begin
     run_with_job("Filter groupby") do job
-        # Upload data to S3
         bucket = get_cluster_s3_bucket_name(get_cluster().name)
-        tripdata = read_csv("https://s3.amazonaws.com/nyc-tlc/trip+data/yellow_tripdata_2016-01.csv")
-        write_csv(tripdata, "s3://{bucket}/tripdata.csv")
+        tripdata = read_csv("s3://{bucket}/tripdata.csv")
 
         # Read data and get properties
         tripdata = read_csv("s3://$(bucket)/tripdata.csv")
