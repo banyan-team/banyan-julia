@@ -5,11 +5,11 @@
 
         # Filter
         iris_filtered =
-            filter(row -> (row.sepal_length > 5.0 && row.sepal_width < 3.0), iris)
+            collect(filter(row -> (row.sepal_length > 5.0 && row.sepal_width < 3.0), iris))
         @test nrow(iris_filtered) == 51
-        @test collect(iris_filtered[1, :])[:sepal_width] == 2.3
-        @test collect(iris_filtered[46, :])[:petal_length] == 6.1
-        @test collect(iris_filtered[51, :])[:sepal_length] == 6.3
+        @test iris_filtered[1, :sepal_width] == 2.3
+        @test iris_filtered[46, :petal_length] == 6.1
+        @test iris_filtered[51, :sepal_length] == 6.3
 
         # Unique
         unique_species = collect(iris[:, [:species,]])
@@ -80,13 +80,19 @@
         bucket = get_cluster_s3_bucket_name(get_cluster().name)
         iris = read_csv("s3://$(bucket)/iris.csv")
 
+        iris = innerjoin(iris, iris[:, [:species,]], on=:species)
+        setindex!(iris, :petal_length_rounded, round.(iris[:, :petal_length]))
+        gdf = groupby(iris, [:species, :petal_length_rounded])
+
         # Select
-        iris_sepal_area =
-            select(iris, 1, 2, [:sepal_length, :sepal_width] => (a, b) -> a .* b)
-        first_row = first(collect(iris_sepal_area))
-        last_row = last(collect(iris_sepal_area))
-        @test first_row[:sepal_length_sepal_width_function] == 10.0
-        @test last_row[:sepal_length_sepal_width_function] == 30.02
+        iris_select = select(gdf, :, [:petal_length] => (pl) -> pl .- mean(pl))
+        @test collect(iris_select[1, :])[:petal_length] == 1.4
+        @test collect(iris_select[7488, :])[:petal_length] == 5.5
+        # setindex!(iris, :sepal_area, iris[:, :sepal_length] .* iris[:, :sepal_width])
+        # first_row = first(collect(iris))
+        # last_row = last(collect(iris))
+        # @test first_row[:sepal_area] == 10.0
+        # @test last_row[:sepal_area] == 30.02
 
         # Transform
         iris_new = transform(gdf, :species => x -> "iris-" .* x, keepkeys = false)
@@ -159,7 +165,7 @@ end
                 combine(
 		    groupby(
 		        rename(
-			    transform(innerjoin(iris, select(iris, :species), on=:species), :sepal_length => sl -> round.(sl)),
+			    transform(innerjoin(iris, iris[:, [:species,]], on=:species), :sepal_length => sl -> round.(sl)),
 			    :sepal_length_function => :sepal_length_rounded
 			),
 			:sepal_length_rounded
@@ -181,7 +187,7 @@ end
         # Compute cardinality of each group.
         # Also compute deviation from mean of petal_width of each group, filter for those with a deviation less that +/- 0.2,
         # and group on species.
-        iris_large = innerjoin(innerjoin(iris, select(iris, :species), on=:species), select(iris, :species), on=:species)
+        iris_large = innerjoin(innerjoin(iris, iris[:, [:species,]], on=:species), iris[:, [:species,]], on=:species)
         iris_large_gdf = groupby(
 	    rename(
                 select(iris_large, :, [:species, :petal_length] => (s, pl) -> s .* "-pl=" .* string.(round.(pl))),
