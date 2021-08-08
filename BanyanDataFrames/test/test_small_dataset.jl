@@ -1,6 +1,43 @@
+function upload_iris_to_s3(bucket_name)
+    verify_file_in_s3(
+        bucket_name,
+	"iris.csv",
+	"https://raw.githubusercontent.com/Sketchjar/MachineLearningHD/main/iris.csv",
+    )
+    verify_file_in_s3(
+        bucket_name,
+	"iris_species_info.csv",
+	"https://raw.githubusercontent.com/banyan-team/banyan-julia/v0.1.3/BanyanDataFrames/test/res/iris_species_info.csv",
+    )
+end
+
+
 @testset "Basic data analytics on a small dataset" begin
+    run_with_job("Indexing") do job
+        bucket = get_cluster_s3_bucket_name(get_cluster().name)
+        upload_iris_to_s3(bucket)
+        iris = read_csv("s3://$(bucket)/iris.csv")
+
+        # Select rows that have a long petal length and width. Select only the petal columns.
+        
+
+        # Select the first and second columns
+
+        # Select rows 
+
+        # 
+        # @test collect(iris_select[1, :])[:petal_length] == 1.4
+        # @test collect(iris_select[7488, :])[:petal_length] == 5.5
+        # setindex!(iris, :sepal_area, iris[:, :sepal_length] .* iris[:, :sepal_width])
+        # first_row = first(collect(iris))
+        # last_row = last(collect(iris))
+        # @test first_row[:sepal_area] == 10.0
+        # @test last_row[:sepal_area] == 30.02
+    end
+
     run_with_job("Filtering small dataset") do job
         bucket = get_cluster_s3_bucket_name(get_cluster().name)
+        upload_iris_to_s3(bucket)
         iris = read_csv("s3://$(bucket)/iris.csv")
 
         # Filter
@@ -40,6 +77,7 @@
 
     run_with_job("Sorting small dataset") do job
         bucket = get_cluster_s3_bucket_name(get_cluster().name)
+        upload_iris_to_s3(bucket)
         iris = read_csv("s3://$(bucket)/iris.csv")
 
         # Sort
@@ -54,6 +92,7 @@
     run_with_job("Join and group-by-aggregate small dataset") do job
         # Join and groupby aggregration
         bucket = get_cluster_s3_bucket_name(get_cluster().name)
+        upload_iris_to_s3(bucket)
         iris = read_csv("s3://$(bucket)/iris.csv")
         species_info = read_csv("s3://$(bucket)/iris_species_info.csv")
         iris_new = innerjoin(iris, species_info, on = :species)
@@ -81,6 +120,7 @@
 
     run_with_job("Group and map over small dataset") do job
         bucket = get_cluster_s3_bucket_name(get_cluster().name)
+        upload_iris_to_s3(bucket)
         iris = read_csv("s3://$(bucket)/iris.csv")
 
         # Prepare some larger data
@@ -95,13 +135,6 @@
             collect(iris_select[:, :petal_length_function][[1, 7488, nrow(iris_select)]]),
             digits = 3,
         ) == [0.078, -0.308, 0.014]
-        # @test collect(iris_select[1, :])[:petal_length] == 1.4
-        # @test collect(iris_select[7488, :])[:petal_length] == 5.5
-        # setindex!(iris, :sepal_area, iris[:, :sepal_length] .* iris[:, :sepal_width])
-        # first_row = first(collect(iris))
-        # last_row = last(collect(iris))
-        # @test first_row[:sepal_area] == 10.0
-        # @test last_row[:sepal_area] == 30.02
 
         # Transform
         iris_new = transform(gdf, :species => x -> "iris-" .* x)
@@ -121,11 +154,27 @@
         @test collect(long_petal_iris)[:, :nrow] == [1250, 1250, 1200]
         @test collect(long_petal_iris)[:, :species] == ["setosa", "versicolor", "virginica"]
     end
+
+    run_with_job("Simple group-by aggregation") do job
+        bucket = get_cluster_s3_bucket_name(get_cluster().name)
+        upload_iris_to_s3(bucket)
+        iris = read_csv("s3://$(bucket)/iris.csv")
+        gdf = groupby(iris, :species)
+        lengths = collect(combine(gdf, :petal_length => mean))
+        counts = collect(combine(gdf, nrow))
+
+        @show lengths
+        @show counts
+
+        @test first(lengths)[:petal_length_mean] == 1.464
+        @test first(counts)[:nrow] == 50
+    end
 end
 
 @testset "Complex data analytics on a small dataset" begin
     run_with_job("Multiple evaluations together - test 1") do job
         bucket = get_cluster_s3_bucket_name(get_cluster().name)
+        upload_iris_to_s3(bucket)
         iris = read_csv("s3://$(bucket)/iris.csv")
 
         # Compute the min-max normalized petal_length (within each species)
@@ -175,6 +224,7 @@ end
 
     run_with_job("Multiple evaluations together - test 2") do job
         bucket = get_cluster_s3_bucket_name(get_cluster().name)
+        upload_iris_to_s3(bucket)
         iris = read_csv("s3://$(bucket)/iris.csv")
 
         # Inner join with itself on species to increase cardinality. Group by rounded sepal length
@@ -199,6 +249,7 @@ end
 
     run_with_job("Multiple evaluations apart - test 1") do job
         bucket = get_cluster_s3_bucket_name(get_cluster().name)
+        upload_iris_to_s3(bucket)
         iris = read_csv("s3://$(bucket)/iris.csv")
 
         # Inner join twice with itself on species to increase cardinality. Group by species and rounded petal length.

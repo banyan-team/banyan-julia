@@ -6,6 +6,8 @@ using Banyan
 using BanyanArrays
 using BanyanDataFrames
 
+using FilePathsBase
+using AWSS3
 using Statistics
 
 function include_tests_to_run(args...)
@@ -94,11 +96,16 @@ function run(test_fn, name)
 end
 
 function include_all_tests()
-    include_tests_to_run("test_groupby_agg.jl")
     include_tests_to_run("test_io.jl")
     include_tests_to_run("test_small_dataset.jl")
     include_tests_to_run("test_medium_dataset.jl")
     include_tests_to_run("test_stress.jl")
+end
+
+function verify_file_in_s3(bucket, path, download_path)
+     if !s3_exists(Banyan.get_aws_config(), bucket, path)
+        download(download_path, S3Path("s3://$(bucket)/$(path)", config=Banyan.get_aws_config()))
+    end
 end
 
 with_job(job=job) do j
