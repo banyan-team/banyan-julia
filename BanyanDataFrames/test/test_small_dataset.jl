@@ -15,6 +15,7 @@
         unique_species = collect(unique(iris[!, :species]))
         @test unique_species == ["setosa", "versicolor", "virginica"]
         @test collect(sum(nonunique(iris))) == 3
+        @test findall(collect(nonunique(iris))) == [35, 38, 143]
 
         # Nonunique
         nonunique_species = collect(nonunique(iris, :species))
