@@ -300,6 +300,7 @@ function Base.filter(f, df::DataFrame; kwargs...)
     @partitioned df res res_nrows f kwargs begin
         res = filter(f, df; kwargs...)
         res_nrows = nrow(res)
+        @show res_nrows
     end
 
     res

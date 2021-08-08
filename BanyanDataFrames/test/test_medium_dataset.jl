@@ -15,17 +15,12 @@
         # and get the average trip distance for each group
         distances = collect(
             combine(
-                groupby(
-                    filter(
-                        row -> row.trip_distance > 1.0, tripdata
-                    ),
-                    :passenger_count
-                ),
-                :trip_distance => mean
-            )
+                groupby(filter(row -> row.trip_distance > 1.0, tripdata), :passenger_count),
+                :trip_distance => mean,
+            ),
         )
-        isapprox(first(distances)[:trip_distance_mean], 8.1954, atol=1e-3)
-        isapprox(last(distances)[:trip_distance_mean], 8.2757, atol=1e-3)
+        isapprox(first(distances)[:trip_distance_mean], 8.1954, atol = 1e-3)
+        isapprox(last(distances)[:trip_distance_mean], 8.2757, atol = 1e-3)
     end
 
     run_with_job("Groupby/sort DateTime") do job
@@ -33,7 +28,11 @@
         tripdata = read_csv("s3://{bucket}/tripdata.csv")
 
         # Compute the hour of the day which has the greatest average trip distance.
-        setindex!(tripdata, :start_time, DateTime.(tripdata[:, :tpep_pickup_datetime], "yyyy-mm-dd HH:MM:SS"))
+        setindex!(
+            tripdata,
+            :start_time,
+            DateTime.(tripdata[:, :tpep_pickup_datetime], "yyyy-mm-dd HH:MM:SS"),
+        )
         setindex!(tripdata, :start_hour, hour.(tripdata[:, :start_time]))
         tripdata_grouped = groupby(tripdata, :start_hour)
         means = combine(tripdata_grouped, :trip_distance => mean)
