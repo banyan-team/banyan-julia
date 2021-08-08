@@ -18,33 +18,21 @@ function test_jobs(test_job_failed)
     @test get_job().nworkers == 2
     @test get_cluster_name() == get(ENV, "BANYAN_CLUSTER_NAME", nothing)
     # Describe jobs
-    curr_jobs = get_jobs(
-        get(ENV, "BANYAN_CLUSTER_NAME", nothing),
-	"running"
-    )
+    curr_jobs = get_jobs(get(ENV, "BANYAN_CLUSTER_NAME", nothing), status="running")
     @test length(curr_jobs) == 1
     @test haskey(curr_jobs, job_id)
     @test curr_jobs[job_id]["status"] == "running"
     # Destroy job
-    destroy_job(job_id, failed=test_job_failed)
-    @test length(get_jobs(
-        get(ENV, "BANYAN_CLUSTER_NAME", nothing),
-        "running"
-    )) == 0
+    destroy_job(job_id, failed = test_job_failed)
+    @test length(get_jobs(get(ENV, "BANYAN_CLUSTER_NAME", nothing), status="running")) == 0
     if test_job_failed
-        failed_jobs = get_jobs(
-	    get(ENV, "BANYAN_CLUSTER_NAME", nothing),
-	    "failed"
-	)
-	@test haskey(failed_jobs, job_id)
+        failed_jobs = get_jobs(get(ENV, "BANYAN_CLUSTER_NAME", nothing), status="failed")
+        @test haskey(failed_jobs, job_id)
         @test failed_jobs[job_id]["status"] == "failed"
     else
-        completed_jobs = get_jobs(
-	    get(ENV, "BANYAN_CLUSTER_NAME", nothing),
-	    "completed"
-	)
-	@test haskey(completed_jobs, job_id)
-	@test completed_jobs[job_id]["status"] == "completed"
+        completed_jobs = get_jobs(get(ENV, "BANYAN_CLUSTER_NAME", nothing), status="completed")
+        @test haskey(completed_jobs, job_id)
+        @test completed_jobs[job_id]["status"] == "completed"
     end
 end
 
@@ -68,21 +56,14 @@ function test_concurrent_jobs()
         nworkers = 2,
         banyanfile_path = "file://res/Banyanfile.json",
     )
-    curr_jobs = get_jobs(
-        get(ENV, "BANYAN_CLUSTER_NAME", nothing),
-	"running"
-    )
+    curr_jobs = get_jobs(get(ENV, "BANYAN_CLUSTER_NAME", nothing), status="running")
     @test length(curr_jobs) == 2
     @test haskey(curr_jobs, job_id_1)
     @test haskey(curr_jobs, job_id_2)
     # Destroy all jobs
-    destroy_all_jobs(
-        get(ENV, "BANYAN_CLUSTER_NAME", nothing)
-    )
-    completed_jobs = get_jobs(
-        get(ENV, "BANYAN_CLUSTER_NAME", nothing),
-	"completed"
-    )
+    destroy_all_jobs(get(ENV, "BANYAN_CLUSTER_NAME", nothing))
+    completed_jobs =
+        get_jobs(get(ENV, "BANYAN_CLUSTER_NAME", nothing), status="completed")
     @test haskey(completed_jobs, job_id_1)
     @test haskey(completed_jobs, job_id_2)
     @test completed_jobs[job_id_1]["status"] == "completed"
@@ -99,10 +80,10 @@ end
             destroy_all_jobs(get(ENV, "BANYAN_CLUSTER_NAME", nothing))
             test_jobs(false)
             test_jobs(true)
-	catch
-	    destroy_all_jobs(get(ENV, "BANYAN_CLUSTER_NAME", nothing))
-	    rethrow()
-	end
+        catch
+            destroy_all_jobs(get(ENV, "BANYAN_CLUSTER_NAME", nothing))
+            rethrow()
+        end
     end
 end
 

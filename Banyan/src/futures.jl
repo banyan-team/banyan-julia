@@ -75,7 +75,7 @@ mutated. This is because presumably in the case that we _can't_ copy over the
 given future, we would want to assign to it in the upcoming code region where
 it's going to be used.
 """
-function Future(fut::AbstractFuture, mutation::Function=identity)
+function Future(fut::AbstractFuture; mutation::Function=identity)
     fut = convert(Future, fut)
     if !fut.stale
         # Copy over value
