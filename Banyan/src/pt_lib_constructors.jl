@@ -228,6 +228,5 @@ function Grouped(
             push!(pts, PartitionType(parameters, constraints))
         end
     end
-    @show pts
     Grouped() & pts
 end

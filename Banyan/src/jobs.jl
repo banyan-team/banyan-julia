@@ -186,7 +186,7 @@ function destroy_job(job_id::JobId; failed = nothing, force=false, kwargs...)
     delete!(jobs, job_id)
 end
 
-function get_jobs(;cluster_name=nothing, status=nothing, kwargs...)
+function get_jobs(cluster_name=nothing; status=nothing, kwargs...)
     @debug "Downloading description of jobs in each cluster"
     configure(; kwargs...)
     filters = Dict()
@@ -232,10 +232,10 @@ function download_job_logs(job_id::JobId, cluster_name::String, filename::String
     s3_get_file(get_aws_config(), s3_bucket_name, log_file_name, filename)
 end
 
-function destroy_all_jobs(;cluster_name::String, kwargs...)
+function destroy_all_jobs(cluster_name::String; kwargs...)
     @debug "Destroying all running jobs for cluster"
     configure(; kwargs...)
-    jobs = get_jobs(cluster_name, "running")
+    jobs = get_jobs(cluster_name, status="running")
     for (job_id, job) in jobs
         if job["status"] == "running"
 	    @info "Destroying job id $job_id"

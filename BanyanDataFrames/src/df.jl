@@ -536,18 +536,19 @@ function Base.getindex(df::DataFrame, rows=:, cols=:)
     select_columns = !(cols isa Colon)
     filter_rows = !(rows isa Colon)
     cols = Future(Symbol.(names(sample(df), cols)))
+    rows = Future(rows)
 
     res_size =
         if filter_rows
             Future()
         elseif return_vector
-            Future(df.nrows, mutation=Tuple)
+            Future(df.nrows, mutation=tuple)
         else
             Future(df.nrows)
         end
     res =
         if return_vector
-            BanyanArrays.Vector{eltype(sample(df)[collect(cols)])}(Future(), res_size)
+            BanyanArrays.Vector{eltype(sample(df)[!, collect(cols)])}(Future(), res_size)
         else
             DataFrame(Future(), res_size)
         end
@@ -632,7 +633,7 @@ function Base.getindex(df::DataFrame, rows=:, cols=:)
     @partitioned df df_nrows res res_size rows cols begin
         res = df[rows, cols]
         res_size = rows isa Colon ? df_nrows : size(res)
-        res_size = res_size isa Vector ? res_size : first(res_size)
+        res_size = res isa Base.Vector ? res_size : first(res_size)
     end
 
     res

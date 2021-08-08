@@ -12,7 +12,7 @@
         @test collect(getindex(iris_filtered, 51, 1))
 
         # Unique
-        unique_species = collect(unique(iris[!, :species]))
+        unique_species = collect(unique(iris[:, :species]))
         @test unique_species == ["setosa", "versicolor", "virginica"]
         @test collect(sum(nonunique(iris))) == 3
         @test findall(collect(nonunique(iris))) == [35, 38, 143]
