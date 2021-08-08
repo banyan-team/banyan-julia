@@ -178,8 +178,8 @@ end
 		:nrow
             )
 	)
-        @test iris_sepal_length_groups[!, :nrow] == [250, 300, 1200, 2350, 3400]
-        @test iris_sepal_length_groups[!, :nrow] == [4.0, 8.0, 7.0, 5.0, 6.0]
+        @test collect(iris_sepal_length_groups[:, :nrow]) == [250, 300, 1200, 2350, 3400]
+        @test collect(iris_sepal_length_groups[:, :nrow]) == [4.0, 8.0, 7.0, 5.0, 6.0]
     end
 
     run_with_job("Multiple evaluations apart - test 1") do job
