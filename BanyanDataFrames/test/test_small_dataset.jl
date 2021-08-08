@@ -12,12 +12,12 @@
         @test iris_filtered_collect[51, :sepal_length] == 6.3
 
         # Unique
-        unique_species = collect(iris[:, [:species,]])
-        @test unique_species[!, :species] == ["setosa", "versicolor", "virginica"]
-        @test collect(sum(nonunique(iris))) == 3
-        @test findall(collect(nonunique(iris))) == [35, 38, 143]
+        unique_species = collect(unique(iris[:, [:species,]]))
+        @test unique_species[:, :species] == ["setosa", "versicolor", "virginica"]
 
         # Nonunique
+        @test collect(sum(nonunique(iris))) == 3
+        @test findall(collect(nonunique(iris))) == [35, 38, 143]
         nonunique_species = collect(nonunique(iris, :species))
         @test sum(nonunique_species) == 147
         @test nonunique_species[[1, 51, 101]] == [0, 0, 0]
@@ -25,16 +25,16 @@
         # Dropmissing, allowmissing, disallowmissing
         @test nrow(dropmissing(iris)) == 150
         iris_allowmissing = allowmissing(iris)
-        setindex!(iris_allowmissing, missing, 1, 1)
-        setindex!(iris_allowmissing, missing, 123, 2)
-        setindex!(iris_allowmissing, missing, 150, 5)
-        iris_cleaned = dropmissing(iris_allowmissing)
-        iris_cleaned = disallowmissing(iris_cleaned)
-        @test nrow(iris_cleaned) == 147
-        @test collect(iris_cleaned[123, :])[:sepal_length] == 6.7
-        iris_cleaned = collect(iris_cleaned)
-        @test first(iris_cleaned)[:sepal_width] == 3.0
-        @test last(iris_cleaned)[:petal_width] == 2.3
+        #setindex!(iris_allowmissing, missing, 1, 1)
+        #setindex!(iris_allowmissing, missing, 123, 2)
+        #setindex!(iris_allowmissing, missing, 150, 5)
+        #iris_cleaned = dropmissing(iris_allowmissing)
+        #iris_cleaned = disallowmissing(iris_cleaned)
+        #@test nrow(iris_cleaned) == 147
+        #@test collect(iris_cleaned[123, :])[:sepal_length] == 6.7
+        #iris_cleaned = collect(iris_cleaned)
+        #@test first(iris_cleaned)[:sepal_width] == 3.0
+        #@test last(iris_cleaned)[:petal_width] == 2.3
     end
 
     run_with_job("Sorting small dataset") do job
@@ -72,22 +72,25 @@
         length_region = collect(combine(gdf_region, :petal_length => mean))
         counts_region = collect(combine(gdf_region, nrow))
 
-        @test lengths_species[!, :petal_length_mean] == lengths_region[!, :petal_length_mean] == [1.464, 4.26, 5.552]
-        @test counts_species[!, :nrow] == counts_region[!, :nrow] == [50, 50, 50]
+        @test lengths_species[:, :petal_length_mean] == lengths_region[:, :petal_length_mean] == [1.464, 4.26, 5.552]
+        @test counts_species[:, :nrow] == counts_region[:, :nrow] == [50, 50, 50]
     end
 
     run_with_job("Group and map over small dataset") do job
         bucket = get_cluster_s3_bucket_name(get_cluster().name)
         iris = read_csv("s3://$(bucket)/iris.csv")
 
+        # Prepare some larger data
         iris = innerjoin(iris, iris[:, [:species,]], on=:species)
         setindex!(iris, :petal_length_rounded, round.(iris[:, :petal_length]))
         gdf = groupby(iris, [:species, :petal_length_rounded])
+        @test length(gdf) == 9
 
         # Select
         iris_select = select(gdf, :, [:petal_length] => (pl) -> pl .- mean(pl))
-        @test collect(iris_select[1, :])[:petal_length] == 1.4
-        @test collect(iris_select[7488, :])[:petal_length] == 5.5
+        @test round.(collect(iris_select[:, :petal_length_function][[1, 7488, nrow(iris_select)]]), digits=3) == [0.078, -0.308, 0.014]
+        # @test collect(iris_select[1, :])[:petal_length] == 1.4
+        # @test collect(iris_select[7488, :])[:petal_length] == 5.5
         # setindex!(iris, :sepal_area, iris[:, :sepal_length] .* iris[:, :sepal_width])
         # first_row = first(collect(iris))
         # last_row = last(collect(iris))
@@ -95,23 +98,21 @@
         # @test last_row[:sepal_area] == 30.02
 
         # Transform
-        iris_new = transform(gdf, :species => x -> "iris-" .* x, keepkeys = false)
-        species_names = collect(unique(iris_new[!, "species_function"]))
+        iris_new = transform(gdf, :species => x -> "iris-" .* x)
+        species_names = collect(unique(iris_new[:, "species_function"]))
         @test species_names == ["iris-setosa", "iris-versicolor", "iris-virginica"]
 
         # Split-Apply-Combine
-        gdf = groupby(iris, :species)
-        @test length(gdf) == 3
         iris_mins = collect(combine(gdf, :petal_length => minimum))
-        @test iris_mins[!, :petal_length_minimum] == [1.0, 3.0, 4.5]
+        @test iris_mins[:, :petal_length_minimum] == [1.0, 1.5, 3.0, 3.5, 4.6, 4.5, 4.8, 5.5, 6.6]
 
         # Subset
         long_petal_iris = combine(
-            groupby(subset(iris, :petal_length => pl -> pl .>= 5.0), :species),
+            groupby(subset(iris, :petal_length => pl -> pl .>= mean(pl)), :species),
             nrow,
         )
-        @test collect(long_petal_iris)[!, :nrow] == [2, 44]
-        @test collect(long_petal_iris)[!, :species] == ["versicolor", "virginica"]
+        @test collect(long_petal_iris)[:, :nrow] == [1250, 1250, 1200]
+        @test collect(long_petal_iris)[:, :species] == ["setosa", "versicolor", "virginica"]
     end
 end
 
@@ -160,12 +161,14 @@ end
 
         # Inner join with itself on species to increase cardinality. Group by rounded sepal length
         # and compute number of rows. Sort by number of rows.
+        iris = innerjoin(iris, iris[:, [:species,]], on=:species)
+        iris[:, :sepal_length_function] = round.(iris[:, :sepal_length])
         iris_sepal_length_groups = compute(
 	    sort(
                 combine(
 		    groupby(
 		        rename(
-			    transform(innerjoin(iris, iris[:, [:species,]], on=:species), :sepal_length => sl -> round.(sl)),
+			    iris,
 			    :sepal_length_function => :sepal_length_rounded
 			),
 			:sepal_length_rounded
@@ -175,8 +178,8 @@ end
 		:nrow
             )
 	)
-        @test iris_sepal_length_groups[!, :nrow] == [250, 300, 1200, 2350, 3400]
-        @test iris_sepal_length_groups[!, :nrow] == [4.0, 8.0, 7.0, 5.0, 6.0]
+        @test collect(iris_sepal_length_groups[:, :nrow]) == [250, 300, 1200, 2350, 3400]
+        @test collect(iris_sepal_length_groups[:, :nrow]) == [4.0, 8.0, 7.0, 5.0, 6.0]
     end
 
     run_with_job("Multiple evaluations apart - test 1") do job
@@ -187,7 +190,7 @@ end
         # Compute cardinality of each group.
         # Also compute deviation from mean of petal_width of each group, filter for those with a deviation less that +/- 0.2,
         # and group on species.
-        iris_large = innerjoin(innerjoin(iris, iris[:, [:species,]], on=:species), iris[:, [:species,]], on=:species)
+        iris_large = groupby(innerjoin(innerjoin(iris, iris[:, [:species,]], on=:species), iris[:, [:species,]], on=:species), :species)
         iris_large_gdf = groupby(
 	    rename(
                 select(iris_large, :, [:species, :petal_length] => (s, pl) -> s .* "-pl=" .* string.(round.(pl))),
