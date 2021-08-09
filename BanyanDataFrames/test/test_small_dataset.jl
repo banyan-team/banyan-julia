@@ -18,21 +18,12 @@ end
         upload_iris_to_s3(bucket)
         iris = read_csv("s3://$(bucket)/iris.csv")
 
-        # Select rows that have a long petal length and width. Select only the petal columns.
-        
-
-        # Select the first and second columns
-
-        # Select rows 
-
-        # 
-        # @test collect(iris_select[1, :])[:petal_length] == 1.4
-        # @test collect(iris_select[7488, :])[:petal_length] == 5.5
-        # setindex!(iris, :sepal_area, iris[:, :sepal_length] .* iris[:, :sepal_width])
-        # first_row = first(collect(iris))
-        # last_row = last(collect(iris))
-        # @test first_row[:sepal_area] == 10.0
-        # @test last_row[:sepal_area] == 30.02
+        # Select rows that have a thin petal (i.e., length > 4 * width). Select only the petal columns.
+        res = collect(iris[iris[:, :petal_length] .> 4 * iris[:, :petal_width], :][:, [3, 4]])
+        @test round(sum(res[:, :petal_width])) == 10.0
+        @test res[1, 1] == 1.4
+        @test res[36, 2] == 0.3
+        @test res[44, 1] == 4.1
     end
 
     run_with_job("Filtering small dataset") do job
