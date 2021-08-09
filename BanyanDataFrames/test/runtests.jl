@@ -6,7 +6,11 @@ using Banyan
 using BanyanArrays
 using BanyanDataFrames
 
+using Arrow
+using CSV
+using DataFrames
 using FilePathsBase
+using Parquet
 using AWSS3
 using Statistics
 
@@ -104,7 +108,11 @@ end
 
 function verify_file_in_s3(bucket, path, download_path)
      if !s3_exists(Banyan.get_aws_config(), bucket, path)
-        download(download_path, S3Path("s3://$(bucket)/$(path)", config=Banyan.get_aws_config()))
+        if typeof(download_path) == String && (startswith(download_path, "https://") || startswith(download_path, "http://"))
+            download(download_path, S3Path("s3://$(bucket)/$(path)", config=Banyan.get_aws_config()))
+        else  # upload local file
+            cp(download_path, S3Path("s3://$(bucket)/$(path)", config=Banyan.get_aws_config()))
+        end
     end
 end
 

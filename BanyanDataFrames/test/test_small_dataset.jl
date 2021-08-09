@@ -19,7 +19,7 @@ end
         iris = read_csv("s3://$(bucket)/iris.csv")
 
         # Select rows that have a thin petal (i.e., length > 4 * width). Select only the petal columns.
-        res = collect(iris[iris[:, :petal_length] .> 4 * iris[:, :petal_width], :][:, [3, 4]])
+        res = collect(iris[map((pl, pw) -> pl > 4 * pw, iris[:, :petal_length], iris[:, :petal_width]), :][:, [3, 4]])
         @test round(sum(res[:, :petal_width])) == 10.0
         @test res[1, 1] == 1.4
         @test res[36, 2] == 0.3
@@ -71,13 +71,14 @@ end
         upload_iris_to_s3(bucket)
         iris = read_csv("s3://$(bucket)/iris.csv")
 
-        # Sort
-        new = sort(iris, :sepal_width)
-        sorted_iris = collect(new)
-        @test first(sorted_iris)[:sepal_width] == 2.0
-        @test first(sorted_iris)[:petal_length] == 3.5
-        @test last(sorted_iris)[:sepal_width] == 4.4
-        @test last(sorted_iris)[:petal_length] == 1.5
+        # Sort forward and backward
+        iris_sorted = sort(iris, :sepal_width)
+        iris_sorted_reverse = sort(iris, :sepal_width, rev=true)
+
+        iris_sorted = collect(iris_sorted)
+        iris_sorted_reverse = collect(iris_sorted_reverse)
+        @test iris_sorted[[1, 142, nrow(iris_sorted)], [:sepal_width, :petal_length]] == DataFrame(:sepal_width=>[2.0, 3.8, 4.4], :petal_length=>[3.5, 1.6, 1.5])
+        @test iris_sorted_reverse[[1, 142, nrow(iris_sorted)], [:sepal_width, :petal_length]] == DataFrame(:sepal_width => [4.4, 2.4, 2.0], :petal_length => [1.5, 3.7, 3.5])
     end
 
     run_with_job("Join and group-by-aggregate small dataset") do job
@@ -139,7 +140,7 @@ end
 
         # Subset
         long_petal_iris = combine(
-            groupby(subset(iris, :petal_length => pl -> pl .>= mean(pl)), :species),
+            groupby(subset(gdf, :petal_length => pl -> pl .>= mean(pl)), :species),
             nrow,
         )
         @test collect(long_petal_iris)[:, :nrow] == [1250, 1250, 1200]
@@ -183,23 +184,14 @@ end
         gdf = groupby(iris, :species)
         min_max = combine(gdf, :petal_length => minimum, :petal_length => maximum)
         iris_new = innerjoin(iris, min_max, on = :species)
-        result_2 = select(
-            iris_new,
-            1,
-            2,
-            3,
-            4,
-            5,
-            [:petal_length, :petal_length_minimum, :petal_length_maximum] =>
-                (pl, min, max) -> (pl .- min) ./ (max .- min),
-        )
+        iris_new[:, :petal_length_normalized] = map(
+	    (l, min, max) -> (pl - min) / (max - min),
+	    iris_new[:, :petal_length],
+	    iris_new[:, :petal_length_minimum],
+	    iris_new[:, :petal_length_maximum]
+	)
         result_2 =
-            sort(result_2, :petal_length_petal_length_minimum_petal_length_maximum_function)
-        result_2 = rename(
-            result_2,
-            :petal_length_petal_length_minimum_petal_length_maximum_function =>
-                :petal_length_normalized,
-        )
+            sort(iris_new, :petal_length_normalized)
 
         result_1 = collect(result_1)
         result_2 = collect(result_2)
