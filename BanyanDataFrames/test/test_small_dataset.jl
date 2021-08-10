@@ -12,7 +12,7 @@ function upload_iris_to_s3(bucket_name)
     CSV.write("iris.csv", df)
     verify_file_in_s3(
         bucket_name,
-	"iris.csv",
+	"iris_large.csv",
 	p"iris.csv",
     )
     verify_file_in_s3(
@@ -27,7 +27,7 @@ end
     run_with_job("Indexing") do job
         bucket = get_cluster_s3_bucket_name(get_cluster().name)
         upload_iris_to_s3(bucket)
-        iris = read_csv("s3://$(bucket)/iris.csv")
+        iris = read_csv("s3://$(bucket)/iris_large.csv")
 
         # Select rows that have a thin petal (i.e., length > 4 * width). Select only the petal columns.
         res = collect(iris[map((pl, pw) -> pl > 4 * pw, iris[:, :petal_length], iris[:, :petal_width]), :][:, [3, 4]])
@@ -41,7 +41,7 @@ end
     run_with_job("Filtering small dataset") do job
         bucket = get_cluster_s3_bucket_name(get_cluster().name)
         upload_iris_to_s3(bucket)
-        iris = read_csv("s3://$(bucket)/iris.csv")
+        iris = read_csv("s3://$(bucket)/iris_large.csv")
 
         # Filter
         iris_filtered =
@@ -82,7 +82,7 @@ end
     run_with_job("Sorting small dataset") do job
         bucket = get_cluster_s3_bucket_name(get_cluster().name)
         upload_iris_to_s3(bucket)
-        iris = read_csv("s3://$(bucket)/iris.csv")
+        iris = read_csv("s3://$(bucket)/iris_large.csv")
 
         # Sort forward and backward
         iris_sorted = sort(iris, :sepal_width)
@@ -98,7 +98,7 @@ end
         # Join and groupby aggregration
         bucket = get_cluster_s3_bucket_name(get_cluster().name)
         upload_iris_to_s3(bucket)
-        iris = read_csv("s3://$(bucket)/iris.csv")
+        iris = read_csv("s3://$(bucket)/iris_large.csv")
         species_info = read_csv("s3://$(bucket)/iris_species_info.csv")
         iris_new = innerjoin(iris, species_info, on = :species)
         @test ncol(iris_new) == 6
@@ -128,7 +128,7 @@ end
     run_with_job("Group and map over small dataset") do job
         bucket = get_cluster_s3_bucket_name(get_cluster().name)
         upload_iris_to_s3(bucket)
-        iris = read_csv("s3://$(bucket)/iris.csv")
+        iris = read_csv("s3://$(bucket)/iris_large.csv")
 
         # Prepare some larger data. Groupby by rounded petal length into 54 groups.
         iris = innerjoin(iris, iris[:, [:species]], on = :species)
@@ -165,7 +165,7 @@ end
     run_with_job("Simple group-by aggregation") do job
         bucket = get_cluster_s3_bucket_name(get_cluster().name)
         upload_iris_to_s3(bucket)
-        iris = read_csv("s3://$(bucket)/iris.csv")
+        iris = read_csv("s3://$(bucket)/iris_large.csv")
         gdf = groupby(iris, :species)
         lengths = collect(combine(gdf, :petal_length => mean))
         counts = collect(combine(gdf, nrow))
@@ -183,7 +183,7 @@ end
     run_with_job("Multiple evaluations together - test 1") do job
         bucket = get_cluster_s3_bucket_name(get_cluster().name)
         upload_iris_to_s3(bucket)
-        iris = read_csv("s3://$(bucket)/iris.csv")
+        iris = read_csv("s3://$(bucket)/iris_large.csv")
 
         # Compute the min-max normalized petal_length (within each species)
         # for each flower and sort by this value. Select those with normalized
@@ -232,7 +232,7 @@ end
     run_with_job("Multiple evaluations together - test 2") do job
         bucket = get_cluster_s3_bucket_name(get_cluster().name)
         upload_iris_to_s3(bucket)
-        iris = read_csv("s3://$(bucket)/iris.csv")
+        iris = read_csv("s3://$(bucket)/iris_large.csv")
 
         # Inner join with itself on species to increase cardinality. Group by rounded sepal length
         # and compute number of rows. Sort by number of rows.
@@ -257,7 +257,7 @@ end
     run_with_job("Multiple evaluations apart - test 1") do job
         bucket = get_cluster_s3_bucket_name(get_cluster().name)
         upload_iris_to_s3(bucket)
-        iris = read_csv("s3://$(bucket)/iris.csv")
+        iris = read_csv("s3://$(bucket)/iris_large.csv")
 
         # Inner join twice with itself on species to increase cardinality. Group by species and rounded petal length.
         # Compute cardinality of each group.
