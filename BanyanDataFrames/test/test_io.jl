@@ -88,7 +88,7 @@ end
     try
         s3_delete(get_cluster_s3_bucket_name(get_cluster().name), "iris_new.csv")
         s3_delete(get_cluster_s3_bucket_name(get_cluster().name), "iris_new.parquet")
-        s3_delete(get_cluster_s3_bucket_name(get_cluster().name), "iris_new.arrow"
+        s3_delete(get_cluster_s3_bucket_name(get_cluster().name), "iris_new.arrow")
     catch
     end
 end

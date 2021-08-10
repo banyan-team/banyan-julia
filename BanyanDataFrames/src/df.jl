@@ -215,21 +215,49 @@ Base.propertynames(df::DataFrame) = propertynames(sample(df))
 # end
 
 function pts_for_filtering(init::AbstractFuture, final::AbstractFuture; with, kwargs...)
-    for (initpt, finalpt) in zip(
+    # for (initpt, finalpt) in zip(
+    #     with(init; balanced=false, filtered_to=final, kwargs...),
+    #     with(final; balanced=false, filtered_from=init, kwargs...),
+    # )
+    #     # unbalanced -> balanced
+    #     pt(init, initpt, match=final, on=["distribution", "key", "divisions", "rev"])
+    #     pt(final, Balanced() & Drifted())
+
+    #     # unbalanced -> unbalanced
+    #     pt(init, initpt, match=final, on=["distribution", "key", "divisions", "rev"])
+    #     pt(final, finalpt & Drifted())
+
+    #     # balanced -> unbalanced
+    #     pt(init, Balanced(), match=final, on=["distribution", "key", "divisions", "rev"])
+    #     pt(final, finalpt & Drifted())
+    # end
+    # Initially, we thought that the above was okay (not computing the
+    # divisions by calling `with` with `balanced=true`). But then we realized
+    # that you might have some blocked data that you then need to call `unique`
+    # on and so you need to group it and then you're going to `comput` it right
+    # afterwards. In this scenario, you need to have a PT where you compute
+    # divisions with a call to `with` where `balanced=true`.
+    for (initpt_unbalanced, finalpt_unbalanced, initpt_balanced, finalpt_balanced) in zip(
+        # There should be a balanced and unbalanced PT for each possible key
+        # that the initial/final data can be grouped on
+        # unbalanced
         with(init; balanced=false, filtered_to=final, kwargs...),
         with(final; balanced=false, filtered_from=init, kwargs...),
+        # balanced
+        with(init; balanced=true, filtered_to=final, kwargs...),
+        with(final; balanced=true, filtered_from=init, kwargs...),
     )
         # unbalanced -> balanced
-        pt(init, initpt, match=final, on=["distribution", "key", "divisions", "rev"])
-        pt(final, Balanced() & Drifted())
+        pt(init, initpt_unbalanced, match=final, on="divisions")
+        pt(final, finalpt_balanced & Drifted())
 
         # unbalanced -> unbalanced
-        pt(init, initpt, match=final, on=["distribution", "key", "divisions", "rev"])
-        pt(final, finalpt & Drifted())
+        pt(init, initpt_unbalanced, match=final, on=["distribution", "key", "divisions", "rev"])
+        pt(final, finalpt_unbalanced & Drifted())
 
         # balanced -> unbalanced
-        pt(init, Balanced(), match=final, on=["distribution", "key", "divisions", "rev"])
-        pt(final, finalpt & Drifted())
+        pt(init, initpt_balanced, match=final, on="divisions")
+        pt(final, finalpt_unbalanced & Drifted())
     end
 end
 
@@ -561,24 +589,28 @@ function Base.getindex(df::DataFrame, rows=:, cols=:)
 
     partitioned_with() do
         if filter_rows
-            for (dfpt, respt) in zip(
+            for (dfpt_unbalanced, respt_unbalanced, dfpt_balanced, respt_balanced) in zip(
+                # unbalanced
                 Distributed(df; balanced=false, filtered_to=res, kwargs...),
                 Distributed(res; balanced=false, filtered_from=df, kwargs...),
+                # balanced
+                Distributed(df; balanced=true, filtered_to=res, kwargs...),
+                Distributed(res; balanced=true, filtered_from=df, kwargs...),
             )
                 # Return Blocked if return_vector or select_columns and grouping by non-selected
-                return_blocked = return_vector || (dfpt.distribution == "grouped" && !(dfpt.key in collect(cols)))
+                return_blocked = return_vector || (dfpt_balanced.distribution == "grouped" && !(dfpt_balanced.key in collect(cols)))
 
                 # unbalanced -> balanced
-                pt(df, dfpt, match=(return_blocked ? nothing : final), on=["distribution", "key", "divisions", "rev"])
-                pt(res, (return_blocked ? Blocked(along=1) : PartitionType()) & Balanced() & Drifted())
+                pt(df, dfpt_unbalanced, match=(return_blocked ? nothing : final), on=["distribution", "key", "divisions", "rev"])
+                pt(res, (return_blocked ? Blocked(along=1) : respt_balanced) & Balanced() & Drifted())
         
                 # unbalanced -> unbalanced
-                pt(df, dfpt, match=(return_blocked ? nothing : final), on=["distribution", "key", "divisions", "rev"])
-                pt(res, return_blocked ? Blocked(res, along=1, balanced=false, filtered_from=df) : respt & Drifted())
+                pt(df, dfpt_unbalanced, match=(return_blocked ? nothing : final), on=["distribution", "key", "divisions", "rev"])
+                pt(res, return_blocked ? Blocked(res, along=1, balanced=false, filtered_from=df) : respt_unbalanced & Drifted())
         
                 # balanced -> unbalanced
-                pt(df, Balanced(), match=(return_blocked ? nothing : final), on=["distribution", "key", "divisions", "rev"])
-                pt(res, return_blocked ? Blocked(res, along=1, balanced=false, filtered_from=df) : respt & Drifted())
+                pt(df, dfpt_balanced, match=(return_blocked ? nothing : final), on=["distribution", "key", "divisions", "rev"])
+                pt(res, return_blocked ? Blocked(res, along=1, balanced=false, filtered_from=df) : respt_unbalanced & Drifted())
 
                 if dfpt.distribution == "blocked" && dfpt.balanced
                     pt(rows, Blocked(along=1) & Balanced())
@@ -892,7 +924,10 @@ function Base.setindex!(df::DataFrame, v::Union{BanyanArrays.Vector, BanyanArray
             pt(df, dpt)
             pt(res, ScaledBySame(as=df), match=df)
 
-            if dfpt.distribution == "blocked" && dfpt.balanced
+            # The array that we are inserting into this dataframe must be
+            # partitioned with the same ID or it must be perfectly balanced
+            # if the original dataframe is also balanced.
+            if dpt.distribution == "blocked" && dpt.balanced
                 pt(v, Blocked(along=1) & Balanced())
             else
                 pt(v, Blocked(along=1), match=df, on=["balanced", "id"])
@@ -964,8 +999,8 @@ function Base.setindex!(df::DataFrame, v::Union{BanyanArrays.Vector, BanyanArray
     # # TODO: Implement this version of mut
     # mutated(df, res)
 
-    @partitioned df col cols res begin
-        df[:, cols] = col
+    @partitioned df v cols res begin
+        df[:, cols] = v
         res = df
     end
 
@@ -1067,7 +1102,7 @@ function DataFrames.rename(df::DataFrame, args...; kwargs...)
         end
         
         # replicated
-        pt(df, res, Replicated())
+        pt(df, res, args, kwargs, Replicated())
     end
 
     @partitioned df res args kwargs begin
@@ -1219,12 +1254,12 @@ function Base.sort(df::DataFrame, cols=:; kwargs...)
         # TODO: Implement reversed in Grouped constructor
         pt(df, Grouped(df, by=sortingkey, rev=isreversed) | Replicated())
         pt(res, PartitionType(), match=df)
-        pt(df, res, ols, kwargs, Replicated())
+        pt(df, res, cols, kwargs, Replicated())
     end
 
     # mutated(res)
 
-    @partitioned df res res_nrows cols kwargs begin
+    @partitioned df res cols kwargs begin
         res = sort(cols; kwargs...)
     end
 
@@ -1361,9 +1396,9 @@ function DataFrames.innerjoin(dfs::DataFrame...; on, kwargs...)
     res
 end
 
-function DataFrames.unique(df::DataFrame, cols=nothing; kwargs...)
-    !get(kwargs, :view, false) || throw(ArgumentError("Cannot return view of Banyan dataframe"))
-    !(cols isa Pair || cols isa Function) || throw(ArgumentError("Full select syntax not supported here currently"))
+function DataFrames.unique(df::DataFrame, cols=:; kwargs...)
+    !get(kwargs, :view, false) || throw(ArgumentError("Returning a view of a Banyan data frame is not yet supported"))
+    !(cols isa Pair || (cols isa Function && !(cols isa Colon))) || throw(ArgumentError("Unsupported specification of columns for which to get unique rows"))
 
     # TOOD: Just reuse select here
 
@@ -1380,7 +1415,7 @@ function DataFrames.unique(df::DataFrame, cols=nothing; kwargs...)
     partitioned_with() do
         pts_for_filtering(df, res, with=Grouped, by=first(collect(cols)))
         pt(res_nrows, Reducing(quote (a, b) -> a .+ b end))
-        pt(df, res, res_nrows, f, kwargs, Replicated())
+        pt(df, res, res_nrows, cols, kwargs, Replicated())
     end
 
     @partitioned df res res_nrows cols kwargs begin
@@ -1423,15 +1458,15 @@ function DataFrames.unique(df::DataFrame, cols=nothing; kwargs...)
     # res
 end
 
-function DataFrames.nonunique(df::DataFrame, cols=nothing; kwargs...)
+function DataFrames.nonunique(df::DataFrame, cols=:; kwargs...)
     !get(kwargs, :view, false) || throw(ArgumentError("Cannot return view of Banyan dataframe"))
-    !(cols isa Pair || cols isa Function) || throw(ArgumentError("Full select syntax not supported here currently"))
+    !(cols isa Pair || (cols isa Function && !(cols isa Colon))) || throw(ArgumentError("Unsupported specification of columns for which to get unique rows"))
 
     # TOOD: Just reuse select here
 
     df_nrows = df.nrows
-    res_size = Future(df.nrows, mutation=Tuple)
-    res = Vector{Bool}(Future(), res_size)
+    res_size = Future(df.nrows, mutation=tuple)
+    res = BanyanArrays.Vector{Bool}(Future(), res_size)
     cols = Future(Symbol.(names(sample(df), cols)))
     kwargs = Future(kwargs)
 
@@ -1444,7 +1479,7 @@ function DataFrames.nonunique(df::DataFrame, cols=nothing; kwargs...)
         pt(res, Blocked(along=1), match=df, on=["balanced", "id"])
         pt(df_nrows, Replicating())
         pt(res_size, PartitionType(), match=df_nrows)
-        pt(df, res, res_size, f, kwargs, Replicated())
+        pt(df, res, res_size, cols, kwargs, Replicated())
     end
 
     @partitioned df df_nrows res res_size cols kwargs begin

@@ -35,7 +35,7 @@ end
         @test res[1, 1] == 1.4
         @test res[36, 2] == 0.3
         @test res[44, 1] == 4.1
-        @test collect(res[256, [1, 2]]) = [1.3, 0.3]
+        @test collect(res)[256, [1, 2]] = [1.3, 0.3]
     end
 
     run_with_job("Filtering small dataset") do job

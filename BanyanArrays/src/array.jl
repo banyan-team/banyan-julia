@@ -583,7 +583,9 @@ end
 
 # Array binary operations
 
-for op in [:+, :-, :>, :<, :(>=), :(<=), :(==), :!=]
+# for op in [:+, :-, :>, :<, :(>=), :(<=), :(==), :!=]
+# NOTE: Only addition and subtraction are supported
+for op in [:+, :-]
     @eval begin
         Base.$op(A::Array{T,N}, B::Array{T,N}) where {T,N} = map($op, A, B)
     end

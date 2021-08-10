@@ -126,6 +126,7 @@ function ReadBlock(
                 )
                 nrows += part_nrows
             end
+            loc_params = Dict{String,Any}(loc_params)
             loc_params["files"] = files
             loc_params["nrows"] = nrows
         else
@@ -174,7 +175,7 @@ function ReadBlock(
             elseif endswith(path, ".arrow")
                 rbrowrange = filerowrange.start:(filerowrange.start-1)
                 for tbl in Arrow.Stream(path)
-                    rbrowrange = (rbrowrange.stop+1):(rbrowrange.stop+length(tbl))
+                    rbrowrange = (rbrowrange.stop+1):(rbrowrange.stop+Tables.rowcount(tbl))
                     if isoverlapping(rbrowrange, rowrange)
                         readrange =
                             max(rowrange.start, rbrowrange.start):min(
@@ -260,11 +261,13 @@ function ReadGroup(
                 Dict(),
                 params,
                 comm,
-                boundedlower = i == 1,
-                boundedupper = i == nbatches,
+                boundedlower = i > 1,
+                boundedupper = i < nbatches,
             ),
         )
     end
+
+    @show get_worker_idx(comm) parts
 
     # Concatenate together the data for this partition
     # res = merge_on_executor(parts, dims=isa_array(first(parts)) ? key : 1)
@@ -278,7 +281,7 @@ function ReadGroup(
     splitting_divisions[res] =
         (partition_divisions[partition_idx], partition_idx > 1, partition_idx < npartitions)
 
-    @show typeof(res)
+    # @show res
     res
 end
 
@@ -326,14 +329,8 @@ function Write(
     if isa_df(part)
         actualpath = deepcopy(path)
         if nbatches > 1
+            # TODO: Ensure that path does not end with "/" or "\" by instead using splitpath and joinpath
             path = path * "_tmp"
-        end
-
-        # Create directory if it doesn't exist
-        # TODO: Avoid this and other filesystem operations that would be costly
-        # since S3FS is being used
-        if !isdir(path)
-            mkpath(path)
         end
 
         # TODO: Delete existing files that might be in the directory but first
@@ -354,14 +351,22 @@ function Write(
             MPI.Barrier(comm)
         end
 
-        if nbatches == 1
-            # If there is no batching we can delete the original directory
-            # right away. Otherwise, we must delete the original directory
-            # only at the end.
-            # TODO: When refactoring the locations, think about how to allow
-            # stuff in the directory
-            rm(actualpath, force=true, recursive=true)
+        if worker_idx == 1
+            if nbatches == 1
+                # If there is no batching we can delete the original directory
+                # right away. Otherwise, we must delete the original directory
+                # only at the end.
+                # TODO: When refactoring the locations, think about how to allow
+                # stuff in the directory
+                rm(actualpath, force=true, recursive=true)
+            end
+
+            # Create directory if it doesn't exist
+            # TODO: Avoid this and other filesystem operations that would be costly
+            # since S3FS is being used
+            mkpath(path)
         end
+        MPI.Barrier(comm)
 
         nrows = size(part, 1)
         if endswith(path, ".parquet")
@@ -377,14 +382,21 @@ function Write(
         MPI.Barrier(comm)
         if nbatches > 1 && batch_idx == nbatches
             tmpdir = readdir(path)
-            rm(actualpath, force=true, recursive=true)
+            if worker_idx == 1
+                rm(actualpath, force=true, recursive=true)
+                mkpath(actualpath)
+            end
+            MPI.Barrier(comm)
             for batch_i in 1:nbatches
                 idx = get_partition_idx(batch_i, nbatches, worker_idx)
                 cp(join(path, tmpdir[idx]), join(actualpath, tmpdir[idx]))
             end
             MPI.Barrier(comm)
             # TODO: Maybe somehow flush the above or fsync the directory
-            rm(path, force=true, recursive=true)
+            if worker_idx == 1
+                rm(path, force=true, recursive=true)
+            end
+            MPI.Barrier(comm)
         end
         src
         # TODO: Delete all other part* files for this value if others exist
@@ -1804,6 +1816,13 @@ function Shuffle(
     end
 
     # Perform shuffle
+    @show divisions
+    @show divisions_by_worker
+    @show orderinghash("setosa")
+    @show orderinghash("versicolor")
+    @show orderinghash("virginica")
+    @show boundedlower
+    @show boundedupper
     partition_idx_getter(val) = get_partition_idx_from_divisions(
         val,
         divisions_by_worker,
@@ -1822,6 +1841,7 @@ function Shuffle(
 
         # Compute the partition to send each row of the dataframe to
         transform!(part, key => ByRow(partition_idx_getter) => :banyan_shuffling_key)
+        @show worker_idx part
 
         # Group the dataframe's rows by what partition to send to
         gdf = groupby(part, :banyan_shuffling_key, sort = true)
@@ -1831,7 +1851,7 @@ function Shuffle(
         nbyteswritten = 0
         df_counts::Vector{Int64} = []
         for partition_idx = 1:nworkers
-            Arrow.write(io, partition_idx in keys(gdf) ? gdf[partition_idx] : part[1:0, :])
+            Arrow.write(io, partition_idx in keys(gdf) ? gdf[(banyan_shuffling_key=partition_idx,)] : part[1:0, :])
             push!(df_counts, io.size - nbyteswritten)
             nbyteswritten = io.size
         end

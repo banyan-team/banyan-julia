@@ -26,6 +26,8 @@ valuecols(gdf::GroupedDataFrame) = valuecols(sample(gdf))
 # GroupedDataFrame creation
 
 function DataFrames.groupby(df::DataFrame, cols; kwargs...)::GroupedDataFrame
+    get(kwargs, :sort, true) || error("Groups cannot currently be ordered by how they originally appeared")
+
     gdf_data = Future()
     gdf_length = Future()
     cols = Future(cols)
