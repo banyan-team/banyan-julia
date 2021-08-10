@@ -267,7 +267,7 @@ function ReadGroup(
         )
     end
 
-    @show get_worker_idx(comm) parts
+    # @show get_worker_idx(comm) parts
 
     # Concatenate together the data for this partition
     # res = merge_on_executor(parts, dims=isa_array(first(parts)) ? key : 1)
@@ -364,6 +364,7 @@ function Write(
             # Create directory if it doesn't exist
             # TODO: Avoid this and other filesystem operations that would be costly
             # since S3FS is being used
+            rm(path, force=true, recursive=true)
             mkpath(path)
         end
         MPI.Barrier(comm)
@@ -377,6 +378,7 @@ function Write(
             CSV.write(partfilepath, part)
         else
             partfilepath = joinpath(path, "part$idx" * "_nrows=$nrows.arrow")
+            @show partfilepath
             Arrow.write(partfilepath, part)
         end
         MPI.Barrier(comm)
@@ -389,7 +391,7 @@ function Write(
             MPI.Barrier(comm)
             for batch_i in 1:nbatches
                 idx = get_partition_idx(batch_i, nbatches, worker_idx)
-                cp(join(path, tmpdir[idx]), join(actualpath, tmpdir[idx]))
+                cp(joinpath(path, tmpdir[idx]), joinpath(actualpath, tmpdir[idx]))
             end
             MPI.Barrier(comm)
             # TODO: Maybe somehow flush the above or fsync the directory
@@ -1816,20 +1818,20 @@ function Shuffle(
     end
 
     # Perform shuffle
-    @show divisions
-    @show divisions_by_worker
-    @show orderinghash("setosa")
-    @show orderinghash("versicolor")
-    @show orderinghash("virginica")
-    @show boundedlower
-    @show boundedupper
+    # @show divisions
+    # @show divisions_by_worker
+    # @show orderinghash("setosa")
+    # @show orderinghash("versicolor")
+    # @show orderinghash("virginica")
+    # @show boundedlower
+    # @show boundedupper
     partition_idx_getter(val) = get_partition_idx_from_divisions(
         val,
         divisions_by_worker,
         boundedlower = boundedlower,
         boundedupper = boundedupper,
     )
-    @show typeof(part)
+    # @show typeof(part)
     res = if isa_df(part)
         # Ensure that this partition has a schema that is suitable for usage
         # here. We have to do this for `Shuffle` and `SplitGroup` (which is

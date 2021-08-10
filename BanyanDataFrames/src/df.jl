@@ -1479,7 +1479,7 @@ function DataFrames.nonunique(df::DataFrame, cols=:; kwargs...)
         pt(res, Blocked(along=1), match=df, on=["balanced", "id"])
         pt(df_nrows, Replicating())
         pt(res_size, PartitionType(), match=df_nrows)
-        pt(df, res, res_size, cols, kwargs, Replicated())
+        pt(df, res, df_nrows, res_size, cols, kwargs, Replicated())
     end
 
     @partitioned df df_nrows res res_size cols kwargs begin

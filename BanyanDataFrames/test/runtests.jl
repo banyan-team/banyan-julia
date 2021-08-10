@@ -125,7 +125,7 @@ with_job(job=job) do j
         configure_scheduling(encourage_parallelism_with_batches=true)
         include_all_tests()
     else
-        configure_scheduling(encourage_parallelism=true)
+        configure_scheduling(encourage_parallelism_with_batches=true)
         include_all_tests()
     end
 end

@@ -6,7 +6,7 @@ function upload_iris_to_s3(bucket_name)
     species_list = df[:, :species]
     df = reduce(vcat, [df, df, df, df, df, df])
     for i in 4:18
-        species_list = append!(species_list, fill("species_$(i)", 50))
+        species_list = append!(species_list, Base.fill("species_$(i)", 50))
     end
     df[:, :species] = species_list
     CSV.write("iris.csv", df)
@@ -24,7 +24,7 @@ end
 
 
 @testset "Basic data analytics on a small dataset" begin
-    run_with_job("Indexing") do job
+    run_with_job("Indexing small dataset") do job
         bucket = get_cluster_s3_bucket_name(get_cluster().name)
         upload_iris_to_s3(bucket)
         iris = read_csv("s3://$(bucket)/iris_large.csv")
@@ -162,7 +162,7 @@ end
         @test collect(long_petal_iris)[:, :species] == ["setosa", "versicolor", "virginica", "species_4", "species_5", "species_6", "species_7", "species_8", "species_9", "species_10", "species_11", "species_12", "species_13", "species_14", "species_15", "species_16", "species_17", "species_18"]
     end
 
-    run_with_job("Simple group-by aggregation") do job
+    run_with_job("Simple group-by aggregation on small dataset") do job
         bucket = get_cluster_s3_bucket_name(get_cluster().name)
         upload_iris_to_s3(bucket)
         iris = read_csv("s3://$(bucket)/iris_large.csv")
@@ -180,7 +180,7 @@ end
 end
 
 @testset "Complex data analytics on a small dataset" begin
-    run_with_job("Multiple evaluations together - test 1") do job
+    run_with_job("Multiple evaluations together (test 1) on small dataset") do job
         bucket = get_cluster_s3_bucket_name(get_cluster().name)
         upload_iris_to_s3(bucket)
         iris = read_csv("s3://$(bucket)/iris_large.csv")
@@ -229,7 +229,7 @@ end
               1.0
     end
 
-    run_with_job("Multiple evaluations together - test 2") do job
+    run_with_job("Multiple evaluations together (test 2) on small dataset") do job
         bucket = get_cluster_s3_bucket_name(get_cluster().name)
         upload_iris_to_s3(bucket)
         iris = read_csv("s3://$(bucket)/iris_large.csv")
@@ -254,7 +254,7 @@ end
         @test collect(iris_sepal_length_groups[:, :nrow]) == [4.0, 8.0, 7.0, 5.0, 6.0]
     end
 
-    run_with_job("Multiple evaluations apart - test 1") do job
+    run_with_job("Multiple evaluations apart on small dataset") do job
         bucket = get_cluster_s3_bucket_name(get_cluster().name)
         upload_iris_to_s3(bucket)
         iris = read_csv("s3://$(bucket)/iris_large.csv")
