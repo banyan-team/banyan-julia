@@ -24,13 +24,16 @@ end
         # Get all trips with distance longer than 1.0, group by passenger count,
         # and get the average trip distance for each group
         distances = collect(
-            combine(
-                groupby(filter(row -> row.trip_distance > 1.0, tripdata), :passenger_count),
-                :trip_distance => mean,
-            ),
+            sort(
+                combine(
+                    groupby(filter(row -> row.trip_distance > 1.0, tripdata), :passenger_count),
+                    :trip_distance => mean,
+                ),
+		:trip_distance_mean
+	    )
         )
-        isapprox(first(distances)[:trip_distance_mean], 8.1954, atol = 1e-3)
-        isapprox(last(distances)[:trip_distance_mean], 8.2757, atol = 1e-3)
+        @test distances[:, :passenger_count] == [6, 3, 5, 2, 1, 7, 0, 9, 8, 4]
+        @test round.(distances[:, :trip_distance_mean], digits = 3) == [3.631, 3.725, 3.729, 5.296, 6.328, 7.15, 8.195, 8.276, 12.091, 19.087]
     end
 
     run_with_job("Operations on DateTime") do job

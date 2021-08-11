@@ -185,6 +185,32 @@ end
         @test lengths[:, :petal_length_mean] == [1.464, 1.464, 4.26, 5.552, 1.464, 4.26, 5.552, 1.464, 4.26, 5.552, 1.464, 4.26, 5.552, 1.464, 4.26, 5.552, 4.26, 5.552]
         @test counts[:, :nrow] == fill(50, 18)
     end
+
+    run_with_job("Inner Join") do job
+        bucket = get_cluster_s3_bucket_name(get_cluster().name)
+        upload_iris_to_s3(bucket)
+        iris = read_csv("s3://$(bucket)/iris_large.csv")
+        species_info = read_csv("s3://$(bucket)/iris_species_info.csv")
+
+        # Rename columns of species_info
+        iris_species_info = rename(species_info, :species => :species_info, :region => :region_info)
+
+        # Join iris and species_info on the :species/:species_info column
+        iris_joined = innerjoin(iris, iris_species_info, on = :species => :species_info, renamecols = uppercase => uppercase)
+        @test Set(names(iris_joined)) == Set(["SEPAL_WIDTH", "PETAL_WIDTH", "REGION_INFO", "PETAL_LENGTH", "SEPAL_LENGTH", "species"])
+        @test nrow(iris_joined) == 900
+
+        # Join iris on multiple columns
+        iris[:, :petal_length_rounded] = map(pl -> round(pl), iris[:, :petal_length])
+        species_info[:, :pl_rounded] = [1, 2, 3, 4, 5, 6, 7, 1, 2, 3, 4, 5, 6, 7, 1, 2, 3, 4]
+        iris_joined = sort(innerjoin(iris, species_info, on=[:species, :petal_length_rounded=>:pl_rounded], :sepal_length)
+        @test Set(names(iris_joined)) == Set(["sepal_length", "sepal_width", "petal_length", "petal_width", "species", "petal_length_rounded", "region"])
+        @test nrow(iris_joined) == 146
+	res = collect(iris_joined)
+	@test collect(res[1, :]) == [4.3, 3.0, 1.1, 0.1, "setosa", 1.0, "Arctic"]
+	@test collect(res[121, :]) == [6.6, 2.9, 4.6, 1.3, "species_5", 5.0, "region_5"]
+	@test collect(res[146, :]) == [7.9, 3.8, 6.4, 2.0, "species_6", 6.0, "region_6"]
+    end
 end
 
 @testset "Complex data analytics on a small dataset" begin
