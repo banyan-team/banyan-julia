@@ -235,8 +235,9 @@ function ReadGroup(
     curr_partition_divisions = []
     for worker_division_idx = 1:nworkers
         for batch_division_idx = 1:nbatches
-            partition_division_idx =
-                (worker_division_idx - 1) * nbatches + batch_division_idx
+            # partition_division_idx =
+            #     (worker_division_idx - 1) * nbatches + batch_division_idx
+            partition_division_idx = get_partition_idx(batch_division_idx, nbatches, worker_division_idx)
             if batch_division_idx == batch_idx
                 p_divisions = partition_divisions[partition_division_idx]
                 push!(
@@ -259,10 +260,10 @@ function ReadGroup(
             Shuffle(
                 part,
                 Dict(),
-                params,
+                merge(params, Dict("divisions" => curr_partition_divisions)),
                 comm,
-                boundedlower = i > 1,
-                boundedupper = i < nbatches,
+                boundedlower = batch_idx > 1,
+                boundedupper = batch_idx < nbatches,
             ),
         )
     end
@@ -364,8 +365,10 @@ function Write(
             # Create directory if it doesn't exist
             # TODO: Avoid this and other filesystem operations that would be costly
             # since S3FS is being used
-            rm(path, force=true, recursive=true)
-            mkpath(path)
+            if batch_idx == 1
+                rm(path, force=true, recursive=true)
+                mkpath(path)
+            end
         end
         MPI.Barrier(comm)
 
@@ -389,6 +392,7 @@ function Write(
                 mkpath(actualpath)
             end
             MPI.Barrier(comm)
+            @show path tmpdir get_nworkers(comm) nbatches
             for batch_i in 1:nbatches
                 idx = get_partition_idx(batch_i, nbatches, worker_idx)
                 cp(joinpath(path, tmpdir[idx]), joinpath(actualpath, tmpdir[idx]))
@@ -1438,12 +1442,15 @@ function Merge(
             push!(partial_merges, objectid(src))
         end
         push!(src, part)
+        println("In Merge")
+        @show src part
         if batch_idx == 1 || batch_idx == nbatches
             # println("At start of merging worker_idx=$worker_idx, batch_idx=$batch_idx/$nbatches with available memory: $(format_available_memory()) and used: $(format_bytes(Base.summarysize(src)))")
         end
         if batch_idx == nbatches
             # println("At start of merging worker_idx=$worker_idx, batch_idx=$batch_idx/$nbatches with available memory: $(format_available_memory())")
             delete!(partial_merges, objectid(src))
+            @show worker_idx batch_idx src
 
             # TODO: Test that this merges correctly
             # src = merge_on_executor(src...; dims=dim)
@@ -1491,6 +1498,7 @@ function CopyFrom(
         # else
         #     nothing
         # end
+        params = Dict{String,Any}(params)
         params["key"] = 1
         res = ReadBlock(src, params, 1, 1, MPI.COMM_SELF, loc_name, loc_params)
         # # # println("In CopyFrom")
@@ -1498,6 +1506,7 @@ function CopyFrom(
         # @show res
         res
     elseif loc_name == "Remote"
+        params = Dict{String,Any}(params)
         params["key"] = 1
         ReadBlock(src, params, 1, 1, MPI.COMM_SELF, loc_name, loc_params)
     elseif loc_name == "Client" && get_partition_idx(batch_idx, nbatches, comm) == 1
@@ -1593,6 +1602,7 @@ function ReduceAndCopyTo(
     # # # println("In ReduceAndCopyTo where batch_idx=$batch_idx")
     # @show src
     # Merge reductions across workers
+    # @show src part params["with_key"]
     if batch_idx == nbatches
         src = Reduce(src, params, Dict(), comm)
 
@@ -1818,13 +1828,13 @@ function Shuffle(
     end
 
     # Perform shuffle
-    # @show divisions
-    # @show divisions_by_worker
-    # @show orderinghash("setosa")
-    # @show orderinghash("versicolor")
-    # @show orderinghash("virginica")
-    # @show boundedlower
-    # @show boundedupper
+    @show divisions
+    @show divisions_by_worker
+    @show orderinghash("setosa")
+    @show orderinghash("versicolor")
+    @show orderinghash("virginica")
+    @show boundedlower
+    @show boundedupper
     partition_idx_getter(val) = get_partition_idx_from_divisions(
         val,
         divisions_by_worker,
@@ -1853,7 +1863,7 @@ function Shuffle(
         nbyteswritten = 0
         df_counts::Vector{Int64} = []
         for partition_idx = 1:nworkers
-            Arrow.write(io, partition_idx in keys(gdf) ? gdf[(banyan_shuffling_key=partition_idx,)] : part[1:0, :])
+            Arrow.write(io, (banyan_shuffling_key=partition_idx,) in keys(gdf) ? gdf[(banyan_shuffling_key=partition_idx,)] : part[1:0, :])
             push!(df_counts, io.size - nbyteswritten)
             nbyteswritten = io.size
         end

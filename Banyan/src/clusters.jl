@@ -354,9 +354,13 @@ function create_cluster(;
 )
     @debug "Creating cluster"
 
+    clusters = get_clusters(;kwargs...)
+    if isnothing(name)
+        name = "Cluster " * string(length(clusters) + 1)
+    end
+
     # Check if the configuration for this cluster name already exists
     # If it does, then recreate cluster
-    clusters = get_clusters()
     if haskey(clusters, name)
         if clusters[name][status] == "terminated"
             @warn "Cluster configuration with name $name already exists. Ignoring new configuration and re-creating cluster."
@@ -371,11 +375,6 @@ function create_cluster(;
 
     # Configure using parameters
     c = configure(; require_ec2_key_pair_name = true, kwargs...)
-    name = if !isnothing(name)
-        name
-    else
-        "banyan-cluster-" * randstring(6)
-    end
 
     if isnothing(s3_bucket_arn) && isnothing(s3_bucket_name)
         s3_bucket_arn =
@@ -446,6 +445,7 @@ function update_cluster(;
     banyanfile::Union{Dict, Nothing} = nothing,
     reinstall_julia = false,
     force = false,
+    destroy_all_jobs_before = false,
     kwargs...,
 )
     @info "Starting cluster update"
@@ -466,6 +466,11 @@ function update_cluster(;
         "cluster_name" => cluster_name,
 	"reinstall_julia" => reinstall_julia
     )
+
+    # Destroy all jobs before updating
+    if destroy_all_jobs_before
+        destroy_all_jobs(name)
+    end
 
     # Force by setting cluster to running
     if force

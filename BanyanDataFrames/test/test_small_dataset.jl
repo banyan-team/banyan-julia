@@ -35,8 +35,10 @@ end
         @test res[1, 1] == 1.0
         @test res[36, 2] == 0.2
         @test res[44, 1] == 1.3
-        @test collect(res[256, [1, 2]]) = [1.9, 0.4]
-        @test collect(res[nrow(res), [1, 2]]) == [4.1, 1.0]
+        res_row_1 = res[256, [1, 2]]
+        @test collect(res_row_1) = [1.9, 0.4]
+        res_row_2 = res[nrow(res), [1, 2]]
+        @test collect(res_row_2) == [4.1, 1.0]
     end
 
     run_with_job("Filtering small dataset") do job
@@ -63,6 +65,7 @@ end
         # Nonunique
         nonunique_idxs = nonunique(iris)
         @test collect(sum(nonunique_idxs)) == 18
+        @show nonunique_idxs
         nonunique_iris = collect(sort(iris[nonunique_idxs, :]))
         @test collect(first(nonunique_iris)) == [4.9, 3.1, 1.5, 0.1, "setosa"]
         @test collect(nonunique_iris[10, :]) == [4.9, 3.1, 1.5, 0.1, "species_4"]
