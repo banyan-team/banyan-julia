@@ -448,7 +448,7 @@ function getpath(path)
         # TODO: Add option for Internet locations as to whether or not to
         # cache on disk
         hashed_path = string(hash(path))
-        joined_path = "banyan_hdf5_dataset_" * hashed_path
+        joined_path = "efs/banyan_dataset_" * hashed_path
         if !isfile(joined_path)
             # NOTE: Even though we are storing in /tmp, this is
             # effectively caching the download. If this is undesirable
@@ -459,11 +459,11 @@ function getpath(path)
         end
         joined_path
     elseif startswith(path, "s3://")
-        replace(path, "s3://" => "/home/ec2-user/mnt/")
+        replace(path, "s3://" => "/home/ec2-user/s3fs/")
         # NOTE: We expect that the ParallelCluster instance was set up
-        # to have the S3 filesystem mounted at /mnt/<bucket name>
+        # to have the S3 filesystem mounted at ~/s3fs/<bucket name>
     else
         # Case of local paths to things stored on disk
-        path
+        "efs/"*path
     end
 end

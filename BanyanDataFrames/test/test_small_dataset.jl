@@ -206,7 +206,7 @@ end
         # Join iris on multiple columns
         iris[:, :petal_length_rounded] = map(pl -> round(pl), iris[:, :petal_length])
         species_info[:, :pl_rounded] = [1, 2, 3, 4, 5, 6, 7, 1, 2, 3, 4, 5, 6, 7, 1, 2, 3, 4]
-        iris_joined = sort(innerjoin(iris, species_info, on=[:species, :petal_length_rounded=>:pl_rounded], :sepal_length)
+        iris_joined = sort(innerjoin(iris, species_info, on=[:species, :petal_length_rounded=>:pl_rounded], :sepal_length))
         @test Set(names(iris_joined)) == Set(["sepal_length", "sepal_width", "petal_length", "petal_width", "species", "petal_length_rounded", "region"])
         @test nrow(iris_joined) == 146
 	res = collect(iris_joined)
