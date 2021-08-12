@@ -82,6 +82,7 @@ end
         tripdata = read_csv("s3://$(bucket)/tripdata.csv")
 
         # Group by passenger count and compute min-max normalized trip distance. Get average for each group.
+        # Sort by the average.
         gdf = groupby(tripdata, :passenger_count)
 
         # Method 1
@@ -93,7 +94,7 @@ end
 	    result_1,
 	    :trip_distance_function => :trip_distance_normalized
 	)
-        result_1 = combine(groupby(result_1, :passenger_count), :trip_distance_normalized => mean)
+        result_1 = sort(combine(groupby(result_1, :passenger_count), :trip_distance_normalized => mean),  :trip_distance_normalized_mean)
 
         # Method 2
         min_max = combine(gdf, :trip_distance => minimum, :trip_distance => maximum)
@@ -104,11 +105,11 @@ end
 	    result_2[:, :trip_distance_minimum],
 	    result_2[:, :trip_distance_maximum]
 	)
-        result_2 = combine(groupby(result_2, :passenger_count), :trip_distance_normalized => mean)
+        result_2 = sort(combine(groupby(result_2, :passenger_count), :trip_distance_normalized => mean), :trip_distance_normalized_mean)
 
         result_1 = collect(result_1)
         result_2 = collect(result_2)
-        @test round.(result_1[:, :trip_distance_normalized_mean], digits=3) == round.(result_2[:, :trip_distance_normalized_mean], digits=3) == [0.031, 0.0, 0.0, 0.013, 0.0, 0.021, 0.042, 0.146, 0.181, 0.112]
+        @test round.(result_1[:, :trip_distance_normalized_mean], digits=3) == round.(result_2[:, :trip_distance_normalized_mean], digits=3) == [0.0, 0.0, 0.0, 0.013, 0.021, 0.031, 0.042, 0.112, 0.146, 0.181]
     end
 
     run_with_job("Select and subset") do job
@@ -132,7 +133,7 @@ end
         res_2 = select(groupby(res, :day), :tpep_pickup_datetime, :tpep_dropoff_datetime, :trip_distance .=> mean)
         write_csv(res_2, "s3://$(bucket)/tripdata_new.csv")
 
-        @test collect(combine(groupby(res, :passenger_count), nrow))[:, :nrow] == [69, 1813376, 403749, 109032, 53536, 149283, 88698, 6, 11, 3]
-        @test collect(combine(groupby(res_2, :day)))[:, :day] == [103117, 83528, 80937, 120, 27639, 91998, 96279, 105021, 117609, 98359, 88022, 97655, 106757, 105257, 106580, 116446, 106687, 86604, 97973, 100627, 26725, 110904, 25868, 40623, 71419, 85354, 95915, 2477, 112558, 127809, 100896]
+        @test sort(collect(combine(groupby(res, :passenger_count), nrow))[:, :nrow]) == [3, 6, 11, 69, 53536, 88698, 109032, 149283, 403749, 1813376]
+        @test sort(collect(combine(groupby(res_2, :day)))[:, :day]) == [120, 2477, 25868, 26725, 27639, 40623, 71419, 80937, 83528, 85354, 86604, 88022, 91998, 95915, 96279, 97655, 97973, 98359, 100627, 100896, 103117, 105021, 105257, 106580, 106687, 106757, 110904, 112558, 116446, 117609, 127809]
     end
 end
