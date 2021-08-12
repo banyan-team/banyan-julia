@@ -313,7 +313,7 @@ function Write(
     elseif startswith(path, "s3://")
         path = getpath(path)
         # NOTE: We expect that the ParallelCluster instance was set up
-        # to have the S3 filesystem mounted at mnt/<bucket name>
+        # to have the S3 filesystem mounted at ~/s3fs/<bucket name>
     end
 
     # # # println("In Write where batch_idx=$batch_idx")

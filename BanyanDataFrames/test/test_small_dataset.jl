@@ -35,8 +35,10 @@ end
         @test res[1, 1] == 1.0
         @test res[36, 2] == 0.2
         @test res[44, 1] == 1.3
-        @test collect(res[256, [1, 2]]) = [1.9, 0.4]
-        @test collect(res[nrow(res), [1, 2]]) == [4.1, 1.0]
+        res_row_1 = res[256, [1, 2]]
+        @test collect(res_row_1) = [1.9, 0.4]
+        res_row_2 = res[nrow(res), [1, 2]]
+        @test collect(res_row_2) == [4.1, 1.0]
     end
 
     run_with_job("Filtering small dataset") do job
@@ -63,6 +65,7 @@ end
         # Nonunique
         nonunique_idxs = nonunique(iris)
         @test collect(sum(nonunique_idxs)) == 18
+        @show nonunique_idxs
         nonunique_iris = collect(sort(iris[nonunique_idxs, :]))
         @test collect(first(nonunique_iris)) == [4.9, 3.1, 1.5, 0.1, "setosa"]
         @test collect(nonunique_iris[10, :]) == [4.9, 3.1, 1.5, 0.1, "species_4"]
@@ -203,7 +206,7 @@ end
         # Join iris on multiple columns
         iris[:, :petal_length_rounded] = map(pl -> round(pl), iris[:, :petal_length])
         species_info[:, :pl_rounded] = [1, 2, 3, 4, 5, 6, 7, 1, 2, 3, 4, 5, 6, 7, 1, 2, 3, 4]
-        iris_joined = sort(innerjoin(iris, species_info, on=[:species, :petal_length_rounded=>:pl_rounded], :sepal_length)
+        iris_joined = sort(innerjoin(iris, species_info, on=[:species, :petal_length_rounded=>:pl_rounded], :sepal_length))
         @test Set(names(iris_joined)) == Set(["sepal_length", "sepal_width", "petal_length", "petal_width", "species", "petal_length_rounded", "region"])
         @test nrow(iris_joined) == 146
 	res = collect(iris_joined)

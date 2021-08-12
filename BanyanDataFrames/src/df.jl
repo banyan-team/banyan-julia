@@ -326,7 +326,9 @@ function Base.filter(f, df::DataFrame; kwargs...)
     end
 
     @partitioned df res res_nrows f kwargs begin
+        @show df
         res = filter(f, df; kwargs...)
+        @show res
         res_nrows = nrow(res)
         @show res_nrows
     end
@@ -566,6 +568,7 @@ function Base.getindex(df::DataFrame, rows=:, cols=:)
     filter_rows = !(rows isa Colon)
     cols = Future(Symbol.(names(sample(df), cols)))
     rows = Future(rows)
+    @show sample(rows)
 
     res_size =
         if filter_rows
@@ -912,7 +915,8 @@ function Base.setindex!(df::DataFrame, v::Union{BanyanArrays.Vector, BanyanArray
     # selection = names(sample(df), cols)
 
     res = Future()
-    cols = Future(Symbol.(names(sample(df), cols)))
+    # cols = Future(Symbol.(names(sample(df), cols)))
+    cols = Future(cols)
 
     partitioned_using() do
         keep_all_sample_keys(res, df)
@@ -1223,23 +1227,26 @@ end
 function Base.sort(df::DataFrame, cols=:; kwargs...)
     !get(kwargs, :view, false) || throw(ArgumentError("Cannot return view of sorted dataframe"))
 
-    # Determine what to sort by and whether to sort in reverse
-    firstcol = first(cols)
-    sortingkey, isreversed = if firstcol isa DataFrames.UserColOrdering
-        if isempty(firstcols.kwargs)
-            firstcols.col, get(kwargs, :rev, false)
-        elseif length(firstcol.kwargs) == 1 && haskey(firstcol.kwargs, :rev)
-            firstcols.col, get(firstcol.kwargs, :rev, false)
-        else
-            throw(ArgumentError("Only rev is supported for ordering"))
-        end
-    else
-        first(names(sample(df), firstcol)), get(kwargs, :rev, false)
-    end
+    # TODO: Support a UserColOrdering passed into cols
+    # # Determine what to sort by and whether to sort in reverse
+    # firstcol = first(cols)
+    # sortingkey, isreversed = if firstcol isa DataFrames.UserColOrdering
+    #     if isempty(firstcols.kwargs)
+    #         firstcols.col, get(kwargs, :rev, false)
+    #     elseif length(firstcol.kwargs) == 1 && haskey(firstcol.kwargs, :rev)
+    #         firstcols.col, get(firstcol.kwargs, :rev, false)
+    #     else
+    #         throw(ArgumentError("Only rev is supported for ordering"))
+    #     end
+    # else
+    #     first(names(sample(df), firstcol)), get(kwargs, :rev, false)
+    # end
 
     res = Future()
-    cols = Future(cols)
+    cols = Future(Symbol.(names(sample(df), cols)))
     kwargs = Future(kwargs)
+    sortingkey = first(collect(cols))
+    isreversed = get(collect(kwargs), :rev, false)
 
     # TODO: Change to_vector(x) to [x;]
 
@@ -1260,7 +1267,7 @@ function Base.sort(df::DataFrame, cols=:; kwargs...)
     # mutated(res)
 
     @partitioned df res cols kwargs begin
-        res = sort(cols; kwargs...)
+        res = sort(df, cols; kwargs...)
     end
 
     # statistics = sample(df, :keystatistics, by)
@@ -1402,18 +1409,19 @@ function DataFrames.unique(df::DataFrame, cols=:; kwargs...)
 
     # TOOD: Just reuse select here
 
+    # TODO: Check all usage of first
     res_nrows = Future()
     res = DataFrame(Future(), res_nrows)
     cols = Future(Symbol.(names(sample(df), cols)))
     kwargs = Future(kwargs)
 
     partitioned_using() do
-        keep_sample_keys(first(collect(cols)), res, df, drifted=true)
+        keep_sample_keys(collect(cols), res, df, drifted=true)
         keep_sample_rate(res, df)
     end
 
     partitioned_with() do
-        pts_for_filtering(df, res, with=Grouped, by=first(collect(cols)))
+        pts_for_filtering(df, res, with=Grouped, by=collect(cols))
         pt(res_nrows, Reducing(quote (a, b) -> a .+ b end))
         pt(df, res, res_nrows, cols, kwargs, Replicated())
     end
@@ -1475,7 +1483,7 @@ function DataFrames.nonunique(df::DataFrame, cols=:; kwargs...)
     end
 
     partitioned_with() do
-        pt(df, Grouped(df, by=first(collect(cols))))
+        pt(df, Grouped(df, by=collect(cols)))
         pt(res, Blocked(along=1), match=df, on=["balanced", "id"])
         pt(df_nrows, Replicating())
         pt(res_size, PartitionType(), match=df_nrows)
