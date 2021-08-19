@@ -563,7 +563,10 @@ function Base.getindex(df::DataFrame, rows=:, cols=:)
     end
 
     df_nrows = df.nrows    
+    @show cols
+    @show typeof(cols)
     return_vector = cols isa Symbol || cols isa String || cols isa Integer
+    @show return_vector
     select_columns = !(cols isa Colon)
     filter_rows = !(rows isa Colon)
     cols = Future(Symbol.(names(sample(df), cols)))
@@ -676,6 +679,9 @@ function Base.getindex(df::DataFrame, rows=:, cols=:)
         res_size = rows isa Colon ? df_nrows : size(res)
         res_size = res isa Base.Vector ? res_size : first(res_size)
     end
+
+    @show typeof(res)
+    @show res
 
     res
 
