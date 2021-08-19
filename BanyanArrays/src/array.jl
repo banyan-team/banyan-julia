@@ -318,7 +318,7 @@ function Base.map(f, c::Array{T,N}...) where {T,N}
     partitioned_with() do
         # balanced
         pt(first(c), Blocked(first(c), balanced=true))
-        pt(c[2:end]..., res, Blocked() & Balanced(), match=first(c), on="key")
+        pt(c[2:end]..., res, Blocked() & Balanced(), match=first(c), on=["key", "id"])
 
         # unbalanced
         pt(first(c), Blocked(first(c), balanced=false, scaled_by_same_as=res))

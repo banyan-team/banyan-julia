@@ -294,9 +294,13 @@ function send_evaluation(value_id::ValueId, job_id::JobId)
                 "report_schedule" => report_schedule,
                 "encourage_parallelism" => encourage_parallelism,
                 "encourage_parallelism_with_batches" => encourage_parallelism_with_batches
-            )
+            ),
+            "num_bang_values_issued" => get_num_bang_values_issued()
         ),
     )
+
+    # Update counters for generating unique values
+    set_num_bang_values_issued(response["num_bang_values_issued"])
 
     # Clear global state and return response
     empty!(get_job().pending_requests)

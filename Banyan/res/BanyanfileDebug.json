@@ -5,7 +5,7 @@
         "cluster": {
             "files": ["file://utils.jl"],
             "scripts": ["file://build_hdf5_jl.sh"],
-            "packages": ["DataFrames", "CSV", "Parquet", "Arrow", "Distributions", "Missings"],
+            "packages": ["DataFrames@1.1.1", "CSV", "Parquet", "Arrow", "Distributions", "Missings"],
             "pt_lib_info": "file://pt_lib_info_debug.json",
             "pt_lib": "file://pt_lib_debug.jl"
         },
