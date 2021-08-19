@@ -104,6 +104,7 @@ function include_all_tests()
     include_tests_to_run("test_small_dataset.jl")
     include_tests_to_run("test_medium_dataset.jl")
     include_tests_to_run("test_stress.jl")
+    include_tests_to_run("test_groupby_filter_indexing.jl")
 end
 
 function verify_file_in_s3(bucket, path, download_path)
