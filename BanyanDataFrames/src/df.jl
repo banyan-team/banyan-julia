@@ -567,7 +567,8 @@ function Base.getindex(df::DataFrame, rows=:, cols=:)
     select_columns = !(cols isa Colon)
     filter_rows = !(rows isa Colon)
     cols = Future(Symbol.(names(sample(df), cols)))
-    rows = Future(rows)
+    # @show sample(rows)
+    rows = rows isa AbstractFuture ? rows : Future(rows)
     @show sample(rows)
 
     res_size =
@@ -594,29 +595,29 @@ function Base.getindex(df::DataFrame, rows=:, cols=:)
         if filter_rows
             for (dfpt_unbalanced, respt_unbalanced, dfpt_balanced, respt_balanced) in zip(
                 # unbalanced
-                Distributed(df; balanced=false, filtered_to=res, kwargs...),
-                Distributed(res; balanced=false, filtered_from=df, kwargs...),
+                Distributed(df; balanced=false, filtered_to=res),
+                Distributed(res; balanced=false, filtered_from=df),
                 # balanced
-                Distributed(df; balanced=true, filtered_to=res, kwargs...),
-                Distributed(res; balanced=true, filtered_from=df, kwargs...),
+                Distributed(df; balanced=true, filtered_to=res),
+                Distributed(res; balanced=true, filtered_from=df),
             )
                 # Return Blocked if return_vector or select_columns and grouping by non-selected
                 return_blocked = return_vector || (dfpt_balanced.distribution == "grouped" && !(dfpt_balanced.key in collect(cols)))
 
                 # unbalanced -> balanced
-                pt(df, dfpt_unbalanced, match=(return_blocked ? nothing : final), on=["distribution", "key", "divisions", "rev"])
+                pt(df, dfpt_unbalanced, match=(return_blocked ? nothing : res), on=["distribution", "key", "divisions", "rev"])
                 pt(res, (return_blocked ? Blocked(along=1) : respt_balanced) & Balanced() & Drifted())
         
                 # unbalanced -> unbalanced
-                pt(df, dfpt_unbalanced, match=(return_blocked ? nothing : final), on=["distribution", "key", "divisions", "rev"])
+                pt(df, dfpt_unbalanced, match=(return_blocked ? nothing : res), on=["distribution", "key", "divisions", "rev"])
                 pt(res, return_blocked ? Blocked(res, along=1, balanced=false, filtered_from=df) : respt_unbalanced & Drifted())
         
                 # balanced -> unbalanced
-                pt(df, dfpt_balanced, match=(return_blocked ? nothing : final), on=["distribution", "key", "divisions", "rev"])
+                pt(df, dfpt_balanced, match=(return_blocked ? nothing : res), on=["distribution", "key", "divisions", "rev"])
                 pt(res, return_blocked ? Blocked(res, along=1, balanced=false, filtered_from=df) : respt_unbalanced & Drifted())
 
-                if dfpt.distribution == "blocked" && dfpt.balanced
-                    pt(rows, Blocked(along=1) & Balanced())
+                if dfpt_balanced.distribution == "blocked" && dfpt_balanced.balanced
+                    pt(rows, Blocked(along=1) & Balanced(), match=df, on="balanced")
                 else
                     pt(rows, Blocked(along=1), match=df, on=["balanced", "id"])
                 end
@@ -667,6 +668,10 @@ function Base.getindex(df::DataFrame, rows=:, cols=:)
     end
 
     @partitioned df df_nrows res res_size rows cols begin
+        if rows isa Base.Vector
+            @show length(rows)
+            @show nrow(df)
+        end
         res = df[rows, cols]
         res_size = rows isa Colon ? df_nrows : size(res)
         res_size = res isa Base.Vector ? res_size : first(res_size)
@@ -1310,8 +1315,10 @@ function DataFrames.innerjoin(dfs::DataFrame...; on, kwargs...)
     # TODO: Use something like this for join
     partitioned_with() do
         # unbalanced, ...., unbalanced -> balanced - "partial sort-merge join"
-        pt(dfs..., Grouped(df, by=groupingkey, balanced=false, filtered_to=res), match=res, on=["divisions", "rev"])
-        pt(res, Grouped(df, by=groupingkey, balanced=true, filtered_from=dfs) & Drifted())
+        for groupingkey in groupingkeys
+            pt(dfs..., Grouped(df, by=groupingkey, balanced=false, filtered_to=res), match=res, on=["divisions", "rev"])
+        end
+        pt(res, Grouped(df, by=first(groupingkeys), balanced=true, filtered_from=dfs) & Drifted())
 
         # balanced, unbalanced, ..., unbalanced -> unbalanced
         for i in 1:length(dfs)
@@ -1341,8 +1348,10 @@ function DataFrames.innerjoin(dfs::DataFrame...; on, kwargs...)
         # pg(res, Blocked() & Unbalanced() & Drifted())
 
         # unbalanced, unbalanced, ... -> unbalanced - "partial sort-merge join"
-        pt(dfs..., Grouped(df, by=groupingkey, balanced=false, filtered_to=res), match=res, on=["divisions", "rev"])
-        pt(res, Grouped(df, by=groupingkey, balanced=false, filtered_from=dfs) & Drifted())
+        for groupingkey in groupingkeys
+            pt(dfs..., Grouped(df, by=groupingkey, balanced=false, filtered_to=res), match=res, on=["divisions", "rev"])
+        end
+        pt(res, Grouped(df, by=first(groupingkeys), balanced=false, filtered_from=dfs) & Drifted())
         
         # "replicated join"
         pt(res_nrows, Reducing(quote (a, b) -> a .+ b end))
@@ -1492,6 +1501,7 @@ function DataFrames.nonunique(df::DataFrame, cols=:; kwargs...)
 
     @partitioned df df_nrows res res_size cols kwargs begin
         res = nonunique(df, cols; kwargs...)
+        @show "nonunique" res
         res_size = Tuple(df_nrows)
     end
 

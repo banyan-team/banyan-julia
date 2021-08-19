@@ -33,3 +33,22 @@ function generate_message_id()
     push!(generated_message_ids, v)
     return v
 end
+
+num_bang_values_issued = 0
+
+function generate_bang_value()
+    global num_bang_values_issued
+    num_bang_values_issued += 1
+    v = string(num_bang_values_issued)
+    v
+end
+
+function get_num_bang_values_issued()
+    global num_bang_values_issued
+    num_bang_values_issued
+end
+
+function set_num_bang_values_issued(new_num_bang_values_issued)
+    global num_bang_values_issued
+    num_bang_values_issued = new_num_bang_values_issued
+end

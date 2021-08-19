@@ -60,9 +60,9 @@ function ReadBlock(
     # # @show path
     # # @show isfile(loc_params["path"])
     # # @show HDF5.ishdf5(loc_params["path"])
-    if (loc_name == "Disk" && HDF5.ishdf5(loc_params["path"])) || (
+    if (loc_name == "Disk" && HDF5.ishdf5(path)) || (
         loc_name == "Remote" &&
-        (occursin(".h5", loc_params["path"]) || occursin(".hdf5", loc_params["path"]))
+        (occursin(".h5", path) || occursin(".hdf5", path))
     )
         f = h5open(path, "r")
         # @show keys(f)
@@ -97,6 +97,14 @@ function ReadBlock(
         return dset
     end
 
+    @show loc_name
+    @show path
+    @show isfile(path)
+    @show isdir(path)
+    if isdir(path)
+        @show readdir(path)
+    end
+
     # Handle single-file replicated objects
     if loc_name == "Disk" && isfile(path)
         # # # println("In Read")
@@ -112,10 +120,10 @@ function ReadBlock(
     # this value to disk
     if loc_name == "Disk"
         name = loc_params["path"]
-        if isdir(name)
+        if isdir(getpath(name))
             files = []
             nrows = 0
-            for partfilename in readdir(name)
+            for partfilename in readdir(getpath(name))
                 part_nrows = parse(
                     Int64,
                     replace(split(partfilename, "_nrows=")[end], ".arrow" => ""),
@@ -159,6 +167,14 @@ function ReadBlock(
                 )
             header = 1
             if endswith(path, ".csv")
+                # @show isdir("/home/ec2-user/s3fs/")
+                # @show isdir("/home/ec2-user/s3fs/banyan-cluster-data-pumpkincluster02-f47c1c35/")
+                # @show isfile("/home/ec2-user/s3fs/banyan-cluster-data-pumpkincluster02-f47c1c35/iris_large.csv")
+                # @show isfile("/home/ec2-user/s3fs/banyan-cluster-data-pumpkincluster02-f47c1c35/pt_lib.jl")
+                # @show readdir("/home/ec2-user/s3fs/banyan-cluster-data-pumpkincluster02-f47c1c35/")
+                # @show path
+                # @show isfile(path)
+                # f = CSV.File(path)
                 f = CSV.File(
                     path,
                     header = header,
@@ -187,6 +203,7 @@ function ReadBlock(
                             (readrange.start-rbrowrange.start+1):(readrange.stop-rbrowrange.start+1),
                             :,
                         ]
+                        # @show length(df)
                         push!(dfs, df)
                     end
                 end
@@ -196,6 +213,8 @@ function ReadBlock(
         end
         rowsscanned = newrowsscanned
     end
+
+    # @show length(dfs)
 
     # Concatenate and return
     # NOTE: If this partition is empty, it is possible that the result is
@@ -253,6 +272,8 @@ function ReadGroup(
     for i = 1:nbatches
         # Read in data for this batch
         part = ReadBlock(src, params, i, nbatches, comm, loc_name, loc_params)
+
+        @show i nbatches typeof(part)
 
         # Shuffle the batch and add it to the set of data for this partition
         push!(
@@ -319,6 +340,9 @@ function Write(
         path = getpath(path)
         # NOTE: We expect that the ParallelCluster instance was set up
         # to have the S3 filesystem mounted at ~/s3fs/<bucket name>
+    else
+        # Prepend "efs/" for local paths
+        path = getpath(path)
     end
 
     # # # println("In Write where batch_idx=$batch_idx")

@@ -163,10 +163,9 @@ end
 
 function to_jl(pt::PartitionType)
     # Interpret bangs as random IDs
-    # TODO: Use this in the backend to interpret pt_lib_info.json
     for (k, v) in pt.parameters
         if v == "!"
-            pt.parameters[k] = randstring(8)
+            pt.parameters[k] = generate_bang_value()
         end
     end
 
