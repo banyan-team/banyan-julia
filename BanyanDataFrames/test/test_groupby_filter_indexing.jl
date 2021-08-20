@@ -248,6 +248,7 @@ end
                 "s3://$(bucket)/tripdata_large_csv",
                 "s3://$(bucket)/tripdata_large_parquet",
                 "s3://$(bucket)/tripdata_large_arrow",
+		"s3://$(bucket)/iris_large_dir"
             ]
                 df = read_file(path)
                 @test nrow(df) == 61577490 * n_repeats
