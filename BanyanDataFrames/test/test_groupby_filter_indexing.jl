@@ -35,6 +35,13 @@ function setup_basic_tests(bucket_name)
     write_df_to_parquet_to_s3(df, "iris_large.parquet", p"iris_large.parquet", bucket_name)
     write_df_to_arrow_to_s3(df, "iris_large.arrow", p"iris_large.arrow", bucket_name)
 
+    # Write to dir
+    df_shuffle = df[shuffle(1:nrow(df)), :]
+    chunk_size = 100
+    for i in 1:9
+        write_df_to_csv_to_s3(df_shuffle[((i-1)*chunk_size + 1):i*chunk_size, :], "iris_large_dir/iris_large_chunk$(i).csv", p"iris_large_chunk$(i).csv", bucket_name)
+    end
+
     write_df_to_csv_to_s3(
         df_s,
         "iris_species_info.csv",
@@ -136,6 +143,7 @@ end
                 "s3://$(bucket)/iris_large.csv",
                 "s3://$(bucket)/iris_large.parquet",
                 "s3://$(bucket)/iris_large.arrow",
+		"s3://$(bucket)/iris_large_dir"
             ]
                 df = read_file(path)
 
