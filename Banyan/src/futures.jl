@@ -15,7 +15,7 @@ function Future(location::Location = None(); mutate_from::Union{<:AbstractFuture
     value_id = generate_value_id()
 
     # Create new Future and assign a location to it
-    new_future = Future(nothing, value_id, false, false)
+    new_future = Future(nothing, value_id, false, true)
     sourced(new_future, location)
     destined(new_future, None())
 

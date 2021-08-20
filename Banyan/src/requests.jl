@@ -311,6 +311,8 @@ function Base.collect(fut::AbstractFuture)
     fut = convert(Future, fut)
 
     # Fast case for where the future has not been mutated and isn't stale
+    @show fut.mutated
+    @show fut.stale
     if !fut.mutated && !fut.stale
         return fut.value
     end
@@ -331,6 +333,7 @@ function Base.collect(fut::AbstractFuture)
     # Evaluate the future so that its value is downloaded to the client
     compute(fut)
     destined(fut, None())
+    @show fut.value
     fut.value
 end
 

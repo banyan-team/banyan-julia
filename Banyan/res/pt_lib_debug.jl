@@ -150,7 +150,7 @@ function ReadBlock(
     rowrange = split_len(nrows, batch_idx, nbatches, comm)
     dfs::Vector{DataFrame} = []
     rowsscanned = 0
-    for file in loc_params["files"]
+    for file in sort(loc_params["files"], by=f->f["path"])
         newrowsscanned = rowsscanned + file["nrows"]
         filerowrange = (rowsscanned+1):newrowsscanned
         # Check if te file corresponds to the range of rows for the batch
@@ -189,9 +189,13 @@ function ReadBlock(
                 )
                 push!(dfs, DataFrame(Arrow.Table(Arrow.tobuffer(f))))
             elseif endswith(path, ".arrow")
+                print("Reading from $path")
                 rbrowrange = filerowrange.start:(filerowrange.start-1)
                 for tbl in Arrow.Stream(path)
                     rbrowrange = (rbrowrange.stop+1):(rbrowrange.stop+Tables.rowcount(tbl))
+                    @show rowrange
+                    @show rbrowrange
+                    @show isoverlapping(rbrowrange, rowrange)
                     if isoverlapping(rbrowrange, rowrange)
                         readrange =
                             max(rowrange.start, rbrowrange.start):min(
@@ -199,10 +203,12 @@ function ReadBlock(
                                 rbrowrange.stop,
                             )
                         df = DataFrame(tbl)
+                        @show (readrange.start-rbrowrange.start+1):(readrange.stop-rbrowrange.start+1)
                         df = df[
                             (readrange.start-rbrowrange.start+1):(readrange.stop-rbrowrange.start+1),
                             :,
                         ]
+                        @show df[1:min(1, nrow(df)), :]
                         # @show length(df)
                         push!(dfs, df)
                     end
@@ -318,6 +324,14 @@ end
 
 format_available_memory() = format_bytes(Sys.free_memory()) * " / " * format_bytes(Sys.total_memory())
 
+function sortablestring(val, maxval)
+    s = string(val)
+    maxs = string(maxval)
+    res = fill('0', length(maxs))
+    res[length(res)-length(s)+1:length(res)] .= collect(s)
+    join(res)
+end
+
 function Write(
     src,
     part,
@@ -397,14 +411,15 @@ function Write(
         MPI.Barrier(comm)
 
         nrows = size(part, 1)
+        sortableidx = sortablestring(idx, get_npartitions(nbatches, comm))
         if endswith(path, ".parquet")
-            partfilepath = joinpath(path, "part$idx" * "_nrows=$nrows.parquet")
+            partfilepath = joinpath(path, "part$sortableidx" * "_nrows=$nrows.parquet")
             Parquet.write_parquet(partfilepath, part)
         elseif endswith(path, ".csv")
-            partfilepath = joinpath(path, "part$idx" * "_nrows=$nrows.csv")
+            partfilepath = joinpath(path, "part$sortableidx" * "_nrows=$nrows.csv")
             CSV.write(partfilepath, part)
         else
-            partfilepath = joinpath(path, "part$idx" * "_nrows=$nrows.arrow")
+            partfilepath = joinpath(path, "part$sortableidx" * "_nrows=$nrows.arrow")
             @show partfilepath
             Arrow.write(partfilepath, part)
         end
@@ -416,7 +431,7 @@ function Write(
                 mkpath(actualpath)
             end
             MPI.Barrier(comm)
-            @show path tmpdir get_nworkers(comm) nbatches
+            # @show path tmpdir get_nworkers(comm) nbatches
             for batch_i in 1:nbatches
                 idx = get_partition_idx(batch_i, nbatches, worker_idx)
                 cp(joinpath(path, tmpdir[idx]), joinpath(actualpath, tmpdir[idx]))
@@ -1467,14 +1482,14 @@ function Merge(
         end
         push!(src, part)
         println("In Merge")
-        @show src part
+        # @show src part
         if batch_idx == 1 || batch_idx == nbatches
             # println("At start of merging worker_idx=$worker_idx, batch_idx=$batch_idx/$nbatches with available memory: $(format_available_memory()) and used: $(format_bytes(Base.summarysize(src)))")
         end
         if batch_idx == nbatches
             # println("At start of merging worker_idx=$worker_idx, batch_idx=$batch_idx/$nbatches with available memory: $(format_available_memory())")
             delete!(partial_merges, objectid(src))
-            @show worker_idx batch_idx src
+            # @show worker_idx batch_idx src
 
             # TODO: Test that this merges correctly
             # src = merge_on_executor(src...; dims=dim)

@@ -77,6 +77,12 @@ end
         # Nonunique before aggregation
         nonunique_idxs = nonunique(iris)
         nonunique_iris = collect(sort(iris[nonunique_idxs, :]))
+        @show collect(iris[nonunique_idxs, :])
+        @show nonunique_iris
+        @show iris
+        @show typeof(iris)
+        @show collect(iris)
+        @show collect(nonunique_idxs)
         @test collect(first(nonunique_iris)) == [4.9, 3.1, 1.5, 0.1, "setosa"]
         @test collect(nonunique_iris[10, :]) == [4.9, 3.1, 1.5, 0.1, "species_4"]
         @test collect(last(nonunique_iris)) == [5.8, 2.7, 5.1, 1.9, "virginica"]
@@ -89,6 +95,26 @@ end
         # @show sample(nonunique_idxs)
         # @show collect(nonunique_idxs)
         nonunique_iris = collect(sort(iris[nonunique_idxs, :]))
+        @show collect(iris[nonunique_idxs, :])
+        @show nonunique_iris
+        @show collect(iris)
+        @show collect(nonunique_idxs)
+        @test collect(first(nonunique_iris)) == [4.9, 3.1, 1.5, 0.1, "setosa"]
+        @test collect(nonunique_iris[10, :]) == [4.9, 3.1, 1.5, 0.1, "species_4"]
+        @test collect(last(nonunique_iris)) == [5.8, 2.7, 5.1, 1.9, "virginica"]
+        nonunique_species = collect(nonunique(iris, :species))
+        @test sum(nonunique_species) == 882
+
+        # Nonunique after _another_ aggregation
+        @test collect(sum(nonunique_idxs)) == 18
+        # @show collect(sum(nonunique_idxs))
+        # @show sample(nonunique_idxs)
+        # @show collect(nonunique_idxs)
+        nonunique_iris = collect(sort(iris[nonunique_idxs, :]))
+        @show collect(iris[nonunique_idxs, :])
+        @show nonunique_iris
+        @show collect(iris)
+        @show collect(nonunique_idxs)
         @test collect(first(nonunique_iris)) == [4.9, 3.1, 1.5, 0.1, "setosa"]
         @test collect(nonunique_iris[10, :]) == [4.9, 3.1, 1.5, 0.1, "species_4"]
         @test collect(last(nonunique_iris)) == [5.8, 2.7, 5.1, 1.9, "virginica"]

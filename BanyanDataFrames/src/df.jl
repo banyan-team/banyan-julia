@@ -60,7 +60,7 @@ read_arrow(p) = read_csv(p)
 
 # TODO: For writing functions, if a file is specified, enforce Replicated
 
-function write_csv(A, path)
+function write_csv(df, path)
     destined(df, Remote(path, delete_from_cache=true))
     mutated(df)
     partitioned_with() do
@@ -562,14 +562,12 @@ function Base.getindex(df::DataFrame, rows=:, cols=:)
         return copy(df)
     end
 
-    df_nrows = df.nrows    
-    @show cols
-    @show typeof(cols)
+    df_nrows = df.nrows
     return_vector = cols isa Symbol || cols isa String || cols isa Integer
-    @show return_vector
     select_columns = !(cols isa Colon)
     filter_rows = !(rows isa Colon)
-    cols = Future(Symbol.(names(sample(df), cols)))
+    columns = Symbol.(names(sample(df), cols))
+    cols = Future(cols)
     # @show sample(rows)
     rows = rows isa AbstractFuture ? rows : Future(rows)
     @show sample(rows)
@@ -605,7 +603,7 @@ function Base.getindex(df::DataFrame, rows=:, cols=:)
                 Distributed(res; balanced=true, filtered_from=df),
             )
                 # Return Blocked if return_vector or select_columns and grouping by non-selected
-                return_blocked = return_vector || (dfpt_balanced.distribution == "grouped" && !(dfpt_balanced.key in collect(cols)))
+                return_blocked = return_vector || (dfpt_balanced.distribution == "grouped" && !(dfpt_balanced.key in columns))
 
                 # unbalanced -> balanced
                 pt(df, dfpt_unbalanced, match=(return_blocked ? nothing : res), on=["distribution", "key", "divisions", "rev"])
@@ -646,7 +644,7 @@ function Base.getindex(df::DataFrame, rows=:, cols=:)
         else
             for dpt in Distributed(df, scaled_by_same_as=res)
                 pt(df, dpt)
-                if return_vector || (dpt.distribution == "grouped" && !(dpt.key in collect(cols)))
+                if return_vector || (dpt.distribution == "grouped" && !(dpt.key in columns))
                     pt(res, Blocked(along=1) & ScaledBySame(as=df), match=df, on=["balanced", "id"])
                 else
                     pt(res, ScaledBySame(as=df), match=df)
@@ -671,17 +669,14 @@ function Base.getindex(df::DataFrame, rows=:, cols=:)
     end
 
     @partitioned df df_nrows res res_size rows cols begin
-        if rows isa Base.Vector
-            @show length(rows)
-            @show nrow(df)
-        end
+        print("In getindex")
         res = df[rows, cols]
+        @show df
+        @show rows
+        @show res
         res_size = rows isa Colon ? df_nrows : size(res)
         res_size = res isa Base.Vector ? res_size : first(res_size)
     end
-
-    @show typeof(res)
-    @show res
 
     res
 
@@ -1254,9 +1249,10 @@ function Base.sort(df::DataFrame, cols=:; kwargs...)
     # end
 
     res = Future()
-    cols = Future(Symbol.(names(sample(df), cols)))
+    columns = Symbol.(names(sample(df), cols))
+    cols = Future(cols)
     kwargs = Future(kwargs)
-    sortingkey = first(collect(cols))
+    sortingkey = first(columns)
     isreversed = get(collect(kwargs), :rev, false)
 
     # TODO: Change to_vector(x) to [x;]
@@ -1427,16 +1423,17 @@ function DataFrames.unique(df::DataFrame, cols=:; kwargs...)
     # TODO: Check all usage of first
     res_nrows = Future()
     res = DataFrame(Future(), res_nrows)
-    cols = Future(Symbol.(names(sample(df), cols)))
+    columns = Symbol.(names(sample(df), cols))
+    cols = Future(cols)
     kwargs = Future(kwargs)
 
     partitioned_using() do
-        keep_sample_keys(collect(cols), res, df, drifted=true)
+        keep_sample_keys(columns, res, df, drifted=true)
         keep_sample_rate(res, df)
     end
 
     partitioned_with() do
-        pts_for_filtering(df, res, with=Grouped, by=collect(cols))
+        pts_for_filtering(df, res, with=Grouped, by=columns)
         pt(res_nrows, Reducing(quote (a, b) -> a .+ b end))
         pt(df, res, res_nrows, cols, kwargs, Replicated())
     end
@@ -1490,7 +1487,8 @@ function DataFrames.nonunique(df::DataFrame, cols=:; kwargs...)
     df_nrows = df.nrows
     res_size = Future(df.nrows, mutation=tuple)
     res = BanyanArrays.Vector{Bool}(Future(), res_size)
-    cols = Future(Symbol.(names(sample(df), cols)))
+    columns = Symbol.(names(sample(df), cols))
+    cols = Future(cols)
     kwargs = Future(kwargs)
 
     partitioned_using() do
@@ -1498,7 +1496,7 @@ function DataFrames.nonunique(df::DataFrame, cols=:; kwargs...)
     end
 
     partitioned_with() do
-        pt(df, Grouped(df, by=collect(cols)))
+        pt(df, Grouped(df, by=columns))
         pt(res, Blocked(along=1), match=df, on=["balanced", "id"])
         pt(df_nrows, Replicating())
         pt(res_size, PartitionType(), match=df_nrows)
