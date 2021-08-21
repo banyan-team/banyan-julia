@@ -169,7 +169,7 @@ end
                 @test nrow(sub) == 36
                 @test round(collect(reduce(+, sub[:, :sepal_length]))) == 217
                 @test nrow(sub2) == 4
-                @test round((reduce(+, sub2[:, :sepal_length]))) == 26
+                @test round(collect((reduce(+, sub2[:, :sepal_length])))) == 26
                 @test Set(collect(sub2[:, :species])) == Set(["species_8", "species_18"])
 
 
@@ -265,14 +265,16 @@ end
                 end
 
                 @test nrow(sub) == 15109122
-                @test round(reduce(+, sub[:, :trip_distance])) == 5.3284506e7
-                @test round(reduce(&, map(d -> d > 1.0, sub[:, :trip_distance])))
-                @test reduce(
-                    +,
-                    map(
-                        t -> hour(DateTime(t, "yyyy-mm-dd HH:MM:SS")),
-                        tripdata[:, :pickup_datetime],
-                    ),
+                @test round(collect(reduce(+, sub[:, :trip_distance]))) == 5.3284506e7
+                @test round(collect(reduce(&, map(d -> d > 1.0, sub[:, :trip_distance]))))
+                @test collect(
+	            reduce(
+                        +,
+                        map(
+                            t -> hour(DateTime(t, "yyyy-mm-dd HH:MM:SS")),
+                            tripdata[:, :pickup_datetime],
+                        ),
+		    )
                 ) == 835932637
             end
         end
