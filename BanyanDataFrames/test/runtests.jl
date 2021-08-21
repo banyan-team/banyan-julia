@@ -108,6 +108,9 @@ function include_all_tests()
     include_tests_to_run("test_groupby_filter_indexing.jl")
 end
 
+# bucket - name of cluster's s3 bucket
+# path - path to write file to in bucket
+# download_path - either http(s) link to a file or a local Path indicating the source of the file
 function verify_file_in_s3(bucket, path, download_path)
      if !s3_exists(Banyan.get_aws_config(), bucket, path)
         if typeof(download_path) == String && (startswith(download_path, "https://") || startswith(download_path, "http://"))

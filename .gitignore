@@ -25,3 +25,6 @@ docs/site/
 
 # Files generated from testing
 **/test_res*
+*.arrow
+*.csv
+*.parquet

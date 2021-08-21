@@ -18,6 +18,8 @@ function upload_iris_to_s3(bucket_name)
     )
 end
 
+# TODO: Add test for setting multiple columns with a matrix
+
 
 @testset "Basic data analytics on a small dataset" begin
     run_with_job("Indexing small dataset") do job

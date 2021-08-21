@@ -2,19 +2,19 @@
 # SETUP AND CLEANUP HELPER FUNCTIONS #
 ######################################
 
-function write_df_to_csv_to_s3(df, filename, filepath, bucket_name)
+function write_df_to_csv_to_s3(df, filename, filepath, bucket_name, s3path)
     CSV.write(filename, df)
-    verify_file_in_s3(bucket_name, filename, filepath)
+    verify_file_in_s3(bucket_name, s3path, filepath)
 end
 
-function write_df_to_parquet_to_s3(df, filename, filepath, bucket_name)
+function write_df_to_parquet_to_s3(df, filename, filepath, bucket_name, s3path)
     Parquet.write_parquet(filename, df)
-    verify_file_in_s3(bucket_name, filename, filepath)
+    verify_file_in_s3(bucket_name, s3path, filepath)
 end
 
-function write_df_to_arrow_to_s3(df, filename, filepath, bucket_name)
+function write_df_to_arrow_to_s3(df, filename, filepath, bucket_name, s3path)
     Arrow.write(filename, df)
-    verify_file_in_s3(bucket_name, filename, filepath)
+    verify_file_in_s3(bucket_name, s3path, filepath)
 end
 
 function setup_basic_tests(bucket_name)
@@ -31,15 +31,15 @@ function setup_basic_tests(bucket_name)
         species_list = append!(species_list, Base.fill("species_$(i)", 50))
     end
     df[:, :species] = species_list
-    write_df_to_csv_to_s3(df, "iris_large.csv", p"iris_large.csv", bucket_name)
-    write_df_to_parquet_to_s3(df, "iris_large.parquet", p"iris_large.parquet", bucket_name)
-    write_df_to_arrow_to_s3(df, "iris_large.arrow", p"iris_large.arrow", bucket_name)
+    write_df_to_csv_to_s3(df, "iris_large.csv", p"iris_large.csv", bucket_name, "iris_large.csv")
+    write_df_to_parquet_to_s3(df, "iris_large.parquet", p"iris_large.parquet", bucket_name, "iris_large.parquet")
+    write_df_to_arrow_to_s3(df, "iris_large.arrow", p"iris_large.arrow", bucket_name, "iris_large.arrow")
 
     # Write to dir
     df_shuffle = df[shuffle(1:nrow(df)), :]
     chunk_size = 100
     for i in 1:9
-        write_df_to_csv_to_s3(df_shuffle[((i-1)*chunk_size + 1):i*chunk_size, :], "iris_large_dir/iris_large_chunk$(i).csv", p"iris_large_chunk$(i).csv", bucket_name)
+        write_df_to_csv_to_s3(df_shuffle[((i-1)*chunk_size + 1):i*chunk_size, :], "iris_large_chunk.csv", p"iris_large_chunk.csv", bucket_name, "iris_large_dir/iris_large_chunk$(i).csv")
     end
 
     write_df_to_csv_to_s3(
@@ -47,19 +47,28 @@ function setup_basic_tests(bucket_name)
         "iris_species_info.csv",
         p"iris_species_info.csv",
         bucket_name,
+	"iris_species_info.csv",
     )
     write_df_to_parquet_to_s3(
         df_s,
         "iris_species_info.parquet",
         p"iris_species_info.parquet",
         bucket_name,
+	"iris_species_info.parquet",
     )
     write_df_to_arrow_to_s3(
         df_s,
         "iris_species_info.arrow",
         p"iris_species_info.arrow",
         bucket_name,
+	"iris_species_info.arrow",
     )
+
+    # Write empty dataframe
+    empty_df = DataFrame()
+    write_df_to_csv_to_s3(empty_df, "empty_df.csv", p"empty_df.csv", bucket_name, "empty_df.csv")
+    write_df_to_parquet_to_s3(empty_df, "empty_df.parquet", p"empty_df.parquet", bucket_name, "empty_df.parquet")
+    write_df_to_arrow_to_s3(empty_df, "empty_df.arrow", p"empty_df.arrow", bucket_name, "empty_df.arrow")
 end
 
 global n_repeats = 10
@@ -73,18 +82,24 @@ function setup_stress_tests(bucket_name)
             df = CSV.read(local_path, DataFrames.DataFrame)
             write_df_to_csv_to_s3(
                 df,
+		"tripdata.csv",
+		p"tripdata.csv",
+		bucket_name,
                 "tripdata_large_csv/tripdata_$(month)_copy$(ncopy).csv",
-                "tripdata.csv",
             )
             write_df_to_parquet_to_s3(
                 df,
+		"tripdata.parquet",
+		p"tripdata.parquet",
+		bucket_name,
                 "tripdata_large_parquet/tripdata_$(month)_copy$(ncopy).parquet",
-                "tripdata.parquet",
             )
             write_df_to_arrow_to_s3(
                 df,
+		"tripdata.arrow",
+		p"tripdata.arrow",
+		bucket_name,
                 "tripdata_large_arrow/tripdata_$(month)_copy$(ncopy).arrow",
-                "tripdata.arrow",
             )
         end
     end
@@ -102,7 +117,7 @@ end
 ##############################
 
 function read_file(path)
-    if endswith(path, ".csv")
+    if endswith(path, ".csv")write_df_to_Csv_to_s3write_df_to_Csv_to_s3
         return BanyanDataFrames.read_csv(path)
     elseif endswith(path, ".parquet")
         return BanyanDataFrames.read_parquet(path)
@@ -490,5 +505,38 @@ end
             end
 
         end
+    end
+end
+
+@testset "Filter and groupby on empty dataframe" begin
+    run_with_job("Filtering stress for initial functionality") do job
+        bucket = get_cluster_s3_bucket_name(get_cluster().name)
+        setup_basic_tests(bucket)
+
+        for i = 1:2
+            for path in [
+                "s3://$(bucket)/empty_df.csv",
+                "s3://$(bucket)/empty_df.parquet",
+                "s3://$(bucket)/empty_df.arrow",
+            ]
+	    end
+	        df = read_file(path)
+
+                @test size(df) == (0, 0)
+
+		filtered_save_path = get_save_path(bucket, "filtered", path)
+		if i == 1
+		    filtered = filter(row -> row.x == 0, df)
+		    write_file(filtered_save_path, filtered)
+		else
+		    filtered = read_file(filtered_save_path)
+		end
+
+                @test size(filtered) == (0, 0)
+		@test size(combine(groupby(filtered, All()), nrow)) == (0, 1)
+
+		@test length(groupby(df, All())) == 0
+		@test length(groupby
+	end
     end
 end
