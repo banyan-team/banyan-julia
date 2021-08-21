@@ -65,7 +65,7 @@ function setup_basic_tests(bucket_name)
     )
 
     # Write empty dataframe
-    empty_df = DataFrame()
+    empty_df = DataFrames.DataFrame()
     write_df_to_csv_to_s3(empty_df, "empty_df.csv", p"empty_df.csv", bucket_name, "empty_df.csv")
     write_df_to_parquet_to_s3(empty_df, "empty_df.parquet", p"empty_df.parquet", bucket_name, "empty_df.parquet")
     write_df_to_arrow_to_s3(empty_df, "empty_df.arrow", p"empty_df.arrow", bucket_name, "empty_df.arrow")

@@ -1351,7 +1351,7 @@ function DataFrames.innerjoin(dfs::DataFrame...; on, kwargs...)
         for (df, groupingkey) in zip(dfs, groupingkeys)
             pt(df, Grouped(df, by=groupingkey, balanced=false, filtered_to=res), match=res, on=["divisions", "rev"])
         end
-        pt(res, Grouped(df, by=first(groupingkeys), balanced=true, filtered_from=dfs) & Drifted())
+        pt(res, Grouped(res, by=first(groupingkeys), balanced=true, filtered_from=[dfs...]) & Drifted())
 
         # balanced, unbalanced, ..., unbalanced -> unbalanced
         for i in 1:length(dfs)
@@ -1384,7 +1384,7 @@ function DataFrames.innerjoin(dfs::DataFrame...; on, kwargs...)
         for (df, groupingkey) in zip(dfs, groupingkeys)
             pt(df, Grouped(df, by=groupingkey, balanced=false, filtered_to=res), match=res, on=["divisions", "rev"])
         end
-        pt(res, Grouped(df, by=first(groupingkeys), balanced=false, filtered_from=dfs) & Drifted())
+        pt(res, Grouped(res, by=first(groupingkeys), balanced=false, filtered_from=[dfs...]) & Drifted())
         
         # "replicated join"
         pt(res_nrows, Reducing(quote (a, b) -> a .+ b end))
