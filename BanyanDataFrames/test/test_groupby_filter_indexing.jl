@@ -110,9 +110,9 @@ function write_file(path, df)
     if endswith(path, ".csv")
         BanyanDataFrames.write_csv(df, path)
     elseif endswith(path, ".parquet")
-        BanyanDataFrames.write_csv(df, path)
+        BanyanDataFrames.write_parquet(df, path)
     elseif endswith(path, ".arrow")
-        BanyanDataFrames.write_csv(df, path)
+        BanyanDataFrames.write_arrow(df, path)
     else
         error("Invalid file format")
     end

@@ -337,9 +337,16 @@ function Base.map(f, c::Array{T,N}...) where {T,N}
     # end end)
     @partitioned f c res begin
         res = Base.map(f, c...)
+        @show res
+        @show typeof(res)
+        @show eltype(res)
     end
 
-    Array{T,N}(res, deepcopy(first(c).size))
+    @show sample(res)
+    @show typeof(sample(res))
+    @show eltype(sample(res))
+
+    Array{eltype(sample(res)),N}(res, deepcopy(first(c).size))
 end
 
 # NOTE: This function is shared between the client library and the PT library

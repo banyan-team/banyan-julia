@@ -46,7 +46,7 @@ end
         @test res[36, 2] == 0.2
         @test res[44, 1] == 1.3
         res_row_1 = res[256, [1, 2]]
-        @test collect(res_row_1) = [1.9, 0.4]
+        @test collect(res_row_1) == [1.9, 0.4]
         res_row_2 = res[nrow(res), [1, 2]]
         @test collect(res_row_2) == [4.1, 1.0]
     end
@@ -148,11 +148,11 @@ end
         iris_sorted = collect(iris_sorted)
         iris_sorted_reverse = collect(iris_sorted_reverse)
         @test iris_sorted[[1, 142, nrow(iris_sorted)], [:sepal_width, :petal_length]] ==
-              DataFrame(:sepal_width => [2.0, 2.6, 4.4], :petal_length => [3.5, 4.0, 1.5])
+              DataFrames.DataFrame(:sepal_width => [2.0, 2.6, 4.4], :petal_length => [3.5, 4.0, 1.5])
         @test iris_sorted_reverse[
             [1, 142, nrow(iris_sorted)],
             [:sepal_width, :petal_length],
-        ] == DataFrame(:sepal_width => [4.4, 3.5, 2.0], :petal_length => [1.5, 1.3, 3.5])
+        ] == DataFrames.DataFrame(:sepal_width => [4.4, 3.5, 2.0], :petal_length => [1.5, 1.3, 3.5])
     end
 
     run_with_job("Join and group-by-aggregate small dataset") do job
@@ -174,7 +174,7 @@ end
         @test gr_cols == [:region]
         @test gs_cols == [:species]
         @test vr_cols ==
-              Set([:sepal_length, sepal_width, :petal_length, :petal_width, :species])
+              Set([:sepal_length, :sepal_width, :petal_length, :petal_width, :species])
 
         lengths_species =
             collect(sort(combine(gdf_species, :petal_length => mean), :petal_length_mean))
@@ -631,7 +631,7 @@ end
                 iris_large_dev,
             ),
         )
-        @test nrow(lengths_dev) = 1650000
+        @test nrow(lengths_dev) == 1650000
     end
 end
 

@@ -111,7 +111,8 @@ export Any,
     Unbalanced,
     Distributed,
     Blocked,
-    Grouped
+    Grouped,
+    Partitioned
 
 # Partitioning constraints
 export Co, Cross, Equal, Sequential, Match, MatchOn, AtMost, ScaleBy

@@ -16,8 +16,8 @@ Banyan.isview(gdf::GroupedDataFrame) = true
 Base.length(gdf::GroupedDataFrame) = compute(gdf.length)
 Base.size(gdf::GroupedDataFrame) = Tuple(length(gdf))
 Base.ndims(gdf::GroupedDataFrame) = 1
-groupcols(gdf::GroupedDataFrame) = groupcols(sample(gdf))
-valuecols(gdf::GroupedDataFrame) = valuecols(sample(gdf))
+DataFrames.groupcols(gdf::GroupedDataFrame) = groupcols(sample(gdf))
+DataFrames.valuecols(gdf::GroupedDataFrame) = valuecols(sample(gdf))
 
 # NOTE: For now we don't allow grouped dataframes to be copied since we are
 # only supporting simple use-cases where you want to aggregate or transform

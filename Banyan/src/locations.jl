@@ -33,17 +33,11 @@ mutable struct Location
     end
 end
 
-Location(
-    name::String,
-    parameters::Dict{String,<:Any},
-    sample::Sample = Sample(),
-) = Location(name, name, parameters, parameters, sample)
+Location(name::String, parameters::Dict{String,<:Any}, sample::Sample = Sample()) =
+    Location(name, name, parameters, parameters, sample)
 
-LocationSource(
-    name::String,
-    parameters::Dict{String,<:Any},
-    sample::Sample = Sample(),
-) = Location(name, "None", parameters, LocationParameters(), sample)
+LocationSource(name::String, parameters::Dict{String,<:Any}, sample::Sample = Sample()) =
+    Location(name, "None", parameters, LocationParameters(), sample)
 
 LocationDestination(
     name::String,
@@ -83,8 +77,7 @@ function to_jl(lt::Location)
         # TODO: Instead of computing the total memory usage here, compute it
         # at the end of each `@partitioned`. That way we will count twice for
         # mutation
-        "total_memory_usage" =>
-            sample(lt.sample, :memory_usage) * sample(lt.sample, :rate),
+        "total_memory_usage" => sample(lt.sample, :memory_usage) * sample(lt.sample, :rate),
     )
 end
 
@@ -108,7 +101,11 @@ function sourced(fut, loc::Location)
             isnothing(fut_location) ? "None" : fut_location.dst_name,
             loc.src_parameters,
             isnothing(fut_location) ? Dict{String,Any}() : fut_location.dst_parameters,
-            (isnothing(fut_location) || sample(loc.sample, :memory_usage) > sample(fut_location.sample, :memory_usage)) ? loc.sample : fut_location.sample,
+            (
+                isnothing(fut_location) ||
+                sample(loc.sample, :memory_usage) >
+                sample(fut_location.sample, :memory_usage)
+            ) ? loc.sample : fut_location.sample,
         ),
     )
 end
@@ -127,7 +124,11 @@ function destined(fut, loc::Location)
             loc.dst_name,
             isnothing(fut_location) ? Dict{String,Any}() : fut_location.src_parameters,
             loc.dst_parameters,
-            (isnothing(fut_location) || sample(loc.sample, :memory_usage) > sample(fut_location.sample, :memory_usage)) ? loc.sample : fut_location.sample,
+            (
+                isnothing(fut_location) ||
+                sample(loc.sample, :memory_usage) >
+                sample(fut_location.sample, :memory_usage)
+            ) ? loc.sample : fut_location.sample,
         ),
     )
 end
@@ -176,14 +177,11 @@ mem(fut) = mem(fut, sizeof(convert(Future, fut).value))
 
 function mem(futs...)
     for fut in futs
-        mem(
-            fut,
-            maximum([
-                begin
-                    get_location(f).total_memory_usage
-                end for f in futs
-            ]),
-        )
+        mem(fut, maximum([
+            begin
+                get_location(f).total_memory_usage
+            end for f in futs
+        ]))
     end
 end
 
@@ -202,8 +200,7 @@ get_dst_parameters(fut) = get_location(fut).dst_parameters
 # Simple locations #
 ####################
 
-Value(val) =
-    LocationSource("Value", Dict("value" => to_jl_value(val)), ExactSample(val))
+Value(val) = LocationSource("Value", Dict("value" => to_jl_value(val)), ExactSample(val))
 
 # TODO: Implement Size
 Size(val) = LocationSource(
@@ -226,8 +223,7 @@ None() = Location("None", Dict{String,Any}(), Sample())
 # Helper functions for serialization/deserialization #
 ######################################################
 
-to_jl_value(jl) =
-    Dict("is_banyan_value" => true, "contents" => to_jl_value_contents(jl))
+to_jl_value(jl) = Dict("is_banyan_value" => true, "contents" => to_jl_value_contents(jl))
 
 # NOTE: This function is shared between the client library and the PT library
 to_jl_value_contents(jl) = begin
@@ -300,7 +296,11 @@ end
 # be guaranteed to have the same sample size.
 
 # MAX_EXACT_SAMPLE_LENGTH = 1024
-MAX_EXACT_SAMPLE_LENGTH = if is_debug_on() 50 else 1024 end
+MAX_EXACT_SAMPLE_LENGTH = if is_debug_on()
+    50
+else
+    1024
+end
 
 getsamplenrows(totalnrows) =
     if totalnrows <= MAX_EXACT_SAMPLE_LENGTH
@@ -317,8 +317,7 @@ function Remote(p; read_from_cache = true, write_to_cache = true, delete_from_ca
     # number of rows in each file as well as a sample that can be used on the
     # client side for estimating memory usage and data skew among other things.
     locationspath = joinpath(homedir(), ".banyan", "locations")
-    locationpath =
-        joinpath(locationspath, p |> hash |> string)
+    locationpath = joinpath(locationspath, p |> hash |> string)
     location = if read_from_cache && isfile(locationpath)
         deserialize(locationpath)
     else
@@ -341,10 +340,17 @@ function Remote(p; read_from_cache = true, write_to_cache = true, delete_from_ca
 end
 
 get_s3_bucket_arn(cluster_name) = get_cluster(cluster_name).s3_bucket_arn
-get_s3_bucket_name(cluster_name) = replace(get_cluster(cluster_name).s3_bucket_arn, "arn:aws:s3:::" => "s3://")
+get_s3_bucket_name(cluster_name) =
+    replace(get_cluster(cluster_name).s3_bucket_arn, "arn:aws:s3:::" => "s3://")
 function get_s3fs_bucket_path(cluster_name)
     arn = get_cluster(cluster_name).s3_bucket_arn
-    joinpath(homedir(), ".banyan", "mnt", "s3", arn[findfirst("arn:aws:s3:::", arn).stop+1:end])
+    joinpath(
+        homedir(),
+        ".banyan",
+        "mnt",
+        "s3",
+        arn[findfirst("arn:aws:s3:::", arn).stop+1:end],
+    )
 end
 
 function get_remote_location(remotepath)
@@ -465,8 +471,7 @@ function get_remote_location(remotepath)
                 remainingcolons = repeat([:], ndims(dset) - 1)
                 sample = dset[1:0, remainingcolons...]
                 if datalength < MAX_EXACT_SAMPLE_LENGTH
-                    sampleindices =
-                        randsubseq(1:datalength, 1 / get_job().sample_rate)
+                    sampleindices = randsubseq(1:datalength, 1 / get_job().sample_rate)
                     if is_debug_on()
                         @show sampleindices
                     end
@@ -512,7 +517,7 @@ function get_remote_location(remotepath)
                     "subpath" => datasetpath,
                     "size" => datasize,
                     "ndims" => datandims,
-                    "eltype" => dataeltype
+                    "eltype" => dataeltype,
                 ),
             )
         else
@@ -553,7 +558,14 @@ function get_remote_location(remotepath)
     # cache before proceeding
     exactsample = DataFrame()
     randomsample = DataFrame()
-    for filep in (p_isdir ? readdir(p) : [p])
+    files_to_read_from = if p_isdir
+        readdir(p)
+    elseif isfile(p)
+        [p]
+    else
+        []
+    end
+    for filep in files_to_read_from
         filenrows = 0
         # TODO: Ensure usage of Base.summarysize is reasonable
         # if endswith(filep, ".csv")
@@ -662,8 +674,7 @@ function get_remote_location(remotepath)
 
             # Append to randomsample
             # chunksampleindices = map(rand() < 1 / get_job().sample_rate, 1:chunknrows)
-            chunksampleindices =
-                randsubseq(1:chunknrows, 1 / get_job().sample_rate)
+            chunksampleindices = randsubseq(1:chunknrows, 1 / get_job().sample_rate)
             # if any(chunksampleindices)
             if !isempty(chunksampleindices)
                 append!(randomsample, @view chunkdf[chunksampleindices, :])
@@ -672,10 +683,7 @@ function get_remote_location(remotepath)
             # Append to exactsample
             samplenrows = getsamplenrows(totalnrows)
             if nrow(exactsample) < samplenrows
-                append!(
-                    exactsample,
-                    first(chunkdf, samplenrows - nrow(exactsample)),
-                )
+                append!(exactsample, first(chunkdf, samplenrows - nrow(exactsample)))
             end
 
             # nbytes += isnothing(chunkdf) ? pqf.meta.row_groups[i].total_byte_size : Base.summarysize(chunkdf)
@@ -684,7 +692,13 @@ function get_remote_location(remotepath)
         end
 
         # Add to list of file metadata
-        push!(files, Dict("path" => p_isdir ? joinpath(remotepath, filep) : remotepath, "nrows" => filenrows))
+        push!(
+            files,
+            Dict(
+                "path" => p_isdir ? joinpath(remotepath, filep) : remotepath,
+                "nrows" => filenrows,
+            ),
+        )
     end
 
     # Adjust sample to have samplenrows
@@ -693,10 +707,7 @@ function get_remote_location(remotepath)
         @show samplenrows
     end
     if nrow(randomsample) < samplenrows
-        append!(
-            randomsample,
-            first(exactsample, samplenrows - nrow(randomsample)),
-        )
+        append!(randomsample, first(exactsample, samplenrows - nrow(randomsample)))
     end
     if nrow(randomsample) > samplenrows
         randomsample = first(randomsample, samplenrows)

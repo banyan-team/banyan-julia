@@ -64,7 +64,7 @@ function write_csv(df, path)
     destined(df, Remote(path, delete_from_cache=true))
     mutated(df)
     partitioned_with() do
-        pt(df, Partitioned(A))
+        pt(df, Partitioned(df))
     end
     @partitioned df begin end
     compute(df)
@@ -83,6 +83,8 @@ Banyan.sample_keys(df::DataFrames.DataFrame) = propertynames(df)
 # NOTE: This is duplicated between pt_lib.jl and the client library
 orderinghash(x::Any) = x # This lets us handle numbers and dates
 orderinghash(s::String) = Integer.(codepoint.(collect(first(s, 32) * repeat(" ", 32-length(s)))))
+
+# TODO: Make these sample_* functions handle empty data frames
 
 function Banyan.sample_divisions(df::DataFrames.DataFrame, key)
     max_ngroups = sample_max_ngroups(df, key)
@@ -349,7 +351,7 @@ function Missings.allowmissing(df::DataFrame)::DataFrame
     end
 
     partitioned_with() do
-        pt(df, Distributed(scaled_by_same_as=res))
+        pt(df, Distributed(df, scaled_by_same_as=res))
         pt(res, ScaledBySame(as=df), match=df)
 
         # pt(df, Distributed(df, balanced=true))
@@ -375,7 +377,7 @@ function Missings.disallowmissing(df::DataFrame)::DataFrame
     end
 
     partitioned_with() do
-        pt(df, Distributed(scaled_by_same_as=res))
+        pt(df, Distributed(df, scaled_by_same_as=res))
         pt(res, ScaledBySame(as=df), match=df)
 
         # pt(df, Distributed(df, balanced=true))
@@ -392,6 +394,32 @@ function Missings.disallowmissing(df::DataFrame)::DataFrame
     DataFrame(res, copy(df.nrows))
 end
 
+function Base.deepcopy(df::DataFrame)::DataFrame
+    res = Future()
+
+    partitioned_using() do
+        keep_all_sample_keys(res, df)
+        keep_sample_rate(res, df)
+    end
+
+    partitioned_with() do
+        pt(df, Distributed(df, scaled_by_same_as=res))
+        pt(res, ScaledBySame(as=df), match=df)
+
+        # pt(df, Distributed(df, balanced=true))
+        # pt(res, Balanced(), match=df)
+
+        # pt(df, Distributed(df, balanced=false, scaled_by_same_as=res))
+        # pt(res, Unbalanced(scaled_by_same_as=df), match=df)
+        
+        pt(df, res, Replicated())
+    end
+
+    @partitioned df res begin res = deepcopy(df) end
+
+    DataFrame(res, copy(df.nrows))
+end
+
 function Base.copy(df::DataFrame)::DataFrame
     res = Future()
 
@@ -401,7 +429,7 @@ function Base.copy(df::DataFrame)::DataFrame
     end
 
     partitioned_with() do
-        pt(df, Distributed(scaled_by_same_as=res))
+        pt(df, Distributed(df, scaled_by_same_as=res))
         pt(res, ScaledBySame(as=df), match=df)
 
         # pt(df, Distributed(df, balanced=true))
@@ -1100,7 +1128,7 @@ function DataFrames.rename(df::DataFrame, args...; kwargs...)
 
     partitioned_with() do
         # distributed
-        for dfpt in Distributed(scaled_by_same_as=res)
+        for dfpt in Distributed(df, scaled_by_same_as=res)
             pt(dfpt)
             if dfpt.distribution == "grouped"
                 groupingkeyindex = indexin(dfpt.key, sample(df, :keys))
@@ -1291,8 +1319,11 @@ function DataFrames.innerjoin(dfs::DataFrame...; on, kwargs...)
     # TODO: Make it so that the code region's sampled computation is run first to allow for the function's
     # error handling to kick in first
 
-    groupingkeys = first(to_vector(on))
-    groupingkeys = groupingkeys isa Union{Tuple,Pair} ? [groupingkeys...] : repeat(groupingkeys, length(dfs))
+    # TODO: Change this annotation to allow for grouping on any of the keys we
+    # are joining on
+
+    groupingkeys = first(on isa Base.Vector ? on : [on])
+    groupingkeys = groupingkeys isa Union{Tuple,Pair} ? [groupingkeys...] : Base.fill(groupingkeys, length(dfs))
 
     res_nrows = Future()
     res = DataFrame(Future(), res_nrows)
@@ -1317,8 +1348,8 @@ function DataFrames.innerjoin(dfs::DataFrame...; on, kwargs...)
     # TODO: Use something like this for join
     partitioned_with() do
         # unbalanced, ...., unbalanced -> balanced - "partial sort-merge join"
-        for groupingkey in groupingkeys
-            pt(dfs..., Grouped(df, by=groupingkey, balanced=false, filtered_to=res), match=res, on=["divisions", "rev"])
+        for (df, groupingkey) in zip(dfs, groupingkeys)
+            pt(df, Grouped(df, by=groupingkey, balanced=false, filtered_to=res), match=res, on=["divisions", "rev"])
         end
         pt(res, Grouped(df, by=first(groupingkeys), balanced=true, filtered_from=dfs) & Drifted())
 
@@ -1350,8 +1381,8 @@ function DataFrames.innerjoin(dfs::DataFrame...; on, kwargs...)
         # pg(res, Blocked() & Unbalanced() & Drifted())
 
         # unbalanced, unbalanced, ... -> unbalanced - "partial sort-merge join"
-        for groupingkey in groupingkeys
-            pt(dfs..., Grouped(df, by=groupingkey, balanced=false, filtered_to=res), match=res, on=["divisions", "rev"])
+        for (df, groupingkey) in zip(dfs, groupingkeys)
+            pt(df, Grouped(df, by=groupingkey, balanced=false, filtered_to=res), match=res, on=["divisions", "rev"])
         end
         pt(res, Grouped(df, by=first(groupingkeys), balanced=false, filtered_from=dfs) & Drifted())
         
