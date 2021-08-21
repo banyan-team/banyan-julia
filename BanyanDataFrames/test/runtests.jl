@@ -13,6 +13,7 @@ using FilePathsBase
 using Parquet
 using AWSS3
 using Statistics
+using Random
 
 function include_tests_to_run(args...)
     clear_jobs()

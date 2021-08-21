@@ -35,6 +35,13 @@ function setup_basic_tests(bucket_name)
     write_df_to_parquet_to_s3(df, "iris_large.parquet", p"iris_large.parquet", bucket_name)
     write_df_to_arrow_to_s3(df, "iris_large.arrow", p"iris_large.arrow", bucket_name)
 
+    # Write to dir
+    df_shuffle = df[shuffle(1:nrow(df)), :]
+    chunk_size = 100
+    for i in 1:9
+        write_df_to_csv_to_s3(df_shuffle[((i-1)*chunk_size + 1):i*chunk_size, :], "iris_large_dir/iris_large_chunk$(i).csv", p"iris_large_chunk$(i).csv", bucket_name)
+    end
+
     write_df_to_csv_to_s3(
         df_s,
         "iris_species_info.csv",
@@ -136,6 +143,7 @@ end
                 "s3://$(bucket)/iris_large.csv",
                 "s3://$(bucket)/iris_large.parquet",
                 "s3://$(bucket)/iris_large.arrow",
+		"s3://$(bucket)/iris_large_dir"
             ]
                 df = read_file(path)
 
@@ -161,7 +169,7 @@ end
                 @test nrow(sub) == 36
                 @test round(collect(reduce(+, sub[:, :sepal_length]))) == 217
                 @test nrow(sub2) == 4
-                @test round((reduce(+, sub2[:, :sepal_length]))) == 26
+                @test round(collect((reduce(+, sub2[:, :sepal_length])))) == 26
                 @test Set(collect(sub2[:, :species])) == Set(["species_8", "species_18"])
 
 
@@ -240,6 +248,7 @@ end
                 "s3://$(bucket)/tripdata_large_csv",
                 "s3://$(bucket)/tripdata_large_parquet",
                 "s3://$(bucket)/tripdata_large_arrow",
+		"s3://$(bucket)/iris_large_dir"
             ]
                 df = read_file(path)
                 @test nrow(df) == 61577490 * n_repeats
@@ -256,14 +265,16 @@ end
                 end
 
                 @test nrow(sub) == 15109122
-                @test round(reduce(+, sub[:, :trip_distance])) == 5.3284506e7
-                @test round(reduce(&, map(d -> d > 1.0, sub[:, :trip_distance])))
-                @test reduce(
-                    +,
-                    map(
-                        t -> hour(DateTime(t, "yyyy-mm-dd HH:MM:SS")),
-                        tripdata[:, :pickup_datetime],
-                    ),
+                @test round(collect(reduce(+, sub[:, :trip_distance]))) == 5.3284506e7
+                @test round(collect(reduce(&, map(d -> d > 1.0, sub[:, :trip_distance]))))
+                @test collect(
+	            reduce(
+                        +,
+                        map(
+                            t -> hour(DateTime(t, "yyyy-mm-dd HH:MM:SS")),
+                            tripdata[:, :pickup_datetime],
+                        ),
+		    )
                 ) == 835932637
             end
         end
