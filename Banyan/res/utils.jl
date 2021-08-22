@@ -168,7 +168,7 @@ end
 orderinghash(x::Any) = x # This lets us handle numbers and dates
 orderinghash(s::String) =
     Integer.(codepoint.(collect(first(s, 32) * repeat(" ", 32 - length(s)))))
-orderinghash(A::Array) = orderinghash(first(A))
+orderinghash(A::U) where U <: Base.AbstractArray = orderinghash(first(A))
 
 to_vector(v::Vector) = v
 to_vector(v) = [v]

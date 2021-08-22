@@ -706,6 +706,8 @@ function Base.getindex(df::DataFrame, rows=:, cols=:)
         res_size = res isa Base.Vector ? res_size : first(res_size)
     end
 
+    @show sample(res)
+
     res
 
     # by = names(sample(df), cols)
@@ -1388,7 +1390,7 @@ function DataFrames.innerjoin(dfs::DataFrame...; on, kwargs...)
         
         # "replicated join"
         pt(res_nrows, Reducing(quote (a, b) -> a .+ b end))
-        pt(dfs..., res, kwargs, Replicated())
+        pt(dfs..., on, res, kwargs, Replicated())
 
         # TODO: Support nested loop join where multiple are Block and Cross-ed and others are all Replicate
     end

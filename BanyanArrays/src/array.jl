@@ -68,8 +68,8 @@ Banyan.convert(::Type{Future}, A::Array{T,N}) where {T,N} = A.data
 
 # Array sample
 
-Banyan.sample_axes(A::Base.Array{T,N}) where {T,N} = [1:ndims(A)...]
-Banyan.sample_keys(A::Base.Array{T,N}) where {T,N} = sample_axes(A)
+Banyan.sample_axes(A::U) where U <: Base.AbstractArray{T,N} where {T,N} = [1:ndims(A)...]
+Banyan.sample_keys(A::U) where U <: Base.AbstractArray{T,N} where {T,N} = sample_axes(A)
 
 # `sample_divisions`, `sample_percentile`, and `sample_max_ngroups` should
 # work with the `orderinghash` of values in the data they are used on
@@ -77,9 +77,9 @@ Banyan.sample_keys(A::Base.Array{T,N}) where {T,N} = sample_axes(A)
 # NOTE: This is duplicated between pt_lib.jl and the client library
 orderinghash(x::Any) = x # This lets us handle numbers and dates
 orderinghash(s::String) = Integer.(codepoint.(collect(first(s, 32) * repeat(" ", 32-length(s)))))
-orderinghash(A::Array) = orderinghash(first(A))
+orderinghash(A::U) where U <: Base.AbstractArray = orderinghash(first(A))
 
-function Banyan.sample_divisions(A::Base.Array{T,N}, key) where {T,N}
+function Banyan.sample_divisions(A::U, key) where U <: Base.AbstractArray{T,N} where {T,N}
     max_ngroups = sample_max_ngroups(df, key)
     ngroups = min(max_ngroups, Banyan.get_job().nworkers * 8, 128)
     data = sort(mapslices(first, transpose(A), dims=key))
@@ -95,7 +95,7 @@ function Banyan.sample_divisions(A::Base.Array{T,N}, key) where {T,N}
     ]
 end
 
-function Banyan.sample_percentile(A::Base.Array{T,N}, key, minvalue, maxvalue) where {T,N}
+function Banyan.sample_percentile(A::U, key, minvalue, maxvalue) where U <: Base.AbstractArray{T,N} where {T,N}
     minvalue, maxvalue = orderinghash(minvalue), orderinghash(maxvalue)
     divisions = sample_divisions(A, key)
     percentile = 0
@@ -123,7 +123,7 @@ function Banyan.sample_percentile(A::Base.Array{T,N}, key, minvalue, maxvalue) w
     percentile
 end
 
-Banyan.sample_max_ngroups(A::Base.Array{T,N}, key) where {T,N} =
+Banyan.sample_max_ngroups(A::U, key) where U <: Base.AbstractArray{T,N} where {T,N} =
     begin
         data = sort(mapslices(orderinghash, transpose(A), dims=key))
         currgroupsize = 1
@@ -142,8 +142,8 @@ Banyan.sample_max_ngroups(A::Base.Array{T,N}, key) where {T,N} =
         maxgroupsize = max(maxgroupsize, currgroupsize)
         div(size(df, key), maxgroupsize)
     end
-Banyan.sample_min(A::Base.Array{T,N}, key) where {T,N} = minimum(mapslices(first, transpose(A), dims=key))
-Banyan.sample_max(A::Base.Array{T,N}, key) where {T,N} = maximum(mapslices(first, transpose(A), dims=key))
+Banyan.sample_min(A::U, key) where U <: Base.AbstractArray{T,N} where {T,N} = minimum(mapslices(first, transpose(A), dims=key))
+Banyan.sample_max(A::U, key) where U <: Base.AbstractArray{T,N} where {T,N} = maximum(mapslices(first, transpose(A), dims=key))
 
 # Array creation
 

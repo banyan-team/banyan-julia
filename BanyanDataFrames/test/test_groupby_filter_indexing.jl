@@ -116,7 +116,7 @@ end
 ##############################
 
 function read_file(path)
-    if endswith(path, ".csv")write_df_to_Csv_to_s3write_df_to_Csv_to_s3
+    if endswith(path, ".csv")
         return BanyanDataFrames.read_csv(path)
     elseif endswith(path, ".parquet")
         return BanyanDataFrames.read_parquet(path)
@@ -184,6 +184,7 @@ end
                 @test round(collect(reduce(+, sub[:, :sepal_length]))) == 217
                 @test nrow(sub2) == 4
                 @test round(collect((reduce(+, sub2[:, :sepal_length])))) == 26
+                @show sample(sub2)
                 @test Set(collect(sub2[:, :species])) == Set(["species_8", "species_18"])
 
 
