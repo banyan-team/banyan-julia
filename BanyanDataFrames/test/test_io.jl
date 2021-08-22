@@ -42,7 +42,9 @@ end
             @test collect(propertynames(iris)) ==
                 [:sepal_length, :sepal_width, :petal_length, :petal_width, :species]
             iris_filter = iris[map(sl, sl -> sl == 5.1, iris[:, :sepal_length]), :]
-            @test first(collect(iris_filter)) == DataFrameRow(
+            iris_filter_first_row = first(collect(iris_filter))
+            iris_filter_last_row = last(collect(iris_filter))
+            @test iris_filter_first_row == DataFrameRow(
                 DataFrame(
                     sepal_length = 5.1,
                     sepal_width = 3.5,
@@ -52,7 +54,7 @@ end
                 ),
                 1,
             )
-            @test last(collect(iris_filter)) == DataFrameRow(
+            @test iris_filter_last_row == DataFrameRow(
                 DataFrame(
                     sepal_length = 5.1,
                     sepal_width = 2.5,
@@ -73,7 +75,8 @@ end
             iris_new = read_func("s3://$(bucket)/iris_filter.$(filetype)")
             @test nrow(iris_new) == 9
             @test ncol(iris_new) == 5
-            @test last(collect(iris_new)) == DataFrameRow(
+            iris_new_last_row = last(collect(iris_new))
+            @test iris_new_last_row == DataFrameRow(
                 DataFrame(
                     sepal_length = 5.1,
                     sepal_width = 2.5,

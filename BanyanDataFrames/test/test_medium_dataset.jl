@@ -66,7 +66,7 @@ end
         tripdata_grouped = groupby(tripdata, :start_hour)
         means = combine(tripdata_grouped, :trip_distance => mean)
         means_sorted = collect(sort(means, :trip_distance_mean))
-        @test round(means_sorted[:, :trip_distance_mean], digits = 3) == [
+        @test round.(means_sorted[:, :trip_distance_mean], digits = 3) == [
             2.523,
             2.529,
             2.577,
@@ -130,8 +130,9 @@ end
             :,
         ]
         @test nrow(tripdata_unique_start) == 2368616
-        @test (tripdata_unique_start_end_of_month) == 163601
-        @test collect(round(sum(tripdata_unique_start_end_of_month))) == 490661
+        @test nrow(tripdata_unique_start_end_of_month) == 163601
+        unique_start_sum = collect(round(sum(tripdata_unique_start_end_of_month)))
+        @test unique_start_sum == 490661
         pickup_res = collect(tripdata_unique_start_end_of_month[:, :tpep_pickup_datetime])
         @test pickup_res[1] == "2016-01-30 00:00:01"
         @test pickup_res[2] == "2016-01-30 00:00:02"

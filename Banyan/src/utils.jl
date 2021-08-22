@@ -320,7 +320,38 @@ end
 """
 Sends given request with given content
 """
+function request_body(url::AbstractString; kwargs...)
+    resp = nothing
+    body = sprint() do output
+        resp = request(url; output=output, kwargs...)
+    end
+    return resp, body
+end
+
+function request_json(url::AbstractString; kwargs...)
+    resp, body = request_body(url; kwargs...)
+    return resp, JSON.parse(body)
+end
+
 function send_request_get_response(method, content::Dict)
+    # Prepare request
+    configuration = load_config()
+    user_id = configuration["banyan"]["user_id"]
+    api_key = configuration["banyan"]["api_key"]
+    content["debug"] = is_debug_on()
+    url = string(BANYAN_API_ENDPOINT, method_to_string(method))
+    headers = [
+        "content-type" => "application/json",
+        "Username-APIKey" => "$user_id-$api_key",
+    ]
+    resp, data = request_json(
+	url, input=IOBuffer(JSON.json(content)), method="POST", headers=headers
+    )
+    return data
+
+end
+
+function send_request_get_response_using_http(method, content::Dict)
     # Prepare request
     # content = convert(Dict{Any, Any}, content)
     configuration = load_config()

@@ -135,6 +135,7 @@ using AWSCore
 using AWSS3
 using AWSSQS
 using Base64
+using Downloads
 using HTTP
 using JSON
 using Random
