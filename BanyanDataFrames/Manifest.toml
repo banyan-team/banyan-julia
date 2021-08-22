@@ -1,11 +1,5 @@
 # This file is machine-generated - editing it directly is not advised
 
-
-
-
-
-
-
 [[AWS]]
 deps = ["Base64", "Compat", "Dates", "GitHub", "HTTP", "IniFile", "JSON", "MbedTLS", "Mocking", "OrderedCollections", "Retry", "Sockets", "URIs", "UUIDs", "XMLDict"]
 git-tree-sha1 = "8fd6e824d5fe2fbf45d19b17cb1c72895b5ceff1"
@@ -49,7 +43,7 @@ version = "1.2.0"
 uuid = "56f22d72-fd6d-98f1-02f0-08ddc0907c33"
 
 [[Banyan]]
-deps = ["AWS", "AWSCore", "AWSS3", "AWSSQS", "Arrow", "Base64", "CSV", "DataFrames", "FileIO", "FilePathsBase", "HDF5", "HTTP", "IniFile", "IterTools", "JSON", "Parquet", "Random", "Serialization", "TOML", "TimeZones"]
+deps = ["AWS", "AWSCore", "AWSS3", "AWSSQS", "Arrow", "Base64", "CSV", "DataFrames", "Downloads", "FileIO", "FilePathsBase", "HDF5", "HTTP", "IniFile", "IterTools", "JSON", "Parquet", "Random", "Serialization", "TOML", "TimeZones"]
 path = "../Banyan"
 uuid = "706d138b-e922-45b9-a636-baf8ae0d5317"
 version = "0.1.1"

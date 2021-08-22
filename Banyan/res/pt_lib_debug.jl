@@ -446,6 +446,10 @@ function Write(
         src
         # TODO: Delete all other part* files for this value if others exist
     elseif isa_array(part)
+        # TODO: Support missing values in the array for locations that use
+        # Julia serialized objects
+        part = disallowmissing(part)
+
         # if loc_name == "Disk"
         #     # Technically we don't have to do this since when we read we can
         #     # check if location is Disk
