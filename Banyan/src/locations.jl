@@ -689,6 +689,8 @@ function get_remote_location(remotepath)
             # nbytes += isnothing(chunkdf) ? pqf.meta.row_groups[i].total_byte_size : Base.summarysize(chunkdf)
             # nbytes = nothing
             nbytes += Base.summarysize(chunkdf)
+
+            # TODO: Maybe call GC.gc() here if we get an error when sampling really large datasets
         end
 
         # Add to list of file metadata
