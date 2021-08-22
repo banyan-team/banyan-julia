@@ -448,7 +448,6 @@ function update_cluster(;
     destroy_all_jobs_before = false,
     kwargs...,
 )
-    @info "Starting cluster update"
 
     # Configure
     configure(; kwargs...)
@@ -471,6 +470,8 @@ function update_cluster(;
     if destroy_all_jobs_before
         destroy_all_jobs(name)
     end
+    
+    @info "Starting cluster update"
 
     # Force by setting cluster to running
     if force

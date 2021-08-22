@@ -218,7 +218,7 @@ end
 
         # Prepare some larger data. Groupby by rounded petal length into 54 groups.
         iris = innerjoin(iris, iris[:, [:species]], on = :species)
-        setindex!(iris, :petal_length_rounded, map(pl -> round(pl), iris[:, :petal_length]))
+        setindex!(iris, map(pl -> round(pl), iris[:, :petal_length]), :, :petal_length_rounded)
         gdf = groupby(iris, [:species, :petal_length_rounded])
         @test length(gdf) == 54
 

@@ -131,7 +131,7 @@ function DataFrames.select(gdf::GroupedDataFrame, args...; kwargs...)
     end
 
     partitioned_with() do
-        pt(gdf_parent, Grouped(df, by=groupingkeys, scaled_by_same_as=res), match=res)
+        pt(gdf_parent, Grouped(gdf_parent, by=groupingkeys, scaled_by_same_as=res), match=res)
         pt(gdf, Blocked(along=1) & ScaledBySame(as=res))
         pt(res, ScaledBySame(as=gdf_parent))
         pt(gdf_parent, gdf, res, groupcols, groupkwargs, args, kwargs, Replicated())
@@ -220,7 +220,7 @@ function DataFrames.transform(gdf::GroupedDataFrame, args...; kwargs...)
     # `partitioned_with`
 
     partitioned_with() do
-        pt(gdf_parent, Grouped(df, by=groupingkeys, scaled_by_same_as=res), match=res)
+        pt(gdf_parent, Grouped(gdf_parent, by=groupingkeys, scaled_by_same_as=res), match=res)
         pt(gdf, Blocked(along=1) & ScaledBySame(as=res))
         pt(res, ScaledBySame(as=gdf_parent))
         pt(gdf_parent, gdf, res, groupcols, groupkwargs, args, kwargs, Replicated())
