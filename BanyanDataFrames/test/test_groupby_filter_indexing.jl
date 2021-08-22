@@ -25,12 +25,12 @@ function setup_basic_tests(bucket_name)
     df = CSV.read(iris_local_path, DataFrames.DataFrame)
     df_s = CSV.read(iris_species_info_local_path, DataFrames.DataFrame)
     # Duplicate df six times and change the species names
-    species_list = df[:, :species]
+    species_list = df[:, [:species]]
     df = reduce(vcat, [df, df, df, df, df, df])
     for i = 4:18
         species_list = append!(species_list, Base.fill("species_$(i)", 50))
     end
-    df[:, :species] = species_list
+    df[:, [:species]] = species_list
     write_df_to_csv_to_s3(df, "iris_large.csv", p"iris_large.csv", bucket_name, "iris_large.csv")
     write_df_to_parquet_to_s3(df, "iris_large.parquet", p"iris_large.parquet", bucket_name, "iris_large.parquet")
     write_df_to_arrow_to_s3(df, "iris_large.arrow", p"iris_large.arrow", bucket_name, "iris_large.arrow")
@@ -180,12 +180,21 @@ end
                     sub = read_file(sub_save_path)
                     sub2 = read_file(sub2_save_path)
                 end
-                @test nrow(sub) == 36
-                @test round(collect(reduce(+, sub[:, :sepal_length]))) == 217
-                @test nrow(sub2) == 4
-                @test round(collect((reduce(+, sub2[:, :sepal_length])))) == 26
+
+                # Collect results
+                sub_nrow = nrow(sub)
+                sub2_nrow = nrow(sub2)
+                sepal_length_sub_sum = round(collect(reduce(+, sub[:, :sepal_length])))
+                sepal_length_sub2_sum = round(collect((reduce(+, sub2[:, :sepal_length]))))
+                sub2_species = Set(collect(sub2[:, [:species]]))
+
+                # Assert
+                @test sub_nrow == 36
+                @test sepal_length_sub_sum == 217
+                @test sub2_nrow == 4
+                @test sepal_length_sub2_sum == 26
                 @show sample(sub2)
-                @test Set(collect(sub2[:, :species])) == Set(["species_8", "species_18"])
+                @test sub2_species == Set(["species_8", "species_18"])
 
 
                 # Filter based on multiple columns using DataFrameRow syntax
@@ -202,10 +211,17 @@ end
                 else
                     sub3 = read_file(sub3_save_path)
                 end
-                @test nrow(sub3) == 62
+
+                # Collect results
+                sub3_nrow = nrow(sub3)
                 sub3 = sort(collect(sub3))
-                @test collect(sub3[8, :]) == [5.6, 2.9, 3.6, 1.3, "versicolor"]
-                @test collect(sub3[62, :]) == [5.7, 2.8, 4.1, 1.3, "species_17"]
+                sub3_row8 = collect(sub3[8, :])
+                sub3_row62 = collect(sub3[62, :])
+
+                # Assert
+                @test sub3_nrow == 62
+                @test sub3_row8 == [5.6, 2.9, 3.6, 1.3, "versicolor"]
+                @test sub3_row62 == [5.7, 2.8, 4.1, 1.3, "species_17"]
 
                 # Filter based on multiple columns, using cols
                 sub4_save_path = get_save_path(bucket, "sub4", path)
@@ -216,9 +232,13 @@ end
                 else
                     sub4 = read_file(sub4_save_path)
                 end
-                @test nrow(sub4) == 114
-                @test collect(reduce(max, sub4[:, :petal_length])) == 6.9
-                @test collect(
+
+                # Collect results
+                sub4_nrow = nrow(sub4)
+
+                sub4_nrow = nrow(sub4)
+                sub4_max_petal_length = collect(reduce(max, sub4[:, :petal_length]))
+                sub4_valid = collect(
                     reduce(
                         &,
                         map(
@@ -227,10 +247,17 @@ end
                             sub4[:, :petal_width],
                         ),
                     ),
-                ) == true
+                )
                 sub4 = sort(collect(sub4))
-                @test collect(sub4[8, :]) == [6.2, 3.4, 5.4, 2.3, "species_15"]
-                @test collect(sub4[114, :]) == [7.9, 3.8, 6.4, 2.0, "virginica"]
+                sub4_row8 = collect(sub4[8, :])
+                sub4_row114 = collect(sub4[114, :])
+
+                # Assert
+                @test sub4_nrow = 114
+                @test sub4_max_petal_length == 6.9
+                @test sub4_valid
+                @test sub4_row8 == [6.2, 3.4, 5.4, 2.3, "species_15"]
+                @test sub4_row114 = [7.9, 3.8, 6.4, 2.0, "virginica"]
 
                 # Filter based on multiple columns, using AsTable
                 sub5_save_path = get_save_path(bucket, "sub5", path)
@@ -246,10 +273,17 @@ end
                 else
                     sub5 = read_file(sub5_save_path)
                 end
-                @test nrow(sub5) == 18
+
+                # Collect results
+                sub5_nrow = nrow(sub5)
                 sub5 = sort(collect(sub5))
-                @test collect(sub5[1, :]) == [6.1, 2.8, 4.0, 1.3, "species_11"]
-                @test collect(sub5[18, :]) == [7.2, 3.2, 6.0, 1.8, "virginica"]
+                sub5_row1 = collect(sub5[1, :])
+                sub5_row18 = collect(sub5[18, :])
+
+                # Assert
+                @test sub5_nrow == 18
+                @test sub5_row1 == [6.1, 2.8, 4.0, 1.3, "species_11"]
+                @test sub5_row18 == [7.2, 3.2, 6.0, 1.8, "virginica"]
             end
         end
     end
@@ -279,10 +313,11 @@ end
                     sub = read_file(sub_save_path)
                 end
 
-                @test nrow(sub) == 15109122
-                @test round(collect(reduce(+, sub[:, :trip_distance]))) == 5.3284506e7
-                @test round(collect(reduce(&, map(d -> d > 1.0, sub[:, :trip_distance]))))
-                @test collect(
+                # Collect results
+                sub_nrow = nrow(sub)
+                sub_tripdistance_sum = round(collect(reduce(+, sub[:, :trip_distance])))
+                sub_valid = round(collect(reduce(&, map(d -> d > 1.0, sub[:, :trip_distance]))))
+                sub_hour_sum = collect(
 	            reduce(
                         +,
                         map(
@@ -290,7 +325,13 @@ end
                             tripdata[:, :pickup_datetime],
                         ),
 		    )
-                ) == 835932637
+                )
+
+                # Assert
+                @test sub_nrow = 15109122
+                @test sub_tripdistance_sum = 5.3284506e7
+                @test sub_valid
+                @test sub_hour_sum == 835932637
             end
         end
     end
@@ -378,36 +419,52 @@ end
                     gdf_subset = read_file(gdf_subset_save_path)
                 end
 
-                @test size(gdf_select) == (900, 6)
-                @test size(gdf_transform) == (900, 6)
-                @test nrow(gdf_subset) == 474
-                @test round(
+		# Collect results
+		gdf_select_size = size(gdf_select)
+		gdf_transform_size = size(gdf_transform)
+		gdf_subset_nrow = nrow(gdf_subset)
+                gdf_select_plf_subtract = round(
                     collect(reduce(-, gdf_select[:, :petal_length_function])),
                     digits = 2,
-                ) == -0.13
-                @test length(
+                )
+                gdf_select_filter_length = length(
                     collect(
                         gdf_select[:, :petal_length][map(
                             l -> l .== 1.3,
                             gdf_select[:, :petal_length],
                         )],
                     ),
-                ) == 42
-                @test length(groupby(gdf_transform, [:species, :species_function])) == 18
+                )
+                gdf_transform_length = length(groupby(gdf_transform, [:species, :species_function]))
                 gdf_subset_collected = sort(collect(gdf_subset))
-                @test collect(gdf_subset_collect[5, :]) == [4.6, 3.1, 1.5, 0.2]
-                @test collect(gdf_subset_collect[33, :]) == [6.7, 2.5, 5.8, 1.8]
-                @test collect(gdf_subset_collect[474, :]) ==
-                      [7.9, 3.8, 6.4, 2.0, "virginica"]
-
-                # Combine
-                @test names(combine(gdf, nrow, keepkeys = false)) == ["nrow"]
-                @test Set(names(combine(gdf, nrow, keepkeys = true))) ==
-                      Set(["nrow", "species"])
-                @test sort(collect(combine(gdf, :petal_length => mean)), :petal_length_mean)[
+                gdf_subset_row5 = collect(gdf_subset_collect[5, :])
+                gdf_subset_row33 == collect(gdf_subset_collect[33, :])
+                gdf_subset_row474 = collect(gdf_subset_collect[474, :])
+                gdf_keepkeys_false_names = names(combine(gdf, nrow, keepkeys = false))
+                gdf_keepkeys_true_names = Set(names(combine(gdf, nrow, keepkeys = true)))
+                petal_length_mean = sort(collect(combine(gdf, :petal_length => mean)), :petal_length_mean)[
                     :,
                     :petal_length_mean,
-                ] == [
+                ]
+                temp = combine(gdf, :petal_length => mean, renamecols = false)
+                temp_names = Set(names(temp))
+                temp_petal_length = sort(collect(temp)[:petal_length])
+
+                # Assert
+                @test gdf_select_size == (900, 6)
+                @test gdf_transform_size == (900, 6)
+                @test gdf_subset_nrow == 474
+                @test gdf_select_plf_subtract == -0.13
+                @test gdf_select_filter_length == 42
+                @test gdf_transform_length == 18
+                @test gdf_subset_row5 == [4.6, 3.1, 1.5, 0.2]
+                @test gdf_subset_row33 == [6.7, 2.5, 5.8, 1.8]
+                @test gdf_subst_row474 == [7.9, 3.8, 6.4, 2.0, "virginica"]
+
+                # Combine
+                @test gdf_keepkeys_false_names == ["nrow"]
+                @test gdf_keepkeys_true_names == Set(["nrow", "species"])
+                @test petal_length_mean == [
                     1.464,
                     1.464,
                     1.464,
@@ -427,9 +484,8 @@ end
                     5.552,
                     5.552,
                 ]
-                temp = combine(gdf, :petal_length => mean, renamecols = false)
-                @test Set(names(temp)) == Set(["petal_length", "species"])
-                @test sort(collect(temp)[:petal_length]) == [
+                @test temp_names == Set(["petal_length", "species"])
+                @test temp_petal_length == [
                     1.464,
                     1.464,
                     1.464,
@@ -476,7 +532,11 @@ end
                     gdf_subset = read_file(gdf_collect_save_path)
                 end
 
-                @test sort(collect(combine(gdf, nrow))) == [
+                gdf_nrow = sort(collect(combine(gdf, nrow)))
+                gdf_subset_nrow = nrow(gdf_subset)
+                gdf_tripdistance_sum = round(collect(reduce(+, gdf_subset[:, :trip_distance])))
+
+                @test gdf_nrow == [
                     1,
                     1,
                     1,
@@ -499,9 +559,8 @@ end
                     18330823,
                     23711312,
                 ]
-                @test nrow(gdf_subset) == 16964379
-                @test round(collect(reduce(+, gdf_subset[:, :trip_distance]))) ==
-                      1.09448617e8
+                @test gdf_subset_nrow == 16964379
+                @test gdf_tripdistance_sum == 1.09448617e8
             end
 
         end
@@ -531,11 +590,14 @@ end
 		    filtered = read_file(filtered_save_path)
 		end
 
-                @test size(filtered) == (0, 0)
-		@test size(combine(groupby(filtered, All()), nrow)) == (0, 1)
+                filtered_size = size(filtered)
+                filtered_grouped_nrow = size(combine(groupby(filtered, All()), nrow))
+                grouped_length = length(groupby(df, All()))
 
-		@test length(groupby(df, All())) == 0
-		@test length(groupby
+                @test filtered_size == (0, 0)
+		@test filtered_grouped_nrow == (0, 1)
+
+		@test grouped_length == 0
 	end
     end
 end
