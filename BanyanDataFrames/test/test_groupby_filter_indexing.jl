@@ -194,7 +194,7 @@ end
                 @test sub2_nrow == 4
                 @test sepal_length_sub2_sum == 26
                 @show sample(sub2)
-                @test sub2_species == Set(["species_8", "species_18"])
+                @test sub2_species[:, :species] == Set(["species_8", "species_18"])
 
 
                 # Filter based on multiple columns using DataFrameRow syntax
