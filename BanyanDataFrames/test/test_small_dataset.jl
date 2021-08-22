@@ -517,7 +517,7 @@ end
         # Inner join with itself on species to increase cardinality. Group by rounded sepal length
         # and compute number of rows. Sort by number of rows.
         iris = innerjoin(iris, iris[:, [:species]], on = :species)
-        iris[:, :sepal_length_function] = round.(iris[:, :sepal_length])
+        iris[:, :sepal_length_function] = map(sl -> round(sl), iris[:, :sepal_length])
         iris_sepal_length_groups = compute(
             sort(
                 combine(
