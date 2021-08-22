@@ -183,7 +183,7 @@ function ReadBlock(
                 )
                 push!(dfs, DataFrame(Arrow.Table(Arrow.tobuffer(f))))
             elseif endswith(path, ".parquet")
-                f = Parquet.File(
+                f = read_parquet(
                     path,
                     rows = (readrange.start-filerowrange.start+1):(readrange.stop-filerowrange.start+1),
                 )

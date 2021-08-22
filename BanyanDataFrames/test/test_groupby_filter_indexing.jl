@@ -253,7 +253,7 @@ end
                 sub4_row114 = collect(sub4[114, :])
 
                 # Assert
-                @test sub4_nrow = 114
+                @test sub4_nrow == 114
                 @test sub4_max_petal_length == 6.9
                 @test sub4_valid
                 @test sub4_row8 == [6.2, 3.4, 5.4, 2.3, "species_15"]
@@ -327,7 +327,7 @@ end
                 #)
 
                 # Assert
-                @test sub_nrow = 15109122
+                @test sub_nrow == 15109122
                 @test sub_tripdistance_sum = 5.3284506e7
                 @test sub_valid
                 #@test sub_hour_sum == 835932637
