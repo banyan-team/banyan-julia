@@ -207,7 +207,7 @@ end
                   5.552,
                   5.552,
               ]
-        @test counts_species[:, :nrow] == counts_region[:, :nrow] == fill(50, 18)
+        @test counts_species[:, :nrow] == counts_region[:, :nrow] == Base.fill(50, 18)
     end
 
     run_with_job("Group and map over small dataset") do job
@@ -401,7 +401,7 @@ end
             4.26,
             5.552,
         ]
-        @test counts[:, :nrow] == fill(50, 18)
+        @test counts[:, :nrow] == Base.fill(50, 18)
     end
 
     run_with_job("Inner Join") do job
