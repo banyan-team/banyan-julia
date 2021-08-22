@@ -186,7 +186,7 @@ end
                 sub2_nrow = nrow(sub2)
                 sepal_length_sub_sum = round(collect(reduce(+, sub[:, :sepal_length])))
                 sepal_length_sub2_sum = round(collect((reduce(+, sub2[:, :sepal_length]))))
-                sub2_species = Set(collect(sub2[:, [:species]]))
+                sub2_species = Set(collect(sub2[:, [:species]])[:, :species])
 
                 # Assert
                 @test sub_nrow == 36
@@ -194,7 +194,7 @@ end
                 @test sub2_nrow == 4
                 @test sepal_length_sub2_sum == 26
                 @show sample(sub2)
-                @test sub2_species[:, :species] == Set(["species_8", "species_18"])
+                @test sub2_species == Set(["species_8", "species_18"])
 
 
                 # Filter based on multiple columns using DataFrameRow syntax
