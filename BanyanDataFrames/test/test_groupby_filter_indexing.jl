@@ -25,12 +25,12 @@ function setup_basic_tests(bucket_name)
     df = CSV.read(iris_local_path, DataFrames.DataFrame)
     df_s = CSV.read(iris_species_info_local_path, DataFrames.DataFrame)
     # Duplicate df six times and change the species names
-    species_list = df[:, [:species]]
+    species_list = df[:, :species]
     df = reduce(vcat, [df, df, df, df, df, df])
     for i = 4:18
-        species_list = append!(species_list, Base.fill("species_$(i)", 50))
+        append!(species_list, Base.fill("species_$(i)", 50))
     end
-    df[:, [:species]] = species_list
+    df[:, :species] = species_list
     write_df_to_csv_to_s3(df, "iris_large.csv", p"iris_large.csv", bucket_name, "iris_large.csv")
     write_df_to_parquet_to_s3(df, "iris_large.parquet", p"iris_large.parquet", bucket_name, "iris_large.parquet")
     write_df_to_arrow_to_s3(df, "iris_large.arrow", p"iris_large.arrow", bucket_name, "iris_large.arrow")

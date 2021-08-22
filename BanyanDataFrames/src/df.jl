@@ -1390,7 +1390,7 @@ function DataFrames.innerjoin(dfs::DataFrame...; on, kwargs...)
         
         # "replicated join"
         pt(res_nrows, Reducing(quote (a, b) -> a .+ b end))
-        pt(dfs..., on, res, kwargs, Replicated())
+        pt(dfs..., on, kwargs, res, res_nrows, Replicated())
 
         # TODO: Support nested loop join where multiple are Block and Cross-ed and others are all Replicate
     end
