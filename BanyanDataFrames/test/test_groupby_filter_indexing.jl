@@ -39,7 +39,7 @@ function setup_basic_tests(bucket_name)
     df_shuffle = df[shuffle(1:nrow(df)), :]
     chunk_size = 100
     for i in 1:9
-        write_df_to_csv_to_s3(df_shuffle[((i-1)*chunk_size + 1):i*chunk_size, :], "iris_large_chunk.csv", p"iris_large_chunk.csv", bucket_name, "iris_large_dir/iris_large_chunk$(i).csv")
+        write_df_to_csv_to_s3(df_shuffle[((i-1)*chunk_size + 1):i*chunk_size, :], "iris_large_chunk.csv", p"iris_large_chunk.csv", bucket_name, "iris_large_dir.csv/iris_large_chunk$(i).csv")
     end
 
     write_df_to_csv_to_s3(
@@ -84,21 +84,21 @@ function setup_stress_tests(bucket_name)
 		"tripdata.csv",
 		p"tripdata.csv",
 		bucket_name,
-                "tripdata_large_csv/tripdata_$(month)_copy$(ncopy).csv",
+                "tripdata_large_csv.csv/tripdata_$(month)_copy$(ncopy).csv",
             )
             write_df_to_parquet_to_s3(
                 df,
 		"tripdata.parquet",
 		p"tripdata.parquet",
 		bucket_name,
-                "tripdata_large_parquet/tripdata_$(month)_copy$(ncopy).parquet",
+                "tripdata_large_parquet.parquet/tripdata_$(month)_copy$(ncopy).parquet",
             )
             write_df_to_arrow_to_s3(
                 df,
 		"tripdata.arrow",
 		p"tripdata.arrow",
 		bucket_name,
-                "tripdata_large_arrow/tripdata_$(month)_copy$(ncopy).arrow",
+                "tripdata_large_arrow.arrow/tripdata_$(month)_copy$(ncopy).arrow",
             )
         end
     end
@@ -157,7 +157,7 @@ end
                 "s3://$(bucket)/iris_large.csv",
                 "s3://$(bucket)/iris_large.parquet",
                 "s3://$(bucket)/iris_large.arrow",
-		"s3://$(bucket)/iris_large_dir"
+		"s3://$(bucket)/iris_large_dir.csv"
             ]
                 df = read_file(path)
 
@@ -294,10 +294,9 @@ end
 
         for i = 1:2
             for path in [
-                "s3://$(bucket)/tripdata_large_csv",
-                "s3://$(bucket)/tripdata_large_parquet",
-                "s3://$(bucket)/tripdata_large_arrow",
-		"s3://$(bucket)/iris_large_dir"
+                "s3://$(bucket)/tripdata_large_csv.csv",
+                "s3://$(bucket)/tripdata_large_parquet.parquet",
+                "s3://$(bucket)/tripdata_large_arrow.arrow"
             ]
                 df = read_file(path)
                 @test nrow(df) == 61577490 * n_repeats
@@ -515,9 +514,9 @@ end
 
         for i = 1:2
             for path in [
-                "s3://$(bucket)/tripdata_large_csv",
-                "s3://$(bucket)/tripdata_large_parquet",
-                "s3://$(bucket)/tripdata_large_arrow",
+                "s3://$(bucket)/tripdata_large_csv.csv",
+                "s3://$(bucket)/tripdata_large_parquet.parquet",
+                "s3://$(bucket)/tripdata_large_arrow.arrow",
             ]
                 df = read_file(path)
                 global n_repeats
