@@ -149,6 +149,7 @@ end
 
         iris_sorted = collect(iris_sorted)
         iris_sorted_reverse = collect(iris_sorted_reverse)
+
         @test iris_sorted[[1, 142, nrow(iris_sorted)], [:sepal_width, :petal_length]] ==
               DataFrames.DataFrame(:sepal_width => [2.0, 2.6, 4.4], :petal_length => [3.5, 4.0, 1.5])
         @test iris_sorted_reverse[
@@ -327,7 +328,9 @@ end
                 nrow,
             ),
         )
-        @test collect(long_petal_iris)[:, :nrow] == [
+        long_petal_iris_nrow = collect(long_petal_iris)[:, :nrow]
+        long_petal_iris_species = collect(long_petal_iris)[:, :species]
+        @test long_petal_iris_nrow == [
             1250,
             1250,
             1250,
@@ -347,7 +350,7 @@ end
             1250,
             1200,
         ]
-        @test collect(long_petal_iris)[:, :species] == [
+        @test long_petal_iris_species == [
             "setosa",
             "species_10",
             "species_11",
@@ -530,8 +533,9 @@ end
                 :nrow,
             ),
         )
-        @test collect(iris_sepal_length_groups[:, :nrow]) == [250, 300, 1200, 2350, 3400]
-        @test collect(iris_sepal_length_groups[:, :nrow]) == [4.0, 8.0, 7.0, 5.0, 6.0]
+        res = collect(iris_sepal_length_groups)
+        @test res[:, :nrow] == [1500, 1800, 7200, 14100, 20400]
+        @test res[:, :sepal_length_rounded] == [4.0, 8.0, 7.0, 5.0, 6.0]
     end
 
     run_with_job("Multiple evaluations apart on small dataset") do job

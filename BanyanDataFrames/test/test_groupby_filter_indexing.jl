@@ -317,21 +317,21 @@ end
                 sub_nrow = nrow(sub)
                 sub_tripdistance_sum = round(collect(reduce(+, sub[:, :trip_distance])))
                 sub_valid = round(collect(reduce(&, map(d -> d > 1.0, sub[:, :trip_distance]))))
-                sub_hour_sum = collect(
-	            reduce(
-                        +,
-                        map(
-                            t -> hour(DateTime(t, "yyyy-mm-dd HH:MM:SS")),
-                            tripdata[:, :pickup_datetime],
-                        ),
-		    )
-                )
+                #sub_hour_sum = collect(
+	        #    reduce(
+                #        +,
+                #        map(
+                #            t -> hour(DateTime(t, "yyyy-mm-dd HH:MM:SS")),
+                #            tripdata[:, :pickup_datetime],
+                #        ),
+		#    )
+                #)
 
                 # Assert
                 @test sub_nrow = 15109122
                 @test sub_tripdistance_sum = 5.3284506e7
                 @test sub_valid
-                @test sub_hour_sum == 835932637
+                #@test sub_hour_sum == 835932637
             end
         end
     end
