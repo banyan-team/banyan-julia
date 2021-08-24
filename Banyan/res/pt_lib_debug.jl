@@ -60,6 +60,7 @@ function ReadBlock(
     # # @show path
     # # @show isfile(loc_params["path"])
     # # @show HDF5.ishdf5(loc_params["path"])
+    println("Reading a block")
     if (loc_name == "Disk" && HDF5.ishdf5(path)) || (
         loc_name == "Remote" &&
         (occursin(".h5", path) || occursin(".hdf5", path))
@@ -94,6 +95,7 @@ function ReadBlock(
         # end
         # # # # println("In ReadBlock")
         # # @show first(dset)
+        @show dset
         return dset
     end
 
@@ -110,7 +112,7 @@ function ReadBlock(
         # # # println("In Read")
         # @show path
         res = deserialize(path)
-        # @show res
+        @show res
         return res
     end
 
@@ -189,7 +191,7 @@ function ReadBlock(
                 )
                 push!(dfs, DataFrame(Arrow.Table(Arrow.tobuffer(f))))
             elseif endswith(path, ".arrow")
-                print("Reading from $path")
+                print("Reading from $path on batch $batch_idx")
                 rbrowrange = filerowrange.start:(filerowrange.start-1)
                 for tbl in Arrow.Stream(path)
                     rbrowrange = (rbrowrange.stop+1):(rbrowrange.stop+Tables.rowcount(tbl))
@@ -222,13 +224,19 @@ function ReadBlock(
 
     # @show length(dfs)
 
+    @show dfs
+
     # Concatenate and return
     # NOTE: If this partition is empty, it is possible that the result is
     # schemaless (unlike the case with HDF5 where the resulting array is
     # guaranteed to have its ndims correct) and so if a split/merge/cast
     # function requires the schema (for example for grouping) then it must be
     # sure to take that account
-    vcat(dfs...)
+    if isempty(dfs)
+        DataFrame()
+    else
+        vcat(dfs...)
+    end
 end
 
 splitting_divisions = IdDict()
@@ -346,6 +354,8 @@ function Write(
         GC.gc()
     # end
 
+    println("Start write")
+
     # Get path of directory to write to
     path = loc_params["path"]
     if startswith(path, "http://") || startswith(path, "https://")
@@ -365,7 +375,11 @@ function Write(
     worker_idx = get_worker_idx(comm)
     # println("Writing worker_idx=$worker_idx, batch_idx=$batch_idx/$nbatches with available memory: $(format_available_memory())")
     idx = get_partition_idx(batch_idx, nbatches, comm)
+    println("In Write on worker $worker_idx on batch $batch_idx")
+    @show isa_df(part)
+    @show part
     if isa_df(part)
+        println("Writing data frame with $nbatches batches on batch $batch_idx")
         actualpath = deepcopy(path)
         if nbatches > 1
             # TODO: Ensure that path does not end with "/" or "\" by instead using splitpath and joinpath
@@ -387,7 +401,9 @@ function Write(
         # place we are reading from. And so we want to make sure we finish
         # reading before we write the last batch
         if batch_idx == nbatches
+            println("Before first barrier in write")
             MPI.Barrier(comm)
+            println("After first barrier in write")
         end
 
         if worker_idx == 1
@@ -408,7 +424,9 @@ function Write(
                 mkpath(path)
             end
         end
+        println("Before second barrier in write")
         MPI.Barrier(comm)
+        println("After second barrier in write")
 
         nrows = size(part, 1)
         sortableidx = sortablestring(idx, get_npartitions(nbatches, comm))
@@ -420,9 +438,10 @@ function Write(
             CSV.write(partfilepath, part)
         else
             partfilepath = joinpath(path, "part$sortableidx" * "_nrows=$nrows.arrow")
-            @show partfilepath
+            println("Going to write to $partfilepath")
             Arrow.write(partfilepath, part)
         end
+        println("Wrote to $partfilepath")
         MPI.Barrier(comm)
         if nbatches > 1 && batch_idx == nbatches
             tmpdir = readdir(path)
@@ -430,11 +449,15 @@ function Write(
                 rm(actualpath, force=true, recursive=true)
                 mkpath(actualpath)
             end
+            println("Created $actualpath")
             MPI.Barrier(comm)
             # @show path tmpdir get_nworkers(comm) nbatches
             for batch_i in 1:nbatches
                 idx = get_partition_idx(batch_i, nbatches, worker_idx)
-                cp(joinpath(path, tmpdir[idx]), joinpath(actualpath, tmpdir[idx]))
+                tmpsrc = joinpath(path, tmpdir[idx])
+                actualdst = joinpath(actualpath, tmpdir[idx])
+                cp(tmpsrc, actualdst)
+                println("Copied $tmpsrc to $actualdst")
             end
             MPI.Barrier(comm)
             # TODO: Maybe somehow flush the above or fsync the directory
@@ -442,7 +465,9 @@ function Write(
                 rm(path, force=true, recursive=true)
             end
             MPI.Barrier(comm)
+            println("Removed temporary $path")
         end
+        println("Finished writing data frame")
         src
         # TODO: Delete all other part* files for this value if others exist
     elseif isa_array(part)
@@ -1495,10 +1520,14 @@ function Merge(
             delete!(partial_merges, objectid(src))
             # @show worker_idx batch_idx src
 
+            println("On last batch of merging on worker $worker_idx")
+            @show src
+
             # TODO: Test that this merges correctly
             # src = merge_on_executor(src...; dims=dim)
             src = merge_on_executor(src...; key = key)
             # println("After locally merging worker_idx=$worker_idx, batch_idx=$batch_idx/$nbatches with available memory: $(format_available_memory())")
+            @show src
 
             # Concatenate across workers
             nworkers = get_nworkers(comm)

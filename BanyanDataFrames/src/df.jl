@@ -68,6 +68,7 @@ function write_csv(df, path)
     end
     @partitioned df begin end
     compute(df)
+    destined(df, None())
 end
 
 write_parquet(A, p) = write_csv(A, p)
