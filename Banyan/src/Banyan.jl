@@ -94,6 +94,7 @@ export sample_memory_usage,
 # Locations
 export Location, LocationSource, LocationDestination, located, sourced, destined
 export Value, Size, Client, None, Remote
+export clear_locations_cache
 
 # Partition types
 export PartitionType, pt, pc, mutated, @partitioned

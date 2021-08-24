@@ -311,11 +311,20 @@ getsamplenrows(totalnrows) =
         cld(totalnrows, get_job().sample_rate)
     end
 
+function clear_locations_cache()
+    rm(joinpath(homedir(), ".banyan", "locations"), force=true, recursive=true)
+end
+
 function Remote(p; read_from_cache = true, write_to_cache = true, delete_from_cache = false)
     # TODO: Document the caching behavior better
     # Read location from cache. The location will include metadata like the
     # number of rows in each file as well as a sample that can be used on the
     # client side for estimating memory usage and data skew among other things.
+    println("In Remote")
+    @show p
+    @show read_from_cache
+    @show write_to_cache
+    @show delete_from_cache
     locationspath = joinpath(homedir(), ".banyan", "locations")
     locationpath = joinpath(locationspath, p |> hash |> string)
     location = if read_from_cache && isfile(locationpath)
@@ -323,6 +332,8 @@ function Remote(p; read_from_cache = true, write_to_cache = true, delete_from_ca
     else
         get_remote_location(p)
     end
+
+    @show isfile(locationpath)
 
     # Store location in cache
     if write_to_cache && !delete_from_cache
@@ -335,6 +346,8 @@ function Remote(p; read_from_cache = true, write_to_cache = true, delete_from_ca
     if delete_from_cache && isfile(locationpath)
         rm(locationpath)
     end
+
+    @show location
 
     location
 end
@@ -725,13 +738,9 @@ function get_remote_location(remotepath)
     end
 
     # Load metadata for writing
-    loc_for_writing, metadata_for_writing = if p_isdir
-        # NOTE: `remotepath` should end with `.parquet` or `.csv` if Parquet
-        # or CSV dataset is desired to be created
-        ("Remote", Dict("path" => remotepath))
-    else
-        ("None", Dict{String,Any}())
-    end
+    # NOTE: `remotepath` should end with `.parquet` or `.csv` if Parquet
+    # or CSV dataset is desired to be created
+    loc_for_writing, metadata_for_writing = ("Remote", Dict("path" => remotepath))
 
     # TODO: Cache sample on disk
 

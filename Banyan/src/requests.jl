@@ -203,6 +203,7 @@ function compute(fut::AbstractFuture)
         # println("job id: ", job_id)
         # print("LISTENING ON: ", gather_queue)
         @debug "Waiting on running job $job_id"
+        println("Waiting on running job $job_id and computing value with ID " * fut.value_id)
         while true
             # TODO: Use to_jl_value and from_jl_value to support Client
             message = receive_next_message(gather_queue)

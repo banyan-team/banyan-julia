@@ -257,7 +257,7 @@ end
                 @test sub4_max_petal_length == 6.9
                 @test sub4_valid
                 @test sub4_row8 == [6.2, 3.4, 5.4, 2.3, "species_15"]
-                @test sub4_row114 = [7.9, 3.8, 6.4, 2.0, "virginica"]
+                @test sub4_row114 == [7.9, 3.8, 6.4, 2.0, "virginica"]
 
                 # Filter based on multiple columns, using AsTable
                 sub5_save_path = get_save_path(bucket, "sub5", path)
@@ -328,7 +328,7 @@ end
 
                 # Assert
                 @test sub_nrow == 15109122
-                @test sub_tripdistance_sum = 5.3284506e7
+                @test sub_tripdistance_sum == 5.3284506e7
                 @test sub_valid
                 #@test sub_hour_sum == 835932637
             end
