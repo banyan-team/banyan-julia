@@ -60,7 +60,7 @@ function ReadBlock(
     # # # @show path
     # # # @show isfile(loc_params["path"])
     # # # @show HDF5.ishdf5(loc_params["path"])
-    println("Reading a block")
+    println("Reading a block with $path from $loc_name with batch_idx=$batch_idx")
     if (loc_name == "Disk" && HDF5.ishdf5(path)) || (
         loc_name == "Remote" &&
         (occursin(".h5", path) || occursin(".hdf5", path))
