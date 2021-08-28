@@ -251,6 +251,9 @@ function DataFrames.combine(gdf::GroupedDataFrame, args...; kwargs...)
     # TODO: Put groupingkeys in GroupedDataFrame
     groupingkeys = names(sample(gdf_parent), collect(groupcols))
 
+    @show sample(gdf_parent)
+    @show groupingkeys
+
     partitioned_using() do
         keep_sample_keys(
             get(collect(kwargs), :keepkeys, true) ? groupingkeys : [], res, gdf_parent,
@@ -260,6 +263,7 @@ function DataFrames.combine(gdf::GroupedDataFrame, args...; kwargs...)
     end
 
     partitioned_with() do
+        @show sample(res)
         pts_for_filtering(gdf_parent, res, with=Grouped, by=groupingkeys)
         pt(gdf, Blocked(along=1) & ScaledBySame(as=gdf_parent))
         pt(res_nrows, Reducing(quote + end)) # TODO: Change to + if possible
@@ -270,6 +274,7 @@ function DataFrames.combine(gdf::GroupedDataFrame, args...; kwargs...)
     @partitioned gdf gdf_parent groupcols groupkwargs args kwargs res res_nrows begin
         println("here!")
         if !(gdf isa GroupedDataFrame) || gdf.parent != gdf_parent
+            println("right inside here")
             gdf = groupby(gdf_parent, groupcols; groupkwargs...)
         end
         println("here2!")
@@ -278,6 +283,13 @@ function DataFrames.combine(gdf::GroupedDataFrame, args...; kwargs...)
         res_nrows = nrow(res)
         println("here4!")
     end
+
+    @show gdf
+    @show gdf_parent
+    @show res
+    @show sample(gdf)
+    @show sample(gdf_parent)
+    @show sample(res)
 
     res
 end
@@ -295,7 +307,7 @@ function DataFrames.subset(gdf::GroupedDataFrame, args...; kwargs...)
     kwargs = Future(kwargs)
 
     # TODO: Put groupingkeys in GroupedDataFrame
-    groupingkeys = names(sample(gdf_parent), compute(groupcols))
+    groupingkeys = names(sample(gdf_parent), collect(groupcols))
 
     partitioned_using() do
         keep_sample_keys(

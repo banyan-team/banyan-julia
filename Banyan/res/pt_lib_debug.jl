@@ -483,7 +483,11 @@ function Write(
         println("Finished writing data frame")
         src
         # TODO: Delete all other part* files for this value if others exist
-    elseif isa_array(part)
+    elseif isa_array(part) && hasmethod(HDF5.datatype, (eltype(part),))
+        # TODO: Use Julia serialization to write arrays as well as other
+        # objects to disk. This way, we won't trip up when we come across
+        # a distributed array that we want to write to disk but can't because
+        # of an unsupported HDF5 data type.
         # TODO: Support missing values in the array for locations that use
         # Julia serialized objects
         part = disallowmissing(part)

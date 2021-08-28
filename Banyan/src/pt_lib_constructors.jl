@@ -170,6 +170,9 @@ function Grouped(
     by = Symbol.(by)
     by = to_vector(by)
 
+    @show by
+    @show sample(f)
+
     # Create PTs for each key that can be used to group by
     pts::Vector{PartitionType} = []
     for key in first(by, 8)
@@ -213,6 +216,7 @@ function Grouped(
                 elseif !isnothing(filtered_to)
                     filtered_to = to_vector(filtered_to)
                     factor, to = maximum(filtered_to) do ft
+                        @show sample(ft)
                         min_filtered_to = sample(ft, :statistics, key, :min)
                         max_filtered_to = sample(ft, :statistics, key, :max)
                         # f_divisions = sample(f, :statistics, key, :divisions)
