@@ -463,19 +463,19 @@ end
                     collect(reduce(-, gdf_select[:, :petal_length_function])),
                     digits = 2,
                 )
-                gdf_select_filter_length = length(
+                gdf_select_filter_length = nrow(
                     collect(
-                        gdf_select[:, :petal_length][map(
-                            l -> l .== 1.3,
-                            gdf_select[:, :petal_length],
-                        )],
+                        gdf_select[:, [:petal_length]][
+                            map(l -> l .== 1.3, gdf_select[:, :petal_length]),
+                            :,
+                        ],
                     ),
                 )
                 gdf_transform_length =
                     length(groupby(gdf_transform, [:species, :species_function]))
-                gdf_subset_collected = sort(collect(gdf_subset))
+                gdf_subset_collect = sort(collect(gdf_subset))
                 gdf_subset_row5 = collect(gdf_subset_collect[5, :])
-                gdf_subset_row33 == collect(gdf_subset_collect[33, :])
+                gdf_subset_row33 = collect(gdf_subset_collect[33, :])
                 gdf_subset_row474 = collect(gdf_subset_collect[474, :])
                 gdf_keepkeys_false_names = names(combine(gdf, nrow, keepkeys = false))
                 gdf_keepkeys_true_names = Set(names(combine(gdf, nrow, keepkeys = true)))
