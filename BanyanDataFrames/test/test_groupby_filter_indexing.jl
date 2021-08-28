@@ -326,7 +326,7 @@ end
 
     run_with_job("Filtering stress for initial functionality") do job
         bucket = get_cluster_s3_bucket_name(get_cluster().name)
-        setup_basic_tests(bucket)
+        setup_stress_tests(bucket)
 
         for i = 1:2
             for path in [
@@ -390,7 +390,7 @@ end
                 @test_throws ErrorException groupby(df, :species; sort = false)
 
                 # Groupby all columns
-                gdf = groupby(df, :)
+		gdf = groupby(df, :)
                 @test length(gdf) == 882
 
                 # Groupby first four columns
@@ -399,7 +399,7 @@ end
 
                 # Groupby multiple columns selected using regex
                 gdf = groupby(df, r".*width")
-                @test length(gdf) == 18
+                @test length(gdf) == 97
 
                 gdf_select_save_path = "s3://$(bucket)/test-tmp_gdf_select_$(split(path, "/")[end])"
                 gdf_transform_save_path = "s3://$(bucket)/test-tmp_gdf_transform_$(split(path, "/")[end])"
@@ -473,10 +473,10 @@ end
                 )
                 gdf_transform_length =
                     length(groupby(gdf_transform, [:species, :species_function]))
-                gdf_subset_collect = sort(collect(gdf_subset))
-                gdf_subset_row5 = collect(gdf_subset_collect[5, :])
-                gdf_subset_row33 = collect(gdf_subset_collect[33, :])
-                gdf_subset_row474 = collect(gdf_subset_collect[474, :])
+                gdf_subset_collected = sort(collect(gdf_subset))
+                gdf_subset_row5 = collect(gdf_subset_collected[5, :])
+                gdf_subset_row333 = collect(gdf_subset_collected[333, :])
+                gdf_subset_row474 = collect(gdf_subset_collected[474, :])
                 gdf_keepkeys_false_names = names(combine(gdf, nrow, keepkeys = false))
                 gdf_keepkeys_true_names = Set(names(combine(gdf, nrow, keepkeys = true)))
                 petal_length_mean =
@@ -486,7 +486,7 @@ end
                     ]
                 temp = combine(gdf, :petal_length => mean, renamecols = false)
                 temp_names = Set(names(temp))
-                temp_petal_length = sort(collect(temp)[:petal_length])
+                temp_petal_length = sort(collect(temp)[:, :petal_length])
 
                 # Assert
                 @test gdf_select_size == (900, 6)
@@ -495,9 +495,9 @@ end
                 @test gdf_select_plf_subtract == -0.13
                 @test gdf_select_filter_length == 42
                 @test gdf_transform_length == 18
-                @test gdf_subset_row5 == [4.6, 3.1, 1.5, 0.2]
-                @test gdf_subset_row33 == [6.7, 2.5, 5.8, 1.8]
-                @test gdf_subst_row474 == [7.9, 3.8, 6.4, 2.0, "virginica"]
+                @test gdf_subset_row5 == [4.6, 3.1, 1.5, 0.2, "species4"]
+                @test gdf_subset_row333 == [6.7, 2.5, 5.8, 1.8, "species_18"]
+                @test gdf_subset_row474 == [7.9, 3.8, 6.4, 2.0, "virginica"]
 
                 # Combine
                 @test gdf_keepkeys_false_names == ["nrow"]
@@ -549,7 +549,7 @@ end
 
     run_with_job("Groupby stress for initial functionality") do job
         bucket = get_cluster_s3_bucket_name(get_cluster().name)
-        setup_basic_tests(bucket)
+        setup_stress_tests(bucket)
 
         for i = 1:2
             for path in [
@@ -609,7 +609,7 @@ end
 @testset "Filter and groupby on empty dataframe" begin
     run_with_job("Filtering stress for initial functionality") do job
         bucket = get_cluster_s3_bucket_name(get_cluster().name)
-        setup_basic_tests(bucket)
+        setup_stress_tests(bucket)
 
         for i = 1:2
             for path in ["s3://$(bucket)/empty_df.csv", "s3://$(bucket)/empty_df.arrow"]
