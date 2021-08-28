@@ -256,8 +256,8 @@ end
 
                 # Assert
                 @test sub3_nrow == 62
-                @test sub3_row8 == [5.6, 2.9, 3.6, 1.3, "versicolor"]
-                @test sub3_row62 == [5.7, 2.8, 4.1, 1.3, "species_17"]
+                @test sub3_row8 == [5.5, 2.4, 3.7, 1.0, "versicolor"]
+                @test sub3_row62 == [6.8, 2.8, 4.8, 1.4, "versicolor"]
 
                 # Filter based on multiple columns, using cols
                 sub4_save_path = get_save_path(bucket, "sub4", path)
