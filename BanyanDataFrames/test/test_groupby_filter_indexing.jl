@@ -477,7 +477,7 @@ end
                 gdf_subset_row5 = collect(gdf_subset_collected[5, :])
                 gdf_subset_row333 = collect(gdf_subset_collected[333, :])
                 gdf_subset_row474 = collect(gdf_subset_collected[474, :])
-                gdf_keepkeys_false_names = names(combine(gdf, nrow, keepkeys = false))
+                # gdf_keepkeys_false_names = names(combine(gdf, nrow, keepkeys = false))
                 gdf_keepkeys_true_names = Set(names(combine(gdf, nrow, keepkeys = true)))
                 petal_length_mean =
                     sort(collect(combine(gdf, :petal_length => mean)), :petal_length_mean)[
@@ -500,7 +500,7 @@ end
                 @test gdf_subset_row474 == [7.9, 3.8, 6.4, 2.0, "virginica"]
 
                 # Combine
-                @test gdf_keepkeys_false_names == ["nrow"]
+                # @test gdf_keepkeys_false_names == ["nrow"]
                 @test gdf_keepkeys_true_names == Set(["nrow", "species"])
                 @test petal_length_mean == [
                     1.464,

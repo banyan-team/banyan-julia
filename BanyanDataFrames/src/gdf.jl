@@ -115,6 +115,7 @@ end
 function DataFrames.select(gdf::GroupedDataFrame, args...; kwargs...)
     get(kwargs, :ungroup, true) || throw(ArgumentError("Select/transform/combine/subset operations on grouped dataframes must produce dataframes"))
     get(kwargs, :copycols, true) || throw(ArgumentError("Select/transform/combine/subset operations on grouped dataframes cannot return a view"))
+    get(kwargs, :keepkeys, true) || throw(ArgumentError("Select/transform/combine/subset operations on grouped dataframes must keep the grouping columns"))
 
     gdf_parent = gdf.parent
     groupcols = gdf.groupcols
@@ -196,6 +197,7 @@ end
 function DataFrames.transform(gdf::GroupedDataFrame, args...; kwargs...)
     get(kwargs, :ungroup, true) || throw(ArgumentError("Select/transform/combine/subset operations on grouped dataframes must produce dataframes"))
     get(kwargs, :copycols, true) || throw(ArgumentError("Select/transform/combine/subset operations on grouped dataframes cannot return a view"))
+    get(kwargs, :keepkeys, true) || throw(ArgumentError("Select/transform/combine/subset operations on grouped dataframes must keep the grouping columns"))
 
     gdf_parent = gdf.parent
     groupcols = gdf.groupcols
@@ -239,6 +241,7 @@ end
 function DataFrames.combine(gdf::GroupedDataFrame, args...; kwargs...)
     get(kwargs, :ungroup, true) || throw(ArgumentError("Select/transform/combine/subset operations on grouped dataframes must produce dataframes"))
     get(kwargs, :copycols, true) || throw(ArgumentError("Select/transform/combine/subset operations on grouped dataframes cannot return a view"))
+    get(kwargs, :keepkeys, true) || throw(ArgumentError("Select/transform/combine/subset operations on grouped dataframes must keep the grouping columns"))
 
     gdf_parent = gdf.parent
     groupcols = gdf.groupcols
@@ -264,6 +267,8 @@ function DataFrames.combine(gdf::GroupedDataFrame, args...; kwargs...)
 
     partitioned_with() do
         @show sample(res)
+        # TODO: If we want to support `keepkeys=false`, we need to make the
+        # result be Blocked and `filtered_from` the input
         pts_for_filtering(gdf_parent, res, with=Grouped, by=groupingkeys)
         pt(gdf, Blocked(along=1) & ScaledBySame(as=gdf_parent))
         pt(res_nrows, Reducing(quote + end)) # TODO: Change to + if possible
@@ -297,6 +302,7 @@ end
 function DataFrames.subset(gdf::GroupedDataFrame, args...; kwargs...)
     get(kwargs, :ungroup, true) || throw(ArgumentError("Select/transform/combine/subset operations on grouped dataframes must produce dataframes"))
     get(kwargs, :copycols, true) || throw(ArgumentError("Select/transform/combine/subset operations on grouped dataframes cannot return a view"))
+    get(kwargs, :keepkeys, true) || throw(ArgumentError("Select/transform/combine/subset operations on grouped dataframes must keep the grouping columns"))
 
     gdf_parent = gdf.parent
     groupcols = gdf.groupcols

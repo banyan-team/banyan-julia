@@ -1352,18 +1352,19 @@ function DataFrames.innerjoin(dfs::DataFrame...; on, kwargs...)
     # TODO: Use something like this for join
     partitioned_with() do
         # unbalanced, ...., unbalanced -> balanced - "partial sort-merge join"
-        for (df, groupingkey) in zip(dfs, groupingkeys)
-            pt(df, Grouped(df, by=groupingkey, balanced=false, filtered_to=res), match=res, on=["divisions", "rev"])
+        dfs_with_groupingkeys = [df => groupingkey for (df, groupingkey) in zip(dfs, groupingkeys)]
+        for (df, groupingkey) in dfs_with_groupingkeys
+            pt(df, Grouped(df, by=groupingkey, balanced=false, filtered_to=(res=>first(groupingkeys))), match=res, on=["divisions", "rev"])
         end
-        pt(res, Grouped(res, by=first(groupingkeys), balanced=true, filtered_from=[dfs...]) & Drifted())
+        pt(res, Grouped(res, by=first(groupingkeys), balanced=true, filtered_from=dfs_with_groupingkeys) & Drifted())
 
         # balanced, unbalanced, ..., unbalanced -> unbalanced
         for i in 1:length(dfs)
             # "partial sort-merge join"
-            for (j, (df, groupingkey)) in enumerate(zip(dfs, groupingkeys))
-                pt(df, Grouped(df, by=groupingkey, balanced=(j==i), filtered_to=res), match=dfs[i], on=["divisions", "rev"])
+            for (j, (df, groupingkey)) in enumerate(dfs_with_groupingkeys)
+                pt(df, Grouped(df, by=groupingkey, balanced=(j==i), filtered_to=(res => first(groupingkeys))), match=dfs[i], on=["divisions", "rev"])
             end
-            pt(res, Grouped(res, by=first(groupingkeys), balanced=false, filtered_from=dfs[i]) & Drifted(), match=dfs[i], on=["divisions", "rev"])
+            pt(res, Grouped(res, by=first(groupingkeys), balanced=false, filtered_from=dfs_with_groupingkeys[i]) & Drifted(), match=dfs[i], on=["divisions", "rev"])
 
             # broadcast join
             pt(dfs[i], Distributed(dfs[i]))
@@ -1385,10 +1386,10 @@ function DataFrames.innerjoin(dfs::DataFrame...; on, kwargs...)
         # pg(res, Blocked() & Unbalanced() & Drifted())
 
         # unbalanced, unbalanced, ... -> unbalanced - "partial sort-merge join"
-        for (df, groupingkey) in zip(dfs, groupingkeys)
-            pt(df, Grouped(df, by=groupingkey, balanced=false, filtered_to=res), match=res, on=["divisions", "rev"])
+        for (df, groupingkey) in dfs_with_groupingkeys
+            pt(df, Grouped(df, by=groupingkey, balanced=false, filtered_to=(res => first(groupingkeys))), match=res, on=["divisions", "rev"])
         end
-        pt(res, Grouped(res, by=first(groupingkeys), balanced=false, filtered_from=[dfs...]) & Drifted())
+        pt(res, Grouped(res, by=first(groupingkeys), balanced=false, filtered_from=dfs_with_groupingkeys) & Drifted())
         
         # "replicated join"
         pt(res_nrows, Reducing(quote (a, b) -> a .+ b end))
