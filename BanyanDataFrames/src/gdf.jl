@@ -13,7 +13,7 @@ end
 Banyan.convert(::Type{Future}, gdf::GroupedDataFrame) = gdf.data
 Banyan.isview(gdf::GroupedDataFrame) = true
 
-Base.length(gdf::GroupedDataFrame) = compute(gdf.length)
+Base.length(gdf::GroupedDataFrame) = collect(gdf.length)
 Base.size(gdf::GroupedDataFrame) = Tuple(length(gdf))
 Base.ndims(gdf::GroupedDataFrame) = 1
 DataFrames.groupcols(gdf::GroupedDataFrame) = groupcols(sample(gdf))

@@ -31,7 +31,7 @@ end
         upload_iris_all_formats_to_s3(bucket)
         for filetype in ["csv", "parquet", "arrow"]
             read_func = if filetype == "csv" read_csv
-                elseif filetype == "parquet" read_parquet
+                elseif filetype == "parquet" BanyanDataFrames.read_parquet
                 elseif filetype == "arrow" read_arrow
                 end
             iris = read_func("s3://$(bucket)/iris.$(filetype)")
@@ -67,7 +67,7 @@ end
 
             # Write filtered dataset to file
             write_func = if filetype == "csv" write_csv
-                elseif filetype == "parquet" write_parquet
+                elseif filetype == "parquet" BanyanDataFrames.write_parquet
                 elseif filetype == "arrow" write_arrow
                 end
             write_func(iris_filter, "s3://$(bucket)/iris_filter.$(filetype)")

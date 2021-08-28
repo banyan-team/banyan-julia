@@ -150,8 +150,8 @@ Banyan.sample_max(A::U, key) where U <: Base.AbstractArray{T,N} where {T,N} = ma
 function read_hdf5(path)
     A_loc = Remote(path)
     if is_debug_on()
-        @show A_loc.src_parameters
-        @show A_loc.size
+        # @show A_loc.src_parameters
+        # @show A_loc.size
     end
     A = Future(A_loc)
     Array{A_loc.eltype,A_loc.ndims}(A, Future(A_loc.size))
@@ -337,14 +337,14 @@ function Base.map(f, c::Array{T,N}...) where {T,N}
     # end end)
     @partitioned f c res begin
         res = Base.map(f, c...)
-        @show res
-        @show typeof(res)
-        @show eltype(res)
+        # @show res
+        # @show typeof(res)
+        # @show eltype(res)
     end
 
-    @show sample(res)
-    @show typeof(sample(res))
-    @show eltype(sample(res))
+    # @show sample(res)
+    # @show typeof(sample(res))
+    # @show eltype(sample(res))
 
     Array{eltype(sample(res)),N}(res, deepcopy(first(c).size))
 end
@@ -416,7 +416,7 @@ function Base.reduce(op, A::Array{T,N}; dims=:, kwargs...) where {T,N}
     res_size = Future()
     res = dims isa Colon ? Future() : Array{Any,Any}(Future(), res_size)
     if is_debug_on()
-        @show dims # TODO: Ensure this isn't a function
+        # @show dims # TODO: Ensure this isn't a function
     end
     dims = Future(dims)
     kwargs = Future(kwargs)
@@ -456,8 +456,8 @@ function Base.reduce(op, A::Array{T,N}; dims=:, kwargs...) where {T,N}
 
     @partitioned op A dims kwargs res res_size begin
         if is_debug_on()
-            @show size(A)
-            @show dims # TODO: Figure out why dims is sometimes a function
+            # @show size(A)
+            # @show dims # TODO: Figure out why dims is sometimes a function
         end
         res = Base.reduce(op, A; dims=dims, kwargs...)
         if res isa Array

@@ -564,6 +564,7 @@ function get_remote_location(remotepath)
 
     # Read through dataset by row
     p_isdir = isdir(p)
+    p_isfile = !p_isdir && isfile(p) # <-- avoid expensive unnecessary S3 API calls
     # TODO: Support more than just reading/writing single HDF5 files and
     # reading/writing directories containing CSV/Parquet/Arrow files
     files = []
@@ -573,7 +574,7 @@ function get_remote_location(remotepath)
     randomsample = DataFrame()
     files_to_read_from = if p_isdir
         readdir(p)
-    elseif isfile(p)
+    elseif p_isfile
         [p]
     else
         []
@@ -731,7 +732,7 @@ function get_remote_location(remotepath)
     # TODO: Build up sample and return
 
     # Load metadata for reading
-    loc_for_reading, metadata_for_reading = if !isempty(files)
+    loc_for_reading, metadata_for_reading = if !isempty(files) || p_isdir # empty directory can still be read from
         ("Remote", Dict("path" => remotepath, "files" => files, "nrows" => totalnrows))
     else
         ("None", Dict{String,Any}())
