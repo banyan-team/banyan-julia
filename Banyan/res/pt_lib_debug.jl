@@ -57,16 +57,16 @@ function ReadBlock(
     # datasets while directories contain Parquet, CSV, or Arrow datasets
     path = getpath(loc_params["path"])
     # # # # println("In ReadBlock")
-    # # @show path
-    # # @show isfile(loc_params["path"])
-    # # @show HDF5.ishdf5(loc_params["path"])
+    # # # @show path
+    # # # @show isfile(loc_params["path"])
+    # # # @show HDF5.ishdf5(loc_params["path"])
     println("Reading a block")
     if (loc_name == "Disk" && HDF5.ishdf5(path)) || (
         loc_name == "Remote" &&
         (occursin(".h5", path) || occursin(".hdf5", path))
     )
         f = h5open(path, "r")
-        # @show keys(f)
+        # # @show keys(f)
         dset = loc_name == "Disk" ? f["part"] : f[loc_params["subpath"]]
 
         ismapping = false
@@ -94,25 +94,25 @@ function ReadBlock(
         close(f)
         # end
         # # # # println("In ReadBlock")
-        # # @show first(dset)
-        @show dset
+        # # # @show first(dset)
+        # @show dset
         return dset
     end
 
-    @show loc_name
-    @show path
-    @show isfile(path)
-    @show isdir(path)
+    # @show loc_name
+    # @show path
+    # @show isfile(path)
+    # @show isdir(path)
     if isdir(path)
-        @show readdir(path)
+        # @show readdir(path)
     end
 
     # Handle single-file replicated objects
     if loc_name == "Disk" && isfile(path)
         # # # println("In Read")
-        # @show path
+        # # @show path
         res = deserialize(path)
-        @show res
+        # @show res
         return res
     end
 
@@ -169,13 +169,13 @@ function ReadBlock(
                 )
             header = 1
             if endswith(path, ".csv")
-                # @show isdir("/home/ec2-user/s3fs/")
-                # @show isdir("/home/ec2-user/s3fs/banyan-cluster-data-pumpkincluster02-f47c1c35/")
-                # @show isfile("/home/ec2-user/s3fs/banyan-cluster-data-pumpkincluster02-f47c1c35/iris_large.csv")
-                # @show isfile("/home/ec2-user/s3fs/banyan-cluster-data-pumpkincluster02-f47c1c35/pt_lib.jl")
-                # @show readdir("/home/ec2-user/s3fs/banyan-cluster-data-pumpkincluster02-f47c1c35/")
-                # @show path
-                # @show isfile(path)
+                # # @show isdir("/home/ec2-user/s3fs/")
+                # # @show isdir("/home/ec2-user/s3fs/banyan-cluster-data-pumpkincluster02-f47c1c35/")
+                # # @show isfile("/home/ec2-user/s3fs/banyan-cluster-data-pumpkincluster02-f47c1c35/iris_large.csv")
+                # # @show isfile("/home/ec2-user/s3fs/banyan-cluster-data-pumpkincluster02-f47c1c35/pt_lib.jl")
+                # # @show readdir("/home/ec2-user/s3fs/banyan-cluster-data-pumpkincluster02-f47c1c35/")
+                # # @show path
+                # # @show isfile(path)
                 # f = CSV.File(path)
                 f = CSV.File(
                     path,
@@ -191,13 +191,13 @@ function ReadBlock(
                 )
                 push!(dfs, DataFrame(Arrow.Table(Arrow.tobuffer(f))))
             elseif endswith(path, ".arrow")
-                print("Reading from $path on batch $batch_idx")
+                println("Reading from $path on batch $batch_idx")
                 rbrowrange = filerowrange.start:(filerowrange.start-1)
                 for tbl in Arrow.Stream(path)
                     rbrowrange = (rbrowrange.stop+1):(rbrowrange.stop+Tables.rowcount(tbl))
-                    @show rowrange
-                    @show rbrowrange
-                    @show isoverlapping(rbrowrange, rowrange)
+                    # @show rowrange
+                    # @show rbrowrange
+                    # @show isoverlapping(rbrowrange, rowrange)
                     if isoverlapping(rbrowrange, rowrange)
                         readrange =
                             max(rowrange.start, rbrowrange.start):min(
@@ -205,13 +205,13 @@ function ReadBlock(
                                 rbrowrange.stop,
                             )
                         df = DataFrame(tbl)
-                        @show (readrange.start-rbrowrange.start+1):(readrange.stop-rbrowrange.start+1)
+                        # @show (readrange.start-rbrowrange.start+1):(readrange.stop-rbrowrange.start+1)
                         df = df[
                             (readrange.start-rbrowrange.start+1):(readrange.stop-rbrowrange.start+1),
                             :,
                         ]
-                        @show df[1:min(1, nrow(df)), :]
-                        # @show length(df)
+                        # @show df[1:min(1, nrow(df)), :]
+                        # # @show length(df)
                         push!(dfs, df)
                     end
                 end
@@ -222,9 +222,9 @@ function ReadBlock(
         rowsscanned = newrowsscanned
     end
 
-    # @show length(dfs)
+    # # @show length(dfs)
 
-    @show dfs
+    # @show dfs
 
     # Concatenate and return
     # NOTE: If this partition is empty, it is possible that the result is
@@ -287,7 +287,7 @@ function ReadGroup(
         # Read in data for this batch
         part = ReadBlock(src, params, i, nbatches, comm, loc_name, loc_params)
 
-        @show i nbatches typeof(part)
+        # @show i nbatches typeof(part)
 
         # Shuffle the batch and add it to the set of data for this partition
         push!(
@@ -303,13 +303,13 @@ function ReadGroup(
         )
     end
 
-    # @show get_worker_idx(comm) parts
+    # # @show get_worker_idx(comm) parts
 
     # Concatenate together the data for this partition
     # res = merge_on_executor(parts, dims=isa_array(first(parts)) ? key : 1)
-    # # @show parts
+    # # # @show parts
     res = merge_on_executor(parts...; key = key)
-    # # @show res
+    # # # @show res
 
     # Store divisions
     global splitting_divisions
@@ -317,7 +317,7 @@ function ReadGroup(
     splitting_divisions[res] =
         (partition_divisions[partition_idx], partition_idx > 1, partition_idx < npartitions)
 
-    # @show res
+    # # @show res
     res
 end
 
@@ -376,14 +376,22 @@ function Write(
     # println("Writing worker_idx=$worker_idx, batch_idx=$batch_idx/$nbatches with available memory: $(format_available_memory())")
     idx = get_partition_idx(batch_idx, nbatches, comm)
     println("In Write on worker $worker_idx on batch $batch_idx")
-    @show isa_df(part)
-    @show part
+    # @show isa_df(part)
+    # @show part
     if isa_df(part)
         println("Writing data frame with $nbatches batches on batch $batch_idx")
         actualpath = deepcopy(path)
         if nbatches > 1
-            # TODO: Ensure that path does not end with "/" or "\" by instead using splitpath and joinpath
-            path = path * "_tmp"
+            # Add _tmp to the end of the path
+            if endswith(path, ".parquet")
+                path = replace(path, ".parquet" => "_tmp.parquet")
+            elseif endswith(path, ".csv")
+                path = replace(path, ".csv" => "_tmp.csv")
+            elseif endswith(path, ".arrow")
+                path = replace(path, ".arrow" => "_tmp.arrow")
+            else
+                path = path * "_tmp"
+            end
         end
 
         # TODO: Delete existing files that might be in the directory but first
@@ -430,18 +438,20 @@ function Write(
 
         nrows = size(part, 1)
         sortableidx = sortablestring(idx, get_npartitions(nbatches, comm))
-        if endswith(path, ".parquet")
-            partfilepath = joinpath(path, "part$sortableidx" * "_nrows=$nrows.parquet")
-            Parquet.write_parquet(partfilepath, part)
-        elseif endswith(path, ".csv")
-            partfilepath = joinpath(path, "part$sortableidx" * "_nrows=$nrows.csv")
-            CSV.write(partfilepath, part)
-        else
-            partfilepath = joinpath(path, "part$sortableidx" * "_nrows=$nrows.arrow")
-            println("Going to write to $partfilepath")
-            Arrow.write(partfilepath, part)
+        if nrows > 0
+            if endswith(path, ".parquet")
+                partfilepath = joinpath(path, "part$sortableidx" * "_nrows=$nrows.parquet")
+                Parquet.write_parquet(partfilepath, part)
+            elseif endswith(path, ".csv")
+                partfilepath = joinpath(path, "part$sortableidx" * "_nrows=$nrows.csv")
+                CSV.write(partfilepath, part)
+            else
+                partfilepath = joinpath(path, "part$sortableidx" * "_nrows=$nrows.arrow")
+                println("Going to write to $partfilepath")
+                Arrow.write(partfilepath, part)
+            end
+            println("Wrote to $partfilepath")
         end
-        println("Wrote to $partfilepath")
         MPI.Barrier(comm)
         if nbatches > 1 && batch_idx == nbatches
             tmpdir = readdir(path)
@@ -451,13 +461,16 @@ function Write(
             end
             println("Created $actualpath")
             MPI.Barrier(comm)
-            # @show path tmpdir get_nworkers(comm) nbatches
+            # # @show path tmpdir get_nworkers(comm) nbatches
             for batch_i in 1:nbatches
                 idx = get_partition_idx(batch_i, nbatches, worker_idx)
-                tmpsrc = joinpath(path, tmpdir[idx])
-                actualdst = joinpath(actualpath, tmpdir[idx])
-                cp(tmpsrc, actualdst)
-                println("Copied $tmpsrc to $actualdst")
+                tmpdir_idx = findfirst(fn -> startswith(fn, "part$idx"), tmpdir)
+                if !isnothing(tmpdir_idx)
+                    tmpsrc = joinpath(path, tmpdir[tmpdir_idx])
+                    actualdst = joinpath(actualpath, tmpdir[tmpdir_idx])
+                    cp(tmpsrc, actualdst)
+                    println("Copied $tmpsrc to $actualdst")
+                end
             end
             MPI.Barrier(comm)
             # TODO: Maybe somehow flush the above or fsync the directory
@@ -531,13 +544,13 @@ function Write(
             if worker_idx == 1
                 offset = 0
             end
-            # @show offset
+            # # @show offset
 
             # Create file if not yet created
-            # @show path
+            # # @show path
             # TODO: Figure out why sometimes a deleted file still `isfile`
-            # @show isfile(path) # This is true while below is false
-            # @show HDF5.ishdf5(path)
+            # # @show isfile(path) # This is true while below is false
+            # # @show HDF5.ishdf5(path)
             # NOTE: We used INDEPENDENT here on the most recent run
             # f = h5open(path, "cw", fapl_mpio=(comm, info), dxpl_mpio=HDF5.H5FD_MPIO_INDEPENDENT)
             f = h5open(path, "cw", fapl_mpio=(comm, info), dxpl_mpio=HDF5.H5FD_MPIO_COLLECTIVE)
@@ -581,8 +594,8 @@ function Write(
             # Create dataset
             whole_size = indexapply(+, size(part), offset, index=dim)
             whole_size = MPI.bcast(whole_size, nworkers-1, comm) # Broadcast dataset size to all workers
-            # @show eltype(part)
-            # @show whole_size
+            # # @show eltype(part)
+            # # @show whole_size
             dset = create_dataset(f, group, eltype(part), (whole_size, whole_size))
 
             # Write out each partition
@@ -619,8 +632,8 @@ function Write(
             # # the total dataset size using its offset)
             # if worker_idx == nworkers
             #     # # # println("Entering if")
-            #     # @show group
-            #     # @show nbatches
+            #     # # @show group
+            #     # # @show nbatches
             #     whole_size = indexapply(+, size(part), offset, index=dim)
             #     if force_overwrite && isfile(path)
             #         h5open(path, "r+") do f
@@ -635,8 +648,8 @@ function Write(
             #         # TODO: Use `dataspace` instead of similar since the array
             #         # may not fit in memory
             #         fid[group] = similar(part, whole_size)
-            #         # @show keys(fid)
-            #         # @show fid
+            #         # # @show keys(fid)
+            #         # # @show fid
             #         close(fid[group])
             #     end
             #     # # # println("Exiting if")
@@ -692,10 +705,10 @@ function Write(
             #     # if force_overwrite && isfile(path)
             #     #     h5open(path, "r+") do f
             #     #         # # # println("Deleting")
-            #     #         # @show group_prefix
-            #     #         # @show keys(f)
+            #     #         # # @show group_prefix
+            #     #         # # @show keys(f)
             #     #         delete_object(f[group_prefix])
-            #     #         # @show keys(f)
+            #     #         # # @show keys(f)
             #     #     end
             #     # end
 
@@ -703,8 +716,8 @@ function Write(
             #     h5open(path, dataset_writing_permission) do fid end
             # end
             # # # # println("Entering if")
-            # # @show group
-            # # @show nbatches
+            # # # @show group
+            # # # @show nbatches
             # if partition_idx == 1
             #     if force_overwrite && isfile(path)
             #         h5open(path, "r+") do f
@@ -726,8 +739,8 @@ function Write(
             #         # If there are multiple batches, each batch just gets written
             #         # to its own group
             #         create_dataset(fid, group, part)
-            #         # @show keys(fid)
-            #         # @show fid
+            #         # # @show keys(fid)
+            #         # # @show fid
             #     end
             # end
             # # # # println("Exiting if")
@@ -742,8 +755,8 @@ function Write(
             if batch_idx == 1
                 # f = h5open(path, "cw", comm, info) do _ end
                 # f = h5open(path, "cw", comm, info)
-                # @show isfile(path)
-                # @show HDF5.ishdf5(path)
+                # # @show isfile(path)
+                # # @show HDF5.ishdf5(path)
                 f = h5open(path, "cw", fapl_mpio=(comm, info), dxpl_mpio=HDF5.H5FD_MPIO_COLLECTIVE)
                 close(f)
 
@@ -784,20 +797,20 @@ function Write(
             part_lengths = MPI.Allgather(size(part, dim), comm)
 
             # # println("In writing worker_idx=$worker_idx, batch_idx=$batch_idx/$nbatches: after Allgather with available memory: $(format_available_memory())")
-            # @show part_lengths
+            # # @show part_lengths
             partdsets = [
                 begin
                     idx = get_partition_idx(batch_idx, nbatches, worker_i)
                     group = group_prefix*"_part$idx"*"_dim=$dim"
-                    # @show keys(f)
+                    # # @show keys(f)
                     # If there are multiple batches, each batch just gets written
                     # to its own group
-                    # @show indexapply(_ -> part_length, size(part), index=dim)
+                    # # @show indexapply(_ -> part_length, size(part), index=dim)
                     dataspace_size = indexapply(_ -> part_length, size(part), index=dim)
                     new_dset = create_dataset(f, group, eltype(part), (dataspace_size, dataspace_size))
-                    # @show eltype(part)
-                    # # @show keys(fid)
-                    # # @show fid
+                    # # @show eltype(part)
+                    # # # @show keys(fid)
+                    # # # @show fid
                     # close(fid[group])
                     new_dset
                 end
@@ -911,11 +924,11 @@ function Write(
                 # NOTE: It's important that we use the last node since the
                 # last node has the scan result
                 # # # println("Entering if")
-                # @show group
-                # @show nbatches
+                # # @show group
+                # # @show nbatches
                 whole_size = indexapply(_ -> offset + whole_batch_length, size(part), index=dim)
                 whole_size = MPI.bcast(whole_size, nworkers-1, comm) # Broadcast dataset size to all workers
-                # @show whole_size
+                # # @show whole_size
                 # The permission used here is "r+" because we already
                 # created the file on the head node
                 # Delete the dataset if needed before we write the
@@ -927,12 +940,12 @@ function Write(
                 # If there are multiple batches, each batch just gets written
                 # to its own group
                 # # # println("Creating")
-                # @show group_prefix
-                # @show keys(f)
+                # # @show group_prefix
+                # # @show keys(f)
                 dset = create_dataset(f, group_prefix, eltype(part), (whole_size, whole_size))
-                # @show keys(f)
-                # # @show keys(fid)
-                # # @show fid
+                # # @show keys(f)
+                # # # @show keys(fid)
+                # # # @show fid
                 # close(fid[group_prefix])
                 # # # println("Exiting if")
     
@@ -945,8 +958,8 @@ function Write(
                 # # println("In writing worker_idx=$worker_idx, batch_idx=$batch_idx/$nbatches: after creating final dataset with available memory: $(format_available_memory())")
     
                 # Write out each batch
-                # @show HDF5.ishdf5(path)
-                # @show keys(f)
+                # # @show HDF5.ishdf5(path)
+                # # @show keys(f)
                 # dset = f[group_prefix]
                 batchoffset = offset
                 for batch_i = 1:nbatches
@@ -957,22 +970,22 @@ function Write(
 
                     # Write
                     group = group_prefix*"_part$idx"*"_dim=$dim"
-                    # # @show (batchoffset+1):batchoffset+size(f[group], dim)
+                    # # # @show (batchoffset+1):batchoffset+size(f[group], dim)
+                    # # # @show size(dset)
+                    # # # @show size(f[group][fill(Colon(), ndims(dset))...])
+                    # # # @show eltype(dset)
+                    # # # @show eltype(f[group])
+                    # # # @show HDF5.ishdf5(path)
+                    # # # @show keys(f)
+                    # # # @show sum(f[group][fill(Colon(), ndims(dset))...])
+                    # # @show (batchoffset+1):batchoffset+size(partdset, dim)
                     # # @show size(dset)
-                    # # @show size(f[group][fill(Colon(), ndims(dset))...])
+                    # # @show size(partdset[fill(Colon(), ndims(dset))...])
                     # # @show eltype(dset)
-                    # # @show eltype(f[group])
+                    # # @show eltype(partdset)
                     # # @show HDF5.ishdf5(path)
                     # # @show keys(f)
-                    # # @show sum(f[group][fill(Colon(), ndims(dset))...])
-                    # @show (batchoffset+1):batchoffset+size(partdset, dim)
-                    # @show size(dset)
-                    # @show size(partdset[fill(Colon(), ndims(dset))...])
-                    # @show eltype(dset)
-                    # @show eltype(partdset)
-                    # @show HDF5.ishdf5(path)
-                    # @show keys(f)
-                    # @show sum(partdset[fill(Colon(), ndims(dset))...])
+                    # # @show sum(partdset[fill(Colon(), ndims(dset))...])
                     # TOODO: Maynee remoce printlns to make it work
                     partdset_reading = partdset[fill(Colon(), ndims(dset))...]
 
@@ -997,7 +1010,7 @@ function Write(
                         ]...,
                     )
                     partdset_reading = nothing
-                    # @show sum(getindex(dset, [
+                    # # @show sum(getindex(dset, [
                     #     if d == dim
                     #         (batchoffset+1):batchoffset+size(partdset, dim)
                     #     else
@@ -1007,7 +1020,7 @@ function Write(
                     #     for d = 1:ndims(dset)
                     # ]...))
 
-                    # # @show size(dset)
+                    # # # @show size(dset)
 
                     # Update the offset of this batch
                     batchoffset += size(partdset, dim)
@@ -1031,16 +1044,16 @@ function Write(
                 # # println("In writing worker_idx=$worker_idx, batch_idx=$batch_idx/$nbatches: after writing each part with available memory: $(format_available_memory())")
 
                 # Then, delete all data for all groups on the head node
-                # # @show sum(dset[fill(Colon(), ndims(dset))...])
+                # # # @show sum(dset[fill(Colon(), ndims(dset))...])
                 for worker_i = 1:nworkers
                     for batch_i = 1:nbatches
                         idx = get_partition_idx(batch_i, nbatches, worker_i)
                         group = group_prefix*"_part$idx"*"_dim=$dim"
                         # # # println("Deleting a group")
-                        # @show group
-                        # @show keys(f)
+                        # # @show group
+                        # # @show keys(f)
                         delete_object(f[group])
-                        # @show keys(f)
+                        # # @show keys(f)
                     end
                 end
                 # TODO: Ensure that closing (flushing) HDF5 datasets
@@ -1053,13 +1066,13 @@ function Write(
                 # # TODO: Determine whether this is necessary. This barrier might
                 # # be necessary to ensure that all groups are deleted before we
                 # # continue.
-                # # @show worker_idx
+                # # # @show worker_idx
                 # MPI.Barrier(comm)
-                # # @show worker_idx
+                # # # @show worker_idx
             # end
-                # @show worker_idx
+                # # @show worker_idx
                 MPI.Barrier(comm)
-                # @show worker_idx 
+                # # @show worker_idx 
 
                 # # println("In writing worker_idx=$worker_idx, batch_idx=$batch_idx/$nbatches: after deleting all objects with available memory: $(format_available_memory())")
             end
@@ -1067,9 +1080,9 @@ function Write(
             f = nothing
             # TODO: Ensure that we are closing stuff everywhere before trying
             # to write
-            # @show worker_idx
+            # # @show worker_idx
             MPI.Barrier(comm)
-            # @show worker_idx 
+            # # @show worker_idx 
 
             # # Allocate all datasets needed by gathering all sizes to the head
             # # node and making calls from there
@@ -1079,16 +1092,16 @@ function Write(
             #         for (worker_i, part_length) in enumerate(part_lengths)
             #             idx = get_partition_idx(batch_idx, nbatches, worker_i)
             #             group = group_prefix*"_part$idx"*"_dim=$dim"
-            #             # @show keys(fid)
+            #             # # @show keys(fid)
             #             # If there are multiple batches, each batch just gets written
             #             # to its own group
             #             # TODO: Use `dataspace` instead of similar since the array
             #             # may not fit in memory'
-            #             # @show indexapply(_ -> part_length, size(part), index=dim)
+            #             # # @show indexapply(_ -> part_length, size(part), index=dim)
             #             fid[group] = similar(part, indexapply(_ -> part_length, size(part), index=dim))
-            #             # @show eltype(part)
-            #             # # @show keys(fid)
-            #             # # @show fid
+            #             # # @show eltype(part)
+            #             # # # @show keys(fid)
+            #             # # # @show fid
             #             close(fid[group])
             #         end
             #     end
@@ -1106,7 +1119,7 @@ function Write(
             # # in parallel
             # group = group_prefix*"_part$partition_idx"*"_dim=$dim"
             # h5open(path, "r+") do fid
-            #     # # @show keys(fid)
+            #     # # # @show keys(fid)
             #     fid[group][fill(Colon(), ndims(part))...] = part
             #     close(fid[group])
             # end
@@ -1158,10 +1171,10 @@ function Write(
             #         # NOTE: It's important that we use the last node since the
             #         # last node has the scan result
             #         # # # println("Entering if")
-            #         # @show group
-            #         # @show nbatches
+            #         # # @show group
+            #         # # @show nbatches
             #         whole_size = indexapply(_ -> offset + whole_batch_length, size(part), index=dim)
-            #         # @show whole_size
+            #         # # @show whole_size
             #         # The permission used here is "r+" because we already
             #         # created the file on the head node
             #         h5open(path, "r+") do fid
@@ -1174,12 +1187,12 @@ function Write(
             #             # If there are multiple batches, each batch just gets written
             #             # to its own group
             #             # # # println("Creating")
-            #             # @show group_prefix
-            #             # @show keys(fid)
-            #             fid[group_prefix] = similar(part, whole_size)
-            #             # @show keys(fid)
+            #             # # @show group_prefix
             #             # # @show keys(fid)
-            #             # # @show fid
+            #             fid[group_prefix] = similar(part, whole_size)
+            #             # # @show keys(fid)
+            #             # # # @show keys(fid)
+            #             # # # @show fid
             #             close(fid[group_prefix])
             #         end
             #         # # # println("Exiting if")
@@ -1191,9 +1204,9 @@ function Write(
             #     MPI.Barrier(comm)
     
             #     # Write out each batch
-            #     # @show HDF5.ishdf5(path)
+            #     # # @show HDF5.ishdf5(path)
             #     h5open(path, "r+") do f
-            #         # @show keys(f)
+            #         # # @show keys(f)
             #         dset = f[group_prefix]
             #         batchoffset = offset
             #         for batch_i = 1:nbatches
@@ -1202,14 +1215,14 @@ function Write(
     
             #             # Write
             #             group = group_prefix*"_part$idx"*"_dim=$dim"
-            #             # @show (batchoffset+1):batchoffset+size(f[group], dim)
-            #             # @show size(dset)
-            #             # @show size(f[group][fill(Colon(), ndims(dset))...])
-            #             # @show eltype(dset)
-            #             # @show eltype(f[group])
-            #             # @show HDF5.ishdf5(path)
-            #             # @show keys(f)
-            #             # @show sum(f[group][fill(Colon(), ndims(dset))...])
+            #             # # @show (batchoffset+1):batchoffset+size(f[group], dim)
+            #             # # @show size(dset)
+            #             # # @show size(f[group][fill(Colon(), ndims(dset))...])
+            #             # # @show eltype(dset)
+            #             # # @show eltype(f[group])
+            #             # # @show HDF5.ishdf5(path)
+            #             # # @show keys(f)
+            #             # # @show sum(f[group][fill(Colon(), ndims(dset))...])
             #             # TOODO: Maynee remoce printlns to make it work
             #             setindex!(
             #                 # We are writing to the whole dataset that was just
@@ -1230,7 +1243,7 @@ function Write(
             #                     for d = 1:ndims(dset)
             #                 ]...,
             #             )
-            #             # @show sum(getindex(dset, [
+            #             # # @show sum(getindex(dset, [
             #                 if d == dim
             #                     (batchoffset+1):batchoffset+size(f[group], dim)
             #                 else
@@ -1240,7 +1253,7 @@ function Write(
             #                 for d = 1:ndims(dset)
             #             ]...))
 
-            #             # # @show size(dset)
+            #             # # # @show size(dset)
 
             #             # Update the offset of this batch
             #             batchoffset += size(f[group], dim)
@@ -1259,16 +1272,16 @@ function Write(
             #     # Then, delete all data for all groups on the head node
             #     if worker_idx == 1
             #         h5open(path, "r+") do f
-            #             # @show sum(f[group_prefix][fill(Colon(), ndims(f[group_prefix]))...])
+            #             # # @show sum(f[group_prefix][fill(Colon(), ndims(f[group_prefix]))...])
             #             for worker_i = 1:nworkers
             #                 for batch_i = 1:nbatches
             #                     idx = get_partition_idx(batch_i, nbatches, worker_i)
             #                     group = group_prefix*"_part$idx"*"_dim=$dim"
             #                     # # # println("Deleting a group")
-            #                     # @show group
-            #                     # @show keys(f)
+            #                     # # @show group
+            #                     # # @show keys(f)
             #                     delete_object(f[group])
-            #                     # @show keys(f)
+            #                     # # @show keys(f)
             #                 end
             #             end
             #             # TODO: Ensure that closing (flushing) HDF5 datasets
@@ -1287,15 +1300,15 @@ function Write(
             # end
         end
 
-        # @show path
-        # @show HDF5.ishdf5(path)
+        # # @show path
+        # # @show HDF5.ishdf5(path)
 
         # Wait till the dataset is created
         # # # # println("Starting to wait")
 
         # Write part to the dataset
-        # # @show f
-        # # @show keys(f)
+        # # # @show f
+        # # # @show keys(f)
         # # # # println("Opened")
         # TODO: Use `view` instead of `getindex` in the call to
         # `split_on_executor` here if HDF5 doesn't support this kind of usage
@@ -1308,20 +1321,20 @@ function Write(
         #     dsubset .= part
         # else
         # dset = read(dset)
-        # # @show size(dset, dim)
-        # # @show batch_idx
-        # # @show nbatches
-        # # @show whole_size
-        # # @show split_len(whole_size[dim], batch_idx, nbatches, comm)
-        # # @show size(dset)
-        # # @show size(part)
+        # # # @show size(dset, dim)
+        # # # @show batch_idx
+        # # # @show nbatches
+        # # # @show whole_size
+        # # # @show split_len(whole_size[dim], batch_idx, nbatches, comm)
+        # # # @show size(dset)
+        # # # @show size(part)
         
         # dsubset = split_on_executor(dset, dim, batch_idx, nbatches, comm)
         # NOTE: For writing to HDF5 datasets we can't just use
         # split_on_executor because we aren't reading a copy; instead, we are
         # writing to a slice
-        # # @show first(part)
-        # # @show first(dset[:])
+        # # # @show first(part)
+        # # # @show first(dset[:])
         # dsubset .= part
         # close(f)
         # end
@@ -1338,8 +1351,8 @@ function Write(
             part = nothing
         end
         # # # println("In Write")
-        # @show part
-        # @show path
+        # # @show part
+        # # @show path
         serialize(path, part)
     end
     # # println("End of writing worker_idx=$worker_idx, batch_idx=$batch_idx/$nbatches")
@@ -1437,7 +1450,7 @@ function SplitGroup(
     )
 
     # Apply divisions to get only the elements relevant to this worker
-    # # @show key
+    # # # @show key
     res = if isa_df(src)
         # TODO: Do the groupby and filter on batch_idx == 1 and then share
         # among other batches
@@ -1455,7 +1468,7 @@ function SplitGroup(
     end
     worker_idx = get_worker_idx(comm)
     if is_debug_on()
-        # @show batch_idx worker_idx src res
+        # # @show batch_idx worker_idx src res
     end
 
     # Store divisions
@@ -1511,23 +1524,23 @@ function Merge(
         end
         push!(src, part)
         println("In Merge")
-        # @show src part
+        # # @show src part
         if batch_idx == 1 || batch_idx == nbatches
             # println("At start of merging worker_idx=$worker_idx, batch_idx=$batch_idx/$nbatches with available memory: $(format_available_memory()) and used: $(format_bytes(Base.summarysize(src)))")
         end
         if batch_idx == nbatches
             # println("At start of merging worker_idx=$worker_idx, batch_idx=$batch_idx/$nbatches with available memory: $(format_available_memory())")
             delete!(partial_merges, objectid(src))
-            # @show worker_idx batch_idx src
+            # # @show worker_idx batch_idx src
 
             println("On last batch of merging on worker $worker_idx")
-            @show src
+            # @show src
 
             # TODO: Test that this merges correctly
             # src = merge_on_executor(src...; dims=dim)
             src = merge_on_executor(src...; key = key)
             # println("After locally merging worker_idx=$worker_idx, batch_idx=$batch_idx/$nbatches with available memory: $(format_available_memory())")
-            @show src
+            # @show src
 
             # Concatenate across workers
             nworkers = get_nworkers(comm)
@@ -1536,7 +1549,7 @@ function Merge(
                 # println("After distributing and merging worker_idx=$worker_idx, batch_idx=$batch_idx/$nbatches with available memory: $(format_available_memory())")
             end
             if is_debug_on()
-                # @show partial_merges
+                # # @show partial_merges
             end
             # delete!(partial_merges, src)
         end
@@ -1554,7 +1567,7 @@ function CopyFrom(
     loc_name,
     loc_params,
 )
-    # @show loc_name
+    # # @show loc_name
     if loc_name == "Value"
         loc_params["value"]
     elseif loc_name == "Disk"
@@ -1574,8 +1587,8 @@ function CopyFrom(
         params["key"] = 1
         res = ReadBlock(src, params, 1, 1, MPI.COMM_SELF, loc_name, loc_params)
         # # # println("In CopyFrom")
-        # # @show length(res)
-        # @show res
+        # # # @show length(res)
+        # # @show res
         res
     elseif loc_name == "Remote"
         params = Dict{String,Any}(params)
@@ -1599,12 +1612,12 @@ function CopyTo(
     loc_params,
 )
     # # # println("In CopyTo")
-    # @show get_partition_idx(batch_idx, nbatches, comm)
-    # @show get_npartitions(nbatches, comm)
-    # @show get_worker_idx(comm)
-    # @show MPI.Comm_rank(MPI.COMM_WORLD)
-    # @show part
-    # @show loc_name
+    # # @show get_partition_idx(batch_idx, nbatches, comm)
+    # # @show get_npartitions(nbatches, comm)
+    # # @show get_worker_idx(comm)
+    # # @show MPI.Comm_rank(MPI.COMM_WORLD)
+    # # @show part
+    # # @show loc_name
     if loc_name == "Memory"
         src = part
     else
@@ -1641,7 +1654,7 @@ function CopyTo(
         elseif loc_name == "Client"
             # TODO: Ensure this only sends once
             # # # println("Sending to client")
-            # @show part
+            # # @show part
             if get_partition_idx(batch_idx, nbatches, comm) == 1
                 send_to_client(loc_params["value_id"], part)
             end
@@ -1651,7 +1664,7 @@ function CopyTo(
             error("Unexpected location")
         end
     end
-    # @show src
+    # # @show src
     part
 end
 
@@ -1672,9 +1685,9 @@ function ReduceAndCopyTo(
     src = isnothing(src) ? part : op(src, part)
 
     # # # println("In ReduceAndCopyTo where batch_idx=$batch_idx")
-    # @show src
+    # # @show src
     # Merge reductions across workers
-    # @show src part params["with_key"]
+    # # @show src part params["with_key"]
     if batch_idx == nbatches
         src = Reduce(src, params, Dict(), comm)
 
@@ -1731,12 +1744,12 @@ function Reduce(part, src_params, dst_params, comm)
     # TODO: Handle case where different processes have differently sized
     # sendbuf and where sendbuf is not isbitstype
 
-    # # @show kind
+    # # # @show kind
 
     # Perform reduction
     # # # println("In Reduce")
-    # @show src_params["with_key"] ? op(src_params["key"]) : "no key"
-    # @show part
+    # # @show src_params["with_key"] ? op(src_params["key"]) : "no key"
+    # # @show part
     part = MPI.Allreduce(
         part,
         # sendbuf,
@@ -1747,7 +1760,7 @@ function Reduce(part, src_params, dst_params, comm)
         op,
         comm,
     )
-    # @show part
+    # # @show part
     part
 end
 
@@ -1785,8 +1798,8 @@ function Rebalance(part, src_params, dst_params, comm)
     io = IOBuffer()
     nbyteswritten = 0
     counts::Vector{Int64} = []
-    # @show nworkers
-    # @show npartitions
+    # # @show nworkers
+    # # @show npartitions
     for partition_idx = 1:npartitions
         # `split_len` gives us the range that this partition needs
         partitionrange = split_len(whole_len, partition_idx, npartitions)
@@ -1817,7 +1830,7 @@ function Rebalance(part, src_params, dst_params, comm)
         # Add the count of the size of this chunk in bytes
         push!(counts, io.size - nbyteswritten)
         nbyteswritten = io.size
-        # @show nbyteswritten
+        # # @show nbyteswritten
 
     end
     sendbuf = MPI.VBuffer(view(io.data, 1:nbyteswritten), counts)
@@ -1825,8 +1838,8 @@ function Rebalance(part, src_params, dst_params, comm)
     # Create buffer for receiving pieces
     # TODO: Refactor the intermediate part starting from there if we add
     # more cases for this function
-    # @show counts
-    # @show MPI.Comm_size(comm)
+    # # @show counts
+    # # @show MPI.Comm_size(comm)
     sizes = MPI.Alltoall(MPI.UBuffer(counts, 1), comm)
     recvbuf = MPI.VBuffer(similar(io.data, sum(sizes)), sizes)
 
@@ -1842,7 +1855,7 @@ function Rebalance(part, src_params, dst_params, comm)
         dims = dim,
     )
     # # # println("After rebalancing...")
-    # # @show length(res)
+    # # # @show length(res)
     res
 end
 
@@ -1900,20 +1913,20 @@ function Shuffle(
     end
 
     # Perform shuffle
-    @show divisions
-    @show divisions_by_worker
-    @show orderinghash("setosa")
-    @show orderinghash("versicolor")
-    @show orderinghash("virginica")
-    @show boundedlower
-    @show boundedupper
+    # @show divisions
+    # @show divisions_by_worker
+    # @show orderinghash("setosa")
+    # @show orderinghash("versicolor")
+    # @show orderinghash("virginica")
+    # @show boundedlower
+    # @show boundedupper
     partition_idx_getter(val) = get_partition_idx_from_divisions(
         val,
         divisions_by_worker,
         boundedlower = boundedlower,
         boundedupper = boundedupper,
     )
-    # @show typeof(part)
+    # # @show typeof(part)
     res = if isa_df(part)
         # Ensure that this partition has a schema that is suitable for usage
         # here. We have to do this for `Shuffle` and `SplitGroup` (which is
@@ -1925,7 +1938,7 @@ function Shuffle(
 
         # Compute the partition to send each row of the dataframe to
         transform!(part, key => ByRow(partition_idx_getter) => :banyan_shuffling_key)
-        @show worker_idx part
+        # @show worker_idx part
 
         # Group the dataframe's rows by what partition to send to
         gdf = groupby(part, :banyan_shuffling_key, sort = true)

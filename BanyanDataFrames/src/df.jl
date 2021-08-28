@@ -68,6 +68,7 @@ function write_csv(df, path)
     end
     @partitioned df begin end
     compute(df)
+    sourced(df, Remote(path)) # Allow data to be read from this path if needed in the future
     destined(df, None())
 end
 
@@ -329,11 +330,11 @@ function Base.filter(f, df::DataFrame; kwargs...)
     end
 
     @partitioned df res res_nrows f kwargs begin
-        @show df
+        # @show df
         res = filter(f, df; kwargs...)
-        @show res
+        # @show res
         res_nrows = nrow(res)
-        @show res_nrows
+        # @show res_nrows
     end
 
     res
@@ -597,9 +598,9 @@ function Base.getindex(df::DataFrame, rows=:, cols=:)
     filter_rows = !(rows isa Colon)
     columns = Symbol.(names(sample(df), cols))
     cols = Future(cols)
-    # @show sample(rows)
+    # # @show sample(rows)
     rows = rows isa AbstractFuture ? rows : Future(rows)
-    @show sample(rows)
+    # @show sample(rows)
 
     res_size =
         if filter_rows
@@ -700,14 +701,14 @@ function Base.getindex(df::DataFrame, rows=:, cols=:)
     @partitioned df df_nrows res res_size rows cols begin
         print("In getindex")
         res = df[rows, cols]
-        @show df
-        @show rows
-        @show res
+        # @show df
+        # @show rows
+        # @show res
         res_size = rows isa Colon ? df_nrows : size(res)
         res_size = res isa Base.Vector ? res_size : first(res_size)
     end
 
-    @show sample(res)
+    # @show sample(res)
 
     res
 
@@ -1539,7 +1540,7 @@ function DataFrames.nonunique(df::DataFrame, cols=:; kwargs...)
 
     @partitioned df df_nrows res res_size cols kwargs begin
         res = nonunique(df, cols; kwargs...)
-        @show "nonunique" res
+        # @show "nonunique" res
         res_size = Tuple(df_nrows)
     end
 

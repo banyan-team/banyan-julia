@@ -285,6 +285,9 @@ function send_evaluation(value_id::ValueId, job_id::JobId)
     @debug "Sending evaluation request"
 
     # Submit evaluation request
+    println("Submitting evaluation request")
+    @show value_id
+    @show [to_jl(req) for req in get_job().pending_requests]
     response = send_request_get_response(
         :evaluate,
         Dict{String,Any}(
@@ -319,6 +322,12 @@ function Base.collect(fut::AbstractFuture)
     end
 
     # This function collects the given future on the client side
+    
+    # NOTE: If the value was already replicated and has never been written to disk, then this
+    # might send it to the client and never allow the value to be used again since it hasn't been saved.
+    # By computing it now, we can ensure that its saved to disk. This is one of the things we should address when we
+    # clean up locations.
+    compute(fut)
     
     # Set the future's destination location to Client
     destined(fut, Client())
