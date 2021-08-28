@@ -347,6 +347,13 @@ function send_request_get_response(method, content::Dict)
     resp, data = request_json(
 	url, input=IOBuffer(JSON.json(content)), method="POST", headers=headers
     )
+    #println(resp)
+    #println(data)
+    if resp.status == 403
+        throw(ErrorException("Please use a valid user_id and api_key. Sign into the dashboard to retrieve these credentials."))
+    elseif resp.status == 500
+        throw(ErrorException(data))
+    end
     return data
 
 end
