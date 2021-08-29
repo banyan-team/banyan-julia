@@ -106,7 +106,7 @@ function setup_basic_tests(bucket_name)
     )
 
     # Write empty dataframe with two columns
-    empty_df2 = DataFrame(x=[], y=[])
+    empty_df2 = DataFrames.DataFrame(x=[], y=[])
     write_df_to_csv_to_s3(
         empty_df2,
         "empty_df2.csv",

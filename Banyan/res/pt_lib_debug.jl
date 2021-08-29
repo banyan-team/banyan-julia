@@ -98,6 +98,7 @@ function ReadBlock(
         # @show dset
         return dset
     end
+    println("Still in reading a block")
 
     # @show loc_name
     # @show path
@@ -115,6 +116,7 @@ function ReadBlock(
         # @show res
         return res
     end
+    println("Still _still_ in reading a block")
 
     # Handle multi-file tabular datasets
 
@@ -145,6 +147,7 @@ function ReadBlock(
             return nothing
         end
     end
+    println("Still _still_  *still* in reading a block")
 
     # Iterate through files and identify which ones correspond to the range of
     # rows for the batch currently being processed by this worker
@@ -152,7 +155,9 @@ function ReadBlock(
     rowrange = split_len(nrows, batch_idx, nbatches, comm)
     dfs::Vector{DataFrame} = []
     rowsscanned = 0
+    @show loc_params
     for file in sort(loc_params["files"], by=f->f["path"])
+        println("Considering $file")
         newrowsscanned = rowsscanned + file["nrows"]
         filerowrange = (rowsscanned+1):newrowsscanned
         # Check if te file corresponds to the range of rows for the batch
@@ -221,6 +226,7 @@ function ReadBlock(
         end
         rowsscanned = newrowsscanned
     end
+    println("Still _still_  *STILL* in reading a block but after having $(length(dfs)) dfs")
 
     # # @show length(dfs)
 
@@ -1572,6 +1578,8 @@ function CopyFrom(
     loc_params,
 )
     # # @show loc_name
+    println("In CopyFrom with loc_name=$loc_name and loc_params=$loc_params")
+    @show loc_params
     if loc_name == "Value"
         loc_params["value"]
     elseif loc_name == "Disk"
@@ -1593,11 +1601,14 @@ function CopyFrom(
         # # # println("In CopyFrom")
         # # # @show length(res)
         # # @show res
+        println("At end of CopyFrom")
         res
     elseif loc_name == "Remote"
         params = Dict{String,Any}(params)
         params["key"] = 1
-        ReadBlock(src, params, 1, 1, MPI.COMM_SELF, loc_name, loc_params)
+        res = ReadBlock(src, params, 1, 1, MPI.COMM_SELF, loc_name, loc_params)
+        println("At end of CopyFrom")
+        res
     elseif loc_name == "Client" && get_partition_idx(batch_idx, nbatches, comm) == 1
         receive_from_client(loc_params["value_id"])
     elseif loc_name == "Memory"
@@ -1615,6 +1626,7 @@ function CopyTo(
     loc_name,
     loc_params,
 )
+    println("In CopyTo with loc_name=$loc_name and loc_params=$loc_params and worker_idx=$(get_worker_idx(comm)) and batch_idx=$batch_idx")
     # # # println("In CopyTo")
     # # @show get_partition_idx(batch_idx, nbatches, comm)
     # # @show get_npartitions(nbatches, comm)
@@ -1662,8 +1674,10 @@ function CopyTo(
             if get_partition_idx(batch_idx, nbatches, comm) == 1
                 send_to_client(loc_params["value_id"], part)
             end
+            println("Before barrier in sending to client")
             # TODO: Remove this barrier if not needed to ensure correctness
             MPI.Barrier(comm)
+            println("After barrier in sending to client")
         else
             error("Unexpected location")
         end
