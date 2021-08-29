@@ -128,31 +128,43 @@ global n_repeats = 10
 function setup_stress_tests(bucket_name)
     global n_repeats
     for month in ["01", "02", "03", "04"]
-            download_path = "https://s3.amazonaws.com/nyc-tlc/trip+data/yellow_tripdata_2012-$(month).csv"
-            local_path = download(download_path)
-            df = CSV.read(local_path, DataFrames.DataFrame)
-        for ncopy = 1:n_repeats
-            write_df_to_csv_to_s3(
-                df,
-                "tripdata.csv",
-                p"tripdata.csv",
-                bucket_name,
-                "tripdata_large_csv.csv/tripdata_$(month)_copy$(ncopy).csv",
-            )
-            write_df_to_parquet_to_s3(
-                df,
-                "tripdata.parquet",
-                p"tripdata.parquet",
-                bucket_name,
-                "tripdata_large_parquet.parquet/tripdata_$(month)_copy$(ncopy).parquet",
-            )
-            write_df_to_arrow_to_s3(
-                df,
-                "tripdata.arrow",
-                p"tripdata.arrow",
-                bucket_name,
-                "tripdata_large_arrow.arrow/tripdata_$(month)_copy$(ncopy).arrow",
-            )
+        download_path = "https://s3.amazonaws.com/nyc-tlc/trip+data/yellow_tripdata_2012-$(month).csv"
+        local_path = download(download_path)
+        df = CSV.read(local_path, DataFrames.DataFrame)
+        write_df_to_csv_to_s3(
+            df,
+            "tripdata.csv",
+            p"tripdata.csv",
+            bucket_name,
+            "tripdata_large_csv.csv/tripdata_$(month)_copy1.csv",
+        )
+        write_df_to_parquet_to_s3(
+            df,
+            "tripdata.parquet",
+            p"tripdata.parquet",
+            bucket_name,
+            "tripdata_large_parquet.parquet/tripdata_$(month)_copy1.parquet",
+        )
+        write_df_to_arrow_to_s3(
+            df,
+            "tripdata.arrow",
+            p"tripdata.arrow",
+            bucket_name,
+            "tripdata_large_arrow.arrow/tripdata_$(month)_copy1.arrow",
+        )
+        for ncopy = 2:n_repeats
+            cp(
+	        S3Path("s3://$(bucket)/tripdata_large_csv.csv/tripdata_$(month)_copy1.csv", config=Banyan.get_aws_config()),
+		S3Path("s3://$(bucket)/tripdata_large_csv.csv/tripdata_$(month)_copy$(ncopy).csv", config=Banyan.get_aws_config())
+	    )
+            cp(
+	        S3Path("s3://$(bucket)/tripdata_large_parquet.parquet/tripdata_$(month)_copy1.parquet", config=Banyan.get_aws_config()),
+		S3Path("s3://$(bucket)/tripdata_large_parquet.parquet/tripdata_$(month)_copy$(ncopy).parquet", config=Banyan.get_aws_config())
+	    )
+            cp(
+	        S3Path("s3://$(bucket)/tripdata_large_arrow.arrow/tripdata_$(month)_copy1.arrow", config=Banyan.get_aws_config()),
+		S3Path("s3://$(bucket)/tripdata_large_arrow.arrow/tripdata_$(month)_copy$(ncopy).arrow", config=Banyan.get_aws_config())
+	    )
         end
     end
 end
