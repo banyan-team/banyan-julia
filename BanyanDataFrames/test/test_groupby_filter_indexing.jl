@@ -128,10 +128,10 @@ global n_repeats = 10
 function setup_stress_tests(bucket_name)
     global n_repeats
     for month in ["01", "02", "03", "04"]
-        for ncopy = 1:n_repeats
             download_path = "https://s3.amazonaws.com/nyc-tlc/trip+data/yellow_tripdata_2012-$(month).csv"
             local_path = download(download_path)
             df = CSV.read(local_path, DataFrames.DataFrame)
+        for ncopy = 1:n_repeats
             write_df_to_csv_to_s3(
                 df,
                 "tripdata.csv",
@@ -476,8 +476,8 @@ end
                 gdf_select_size = size(gdf_select)
                 gdf_transform_size = size(gdf_transform)
                 gdf_subset_nrow = nrow(gdf_subset)
-                gdf_select_plf_subtract = round(
-                    collect(reduce(-, gdf_select[:, :petal_length_function])),
+                gdf_select_plf_square_add = round(
+                    collect(reduce(+, map(l -> l * l, gdf_select[:, :petal_length_function]))),
                     digits = 2,
                 )
                 gdf_select_filter_length = nrow(
@@ -511,7 +511,7 @@ end
                 @test gdf_select_size == (900, 6)
                 @test gdf_transform_size == (900, 6)
                 @test gdf_subset_nrow == 474
-                @test gdf_select_plf_subtract == -0.13
+                @test gdf_select_plf_square_add == 163.32
                 @test gdf_select_filter_length == 42
                 @test gdf_transform_length == 18
                 @test gdf_subset_row5 == [4.6, 3.1, 1.5, 0.2, "species_4"]
