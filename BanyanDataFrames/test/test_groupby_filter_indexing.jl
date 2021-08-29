@@ -154,33 +154,37 @@ function setup_stress_tests(bucket_name)
         )
         for ncopy = 2:n_repeats
             dst_path = "s3://$(bucket_name)/tripdata_large_csv.csv/tripdata_$(month)_copy$(ncopy).csv"
-            if !s3_exists(Banyan.get_aws_config(), bucket_name, dst_path)
+            dst_s3_path = S3Path(dst_path, config = Banyan.get_aws_config())
+            # if !s3_exists(Banyan.get_aws_config(), bucket_name, dst_path)
+            if !isfile(dst_s3_path)
                 cp(
                     S3Path(
                         "s3://$(bucket_name)/tripdata_large_csv.csv/tripdata_$(month)_copy1.csv",
                         config = Banyan.get_aws_config(),
                     ),
-                    S3Path(dst_path, config = Banyan.get_aws_config()),
+                    dst_s3_path,
                 )
             end
             dst_path = "s3://$(bucket_name)/tripdata_large_parquet.parquet/tripdata_$(month)_copy$(ncopy).parquet"
-            if !s3_exists(Banyan.get_aws_config(), bucket_name, dst_path)
+            dst_s3_path = S3Path(dst_path, config = Banyan.get_aws_config())
+            if !isfile(dst_s3_path)
                 cp(
                     S3Path(
                         "s3://$(bucket_name)/tripdata_large_parquet.parquet/tripdata_$(month)_copy1.parquet",
                         config = Banyan.get_aws_config(),
                     ),
-                    S3Path(dst_path, config = Banyan.get_aws_config()),
+                    dst_s3_path,
                 )
             end
             dst_path = "s3://$(bucket_name)/tripdata_large_arrow.arrow/tripdata_$(month)_copy$(ncopy).arrow"
-            if !s3_exists(Banyan.get_aws_config(), bucket_name, dst_path)
+            dst_s3_path = S3Path(dst_path, config = Banyan.get_aws_config())
+            if !isfile(dst_s3_path)
                 cp(
                     S3Path(
                         "s3://$(bucket_name)/tripdata_large_arrow.arrow/tripdata_$(month)_copy1.arrow",
                         config = Banyan.get_aws_config(),
                     ),
-                    S3Path(dst_path, config = Banyan.get_aws_config()),
+                    dst_s3_path,
                 )
             end
         end
