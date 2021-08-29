@@ -128,10 +128,10 @@ global n_repeats = 10
 function setup_stress_tests(bucket_name)
     global n_repeats
     for month in ["01", "02", "03", "04"]
-        for ncopy = 1:n_repeats
             download_path = "https://s3.amazonaws.com/nyc-tlc/trip+data/yellow_tripdata_2012-$(month).csv"
             local_path = download(download_path)
             df = CSV.read(local_path, DataFrames.DataFrame)
+        for ncopy = 1:n_repeats
             write_df_to_csv_to_s3(
                 df,
                 "tripdata.csv",
