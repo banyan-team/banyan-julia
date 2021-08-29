@@ -106,7 +106,7 @@ function setup_basic_tests(bucket_name)
     )
 
     # Write empty dataframe with two columns
-    empty_df2 = DataFrames.DataFrame(x=[], y=[])
+    empty_df2 = DataFrames.DataFrame(x = [], y = [])
     write_df_to_csv_to_s3(
         empty_df2,
         "empty_df2.csv",
@@ -407,7 +407,7 @@ end
                 @test_throws ErrorException groupby(df, :species; sort = false)
 
                 # Groupby all columns
-		gdf = groupby(df, :)
+                gdf = groupby(df, :)
                 @test length(gdf) == 882
 
                 # Groupby first four columns
@@ -501,11 +501,11 @@ end
                         :,
                         :petal_length_mean,
                     ]
-		petal_length_mean = map(m -> round(m, digits=2), petal_length_mean)
+                petal_length_mean = map(m -> round(m, digits = 2), petal_length_mean)
                 temp = combine(gdf, :petal_length => mean, renamecols = false)
                 temp_names = Set(names(temp))
                 temp_petal_length = sort(collect(temp)[:, :petal_length])
-		temp_petal_length = map(l -> round(l, digits=2), temp_petal_length
+                temp_petal_length = map(l -> round(l, digits = 2), temp_petal_length)
 
                 # Assert
                 @test gdf_select_size == (900, 6)
@@ -632,47 +632,49 @@ end
 
         for i = 1:2
             for path in [
-	        ["s3://$(bucket)/empty_df.csv", "s3://$(bucket)/empty_df2.csv"],
-		["s3://$(bucket)/empty_df.arrow", "s3://$(bucket)/empty_df2.arrow"]
-	    ]
-            df = read_file(path[1])  # (0,0) df
-	    df2 = read_file(path[2]) # (0,2) df
+                ["s3://$(bucket)/empty_df.csv", "s3://$(bucket)/empty_df2.csv"],
+                ["s3://$(bucket)/empty_df.arrow", "s3://$(bucket)/empty_df2.arrow"],
+            ]
+                df = read_file(path[1])  # (0,0) df
+                df2 = read_file(path[2]) # (0,2) df
 
-            @test size(df) == (0, 0)
-	    @test size(df2) == (0, 2
+                @test size(df) == (0, 0)
+                @test size(df2) == (0, 2)
 
-            filtered_save_path = get_save_path(bucket, "filtered", path[1])
-	    filtered2_save_path = get_save_path(bucket, "filtered2", path[2])
-            if i == 1
-                filtered = filter(row -> row.x == 0, df)
-		filtered2 = filter([:x, :y] => (x, y) -> x == y, df)
-                write_file(filtered_save_path, filtered)
-		write_file(filtered2_save_path, filtered2)
-            else
-                filtered = read_file(filtered_save_path)
-		filtered2 = read_file(filtered2_save_path)
+                filtered_save_path = get_save_path(bucket, "filtered", path[1])
+                filtered2_save_path = get_save_path(bucket, "filtered2", path[2])
+                if i == 1
+                    filtered = filter(row -> row.x == 0, df)
+                    filtered2 = filter([:x, :y] => (x, y) -> x == y, df)
+                    write_file(filtered_save_path, filtered)
+                    write_file(filtered2_save_path, filtered2)
+                else
+                    filtered = read_file(filtered_save_path)
+                    filtered2 = read_file(filtered2_save_path)
+                end
+
+                filtered_size = size(filtered)
+                filtered_grouped_nrow = size(combine(groupby(filtered, All()), nrow))
+                grouped_length = length(groupby(df, All()))
+
+                filtered2_size = size(filtered)
+                filtered2_grouped = groupby(filtered2, [:x, :y])
+                filtered2_grouped_nrow = size(combine(filtered2_grouped, nrow))
+                filtered2_grouped_length = length(filtered2_grouped)
+                x_col = filtered2[:, :x]
+                x_col_double = map(x_val -> x_val * 2, x_col)
+                x_col_double_collect = collect(x_col_double)
+
+                @test filtered_size == (0, 0)
+                @test filtered_grouped_nrow == (0, 1)
+                @test grouped_length == 0
+
+                @test filtered2_size == (0, 0)
+                @test filtered2_grouped_nrow == (0, 3)
+                @test filtered2_grouped_length == 0
+                @test x_col_double_collect == Any[]
+
             end
-
-            filtered_size = size(filtered)
-            filtered_grouped_nrow = size(combine(groupby(filtered, All()), nrow))
-            grouped_length = length(groupby(df, All()))
-
-	    filtered2_size = size(filtered)
-            filtered2_grouped = groupby(filtered2, [:x, :y])
-	    filtered2_grouped_nrow = size(combine(filtered2_grouped, nrow))
-	    filtered2_grouped_length = length(filtered2_grouped)
-	    x_col = filtered2[:, :x]
-	    x_col_double = map(x_val -> x_val * 2, x_col)
-	    x_col_double_collect = collect(x_col_double)
-
-            @test filtered_size == (0, 0)
-            @test filtered_grouped_nrow == (0, 1)
-            @test grouped_length == 0
-
-	    @test filtered2_size == (0, 0)
-	    @test filtered2_grouped_nrow == (0, 3)
-	    @test filtered2_grouped_length == 0
-	    @test x_col_double_collect == Any[]
         end
     end
 end
