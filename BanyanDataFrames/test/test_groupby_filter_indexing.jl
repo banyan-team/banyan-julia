@@ -154,16 +154,16 @@ function setup_stress_tests(bucket_name)
         )
         for ncopy = 2:n_repeats
             cp(
-	        S3Path("s3://$(bucket)/tripdata_large_csv.csv/tripdata_$(month)_copy1.csv", config=Banyan.get_aws_config()),
-		S3Path("s3://$(bucket)/tripdata_large_csv.csv/tripdata_$(month)_copy$(ncopy).csv", config=Banyan.get_aws_config())
+	        S3Path("s3://$(bucket_name)/tripdata_large_csv.csv/tripdata_$(month)_copy1.csv", config=Banyan.get_aws_config()),
+		S3Path("s3://$(bucket_name)/tripdata_large_csv.csv/tripdata_$(month)_copy$(ncopy).csv", config=Banyan.get_aws_config())
 	    )
             cp(
-	        S3Path("s3://$(bucket)/tripdata_large_parquet.parquet/tripdata_$(month)_copy1.parquet", config=Banyan.get_aws_config()),
-		S3Path("s3://$(bucket)/tripdata_large_parquet.parquet/tripdata_$(month)_copy$(ncopy).parquet", config=Banyan.get_aws_config())
+	        S3Path("s3://$(bucket_name)/tripdata_large_parquet.parquet/tripdata_$(month)_copy1.parquet", config=Banyan.get_aws_config()),
+		S3Path("s3://$(bucket_name)/tripdata_large_parquet.parquet/tripdata_$(month)_copy$(ncopy).parquet", config=Banyan.get_aws_config())
 	    )
             cp(
-	        S3Path("s3://$(bucket)/tripdata_large_arrow.arrow/tripdata_$(month)_copy1.arrow", config=Banyan.get_aws_config()),
-		S3Path("s3://$(bucket)/tripdata_large_arrow.arrow/tripdata_$(month)_copy$(ncopy).arrow", config=Banyan.get_aws_config())
+	        S3Path("s3://$(bucket_name)/tripdata_large_arrow.arrow/tripdata_$(month)_copy1.arrow", config=Banyan.get_aws_config()),
+		S3Path("s3://$(bucket_name)/tripdata_large_arrow.arrow/tripdata_$(month)_copy$(ncopy).arrow", config=Banyan.get_aws_config())
 	    )
         end
     end
