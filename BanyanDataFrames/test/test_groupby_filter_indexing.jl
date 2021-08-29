@@ -476,8 +476,8 @@ end
                 gdf_select_size = size(gdf_select)
                 gdf_transform_size = size(gdf_transform)
                 gdf_subset_nrow = nrow(gdf_subset)
-                gdf_select_plf_subtract = round(
-                    collect(reduce(-, gdf_select[:, :petal_length_function])),
+                gdf_select_plf_square_add = round(
+                    collect(reduce(+, map(l -> l * l, gdf_select[:, :petal_length_function]))),
                     digits = 2,
                 )
                 gdf_select_filter_length = nrow(
@@ -511,7 +511,7 @@ end
                 @test gdf_select_size == (900, 6)
                 @test gdf_transform_size == (900, 6)
                 @test gdf_subset_nrow == 474
-                @test gdf_select_plf_subtract == -0.13
+                @test gdf_select_plf_square_add == 163.32
                 @test gdf_select_filter_length == 42
                 @test gdf_transform_length == 18
                 @test gdf_subset_row5 == [4.6, 3.1, 1.5, 0.2, "species_4"]
