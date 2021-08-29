@@ -153,18 +153,36 @@ function setup_stress_tests(bucket_name)
             "tripdata_large_arrow.arrow/tripdata_$(month)_copy1.arrow",
         )
         for ncopy = 2:n_repeats
-            cp(
-	        S3Path("s3://$(bucket_name)/tripdata_large_csv.csv/tripdata_$(month)_copy1.csv", config=Banyan.get_aws_config()),
-		S3Path("s3://$(bucket_name)/tripdata_large_csv.csv/tripdata_$(month)_copy$(ncopy).csv", config=Banyan.get_aws_config())
-	    )
-            cp(
-	        S3Path("s3://$(bucket_name)/tripdata_large_parquet.parquet/tripdata_$(month)_copy1.parquet", config=Banyan.get_aws_config()),
-		S3Path("s3://$(bucket_name)/tripdata_large_parquet.parquet/tripdata_$(month)_copy$(ncopy).parquet", config=Banyan.get_aws_config())
-	    )
-            cp(
-	        S3Path("s3://$(bucket_name)/tripdata_large_arrow.arrow/tripdata_$(month)_copy1.arrow", config=Banyan.get_aws_config()),
-		S3Path("s3://$(bucket_name)/tripdata_large_arrow.arrow/tripdata_$(month)_copy$(ncopy).arrow", config=Banyan.get_aws_config())
-	    )
+            dst_path = "s3://$(bucket_name)/tripdata_large_csv.csv/tripdata_$(month)_copy$(ncopy).csv"
+            if !s3_exists(Banyan.get_aws_config(), bucket_name, dst_path)
+                cp(
+                    S3Path(
+                        "s3://$(bucket_name)/tripdata_large_csv.csv/tripdata_$(month)_copy1.csv",
+                        config = Banyan.get_aws_config(),
+                    ),
+                    S3Path(dst_path, config = Banyan.get_aws_config()),
+                )
+            end
+            dst_path = "s3://$(bucket_name)/tripdata_large_parquet.parquet/tripdata_$(month)_copy$(ncopy).parquet"
+            if !s3_exists(Banyan.get_aws_config(), bucket_name, dst_path)
+                cp(
+                    S3Path(
+                        "s3://$(bucket_name)/tripdata_large_parquet.parquet/tripdata_$(month)_copy1.parquet",
+                        config = Banyan.get_aws_config(),
+                    ),
+                    S3Path(dst_path, config = Banyan.get_aws_config()),
+                )
+            end
+            dst_path = "s3://$(bucket_name)/tripdata_large_arrow.arrow/tripdata_$(month)_copy$(ncopy).arrow"
+            if !s3_exists(Banyan.get_aws_config(), bucket_name, dst_path)
+                cp(
+                    S3Path(
+                        "s3://$(bucket_name)/tripdata_large_arrow.arrow/tripdata_$(month)_copy1.arrow",
+                        config = Banyan.get_aws_config(),
+                    ),
+                    S3Path(dst_path, config = Banyan.get_aws_config()),
+                )
+            end
         end
     end
 end
@@ -489,7 +507,9 @@ end
                 gdf_transform_size = size(gdf_transform)
                 gdf_subset_nrow = nrow(gdf_subset)
                 gdf_select_plf_square_add = round(
-                    collect(reduce(+, map(l -> l * l, gdf_select[:, :petal_length_function]))),
+                    collect(
+                        reduce(+, map(l -> l * l, gdf_select[:, :petal_length_function])),
+                    ),
                     digits = 2,
                 )
                 gdf_select_filter_length = nrow(
