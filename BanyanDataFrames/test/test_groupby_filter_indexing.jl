@@ -17,6 +17,17 @@ function write_df_to_arrow_to_s3(df, filename, filepath, bucket_name, s3path)
     verify_file_in_s3(bucket_name, s3path, filepath)
 end
 
+function get_local_path_tripdata(s3_path)
+    filename = s3_path.segments[end]
+    if occursin("csv", filename)
+        return "tripdata.csv"
+    elseif occursin("parquet", filename)
+        return "tripdata.parquet"
+    elseif occursin("arrow", filename)
+        return "tripdata.arrow"
+    end
+end
+
 function setup_basic_tests(bucket_name)
     iris_download_path = "https://gist.githubusercontent.com/curran/a08a1080b88344b0c8a7/raw/0e7a9b0a5d22642a06d3d5b9bcbad9890c8ee534/iris.csv"
     iris_species_info_download_path = "https://raw.githubusercontent.com/banyan-team/banyan-julia/v0.1.3/BanyanDataFrames/test/res/iris_species_info.csv"
@@ -126,77 +137,47 @@ end
 global n_repeats = 10
 
 function setup_stress_tests(bucket_name)
+    # Copy n_repeats of each of the four files into S3.
     global n_repeats
     for month in ["01", "02", "03", "04"]
         println("In setup_stress_tests on month=$month")
+        # Get source download path and the list of dst S3 paths
         download_path = "https://s3.amazonaws.com/nyc-tlc/trip+data/yellow_tripdata_2012-$(month).csv"
-        local_path = download(download_path)
-        println("Downloaded $local_path")
-        df = CSV.read(local_path, DataFrames.DataFrame)
-        println("Read $local_path into memory")
-        write_df_to_csv_to_s3(
-            df,
-            "tripdata.csv",
-            p"tripdata.csv",
-            bucket_name,
-            "tripdata_large_csv.csv/tripdata_$(month)_copy1.csv",
-        )
-        println("Wrote data frame to S3")
-        write_df_to_parquet_to_s3(
-            df,
-            "tripdata.parquet",
-            p"tripdata.parquet",
-            bucket_name,
-            "tripdata_large_parquet.parquet/tripdata_$(month)_copy1.parquet",
-        )
-        write_df_to_arrow_to_s3(
-            df,
-            "tripdata.arrow",
-            p"tripdata.arrow",
-            bucket_name,
-            "tripdata_large_arrow.arrow/tripdata_$(month)_copy1.arrow",
-        )
-        for ncopy = 2:n_repeats
-            println("Copying taxi data for total of $ncopy copies")
-            dst_path = "s3://$(bucket_name)/tripdata_large_csv.csv/tripdata_$(month)_copy$(ncopy).csv"
-            dst_s3_path = S3Path(dst_path, config = Banyan.get_aws_config())
-            # if !s3_exists(Banyan.get_aws_config(), bucket_name, dst_path)
-            if !isfile(dst_s3_path)
-                println("Copying CSV data")
-                cp(
-                    S3Path(
-                        "s3://$(bucket_name)/tripdata_large_csv.csv/tripdata_$(month)_copy1.csv",
-                        config = Banyan.get_aws_config(),
-                    ),
-                    dst_s3_path,
-                )
-                println("Copied CSV data")
+        dst_s3_paths = []
+        dst_s3_paths_missing = []
+        for filetype in ["csv", "parquet", "arrow"]
+            for ncopy = 1:n_repeats
+                dst_path = "s3://$(bucket_name)/tripdata_large_$(filetype).$(filetype)/tripdata_$(month)_copy$(ncopy).$(filetype)"
+                dst_s3_path = S3Path(dst_path, config = Banyan.get_aws_config())
+                append!(dst_paths, dst_s3_path)
+                if !isfile(dst_s3_path)
+                    append!(dst_s3_paths_missing, dst_s3_path)
+                end
             end
-            dst_path = "s3://$(bucket_name)/tripdata_large_parquet.parquet/tripdata_$(month)_copy$(ncopy).parquet"
-            dst_s3_path = S3Path(dst_path, config = Banyan.get_aws_config())
-            if !isfile(dst_s3_path)
-                println("Copying Parquet data")
-                cp(
-                    S3Path(
-                        "s3://$(bucket_name)/tripdata_large_parquet.parquet/tripdata_$(month)_copy1.parquet",
-                        config = Banyan.get_aws_config(),
-                    ),
-                    dst_s3_path,
-                )
-                println("Copied Parquet data")
+        end
+        # If at least one file doesn't exist in s3, we need to download and write to s3
+        if length(dst_s3_paths_missing) > 0
+            local_path = download(download_path)
+            println("Downloaded $local_path")
+            df = CSV.read(local_path, DataFrames.DataFrame)
+            println("Read $local_path into memory")
+
+            # Write csv to disk if there is at least one missing csv file
+            if any(p -> occursin("csv", p), dst_s3_paths_missing)
+                CSV.write("tripdata.csv", df)
             end
-            dst_path = "s3://$(bucket_name)/tripdata_large_arrow.arrow/tripdata_$(month)_copy$(ncopy).arrow"
-            dst_s3_path = S3Path(dst_path, config = Banyan.get_aws_config())
-            if !isfile(dst_s3_path)
-                println("Copying Arrow data")
-                cp(
-                    S3Path(
-                        "s3://$(bucket_name)/tripdata_large_arrow.arrow/tripdata_$(month)_copy1.arrow",
-                        config = Banyan.get_aws_config(),
-                    ),
-                    dst_s3_path,
-                )
-                println("Copied Arrow data")
+            # Write parquet to disk if there is at least one missing parquet file
+            if any(p -> occursin("parquet", p), dst_s3_paths_missing)
+                Parquet.write_parquet("tripdata.parquet", df)
+            end
+            # Write arrow to disk if there is at least one missing arrow file
+            if any(p -> occursin("arrow", p), dst_s3_paths_missing)
+                Arrow.write("tripdata.arrow", df)
+            end
+
+            # Loop over missing files and upload to s3
+            for s3_path in dst_s3_paths_missing
+                cp(get_local_path_tripdata(s3_path), s3_path, config=Banyan.get_aws_config())
             end
         end
     end
