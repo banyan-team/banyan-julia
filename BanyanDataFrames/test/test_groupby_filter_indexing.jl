@@ -128,9 +128,12 @@ global n_repeats = 10
 function setup_stress_tests(bucket_name)
     global n_repeats
     for month in ["01", "02", "03", "04"]
+        println("In setup_stress_tests on month=$month")
         download_path = "https://s3.amazonaws.com/nyc-tlc/trip+data/yellow_tripdata_2012-$(month).csv"
         local_path = download(download_path)
+        println("Downloaded $local_path")
         df = CSV.read(local_path, DataFrames.DataFrame)
+        println("Read $local_path into memory")
         write_df_to_csv_to_s3(
             df,
             "tripdata.csv",
@@ -138,6 +141,7 @@ function setup_stress_tests(bucket_name)
             bucket_name,
             "tripdata_large_csv.csv/tripdata_$(month)_copy1.csv",
         )
+        println("Wrote data frame to S3")
         write_df_to_parquet_to_s3(
             df,
             "tripdata.parquet",
@@ -153,10 +157,12 @@ function setup_stress_tests(bucket_name)
             "tripdata_large_arrow.arrow/tripdata_$(month)_copy1.arrow",
         )
         for ncopy = 2:n_repeats
+            println("Copying taxi data for total of $ncopy copies")
             dst_path = "s3://$(bucket_name)/tripdata_large_csv.csv/tripdata_$(month)_copy$(ncopy).csv"
             dst_s3_path = S3Path(dst_path, config = Banyan.get_aws_config())
             # if !s3_exists(Banyan.get_aws_config(), bucket_name, dst_path)
             if !isfile(dst_s3_path)
+                println("Copying CSV data")
                 cp(
                     S3Path(
                         "s3://$(bucket_name)/tripdata_large_csv.csv/tripdata_$(month)_copy1.csv",
@@ -164,10 +170,12 @@ function setup_stress_tests(bucket_name)
                     ),
                     dst_s3_path,
                 )
+                println("Copied CSV data")
             end
             dst_path = "s3://$(bucket_name)/tripdata_large_parquet.parquet/tripdata_$(month)_copy$(ncopy).parquet"
             dst_s3_path = S3Path(dst_path, config = Banyan.get_aws_config())
             if !isfile(dst_s3_path)
+                println("Copying Parquet data")
                 cp(
                     S3Path(
                         "s3://$(bucket_name)/tripdata_large_parquet.parquet/tripdata_$(month)_copy1.parquet",
@@ -175,10 +183,12 @@ function setup_stress_tests(bucket_name)
                     ),
                     dst_s3_path,
                 )
+                println("Copied Parquet data")
             end
             dst_path = "s3://$(bucket_name)/tripdata_large_arrow.arrow/tripdata_$(month)_copy$(ncopy).arrow"
             dst_s3_path = S3Path(dst_path, config = Banyan.get_aws_config())
             if !isfile(dst_s3_path)
+                println("Copying Arrow data")
                 cp(
                     S3Path(
                         "s3://$(bucket_name)/tripdata_large_arrow.arrow/tripdata_$(month)_copy1.arrow",
@@ -186,6 +196,7 @@ function setup_stress_tests(bucket_name)
                     ),
                     dst_s3_path,
                 )
+                println("Copied Arrow data")
             end
         end
     end
@@ -376,6 +387,7 @@ end
     end
 
     run_with_job("Filtering stress for initial functionality") do job
+        println("At start of test")
         bucket = get_cluster_s3_bucket_name(get_cluster().name)
         setup_stress_tests(bucket)
 
