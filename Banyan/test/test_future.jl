@@ -4,7 +4,7 @@ function test_construct_empty_future()
     @test fut.value == nothing
     @test fut.mutated == false
     @test Banyan.get_src_name(fut) == "None"
-    fut = Banyan.Future(Client())
+    fut = Banyan.Future(source=Client())
     @test fut.value == nothing
     @test fut.mutated = true
     @test Banyan.get_dst_name(fut) == "None"

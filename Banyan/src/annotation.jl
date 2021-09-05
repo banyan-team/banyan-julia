@@ -18,11 +18,11 @@ end
 
 function finish_task()
     global curr_delayed_task
-    if is_debug_on()
+    # if is_debug_on()
 	    @show "finishing task"
         @show curr_delayed_task.mutation
         @show curr_delayed_task.effects
-    end
+    # end
     curr_delayed_task = DelayedTask()
 end
 
@@ -435,6 +435,11 @@ macro partitioned(ex...)
         #     end
         # end
 
+        # Apply all delayed source and destination assignment
+        for splatted_future in splatted_futures
+            apply_sourced_or_destined_funcs(splatted_future)
+        end
+
         # Fill in task with code and value names pulled using the macror
         unsplatted_variable_names = [$(variable_names...)]
         splatted_variable_names = []
@@ -498,6 +503,9 @@ macro partitioned(ex...)
         # Record request to record task in backend's dependency graph and reset
         record_request(RecordTaskRequest(task))
         finish_task()
+
+        # TODO: When mutating a value, ensure that the old future has a sample
+        # of the old value and the new future of the new
 
         # Perform computation on samples
         # begin

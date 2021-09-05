@@ -51,7 +51,8 @@ global job = create_job(
     cluster_name = cluster_name,
     nworkers = parse(Int32, nworkers),
     banyanfile_path = "file://res/Banyanfile.json",
-    return_logs = true
+    return_logs = true,
+    sample_rate = get(ENV, "BANYAN_TEST_WITH_STRESS", "0") == "1" ? 1024 : parse(Int32, nworkers)
 )
 
 function run_with_job(test_fn, name)
@@ -124,10 +125,11 @@ end
 with_job(job=job) do j
     configure_scheduling(report_schedule=true)
     if get(ENV, "BANYAN_SCHEDULING_CONFIG_ALL", "false") == "true"
+        configure_scheduling(encourage_parallelism=true, encourage_parallelism_with_batches=true)
         include_all_tests()
-        configure_scheduling(encourage_parallelism=true)
+        configure_scheduling(encourage_parallelism=true, encourage_parallelism_with_batches=false)
         include_all_tests()
-        configure_scheduling(encourage_parallelism_with_batches=true)
+        configure_scheduling(encourage_parallelism=false, encourage_parallelism_with_batches=false)
         include_all_tests()
     else
         configure_scheduling(encourage_parallelism_with_batches=true)

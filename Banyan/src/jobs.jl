@@ -93,6 +93,7 @@ function create_job(;
     job_response = send_request_get_response(:create_job, job_configuration)
     if !job_response["ready_for_jobs"]
         @debug "Updating cluster with default banyanfile"
+        @info "Waiting for cluster named \"$cluster_name\" to become currently available for running a job"
         # Upload/send defaults for pt_lib.jl and pt_lib_info.json
         banyan_dir = dirname(dirname(pathof(Banyan)))
 	#s3_bucket_name = s3_bucket_arn_to_name(get_cluster(name=cluster_name).s3_bucket_arn)
@@ -122,7 +123,7 @@ function create_job(;
 	# Wait for cluster to finish updating
 	while get_cluster(cluster_name).status == :updating
 	   sleep(5)
-	   @info "Updating cluster with default Banyanfile"
+	   @debug "Cluster is still updating."
 	end
 	# Try again
 	if get_cluster(cluster_name).status != :running
@@ -136,6 +137,7 @@ function create_job(;
     end
     job_id = job_response["job_id"]
     @debug "Creating job $job_id"
+    @info "Created job with ID $job_id on cluster named \"$cluster_name\""
 
     # Store in global state
     current_job_id = job_id
@@ -157,7 +159,7 @@ function destroy_job(job_id::JobId; failed = nothing, force=false, kwargs...)
     global jobs_destroyed_recently
     
     if job_id in jobs_destroyed_recently && !force
-        @debug "Job already destroyed; use force=true to destroy anyway"
+        @info "Job with ID $job_id already destroyed; use force=true to destroy anyway"
         return nothing
     else
         push!(jobs_destroyed_recently, job_id)
@@ -173,11 +175,12 @@ function destroy_job(job_id::JobId; failed = nothing, force=false, kwargs...)
 
     # configure(; kwargs...)
 
-    @debug "Destroying job $job_id"
+    @debug "Destroying job with ID $job_id"
     send_request_get_response(
         :destroy_job,
         Dict{String,Any}("job_id" => job_id, "failed" => failed),
     )
+    @info "Destroyed job with ID $job_id"
 
     # Remove from global state
     if !isnothing(current_job_id) && get_job_id() == job_id

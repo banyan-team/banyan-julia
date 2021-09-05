@@ -153,29 +153,40 @@ function read_hdf5(path)
         # @show A_loc.src_parameters
         # @show A_loc.size
     end
-    A = Future(A_loc)
+    A = Future(source=A_loc)
     Array{A_loc.eltype,A_loc.ndims}(A, Future(A_loc.size))
 end
 
 function write_hdf5(A, path)
-    # A_loc = Remote(pathname, mount)
-    destined(A, Remote(path, delete_from_cache=true))
-    mutated(A)
-    # This doesn't rely on any sample properties so we don't need to wrap this
-    # in a `partitioned_with` to delay the PT construction to after sample
-    # properties are computed.
+    # # A_loc = Remote(pathname, mount)
+    # destined(A, Remote(path, delete_from_cache=true))
+    # mutated(A)
+    # # This doesn't rely on any sample properties so we don't need to wrap this
+    # # in a `partitioned_with` to delay the PT construction to after sample
+    # # properties are computed.
+    # pt(A, Blocked(A) | Replicated())
+    # # partition(A, Replicated()) # TODO: Use semicolon for keyword args
+    # # Distributed will allow for balanced=true|false and any divisions or key
+    # # but the PT library should be set up such that you can't split if
+    # # divisions or key are not provided or balanced=false
+    # # partition(A, Blocked())
+    # # for axis in 1:min(4, ndims(A))
+    # #     # Partition with distribution of either balanced, grouped, or unknown
+    # #     partition(A, Blocked(key=a), mutated=true)
+    # # end
+    # @partitioned A begin end
+    # compute(A)
     pt(A, Blocked(A) | Replicated())
-    # partition(A, Replicated()) # TODO: Use semicolon for keyword args
-    # Distributed will allow for balanced=true|false and any divisions or key
-    # but the PT library should be set up such that you can't split if
-    # divisions or key are not provided or balanced=false
-    # partition(A, Blocked())
-    # for axis in 1:min(4, ndims(A))
-    #     # Partition with distribution of either balanced, grouped, or unknown
-    #     partition(A, Blocked(key=a), mutated=true)
-    # end
-    @partitioned A begin end
-    compute(A)
+    partitioned_computation(
+        A,
+        destination=Remote(path, delete_from_cache=true),
+        new_source=_->Remote(path)
+    )
+end
+
+function Banyan.write_to_disk(A::Array{T,N}) where {T,N}
+    pt(A, Blocked(A) | Replicated())
+    partitioned_computation(A, destination=Disk())
 end
 
 function fill(v, dims::NTuple{N,Integer}) where {N}
