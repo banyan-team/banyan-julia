@@ -78,7 +78,7 @@ export Job,
     get_cluster_name
 
 # Futures
-export AbstractFuture, Future, compute, collect
+export AbstractFuture, Future, partitioned_computation, write_to_disk, collect
 
 # Samples
 export Sample, ExactSample, sample, setsample!

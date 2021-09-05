@@ -205,6 +205,7 @@ function Grouped(
                 # TODO: Support joins
                 if !isnothing(filtered_from)
                     filtered_from = to_vector(filtered_from)
+                    filtered_from_futures = [ff isa Pair ? first(ff) : ff for ff in filtered_from]
                     factor, from = maximum(filtered_from) do ff
                         # Get key to use for filtering
                         ff, fby = ff isa Pair ? ff : (ff => by)
@@ -217,11 +218,15 @@ function Grouped(
                         max_filtered_from = sample(ff, :statistics, fkey, :max)
                         # divisions_filtered_from = sample(ff, :statistics, key, :divisions)
                         f_percentile = sample(f, :statistics, key, :percentile, min_filtered_from, max_filtered_from)
-                        (f_percentile, filtered_from)
+                        (f_percentile, filtered_from_futures)
                     end
                     push!(constraints.constraints, ScaleBy(f, factor, from))
                 elseif !isnothing(filtered_to)
                     filtered_to = to_vector(filtered_to)
+                    # TODO: Revisit this and ensure it's okay to just take the
+                    # maximum and we don't have to actually multiply all of the
+                    # factors by which this fails to scale.
+                    filtered_to_futures = [ft isa Pair ? first(ft) : ft for ft in filtered_to]
                     factor, to = maximum(filtered_to) do ft
                         # Get key to use for filtering
                         ft, fby = ft isa Pair ? ft : (ft => by)
@@ -235,8 +240,9 @@ function Grouped(
                         max_filtered_to = sample(ft, :statistics, fkey, :max)
                         # f_divisions = sample(f, :statistics, key, :divisions)
                         f_percentile = sample(f, :statistics, key, :percentile, min_filtered_to, max_filtered_to)
-                        (1 / f_percentile, filtered_to)
+                        (1 / f_percentile, filtered_to_futures)
                     end
+                    # TODO: Return all filtered_from/filtered_to but with the appropriate factor and without pairs
                     push!(constraints.constraints, ScaleBy(f, factor, to))
                 elseif !isnothing(scaled_by_same_as)
                     push!(constraints.constraints, ScaleBy(f, 1.0, scaled_by_same_as))

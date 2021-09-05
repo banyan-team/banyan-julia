@@ -35,6 +35,25 @@ ReturnNull(
     nothing
 end
 
+function format_bytes(bytes, decimals = 2)
+    bytes == 0 && return "0 Bytes"
+    k = 1024
+    dm = decimals < 0 ? 0 : decimals
+    sizes = ["Bytes", "KB", "MB", "GB", "TB", "PB", "EB", "ZB", "YB"]
+    i = convert(Int, floor(log(bytes) / log(k)))
+    return string(round((bytes / ^(k, i)), digits=dm)) * " " * sizes[i+1];
+end
+
+format_available_memory() = format_bytes(Sys.free_memory()) * " / " * format_bytes(Sys.total_memory())
+
+function sortablestring(val, maxval)
+    s = string(val)
+    maxs = string(maxval)
+    res = fill('0', length(maxs))
+    res[length(res)-length(s)+1:length(res)] .= collect(s)
+    join(res)
+end
+
 # TODO: Simplify the way we do locations. Locations should be in separate
 # packages with separate location constructors and separate splitting/merging
 # functions
@@ -156,12 +175,15 @@ function ReadBlock(
     dfs::Vector{DataFrame} = []
     rowsscanned = 0
     @show loc_params
-    for file in sort(loc_params["files"], by=f->f["path"])
+    for file in sort(loc_params["files"], by=filedict->filedict["path"])
         println("Considering $file")
         newrowsscanned = rowsscanned + file["nrows"]
         filerowrange = (rowsscanned+1):newrowsscanned
         # Check if te file corresponds to the range of rows for the batch
         # currently being processed by this worker
+        @show isoverlapping(filerowrange, rowrange)
+        @show rowsscanned
+        @show format_available_memory()
         if isoverlapping(filerowrange, rowrange)
             # Deterine path to read from
             path = getpath(file["path"])
@@ -182,19 +204,46 @@ function ReadBlock(
                 # # @show path
                 # # @show isfile(path)
                 # f = CSV.File(path)
+                println("Actually reading from $path")
+                @show isfile(path)
+                @show format_bytes(filesize(path))
+                println("Read in directory")
+                f = read("/home/ec2-user/s3fs/banyan-cluster-data-pumpkincluster03-231c2ef6/iris.csv", String)
+                println("At least we read _something_ in with read")
+                f = CSV.File("/home/ec2-user/s3fs/banyan-cluster-data-pumpkincluster03-231c2ef6/iris.csv")
+                println("At least we read _something_ in with CSV.read")
+                f = CSV.File(path, limit=1)
+                println("Read the first line of the actual file in with CSV.File")
+                @show length(filerowrange) length(rowrange) length(readrange)
+                @show filerowrange rowrange readrange
+                @show file["nrows"]
+                @show header
+                @show header + readrange.start - filerowrange.start + 1
+                @show filerowrange.stop - readrange.stop
                 f = CSV.File(
                     path,
                     header = header,
                     skipto = header + readrange.start - filerowrange.start + 1,
                     footerskip = filerowrange.stop - readrange.stop,
                 )
-                push!(dfs, DataFrame(Arrow.Table(Arrow.tobuffer(f))))
+                println("Finished reading from $path")
+                push!(dfs, DataFrame(f))
+                # push!(dfs, DataFrame(Arrow.Table(Arrow.tobuffer(f))))
+                println("Pushed data frame")
+                # buf = Arrow.tobuffer(f)
+                # println("Converted to buffer")
+                # tbl = Arrow.Table(buf)
+                # println("Converted to buffer and to table")
+                f = nothing
+                GC.gc(true)
+                format_available_memory()
             elseif endswith(path, ".parquet")
                 f = read_parquet(
                     path,
                     rows = (readrange.start-filerowrange.start+1):(readrange.stop-filerowrange.start+1),
                 )
-                push!(dfs, DataFrame(Arrow.Table(Arrow.tobuffer(f))))
+                push!(dfs, DataFrame(f))
+                # push!(dfs, DataFrame(Arrow.Table(Arrow.tobuffer(f))))
             elseif endswith(path, ".arrow")
                 println("Reading from $path on batch $batch_idx")
                 rbrowrange = filerowrange.start:(filerowrange.start-1)
@@ -218,6 +267,7 @@ function ReadBlock(
                         # @show df[1:min(1, nrow(df)), :]
                         # # @show length(df)
                         push!(dfs, df)
+                        # TODO: Call GC if the data can't fit in memory
                     end
                 end
             else
@@ -325,25 +375,6 @@ function ReadGroup(
 
     # # @show res
     res
-end
-
-function format_bytes(bytes, decimals = 2)
-    bytes == 0 && return "0 Bytes"
-    k = 1024
-    dm = decimals < 0 ? 0 : decimals
-    sizes = ["Bytes", "KB", "MB", "GB", "TB", "PB", "EB", "ZB", "YB"]
-    i = convert(Int, floor(log(bytes) / log(k)))
-    return string(round((bytes / ^(k, i)), digits=dm)) * " " * sizes[i+1];
-end
-
-format_available_memory() = format_bytes(Sys.free_memory()) * " / " * format_bytes(Sys.total_memory())
-
-function sortablestring(val, maxval)
-    s = string(val)
-    maxs = string(maxval)
-    res = fill('0', length(maxs))
-    res[length(res)-length(s)+1:length(res)] .= collect(s)
-    join(res)
 end
 
 function Write(

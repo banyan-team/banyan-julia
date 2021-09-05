@@ -52,7 +52,7 @@ Banyan.convert(::Type{Future}, df::DataFrame) = df.data
 function read_csv(path::String)
     df_loc = Remote(path)
     df_nrows = Future(df_loc.nrows)
-    DataFrame(Future(df_loc), df_nrows)
+    DataFrame(Future(source=df_loc), df_nrows)
 end
 
 read_parquet(p) = read_csv(p)
@@ -61,19 +61,34 @@ read_arrow(p) = read_csv(p)
 # TODO: For writing functions, if a file is specified, enforce Replicated
 
 function write_csv(df, path)
-    destined(df, Remote(path, delete_from_cache=true))
-    mutated(df)
+    # destined(df, Remote(path, delete_from_cache=true))
+    # mutated(df)
+    # partitioned_with() do
+    #     pt(df, Partitioned(df))
+    # end
+    # @partitioned df begin end
+    # compute(df)
+    # sourced(df, Remote(path)) # Allow data to be read from this path if needed in the future
+    # destined(df, None())
     partitioned_with() do
         pt(df, Partitioned(df))
     end
-    @partitioned df begin end
-    compute(df)
-    sourced(df, Remote(path)) # Allow data to be read from this path if needed in the future
-    destined(df, None())
+    partitioned_computation(
+        df,
+        destination=Remote(path, delete_from_cache=true),
+        new_source=_->Remote(path)
+    )
 end
 
 write_parquet(A, p) = write_csv(A, p)
 write_arrow(A, p) = write_csv(A, p)
+
+function Banyan.write_to_disk(df::DataFrame)
+    partitioned_with() do
+        pt(df, Partitioned(df))
+    end
+    partitioned_computation(df, destination=Disk())
+end
 
 # TODO: Duplicate above functions for Parquet, Arrow
 

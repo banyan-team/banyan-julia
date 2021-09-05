@@ -133,6 +133,38 @@ function destined(fut, loc::Location)
     )
 end
 
+# The purspose of making the source and destination assignment lazy is because
+# location constructors perform sample collection and collecting samples is
+# expensive. So after we write to a location and invalidate the cached sample,
+# we only want to compute the new location source if the value is really used
+# later on.
+
+global source_location_funcs = Dict()
+global destination_location_funcs = Dict()
+
+function sourced(fut, location_func::Function)
+    global source_location_funcs
+    source_location_funcs[fut.value_id] = location_func
+end
+
+function destined(fut, location_func::Function)
+    global destination_location_funcs
+    destination_location_funcs[fut.value_id] = location_func
+end
+
+function apply_sourced_or_destined_funcs(fut)
+    global source_location_funcs
+    global destination_location_funcs
+    if haskey(source_location_funcs, fut.value_id)
+        sourced(fut, source_location_funcs[fut.value_id](fut))
+        pop!(source_location_funcs, fut.value_id)
+    end
+    if haskey(destination_location_funcs, fut.value_id)
+        destined(fut, source_location_funcs[fut.value_id](fut))
+        pop!(destination_location_funcs, fut.value_id)
+    end
+end
+
 function located(fut, location::Location)
     job = get_job()
     fut = convert(Future, fut)
@@ -215,6 +247,7 @@ Client() = LocationDestination("Client", Dict{String,Any}())
 # Size(size) = Value(size)
 
 None() = Location("None", Dict{String,Any}(), Sample())
+Disk() = None() # The scheduler intelligently determines when to split from and merge to disk even when no location is specified
 # Values assigned "None" location as well as other locations may reassigned
 # "Memory" or "Disk" locations by the scheduler depending on where the relevant
 # data is.
@@ -367,6 +400,9 @@ function get_s3fs_bucket_path(cluster_name)
 end
 
 function get_remote_location(remotepath)
+    @info "Collecting sample from $remotepath\n\nThis will take some time but the sample will be cached for future use. Note that writing to this location will invalidate the cached sample."
+
+
     Random.seed!(hash(get_job_id()))
 
     # Get the actual remote path by checking if this is an HDF5 file which (if
@@ -499,6 +535,7 @@ function get_remote_location(remotepath)
 
                 # Extend or chop sample as needed
                 samplelength = getsamplenrows(datalength)
+                # TODO: Warn about the sample size being too large
                 if is_debug_on()
                     @show samplelength
                 end
@@ -681,6 +718,7 @@ function get_remote_location(remotepath)
 
         # Sample from each chunk
         for (i, chunk) in enumerate(chunks)
+            @show i
             chunkdf = chunk |> DataFrames.DataFrame
             chunknrows = nrow(chunkdf)
             filenrows += chunknrows
@@ -696,6 +734,7 @@ function get_remote_location(remotepath)
 
             # Append to exactsample
             samplenrows = getsamplenrows(totalnrows)
+            @show samplenrows
             if nrow(exactsample) < samplenrows
                 append!(exactsample, first(chunkdf, samplenrows - nrow(exactsample)))
             end
@@ -704,7 +743,19 @@ function get_remote_location(remotepath)
             # nbytes = nothing
             nbytes += Base.summarysize(chunkdf)
 
+            @show nbytes
+            @show Int64(Sys.free_memory())
+            @show Int64(Sys.total_memory())
+
             # TODO: Maybe call GC.gc() here if we get an error when sampling really large datasets
+            chunkdf = nothing
+            chunk = nothing
+            if Base.summarysize(exactsample) > Sys.free_memory()
+                @warn "Sample is too large; try creating a job with a greater `sample_rate` than the number of workers (default is 2)"
+            end
+            if Base.summarysize(exactsample) + nbytes > Sys.free_memory()
+                GC.gc()
+            end
         end
 
         # Add to list of file metadata

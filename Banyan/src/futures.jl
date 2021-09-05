@@ -10,23 +10,25 @@
 
 Constructs a new future, representing a value that has not yet been evaluated.
 """
-function Future(location::Location = None(); mutate_from::Union{<:AbstractFuture,Nothing}=nothing)
+function Future(;source::Location = None(), mutate_from::Union{<:AbstractFuture,Nothing}=nothing)
     # Generate new value id
     value_id = generate_value_id()
 
     # Create new Future and assign a location to it
     new_future = Future(nothing, value_id, false, true)
-    sourced(new_future, location)
+    sourced(new_future, source)
     destined(new_future, None())
 
     # TODO: Add Size location here if needed
     # Handle locations that have an associated value
     if is_debug_on()
-        println(location)
-        println(location.src_name)
+        println(source)
+        println(source.src_name)
     end
-    if location.src_name in ["None", "Client", "Value"]
-        new_future.value = location.sample.value
+    println("In Future constructor for $value_id")
+    @show source.src_name
+    if source.src_name in ["None", "Client", "Value"]
+        new_future.value = source.sample.value
         new_future.stale = false
     end
     
@@ -34,7 +36,7 @@ function Future(location::Location = None(); mutate_from::Union{<:AbstractFuture
         # Indicate that this future is the result of an in-place mutation of
         # some other value
         mutated(mutate_from, new_future)
-    elseif location.src_name == "None"
+    elseif source.src_name == "None"
         # For convenience, if a future is constructed with no location to
         # split from, we assume it will be mutated in the next code region
         # and mark it as mutated. This is pretty common since often when
@@ -57,7 +59,7 @@ function Future(value::Any)
     end
 
     # Create future, store value, and return
-    Future(location)
+    Future(source=location)
 end
 
 """

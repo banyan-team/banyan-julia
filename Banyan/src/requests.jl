@@ -17,7 +17,7 @@
 # Basic methods for futures #
 #############################
 
-function compute(fut::AbstractFuture)
+function partitioned_computation(fut::AbstractFuture; destination, new_source=nothing)
     if isview(fut)
         error("Computing a view (such as a GroupedDataFrame) is not currently supported")
     end
@@ -43,7 +43,17 @@ function compute(fut::AbstractFuture)
     job_id = get_job_id()
     job = get_job()
 
-    if fut.mutated
+    @show fut.value_id
+    @show fut.stale
+    @show destination
+    @show fut.mutated
+
+    if fut.mutated || (destination.dst_name == "Client" && fut.stale)
+        # TODO: Check to ensure that `fut` is annotated
+        destined(fut, destination)
+        mutated(fut)
+        @partitioned fut begin end
+
         # Get all tasks to be recorded in this call to `compute`
         tasks = [req.task for req in job.pending_requests if req isa RecordTaskRequest]
 
@@ -187,9 +197,10 @@ function compute(fut::AbstractFuture)
         end
     
         # Send evaluation request
-        # Send evaluate request
+        is_merged_to_disk = false
         try
             response = send_evaluation(fut.value_id, job_id)
+            is_merged_to_disk = response["is_merged_to_disk"]
         catch
             jobs[job_id].current_status = "failed"
             rethrow()
@@ -223,7 +234,7 @@ function compute(fut::AbstractFuture)
                         ),
                     ),
                 )
-                sourced(f, None())
+                # sourced(f, None())
                 # TODO: Update stale/mutated here to avoid costly
                 # call to `send_evaluation`
             elseif message_type == "GATHER"
@@ -253,7 +264,26 @@ function compute(fut::AbstractFuture)
         if get_dst_name(fut) == "Client"
             fut.stale = false
         end
+
+        # This is where we update the location source.
+        if is_merged_to_disk
+            sourced(fut, None())
+        else
+            # TODO: If not still merged to disk, we need to lazily set the location source to something else
+            if !isnothing(new_source)
+                sourced(fut, sourced_after)
+            else
+                sourced(fut, destination)
+            end
+        end
+
+        # Reset the location destination to its default. This is where we
+        # update the location destination.
+        destined(fut, None())
     end
+
+    # Reset the annotation for this partitioned computation
+    set_task(DelayedTask())
 
     fut
 end
@@ -314,37 +344,56 @@ end
 function Base.collect(fut::AbstractFuture)
     fut = convert(Future, fut)
 
-    # Fast case for where the future has not been mutated and isn't stale
-    @show fut.mutated
-    @show fut.stale
+    # NOTE: We might be in the middle of an annotation when this is called so
+    # we need to avoid partitioned computation (which will reset the task)
+
+    # # Fast case for where the future has not been mutated and isn't stale
+    # @show fut.mutated
+    # @show fut.stale
     if !fut.mutated && !fut.stale
         return fut.value
     end
 
-    # This function collects the given future on the client side
+    # # This function collects the given future on the client side
     
-    # NOTE: If the value was already replicated and has never been written to disk, then this
-    # might send it to the client and never allow the value to be used again since it hasn't been saved.
-    # By computing it now, we can ensure that its saved to disk. This is one of the things we should address when we
-    # clean up locations.
-    compute(fut)
+    # # NOTE: If the value was already replicated and has never been written to disk, then this
+    # # might send it to the client and never allow the value to be used again since it hasn't been saved.
+    # # By computing it now, we can ensure that its saved to disk. This is one of the things we should address when we
+    # # clean up locations.
+    # compute(fut)
     
-    # Set the future's destination location to Client
-    destined(fut, Client())
-    mutated(fut)
+    # # Set the future's destination location to Client
+    # destined(fut, Client())
+    # mutated(fut)
+
+    # pt(fut, Replicated())
+    # @partitioned fut begin
+    #     # This code region is empty but it ensures that something is run
+    #     # and so the data is partitioned and then re-merged back up to its new
+    #     # destination location, the client
+    # end
+
+    # # Evaluate the future so that its value is downloaded to the client
+    # compute(fut)
+    # destined(fut, None())
+    # @show fut.value
+    # fut.value
+
+    # We don't need to specify a `source_after` since it should just be
+    # `Client()` and the sample won't change at all. Also, we should already
+    # have a sample since we are merging it to the client.
 
     pt(fut, Replicated())
-    @partitioned fut begin
-        # This code region is empty but it ensures that something is run
-        # and so the data is partitioned and then re-merged back up to its new
-        # destination location, the client
-    end
+    partitioned_computation(fut, destination=Client())
 
-    # Evaluate the future so that its value is downloaded to the client
-    compute(fut)
-    destined(fut, None())
-    @show fut.value
     fut.value
+end
+
+function write_to_disk(fut::AbstractFuture)
+    fut = convert(Future, fut)
+
+    pt(fut, Replicated())
+    partitioned_computation(fut, destination=Disk())
 end
 
 ###############################################################
