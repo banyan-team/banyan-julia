@@ -347,7 +347,6 @@ function create_cluster(;
     name::Union{String,Nothing} = nothing,
     instance_type::Union{String,Nothing} = "m4.4xlarge",
     max_num_nodes::Union{Int,Nothing} = 8,
-    banyanfile_path::Union{String,Nothing} = nothing,
     iam_policy_arn::Union{String,Nothing} = nothing,
     s3_bucket_arn::Union{String,Nothing} = nothing,
     s3_bucket_name::Union{String,Nothing} = nothing,
@@ -404,10 +403,6 @@ function create_cluster(;
         "s3_read_write_resource" => s3_bucket_arn,
         "recreate" => false,
     )
-    if !isnothing(banyanfile_path)
-        pt_lib_info = upload_banyanfile(banyanfile_path, s3_bucket_arn, name, :creation)
-        cluster_config["pt_lib_info"] = pt_lib_info
-    end
     if !isnothing(iam_policy_arn)
         cluster_config["additional_policy"] = iam_policy_arn
     end

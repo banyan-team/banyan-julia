@@ -1,6 +1,3 @@
-########
-# Jobs #
-########
 
 # Process-local dictionary mapping from job IDs to instances of `Job`
 global jobs = Dict()
@@ -44,12 +41,16 @@ get_cluster_name() = get_job().cluster_name
 function create_job(;
     cluster_name::String = nothing,
     nworkers::Integer = 2,
-    banyanfile_path::String = "",
-    # TODO: Rename return_logs -> print_logs
     return_logs::Bool = false,
     store_logs_in_s3::Bool = true,
     sample_rate::Integer = nworkers,
     job_name = nothing,
+    files = nothing,
+    force_upload = false,
+    url = nothing,
+    branch = nothing,
+    directory = nothing,
+    force_pull = false,
     kwargs...,
 )
     global jobs
@@ -59,12 +60,11 @@ function create_job(;
     if cluster_name == ""
         cluster_name = nothing
     end
-    if banyanfile_path == ""
-        banyanfile_path = nothing
-    end
 
     # Configure
     configure(; kwargs...)
+
+    # Construct parameters for creating job
     cluster_name = if isnothing(cluster_name)
         clusters = list_clusters()
         if length(clusters) == 0
@@ -74,73 +74,73 @@ function create_job(;
     else
         cluster_name
     end
+    
+    julia_version = get_julia_version()
 
-    # Merge Banyanfile if provided
     job_configuration = Dict{String,Any}(
         "cluster_name" => cluster_name,
         "num_workers" => nworkers,
-        "return_logs" => return_logs,
-        "store_logs_in_s3" => store_logs_in_s3,
+    	"return_logs" => return_logs,
+	    "store_logs_in_s3" => store_logs_in_s3,
+        "julia_version" => julia_version
     )
     if !isnothing(job_name)
         job_configuration["job_name"] = job_name
     end
-    if !isnothing(banyanfile_path)
-        banyanfile = load_json(banyanfile_path)
-        merge_banyanfile_with_defaults!(banyanfile, banyanfile_path)
-        for included in banyanfile["include"]
-            merge_banyanfile_with!(banyanfile, included, :job, :creation)
+
+    environment_info = Dict{String,Any}()
+    # If a url is not provided, then use the local environment
+    if isnothing(url)
+        # TODO: Optimize to not have to send tomls on every call
+        local_environment_dir = get_julia_environment_dir()
+        project_toml = read(local_environment_dir * "Project.toml")
+        environment_info["project_toml"] = project_toml
+        if !isfile(local_environment_dir * "Manifest.toml")
+            manifest_toml = ""
+            @warn "Manifest file not present for this environment"
+        else
+            manifest_toml = read(local_environment_dir * "Manifest.toml")
+            environment_info["manifest_toml"] = manifest_toml
         end
-        job_configuration["banyanfile"] = banyanfile
+        environment_info["environment_hash"] = get_hash(project_toml * manifest_toml)
+    else
+        # Otherwise, use url and optionally a particular branch
+        environment_info["url"] = url
+        if isnothing(directory)
+            error("Directory must be provided for a url")
+        end
+        environment_info["directory"] = directory
+        if !isnothing(branch)
+            environment_info["branch"] = branch
+        end
+        environment_info["force_pull"] = force_pull
+        environment_info["environment_hash"] = get_hash(
+            url * directory * (if isnothing(branch) "" else branch end)
+        )
     end
+    job_configuration["environment_info"] = environment_info
+
+    # Upload files to S3
+    s3_bucket_name = get_cluster_s3_bucket_name(cluster_name)
+    for f in files
+        s3_path = S3Path("s3://$(s3_bucket_name)/$(basename(f)))", get_aws_config())
+        if !isfile(s3_path) || force_upload
+            s3_put(get_aws_config(), s3_bucket_name, basename(f), load_file(f))
+        end
+    end
+    job_configuration["files"] = [basename(f) for f in files]
 
     # Create the job
     @debug "Sending request for job creation"
     job_response = send_request_get_response(:create_job, job_configuration)
-    if !job_response["ready_for_jobs"]
-        @debug "Updating cluster with default banyanfile"
-        @info "Waiting for cluster named \"$cluster_name\" to become currently available for running a job"
-        # Upload/send defaults for pt_lib.jl and pt_lib_info.json
-        banyan_dir = dirname(dirname(pathof(Banyan)))
-        #s3_bucket_name = s3_bucket_arn_to_name(get_cluster(name=cluster_name).s3_bucket_arn)
-        #pt_lib_path = "file://$banyan_dir/res/pt_lib.jl"
-        #s3_put(get_aws_config(), s3_bucket_name, basename(pt_lib_path), String(read(open(pt_lib_path[8:end]))))
-        #job_configuration["pt_lib_info"] = load_json("file://$banyan_dir/res/pt_lib_info.json")
-        update_cluster(
-            name = cluster_name,
-            banyanfile_path = "file://$(banyan_dir)/res/Banyanfile.json",
-            for_creation_or_update = :update,
-            #	    banyanfile=Dict(
-            #		"include" => [],
-            #	        "require" => Dict(
-            #		    "language" => "jl",
-            #		    "cluster" => Dict(
-            #		        "files" => [],
-            #			"scripts" => [],
-            #			"packages" => [],
-            #		        "pt_lib" => "file://$(banyan_dir)/res/pt_lib.jl",
-            #			"pt_lib_info" => "file://$(banyan_dir)/res/pt_lib_info.json"
-            #		    ),
-            #		    "job" => Dict()
-            #		)
-            #	    )
-        )
-        sleep(5)
-        # Wait for cluster to finish updating
-        while get_cluster(cluster_name).status == :updating
-            sleep(5)
-            @debug "Cluster is still updating."
-        end
-        # Try again
-        if get_cluster(cluster_name).status != :running
-            job_response = send_request_get_response(:create_job, job_configuration)
-        else
-            error("Please update the cluster with a pt_lib_info.json and pt_lib.jl")
-        end
-    end
-    if !job_response["ready_for_jobs"]
-        error("Please update the cluster with a pt_lib_info.json and pt_lib.jl")
-    end
+    # if !job_response["ready_for_jobs"]
+
+    #     # Try again
+    #     job_response = send_request_get_response(:create_job, job_configuration)
+    # end
+    # if !job_response["ready_for_jobs"]
+    #     error("Please update the cluster with a pt_lib_info.json and pt_lib.jl")
+    # end
     job_id = job_response["job_id"]
     @debug "Creating job $job_id"
     @info "Started creating job with ID $job_id on cluster named \"$cluster_name\""
