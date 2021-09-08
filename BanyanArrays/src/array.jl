@@ -147,7 +147,7 @@ Banyan.sample_max(A::U, key) where U <: Base.AbstractArray{T,N} where {T,N} = ma
 
 # Array creation
 
-function read_hdf5(path; kwargs)
+function read_hdf5(path; kwargs...)
     A_loc = Remote(path; kwargs...)
     if is_debug_on()
         # @show A_loc.src_parameters
@@ -157,7 +157,7 @@ function read_hdf5(path; kwargs)
     Array{A_loc.eltype,A_loc.ndims}(A, Future(A_loc.size))
 end
 
-function write_hdf5(A, path; kwargs)
+function write_hdf5(A, path; kwargs...)
     # # A_loc = Remote(pathname, mount)
     # destined(A, Remote(path, delete_from_cache=true))
     # mutated(A)
@@ -190,7 +190,7 @@ function Banyan.write_to_disk(A::Array{T,N}) where {T,N}
 end
 
 function fill(v, dims::NTuple{N,Integer}) where {N}
-    fillingdims = Future(Size(dims))
+    fillingdims = Future(source=Size(dims))
     A = Array{typeof(v),N}(Future(), Future(dims))
     v = Future(v)
     dims = Future(dims)
@@ -683,7 +683,7 @@ end
 
 # # TODO: Support sorting once we have a non-verbose way of specifying grouping for both dataframes and arrays
 
-# # function sort(A::Array; kwargs)
+# # function sort(A::Array; kwargs...)
 # #     # TODO: Accept replicated or grouped on key used for sotring and return same but with same ID but
 # #     # newly generated ID if the input has id set to null because of casting or re-splitting
 # #     # TODO: Accept A as either blocked on some other dimension or grouped on the dimension

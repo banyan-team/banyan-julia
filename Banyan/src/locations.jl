@@ -366,7 +366,7 @@ function Remote(p; shuffled=false, similar_files=false, location_invalid = false
     locationspath = joinpath(homedir(), ".banyan", "locations")
     samplespath = joinpath(homedir(), ".banyan", "samples")
     locationpath = joinpath(locationspath, p |> hash |> string)
-    samplepath = joinpath(samplepath, p |> hash |> string)
+    samplepath = joinpath(samplespath, p |> hash |> string)
 
     # Get cached sample if it exists
     remote_sample = if isfile(samplepath) && !sample_invalid
