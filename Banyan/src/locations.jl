@@ -408,8 +408,7 @@ function get_remote_location(remotepath, remote_sample=nothing)::Location
     # This is so that we can make sure that any random selection fo rows is deterministic. Might not be needed
     Random.seed!(hash(get_job_id()))
 
-    # Get the actual remote path by checking if this is an HDF5 file which (if
-    # it is) must have a group specified
+    # Detect whether this is an HDF5 file
     hdf5_ending = if occursin(".h5", remotepath)
         ".h5"
     elseif occursin(".hdf5", remotepath)
@@ -417,6 +416,18 @@ function get_remote_location(remotepath, remote_sample=nothing)::Location
     else
         ""
     end
+    isa_hdf5 = hdf5_ending != ""
+    
+    # Return either an HDF5 location or a table location
+    if isa_hdf5
+        get_remote_hdf5_location(remotepath, hdf5_ending, remote_sample)
+    else
+        get_remote_table_location(remotepath, remote_sample)
+    end
+end
+
+function get_remote_hdf5_location(remotepath, hdf5_ending, remote_sample=nothing)::Location
+    # Get the actual path by removing the dataset from the path
     remotepath, datasetpath = if hdf5_ending == ""
         remotepath, nothing
     else
@@ -446,74 +457,80 @@ function get_remote_location(remotepath, remote_sample=nothing)::Location
         @show p
         @show hdf5_ending
     end
-    if length(hdf5_ending) > 0
-        # filename, datasetpath = split(p, hdf5_ending)
-        # remotefilename, _ = split(remotepath, hdf5_ending)
-        # filename *= hdf5_ending
-        # remotefilename *= hdf5_ending
-        # datasetpath = datasetpath[2:end] # Chop off the /
+    # filename, datasetpath = split(p, hdf5_ending)
+    # remotefilename, _ = split(remotepath, hdf5_ending)
+    # filename *= hdf5_ending
+    # remotefilename *= hdf5_ending
+    # datasetpath = datasetpath[2:end] # Chop off the /
 
-        # Load metadata for reading
+    # Load metadata for reading
 
-        # TODO: Determine why sample size is so huge
-        # TODO: Determine why location parameters are not getting populated
+    # TODO: Determine why sample size is so huge
+    # TODO: Determine why location parameters are not getting populated
 
-        # Open HDF5 file
-        sample = []
-        datasize = [0]
-        datandims = nothing
-        dataeltype = nothing
+    # Open HDF5 file
+    sample = []
+    datasize = [0]
+    datandims = nothing
+    dataeltype = nothing
+    if is_debug_on()
+        @show dataeltype
+    end
+    dataset_to_read_from_exists = false
+    if isfile(p)
         if is_debug_on()
             @show dataeltype
         end
-        dataset_to_read_from_exists = false
-        if isfile(p)
+        with_downloaded_path_for_reading(p) do pp
+            f = h5open(pp, "r")
+
+            # if !(datasetpath in keys(f))
+            #     throw(ArgumentError("Dataset \"$datasetpath\" could not be found in the HDF5 file at $remotepath"))
+            # end
             if is_debug_on()
-                @show dataeltype
+                @show f
+                @show keys(f)
+                @show typeof(f)
+                @show datasetpath
             end
-            with_downloaded_path_for_reading(p) do pp
-                f = h5open(pp, "r")
-
-                # if !(datasetpath in keys(f))
-                #     throw(ArgumentError("Dataset \"$datasetpath\" could not be found in the HDF5 file at $remotepath"))
-                # end
+            if haskey(f, datasetpath)
                 if is_debug_on()
-                    @show f
-                    @show keys(f)
-                    @show typeof(f)
-                    @show datasetpath
+                    println("Inside if")
                 end
-                if haskey(f, datasetpath)
-                    if is_debug_on()
-                        println("Inside if")
-                    end
-                    dataset_to_read_from_exists = true
+                dataset_to_read_from_exists = true
 
-                    dset = f[datasetpath]
-                    ismapping = false
-                    if HDF5.ismmappable(dset)
-                        ismapping = true
-                        dset = HDF5.readmmap(dset)
-                        close(f)
-                    end
+                dset = f[datasetpath]
+                ismapping = false
+                if HDF5.ismmappable(dset)
+                    ismapping = true
+                    dset = HDF5.readmmap(dset)
+                    close(f)
+                end
 
-                    # Collect metadata
-                    nbytes += length(dset) * sizeof(eltype(dset))
-                    datasize = size(dset)
-                    if is_debug_on()
-                        @show datasize
-                    end
+                # Collect metadata
+                nbytes += length(dset) * sizeof(eltype(dset))
+                datasize = size(dset)
+                if is_debug_on()
+                    @show datasize
+                end
+                datandims = ndims(dset)
+                dataeltype = eltype(dset)
 
+                if isnothing(remote_sample)
                     # Collect sample
                     datalength = first(datasize)
+                    totalnrows = datalength
                     remainingcolons = repeat([:], ndims(dset) - 1)
-                    sample = dset[1:0, remainingcolons...]
+                    # Start of with an empty array. The dataset has to have at
+                    # least one row so we read that in and then take no data.
+                    sample = dset[1:1, remainingcolons...][1:0, remainingcolons...]
                     if datalength < MAX_EXACT_SAMPLE_LENGTH
                         sampleindices = randsubseq(1:datalength, 1 / get_job().sample_rate)
                         if is_debug_on()
                             @show sampleindices
                         end
-                        sample = dset[sampleindices, remainingcolons...]
+                        # sample = dset[sampleindices, remainingcolons...]
+                        sample = vcat([dset[sampleindex, remainingcolons...] for sampleindex in sampleindices]...)
                         if is_debug_on()
                             @show sampleindices
                         end
@@ -536,58 +553,69 @@ function get_remote_location(remotepath, remote_sample=nothing)::Location
                     else
                         dset = dset[1:samplelength, remainingcolons...]
                     end
+                end
 
-                    # Get ndims and eltype
-                    datandims = ndims(dset)
-                    dataeltype = eltype(dset)
-
-                    # Close HDF5 file
-                    if !ismapping
-                        close(f)
-                    end
+                # Close HDF5 file
+                if !ismapping
+                    close(f)
                 end
             end
         end
-
-        loc_for_reading, metadata_for_reading = if dataset_to_read_from_exists
-            (
-                "Remote",
-                Dict(
-                    "path" => remotepath,
-                    "subpath" => datasetpath,
-                    "size" => datasize,
-                    "ndims" => datandims,
-                    "eltype" => dataeltype,
-                ),
-            )
-        else
-            ("None", Dict{String,Any}())
-        end
-        if is_debug_on()
-            @show metadata_for_reading
-        end
-
-        # Load metadata for writing to HDF5 file
-        loc_for_writing, metadata_for_writing =
-            ("Remote", Dict("path" => remotepath, "subpath" => datasetpath))
-
-        # Construct location with metadata
-        return Location(
-            loc_for_reading,
-            loc_for_writing,
-            metadata_for_reading,
-            metadata_for_writing,
-            if isnothing(loc_for_reading)
-                Sample()
-            elseif totalnrows <= MAX_EXACT_SAMPLE_LENGTH
-                ExactSample(sample, total_memory_usage = nbytes)
-            else
-                Sample(sample, total_memory_usage = nbytes)
-            end,
-        )
     end
 
-    # Handle multi-file tabular datasets
+    loc_for_reading, metadata_for_reading = if dataset_to_read_from_exists
+        (
+            "Remote",
+            Dict(
+                "path" => remotepath,
+                "subpath" => datasetpath,
+                "size" => datasize,
+                "ndims" => datandims,
+                "eltype" => dataeltype,
+            ),
+        )
+    else
+        ("None", Dict{String,Any}())
+    end
+    if is_debug_on()
+        @show metadata_for_reading
+    end
+
+    # Load metadata for writing to HDF5 file
+    loc_for_writing, metadata_for_writing =
+        ("Remote", Dict("path" => remotepath, "subpath" => datasetpath))
+
+    # Get the remote sample
+    remote_sample = if isnothing(remote_sample)
+        if isnothing(loc_for_reading)
+            Sample()
+        elseif totalnrows <= MAX_EXACT_SAMPLE_LENGTH
+            ExactSample(sample, total_memory_usage = nbytes)
+        else
+            Sample(sample, total_memory_usage = nbytes)
+        end
+    else
+        remote_sample
+    end
+
+    # Construct location with metadata
+    return Location(
+        loc_for_reading,
+        loc_for_writing,
+        metadata_for_reading,
+        metadata_for_writing,
+        remote_sample,
+    )
+end
+
+function get_remote_table_location(remotepath, remote_sample=nothing)::Location
+    p = download_remote_path(remotepath)
+
+    # TODO: Support more cases beyond just single files and all files in
+    # given directory (e.g., wildcards)
+
+    nbytes = 0
+    totalnrows = 0
 
     # Read through dataset by row
     p_isdir = isdir(p)
