@@ -344,65 +344,68 @@ getsamplenrows(totalnrows) =
         cld(totalnrows, get_job().sample_rate)
     end
 
-function clear_locations_cache()
-    rm(joinpath(homedir(), ".banyan", "locations"), force=true, recursive=true)
-end
+# We maintain a cache of locations and a cache of samples. Locations contain
+# information about what files are in the dataset and how many rows they have
+# while samples contain an actual sample from that dataset
 
-function Remote(p; read_from_cache = true, write_to_cache = true, delete_from_cache = false)
+# The invalidate_* and clear_* functions should be used if some actor that
+# Banyan is not aware of mutates the location. Locations should be
+# eventually stored and updated in S3 on each write.
+
+clear_locations() = rm(joinpath(homedir(), ".banyan", "locations"), force=true, recursive=true)
+clear_samples() = rm(joinpath(homedir(), ".banyan", "samples"), force=true, recursive=true)
+invalidate_location(p) = rm(joinpath(homedir(), ".banyan", "locations", p |> hash |> string), force=true, recursive=true)
+invalidate_sample(p) = rm(joinpath(homedir(), ".banyan", "samples", p |> hash |> string), force=true, recursive=true)
+
+function Remote(p; shuffled=false, similar_files=false, location_invalid = false, sample_invalid = false, invalidate_location = false, invalidate_sample = false)
     # TODO: Document the caching behavior better
     # Read location from cache. The location will include metadata like the
     # number of rows in each file as well as a sample that can be used on the
     # client side for estimating memory usage and data skew among other things.
-    println("In Remote")
-    @show p
-    @show read_from_cache
-    @show write_to_cache
-    @show delete_from_cache
+    # Get paths with cached locations and samples
     locationspath = joinpath(homedir(), ".banyan", "locations")
+    samplespath = joinpath(homedir(), ".banyan", "samples")
     locationpath = joinpath(locationspath, p |> hash |> string)
-    location = if read_from_cache && isfile(locationpath)
-        deserialize(locationpath)
+    samplepath = joinpath(samplepath, p |> hash |> string)
+
+    # Get cached sample if it exists
+    remote_sample = if isfile(samplepath) && !sample_invalid
+        deserialize(samplepath)
     else
-        get_remote_location(p)
+        nothing
     end
 
-    @show isfile(locationpath)
+    # Get cached location if it exists
+    remote_location = if isfile(locationpath) && !location_invalid
+        deserialize(samplepath)
+    else
+        get_remote_location(p, remote_sample)
+    end
+    remote_sample = remote_location.sample
 
     # Store location in cache
-    if write_to_cache && !delete_from_cache
-        mkpath(locationspath)
-        serialize(locationpath, location)
+    if !invalidate_location
+        mkpath(locationpath)
+        serialize(locationpath, remote_location)
+    else
+        rm(locationpath, force=true, recursive=true)
     end
 
-    # Invalidate cache if this location is immediately going to be used for
-    # writing to
-    if delete_from_cache && isfile(locationpath)
-        rm(locationpath)
+    # Store sample in cache
+    if !invalidate_sample
+        mkpath(samplepath)
+        serialize(samplepath, remote_sample)
+    else
+        rm(locationpath, force=true, recursive=true)
     end
-
-    @show location
 
     location
 end
 
-get_s3_bucket_arn(cluster_name) = get_cluster(cluster_name).s3_bucket_arn
-get_s3_bucket_name(cluster_name) =
-    replace(get_cluster(cluster_name).s3_bucket_arn, "arn:aws:s3:::" => "s3://")
-function get_s3fs_bucket_path(cluster_name)
-    arn = get_cluster(cluster_name).s3_bucket_arn
-    joinpath(
-        homedir(),
-        ".banyan",
-        "mnt",
-        "s3",
-        arn[findfirst("arn:aws:s3:::", arn).stop+1:end],
-    )
-end
-
-function get_remote_location(remotepath)
+function get_remote_location(remotepath, remote_sample=nothing)::Location
     @info "Collecting sample from $remotepath\n\nThis will take some time but the sample will be cached for future use. Note that writing to this location will invalidate the cached sample."
 
-
+    # This is so that we can make sure that any random selection fo rows is deterministic. Might not be needed
     Random.seed!(hash(get_job_id()))
 
     # Get the actual remote path by checking if this is an HDF5 file which (if
@@ -426,22 +429,7 @@ function get_remote_location(remotepath)
     end
 
     # TODO: Cache stuff
-    p = if startswith(remotepath, "s3://")
-        get_s3fs_path(remotepath)
-        # `p` is the local version of the path while `remotepath` is the
-        # external one
-    elseif startswith(remotepath, "http://") || startswith(remotepath, "https://")
-        if is_debug_on()
-            @show remotepath
-        end
-        download(remotepath)
-    else
-        throw(
-            ArgumentError(
-                "$remotepath does not start with either http:// or https:// or s3://",
-            ),
-        )
-    end
+    p = download_remote_path(remotepath)
 
     # TODO: Support more cases beyond just single files and all files in
     # given directory (e.g., wildcards)
@@ -483,78 +471,80 @@ function get_remote_location(remotepath)
             if is_debug_on()
                 @show dataeltype
             end
-            f = h5open(p, "r")
+            with_downloaded_path_for_reading(p) do pp
+                f = h5open(pp, "r")
 
-            # if !(datasetpath in keys(f))
-            #     throw(ArgumentError("Dataset \"$datasetpath\" could not be found in the HDF5 file at $remotepath"))
-            # end
-            if is_debug_on()
-                @show f
-                @show keys(f)
-                @show typeof(f)
-                @show datasetpath
-            end
-            if haskey(f, datasetpath)
+                # if !(datasetpath in keys(f))
+                #     throw(ArgumentError("Dataset \"$datasetpath\" could not be found in the HDF5 file at $remotepath"))
+                # end
                 if is_debug_on()
-                    println("Inside if")
+                    @show f
+                    @show keys(f)
+                    @show typeof(f)
+                    @show datasetpath
                 end
-                dataset_to_read_from_exists = true
-
-                dset = f[datasetpath]
-                ismapping = false
-                if HDF5.ismmappable(dset)
-                    ismapping = true
-                    dset = HDF5.readmmap(dset)
-                    close(f)
-                end
-
-                # Collect metadata
-                nbytes += length(dset) * sizeof(eltype(dset))
-                datasize = size(dset)
-                if is_debug_on()
-                    @show datasize
-                end
-
-                # Collect sample
-                datalength = first(datasize)
-                remainingcolons = repeat([:], ndims(dset) - 1)
-                sample = dset[1:0, remainingcolons...]
-                if datalength < MAX_EXACT_SAMPLE_LENGTH
-                    sampleindices = randsubseq(1:datalength, 1 / get_job().sample_rate)
+                if haskey(f, datasetpath)
                     if is_debug_on()
-                        @show sampleindices
+                        println("Inside if")
                     end
-                    sample = dset[sampleindices, remainingcolons...]
+                    dataset_to_read_from_exists = true
+
+                    dset = f[datasetpath]
+                    ismapping = false
+                    if HDF5.ismmappable(dset)
+                        ismapping = true
+                        dset = HDF5.readmmap(dset)
+                        close(f)
+                    end
+
+                    # Collect metadata
+                    nbytes += length(dset) * sizeof(eltype(dset))
+                    datasize = size(dset)
                     if is_debug_on()
-                        @show sampleindices
+                        @show datasize
                     end
-                end
-                if is_debug_on()
-                    @show datalength
-                end
 
-                # Extend or chop sample as needed
-                samplelength = getsamplenrows(datalength)
-                # TODO: Warn about the sample size being too large
-                if is_debug_on()
-                    @show samplelength
-                end
-                if size(sample, 1) < samplelength
-                    sample = vcat(
-                        sample,
-                        dset[1:(samplelength-size(sample, 1)), remainingcolons...],
-                    )
-                else
-                    dset = dset[1:samplelength, remainingcolons...]
-                end
+                    # Collect sample
+                    datalength = first(datasize)
+                    remainingcolons = repeat([:], ndims(dset) - 1)
+                    sample = dset[1:0, remainingcolons...]
+                    if datalength < MAX_EXACT_SAMPLE_LENGTH
+                        sampleindices = randsubseq(1:datalength, 1 / get_job().sample_rate)
+                        if is_debug_on()
+                            @show sampleindices
+                        end
+                        sample = dset[sampleindices, remainingcolons...]
+                        if is_debug_on()
+                            @show sampleindices
+                        end
+                    end
+                    if is_debug_on()
+                        @show datalength
+                    end
 
-                # Get ndims and eltype
-                datandims = ndims(dset)
-                dataeltype = eltype(dset)
+                    # Extend or chop sample as needed
+                    samplelength = getsamplenrows(datalength)
+                    # TODO: Warn about the sample size being too large
+                    if is_debug_on()
+                        @show samplelength
+                    end
+                    if size(sample, 1) < samplelength
+                        sample = vcat(
+                            sample,
+                            dset[1:(samplelength-size(sample, 1)), remainingcolons...],
+                        )
+                    else
+                        dset = dset[1:samplelength, remainingcolons...]
+                    end
 
-                # Close HDF5 file
-                if !ismapping
-                    close(f)
+                    # Get ndims and eltype
+                    datandims = ndims(dset)
+                    dataeltype = eltype(dset)
+
+                    # Close HDF5 file
+                    if !ismapping
+                        close(f)
+                    end
                 end
             end
         end
@@ -706,66 +696,68 @@ function get_remote_location(remotepath)
 
         # Get chunks to sample from
         localfilepath = p_isdir ? joinpath(p, filep) : p
-        chunks = if endswith(localfilepath, ".csv")
-            CSV.Chunks(localfilepath)
-        elseif endswith(localfilepath, ".parquet")
-            Tables.partitions(read_parquet(localfilepath))
-        elseif endswith(localfilepath, ".arrow")
-            Arrow.Stream(localfilepath)
-        else
-            error("Expected .csv or .parquet or .arrow")
+        with_downloaded_path_for_reading(localfilepath) do localfilepathp
+            chunks = if endswith(localfilepathp, ".csv")
+                CSV.Chunks(localfilepathp)
+            elseif endswith(localfilepathp, ".parquet")
+                Tables.partitions(read_parquet(localfilepathp))
+            elseif endswith(localfilepathp, ".arrow")
+                Arrow.Stream(localfilepathp)
+            else
+                error("Expected .csv or .parquet or .arrow")
+            end
+
+            # Sample from each chunk
+            for (i, chunk) in enumerate(chunks)
+                @show i
+                chunkdf = chunk |> DataFrames.DataFrame
+                chunknrows = nrow(chunkdf)
+                filenrows += chunknrows
+                totalnrows += chunknrows
+
+                # Append to randomsample
+                # chunksampleindices = map(rand() < 1 / get_job().sample_rate, 1:chunknrows)
+                chunksampleindices = randsubseq(1:chunknrows, 1 / get_job().sample_rate)
+                # if any(chunksampleindices)
+                if !isempty(chunksampleindices)
+                    append!(randomsample, @view chunkdf[chunksampleindices, :])
+                end
+
+                # Append to exactsample
+                samplenrows = getsamplenrows(totalnrows)
+                @show samplenrows
+                if nrow(exactsample) < samplenrows
+                    append!(exactsample, first(chunkdf, samplenrows - nrow(exactsample)))
+                end
+
+                # nbytes += isnothing(chunkdf) ? pqf.meta.row_groups[i].total_byte_size : Base.summarysize(chunkdf)
+                # nbytes = nothing
+                nbytes += Base.summarysize(chunkdf)
+
+                @show nbytes
+                @show Int64(Sys.free_memory())
+                @show Int64(Sys.total_memory())
+
+                # TODO: Maybe call GC.gc() here if we get an error when sampling really large datasets
+                chunkdf = nothing
+                chunk = nothing
+                if Base.summarysize(exactsample) > Sys.free_memory()
+                    @warn "Sample is too large; try creating a job with a greater `sample_rate` than the number of workers (default is 2)"
+                end
+                if Base.summarysize(exactsample) + nbytes > Sys.free_memory()
+                    GC.gc()
+                end
+            end
+
+            # Add to list of file metadata
+            push!(
+                files,
+                Dict(
+                    "path" => p_isdir ? joinpath(remotepath, filep) : remotepath,
+                    "nrows" => filenrows,
+                ),
+            )
         end
-
-        # Sample from each chunk
-        for (i, chunk) in enumerate(chunks)
-            @show i
-            chunkdf = chunk |> DataFrames.DataFrame
-            chunknrows = nrow(chunkdf)
-            filenrows += chunknrows
-            totalnrows += chunknrows
-
-            # Append to randomsample
-            # chunksampleindices = map(rand() < 1 / get_job().sample_rate, 1:chunknrows)
-            chunksampleindices = randsubseq(1:chunknrows, 1 / get_job().sample_rate)
-            # if any(chunksampleindices)
-            if !isempty(chunksampleindices)
-                append!(randomsample, @view chunkdf[chunksampleindices, :])
-            end
-
-            # Append to exactsample
-            samplenrows = getsamplenrows(totalnrows)
-            @show samplenrows
-            if nrow(exactsample) < samplenrows
-                append!(exactsample, first(chunkdf, samplenrows - nrow(exactsample)))
-            end
-
-            # nbytes += isnothing(chunkdf) ? pqf.meta.row_groups[i].total_byte_size : Base.summarysize(chunkdf)
-            # nbytes = nothing
-            nbytes += Base.summarysize(chunkdf)
-
-            @show nbytes
-            @show Int64(Sys.free_memory())
-            @show Int64(Sys.total_memory())
-
-            # TODO: Maybe call GC.gc() here if we get an error when sampling really large datasets
-            chunkdf = nothing
-            chunk = nothing
-            if Base.summarysize(exactsample) > Sys.free_memory()
-                @warn "Sample is too large; try creating a job with a greater `sample_rate` than the number of workers (default is 2)"
-            end
-            if Base.summarysize(exactsample) + nbytes > Sys.free_memory()
-                GC.gc()
-            end
-        end
-
-        # Add to list of file metadata
-        push!(
-            files,
-            Dict(
-                "path" => p_isdir ? joinpath(remotepath, filep) : remotepath,
-                "nrows" => filenrows,
-            ),
-        )
     end
 
     # Adjust sample to have samplenrows

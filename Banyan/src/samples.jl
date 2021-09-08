@@ -16,6 +16,8 @@ mutable struct Sample
     )
         newsample = new(value, properties)
 
+        # We compute the `memory_usage` lazily
+
         # Fill in properties if possible
         if !isnothing(total_memory_usage)
             setsample!(newsample, :memory_usage, round(total_memory_usage / sample_rate))

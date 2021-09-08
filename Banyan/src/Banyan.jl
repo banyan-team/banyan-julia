@@ -129,7 +129,7 @@ export partitioned_using,
 
 # Debugging
 export is_debug_on,
-    get_s3fs_bucket_path, get_s3_bucket_name, get_s3fs_path, configure_scheduling
+    get_s3fs_bucket_path, get_s3_bucket_path, with_downloaded_path_for_reading, configure_scheduling
 
 using AWS: _get_ini_value
 using AWSCore
@@ -157,6 +157,7 @@ using HDF5, CSV, Parquet, Arrow, DataFrames
 include("id.jl")
 include("utils.jl")
 include("utils_abstract_types.jl")
+include("utils_s3fs.jl")
 include("queues.jl")
 include("clusters.jl")
 include("jobs.jl")
