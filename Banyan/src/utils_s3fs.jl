@@ -106,11 +106,14 @@ function download_remote_s3_path(path)
 end
 
 function with_downloaded_path_for_reading(func::Function, downloaded_path; for_writing=false)
+    # There are 3 cases here: `downloaded_path` is an S3Path or a local S3FS
+    # path or an http:// file that has been downloaded to tempdir() (i.e., /tmp).
+
     temp_downloaded_path = if downloaded_path isa S3Path
         temp_downloaded_path = Path(tempname() * splitext(downloaded_path)[2])
         cp(downloaded_path, temp_downloaded_path)
         func(temp_downloaded_path)
-        if !for_writing
+        if for_writing
             cp(temp_downloaded_path, downloaded_path)
         end
         temp_downloaded_path
