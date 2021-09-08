@@ -68,7 +68,7 @@ function download_remote_s3_path(path)
             end
         catch
             no_mount = true
-            @error "Attempting to remount S3FS because attempting to stat the directory at $mount failed"
+            @warn "Attempting to remount S3FS because attempting to stat the directory at $mount failed"
         end
 
         # Ensure something is mounted
