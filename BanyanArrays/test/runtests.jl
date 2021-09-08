@@ -4,6 +4,7 @@
 using Test
 using Banyan
 using BanyanArrays
+using AWSS3
 
 function include_tests_to_run(args...)
     # TODO: Probably remove the `clear_jobs`
@@ -34,7 +35,7 @@ api_key = get(ENV, "BANYAN_API_KEY", nothing)
 cluster_name = get(ENV, "BANYAN_CLUSTER_NAME", nothing)
 nworkers = get(ENV, "BANYAN_NWORKERS", "2")
 ntrials = parse(Int, get(ENV, "BANYAN_NTRIALS", "1"))
-s3_bucket_name = get_s3_bucket_name(cluster_name)
+s3_bucket_name = get_s3_bucket_path(cluster_name)
 
 global job = create_job(
     username = username,
