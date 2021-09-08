@@ -516,3 +516,71 @@ end
 function get_hash(s)
     return bytes2hex(sha256(s))
 end
+
+
+#########
+# FILES #
+#########
+
+function getnormpath(banyanfile_path, p)
+    if startswith(p, "file://")
+        prefix, suffix = split(banyanfile_path, "://")
+        banyanfile_location_path = dirname(suffix)
+        @debug banyanfile_location_path
+        prefix * "://" * normpath(banyanfile_location_path, last(split(p, "://")))
+    else
+        p
+    end
+end
+
+function load_json(path::String)
+    if startswith(path, "file://")
+        if !isfile(path[8:end])
+            error("File $path does not exist")
+        end
+        JSON.parsefile(path[8:end])
+    elseif startswith(path, "s3://")
+        error("S3 path not currently supported")
+        # JSON.parsefile(S3Path(path, config=get_aws_config()))
+    elseif startswith(path, "http://") || startswith(path, "https://")
+	JSON.parse(String(HTTP.get(path).body))
+    else
+        error("Path $path must start with \"file://\", \"s3://\", or \"http(s)://\"")
+    end
+end
+
+# Loads file into String and returns
+function load_file(path::String)
+    if startswith(path, "file://")
+        if !isfile(path[8:end])
+            error("File $path does not exist")
+        end
+        String(read(open(path[8:end])))
+    elseif startswith(path, "s3://")
+        error("S3 path not currently supported")
+        String(read(S3Path(path)))
+    elseif startswith(path, "http://") || startswith(path, "https://")
+        String(HTTP.get(path).body)
+    else
+        error("Path $path must start with \"file://\", \"s3://\", or \"http(s)://\"")
+    end
+end
+
+
+####################################
+# JULIA VERSION/PACKAGE MANAGEMENT #
+####################################
+
+function get_julia_version()
+    return string(VERSION)
+end
+
+# Returns the directory in which the Project.toml file is located
+function get_julia_environment_dir()
+    return replace(Pkg.project().path, "Project.toml" => "")
+end
+
+# Returns SHA 256 of a string
+function get_hash(s)
+    return bytes2hex(sha256(s))
+end

@@ -1,3 +1,7 @@
+<<<<<<< HEAD
+=======
+
+>>>>>>> Initial implementation
 # Process-local dictionary mapping from job IDs to instances of `Job`
 global jobs = Dict()
 
@@ -62,10 +66,6 @@ function create_job(;
     if cluster_name == ""
         cluster_name = nothing
     end
-
-    # TODO: Remove this code when @calebwin's PR gets merged in
-    push!(code_files, "https://raw.githubusercontent.com/banyan-team/banyan-julia/v0.1.3/Banyan/res/pt_lib.jl")
-    push!(files, "https://raw.githubusercontent.com/banyan-team/banyan-julia/v0.1.3/Banyan/res/pt_lib_utils.jl")
 
     # Configure
     configure(; kwargs...)
