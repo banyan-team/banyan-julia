@@ -49,18 +49,18 @@ Banyan.convert(::Type{Future}, df::DataFrame) = df.data
 #     @partitioned df begin end
 # end
 
-function read_csv(path::String; kwargs)
+function read_csv(path::String; kwargs...)
     df_loc = Remote(path; kwargs...)
     df_nrows = Future(df_loc.nrows)
     DataFrame(Future(source=df_loc), df_nrows)
 end
 
-read_parquet(p; kwargs) = read_csv(p; kwargs...)
-read_arrow(p; kwargs) = read_csv(p; kwargs...)
+read_parquet(p; kwargs...) = read_csv(p; kwargs...)
+read_arrow(p; kwargs...) = read_csv(p; kwargs...)
 
 # TODO: For writing functions, if a file is specified, enforce Replicated
 
-function write_csv(df, path; kwargs)
+function write_csv(df, path; kwargs...)
     # destined(df, Remote(path, delete_from_cache=true))
     # mutated(df)
     # partitioned_with() do
@@ -80,8 +80,8 @@ function write_csv(df, path; kwargs)
     )
 end
 
-write_parquet(A, p; kwargs) = write_csv(A, p; kwargs...)
-write_arrow(A, p; kwargs) = write_csv(A, p; kwargs...)
+write_parquet(A, p; kwargs...) = write_csv(A, p; kwargs...)
+write_arrow(A, p; kwargs...) = write_csv(A, p; kwargs...)
 
 function Banyan.write_to_disk(df::DataFrame)
     partitioned_with() do
