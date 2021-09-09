@@ -145,7 +145,7 @@ function create_job(;
             s3_put(get_aws_config(), s3_bucket_name, basename(f), load_file(f))
         end
     end
-    # TODO: Optimize so that we only upload(and download onto cluster) the files if the filename doesn't already exist
+    # TODO: Optimize so that we only upload the files if the filename doesn't already exist
     job_configuration["files"] = [basename(f) for f in files]
     job_configuration["code_files"] = [basename(f) for f in code_files]
 
