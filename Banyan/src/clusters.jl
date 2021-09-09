@@ -352,8 +352,6 @@ function create_cluster(;
     subnet_id = nothing,
     kwargs...,
 )
-    @debug "Creating cluster"
-
     clusters = get_clusters(;kwargs...)
     if isnothing(name)
         name = "Cluster " * string(length(clusters) + 1)
@@ -414,6 +412,8 @@ function create_cluster(;
         cluster_config["subnet_id"] = subnet_id
     end
 
+    @info "Creating cluster"
+
     # Send request to create cluster
     send_request_get_response(:create_cluster, cluster_config)
 
@@ -426,14 +426,14 @@ function create_cluster(;
 end
 
 function destroy_cluster(name::String; kwargs...)
-    @debug "Destroying cluster"
     configure(; kwargs...)
+    @debug "Destroying cluster"
     send_request_get_response(:destroy_cluster, Dict{String,Any}("cluster_name" => name))
 end
 
 function delete_cluster(name::String; kwargs...)
-    @debug "Deleting cluster"
     configure(; kwargs...)
+    @debug "Deleting cluster"
     send_request_get_response(:destroy_cluster, Dict{String, Any}("cluster_name" => name, "permanently_delete" => true))
 end
 
@@ -448,7 +448,6 @@ function update_cluster(;
     destroy_all_jobs_before = false,
     kwargs...,
 )
-    @info "Starting cluster update"
 
     # Configure
     configure(; kwargs...)
@@ -474,7 +473,7 @@ function update_cluster(;
 
     # Force by setting cluster to running
     if force
-        assert_cluster_is_ready(name = name)
+        assert_cluster_is_ready(name)
     end
 
     if !isnothing(banyanfile_path)
@@ -506,6 +505,8 @@ function update_cluster(;
         update_args["pt_lib_info"] = pt_lib_info
         update_args["banyanfile"] = banyanfile
     end
+
+    @info "Starting cluster update"
     send_request_get_response(
         :update_cluster,
         update_args,

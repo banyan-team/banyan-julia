@@ -147,39 +147,50 @@ Banyan.sample_max(A::U, key) where U <: Base.AbstractArray{T,N} where {T,N} = ma
 
 # Array creation
 
-function read_hdf5(path)
-    A_loc = Remote(path)
+function read_hdf5(path; kwargs...)
+    A_loc = Remote(path; kwargs...)
     if is_debug_on()
-        @show A_loc.src_parameters
-        @show A_loc.size
+        # @show A_loc.src_parameters
+        # @show A_loc.size
     end
-    A = Future(A_loc)
+    A = Future(source=A_loc)
     Array{A_loc.eltype,A_loc.ndims}(A, Future(A_loc.size))
 end
 
-function write_hdf5(A, path)
-    # A_loc = Remote(pathname, mount)
-    destined(A, Remote(path, delete_from_cache=true))
-    mutated(A)
-    # This doesn't rely on any sample properties so we don't need to wrap this
-    # in a `partitioned_with` to delay the PT construction to after sample
-    # properties are computed.
+function write_hdf5(A, path; kwargs...)
+    # # A_loc = Remote(pathname, mount)
+    # destined(A, Remote(path, delete_from_cache=true))
+    # mutated(A)
+    # # This doesn't rely on any sample properties so we don't need to wrap this
+    # # in a `partitioned_with` to delay the PT construction to after sample
+    # # properties are computed.
+    # pt(A, Blocked(A) | Replicated())
+    # # partition(A, Replicated()) # TODO: Use semicolon for keyword args
+    # # Distributed will allow for balanced=true|false and any divisions or key
+    # # but the PT library should be set up such that you can't split if
+    # # divisions or key are not provided or balanced=false
+    # # partition(A, Blocked())
+    # # for axis in 1:min(4, ndims(A))
+    # #     # Partition with distribution of either balanced, grouped, or unknown
+    # #     partition(A, Blocked(key=a), mutated=true)
+    # # end
+    # @partitioned A begin end
+    # compute(A)
     pt(A, Blocked(A) | Replicated())
-    # partition(A, Replicated()) # TODO: Use semicolon for keyword args
-    # Distributed will allow for balanced=true|false and any divisions or key
-    # but the PT library should be set up such that you can't split if
-    # divisions or key are not provided or balanced=false
-    # partition(A, Blocked())
-    # for axis in 1:min(4, ndims(A))
-    #     # Partition with distribution of either balanced, grouped, or unknown
-    #     partition(A, Blocked(key=a), mutated=true)
-    # end
-    @partitioned A begin end
-    compute(A)
+    partitioned_computation(
+        A,
+        destination=Remote(path; merge(Dict(:invalidate_location=>true, :invalidate_sample=>true), kwargs)...),
+        new_source=_->Remote(path)
+    )
+end
+
+function Banyan.write_to_disk(A::Array{T,N}) where {T,N}
+    pt(A, Blocked(A) | Replicated())
+    partitioned_computation(A, destination=Disk())
 end
 
 function fill(v, dims::NTuple{N,Integer}) where {N}
-    fillingdims = Future(Size(dims))
+    fillingdims = Future(source=Size(dims))
     A = Array{typeof(v),N}(Future(), Future(dims))
     v = Future(v)
     dims = Future(dims)
@@ -337,14 +348,14 @@ function Base.map(f, c::Array{T,N}...) where {T,N}
     # end end)
     @partitioned f c res begin
         res = Base.map(f, c...)
-        @show res
-        @show typeof(res)
-        @show eltype(res)
+        # @show res
+        # @show typeof(res)
+        # @show eltype(res)
     end
 
-    @show sample(res)
-    @show typeof(sample(res))
-    @show eltype(sample(res))
+    # @show sample(res)
+    # @show typeof(sample(res))
+    # @show eltype(sample(res))
 
     Array{eltype(sample(res)),N}(res, deepcopy(first(c).size))
 end
@@ -416,7 +427,7 @@ function Base.reduce(op, A::Array{T,N}; dims=:, kwargs...) where {T,N}
     res_size = Future()
     res = dims isa Colon ? Future() : Array{Any,Any}(Future(), res_size)
     if is_debug_on()
-        @show dims # TODO: Ensure this isn't a function
+        # @show dims # TODO: Ensure this isn't a function
     end
     dims = Future(dims)
     kwargs = Future(kwargs)
@@ -456,8 +467,8 @@ function Base.reduce(op, A::Array{T,N}; dims=:, kwargs...) where {T,N}
 
     @partitioned op A dims kwargs res res_size begin
         if is_debug_on()
-            @show size(A)
-            @show dims # TODO: Figure out why dims is sometimes a function
+            # @show size(A)
+            # @show dims # TODO: Figure out why dims is sometimes a function
         end
         res = Base.reduce(op, A; dims=dims, kwargs...)
         if res isa Array
@@ -672,7 +683,7 @@ end
 
 # # TODO: Support sorting once we have a non-verbose way of specifying grouping for both dataframes and arrays
 
-# # function sort(A::Array; kwargs)
+# # function sort(A::Array; kwargs...)
 # #     # TODO: Accept replicated or grouped on key used for sotring and return same but with same ID but
 # #     # newly generated ID if the input has id set to null because of casting or re-splitting
 # #     # TODO: Accept A as either blocked on some other dimension or grouped on the dimension

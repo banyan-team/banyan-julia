@@ -133,6 +133,38 @@ function destined(fut, loc::Location)
     )
 end
 
+# The purspose of making the source and destination assignment lazy is because
+# location constructors perform sample collection and collecting samples is
+# expensive. So after we write to a location and invalidate the cached sample,
+# we only want to compute the new location source if the value is really used
+# later on.
+
+global source_location_funcs = Dict()
+global destination_location_funcs = Dict()
+
+function sourced(fut, location_func::Function)
+    global source_location_funcs
+    source_location_funcs[fut.value_id] = location_func
+end
+
+function destined(fut, location_func::Function)
+    global destination_location_funcs
+    destination_location_funcs[fut.value_id] = location_func
+end
+
+function apply_sourced_or_destined_funcs(fut)
+    global source_location_funcs
+    global destination_location_funcs
+    if haskey(source_location_funcs, fut.value_id)
+        sourced(fut, source_location_funcs[fut.value_id](fut))
+        pop!(source_location_funcs, fut.value_id)
+    end
+    if haskey(destination_location_funcs, fut.value_id)
+        destined(fut, source_location_funcs[fut.value_id](fut))
+        pop!(destination_location_funcs, fut.value_id)
+    end
+end
+
 function located(fut, location::Location)
     job = get_job()
     fut = convert(Future, fut)
@@ -215,6 +247,7 @@ Client() = LocationDestination("Client", Dict{String,Any}())
 # Size(size) = Value(size)
 
 None() = Location("None", Dict{String,Any}(), Sample())
+Disk() = None() # The scheduler intelligently determines when to split from and merge to disk even when no location is specified
 # Values assigned "None" location as well as other locations may reassigned
 # "Memory" or "Disk" locations by the scheduler depending on where the relevant
 # data is.
@@ -311,53 +344,71 @@ getsamplenrows(totalnrows) =
         cld(totalnrows, get_job().sample_rate)
     end
 
-function Remote(p; read_from_cache = true, write_to_cache = true, delete_from_cache = false)
+# We maintain a cache of locations and a cache of samples. Locations contain
+# information about what files are in the dataset and how many rows they have
+# while samples contain an actual sample from that dataset
+
+# The invalidate_* and clear_* functions should be used if some actor that
+# Banyan is not aware of mutates the location. Locations should be
+# eventually stored and updated in S3 on each write.
+
+clear_locations() = rm(joinpath(homedir(), ".banyan", "locations"), force=true, recursive=true)
+clear_samples() = rm(joinpath(homedir(), ".banyan", "samples"), force=true, recursive=true)
+invalidate_location(p) = rm(joinpath(homedir(), ".banyan", "locations", p |> hash |> string), force=true, recursive=true)
+invalidate_sample(p) = rm(joinpath(homedir(), ".banyan", "samples", p |> hash |> string), force=true, recursive=true)
+
+function Remote(p; shuffled=false, similar_files=false, location_invalid = false, sample_invalid = false, invalidate_location = false, invalidate_sample = false)
     # TODO: Document the caching behavior better
     # Read location from cache. The location will include metadata like the
     # number of rows in each file as well as a sample that can be used on the
     # client side for estimating memory usage and data skew among other things.
+    # Get paths with cached locations and samples
     locationspath = joinpath(homedir(), ".banyan", "locations")
+    samplespath = joinpath(homedir(), ".banyan", "samples")
     locationpath = joinpath(locationspath, p |> hash |> string)
-    location = if read_from_cache && isfile(locationpath)
-        deserialize(locationpath)
+    samplepath = joinpath(samplespath, p |> hash |> string)
+
+    # Get cached sample if it exists
+    remote_sample = if isfile(samplepath) && !sample_invalid
+        deserialize(samplepath)
     else
-        get_remote_location(p)
+        nothing
     end
+
+    # Get cached location if it exists
+    remote_location = if isfile(locationpath) && !location_invalid
+        deserialize(samplepath)
+    else
+        get_remote_location(p, remote_sample)
+    end
+    remote_sample = remote_location.sample
 
     # Store location in cache
-    if write_to_cache && !delete_from_cache
-        mkpath(locationspath)
-        serialize(locationpath, location)
+    if !invalidate_location
+        mkpath(locationpath)
+        serialize(locationpath, remote_location)
+    else
+        rm(locationpath, force=true, recursive=true)
     end
 
-    # Invalidate cache if this location is immediately going to be used for
-    # writing to
-    if delete_from_cache && isfile(locationpath)
-        rm(locationpath)
+    # Store sample in cache
+    if !invalidate_sample
+        mkpath(samplepath)
+        serialize(samplepath, remote_sample)
+    else
+        rm(locationpath, force=true, recursive=true)
     end
 
     location
 end
 
-get_s3_bucket_arn(cluster_name) = get_cluster(cluster_name).s3_bucket_arn
-get_s3_bucket_name(cluster_name) =
-    replace(get_cluster(cluster_name).s3_bucket_arn, "arn:aws:s3:::" => "s3://")
-function get_s3fs_bucket_path(cluster_name)
-    arn = get_cluster(cluster_name).s3_bucket_arn
-    joinpath(
-        homedir(),
-        ".banyan",
-        "mnt",
-        "s3",
-        arn[findfirst("arn:aws:s3:::", arn).stop+1:end],
-    )
-end
+function get_remote_location(remotepath, remote_sample=nothing)::Location
+    @info "Collecting sample from $remotepath\n\nThis will take some time but the sample will be cached for future use. Note that writing to this location will invalidate the cached sample."
 
-function get_remote_location(remotepath)
+    # This is so that we can make sure that any random selection fo rows is deterministic. Might not be needed
     Random.seed!(hash(get_job_id()))
 
-    # Get the actual remote path by checking if this is an HDF5 file which (if
-    # it is) must have a group specified
+    # Detect whether this is an HDF5 file
     hdf5_ending = if occursin(".h5", remotepath)
         ".h5"
     elseif occursin(".hdf5", remotepath)
@@ -365,6 +416,18 @@ function get_remote_location(remotepath)
     else
         ""
     end
+    isa_hdf5 = hdf5_ending != ""
+    
+    # Return either an HDF5 location or a table location
+    if isa_hdf5
+        get_remote_hdf5_location(remotepath, hdf5_ending, remote_sample)
+    else
+        get_remote_table_location(remotepath, remote_sample)
+    end
+end
+
+function get_remote_hdf5_location(remotepath, hdf5_ending, remote_sample=nothing)::Location
+    # Get the actual path by removing the dataset from the path
     remotepath, datasetpath = if hdf5_ending == ""
         remotepath, nothing
     else
@@ -377,22 +440,7 @@ function get_remote_location(remotepath)
     end
 
     # TODO: Cache stuff
-    p = if startswith(remotepath, "s3://")
-        get_s3fs_path(remotepath)
-        # `p` is the local version of the path while `remotepath` is the
-        # external one
-    elseif startswith(remotepath, "http://") || startswith(remotepath, "https://")
-        if is_debug_on()
-            @show remotepath
-        end
-        download(remotepath)
-    else
-        throw(
-            ArgumentError(
-                "$remotepath does not start with either http:// or https:// or s3://",
-            ),
-        )
-    end
+    p = download_remote_path(remotepath)
 
     # TODO: Support more cases beyond just single files and all files in
     # given directory (e.g., wildcards)
@@ -409,32 +457,32 @@ function get_remote_location(remotepath)
         @show p
         @show hdf5_ending
     end
-    if length(hdf5_ending) > 0
-        # filename, datasetpath = split(p, hdf5_ending)
-        # remotefilename, _ = split(remotepath, hdf5_ending)
-        # filename *= hdf5_ending
-        # remotefilename *= hdf5_ending
-        # datasetpath = datasetpath[2:end] # Chop off the /
+    # filename, datasetpath = split(p, hdf5_ending)
+    # remotefilename, _ = split(remotepath, hdf5_ending)
+    # filename *= hdf5_ending
+    # remotefilename *= hdf5_ending
+    # datasetpath = datasetpath[2:end] # Chop off the /
 
-        # Load metadata for reading
+    # Load metadata for reading
 
-        # TODO: Determine why sample size is so huge
-        # TODO: Determine why location parameters are not getting populated
+    # TODO: Determine why sample size is so huge
+    # TODO: Determine why location parameters are not getting populated
 
-        # Open HDF5 file
-        sample = []
-        datasize = [0]
-        datandims = nothing
-        dataeltype = nothing
+    # Open HDF5 file
+    sample = []
+    datasize = [0]
+    datandims = nothing
+    dataeltype = nothing
+    if is_debug_on()
+        @show dataeltype
+    end
+    dataset_to_read_from_exists = false
+    if isfile(p)
         if is_debug_on()
             @show dataeltype
         end
-        dataset_to_read_from_exists = false
-        if isfile(p)
-            if is_debug_on()
-                @show dataeltype
-            end
-            f = h5open(p, "r")
+        with_downloaded_path_for_reading(p) do pp
+            f = h5open(pp, "r")
 
             # if !(datasetpath in keys(f))
             #     throw(ArgumentError("Dataset \"$datasetpath\" could not be found in the HDF5 file at $remotepath"))
@@ -465,42 +513,47 @@ function get_remote_location(remotepath)
                 if is_debug_on()
                     @show datasize
                 end
-
-                # Collect sample
-                datalength = first(datasize)
-                remainingcolons = repeat([:], ndims(dset) - 1)
-                sample = dset[1:0, remainingcolons...]
-                if datalength < MAX_EXACT_SAMPLE_LENGTH
-                    sampleindices = randsubseq(1:datalength, 1 / get_job().sample_rate)
-                    if is_debug_on()
-                        @show sampleindices
-                    end
-                    sample = dset[sampleindices, remainingcolons...]
-                    if is_debug_on()
-                        @show sampleindices
-                    end
-                end
-                if is_debug_on()
-                    @show datalength
-                end
-
-                # Extend or chop sample as needed
-                samplelength = getsamplenrows(datalength)
-                if is_debug_on()
-                    @show samplelength
-                end
-                if size(sample, 1) < samplelength
-                    sample = vcat(
-                        sample,
-                        dset[1:(samplelength-size(sample, 1)), remainingcolons...],
-                    )
-                else
-                    dset = dset[1:samplelength, remainingcolons...]
-                end
-
-                # Get ndims and eltype
                 datandims = ndims(dset)
                 dataeltype = eltype(dset)
+
+                if isnothing(remote_sample)
+                    # Collect sample
+                    datalength = first(datasize)
+                    totalnrows = datalength
+                    remainingcolons = repeat([:], ndims(dset) - 1)
+                    # Start of with an empty array. The dataset has to have at
+                    # least one row so we read that in and then take no data.
+                    sample = dset[1:1, remainingcolons...][1:0, remainingcolons...]
+                    if datalength < MAX_EXACT_SAMPLE_LENGTH
+                        sampleindices = randsubseq(1:datalength, 1 / get_job().sample_rate)
+                        if is_debug_on()
+                            @show sampleindices
+                        end
+                        # sample = dset[sampleindices, remainingcolons...]
+                        sample = vcat([dset[sampleindex, remainingcolons...] for sampleindex in sampleindices]...)
+                        if is_debug_on()
+                            @show sampleindices
+                        end
+                    end
+                    if is_debug_on()
+                        @show datalength
+                    end
+
+                    # Extend or chop sample as needed
+                    samplelength = getsamplenrows(datalength)
+                    # TODO: Warn about the sample size being too large
+                    if is_debug_on()
+                        @show samplelength
+                    end
+                    if size(sample, 1) < samplelength
+                        sample = vcat(
+                            sample,
+                            dset[1:(samplelength-size(sample, 1)), remainingcolons...],
+                        )
+                    else
+                        dset = dset[1:samplelength, remainingcolons...]
+                    end
+                end
 
                 # Close HDF5 file
                 if !ismapping
@@ -508,49 +561,65 @@ function get_remote_location(remotepath)
                 end
             end
         end
-
-        loc_for_reading, metadata_for_reading = if dataset_to_read_from_exists
-            (
-                "Remote",
-                Dict(
-                    "path" => remotepath,
-                    "subpath" => datasetpath,
-                    "size" => datasize,
-                    "ndims" => datandims,
-                    "eltype" => dataeltype,
-                ),
-            )
-        else
-            ("None", Dict{String,Any}())
-        end
-        if is_debug_on()
-            @show metadata_for_reading
-        end
-
-        # Load metadata for writing to HDF5 file
-        loc_for_writing, metadata_for_writing =
-            ("Remote", Dict("path" => remotepath, "subpath" => datasetpath))
-
-        # Construct location with metadata
-        return Location(
-            loc_for_reading,
-            loc_for_writing,
-            metadata_for_reading,
-            metadata_for_writing,
-            if isnothing(loc_for_reading)
-                Sample()
-            elseif totalnrows <= MAX_EXACT_SAMPLE_LENGTH
-                ExactSample(sample, total_memory_usage = nbytes)
-            else
-                Sample(sample, total_memory_usage = nbytes)
-            end,
-        )
     end
 
-    # Handle multi-file tabular datasets
+    loc_for_reading, metadata_for_reading = if dataset_to_read_from_exists
+        (
+            "Remote",
+            Dict(
+                "path" => remotepath,
+                "subpath" => datasetpath,
+                "size" => datasize,
+                "ndims" => datandims,
+                "eltype" => dataeltype,
+            ),
+        )
+    else
+        ("None", Dict{String,Any}())
+    end
+    if is_debug_on()
+        @show metadata_for_reading
+    end
+
+    # Load metadata for writing to HDF5 file
+    loc_for_writing, metadata_for_writing =
+        ("Remote", Dict("path" => remotepath, "subpath" => datasetpath))
+
+    # Get the remote sample
+    remote_sample = if isnothing(remote_sample)
+        if isnothing(loc_for_reading)
+            Sample()
+        elseif totalnrows <= MAX_EXACT_SAMPLE_LENGTH
+            ExactSample(sample, total_memory_usage = nbytes)
+        else
+            Sample(sample, total_memory_usage = nbytes)
+        end
+    else
+        remote_sample
+    end
+
+    # Construct location with metadata
+    return Location(
+        loc_for_reading,
+        loc_for_writing,
+        metadata_for_reading,
+        metadata_for_writing,
+        remote_sample,
+    )
+end
+
+function get_remote_table_location(remotepath, remote_sample=nothing)::Location
+    p = download_remote_path(remotepath)
+
+    # TODO: Support more cases beyond just single files and all files in
+    # given directory (e.g., wildcards)
+
+    nbytes = 0
+    totalnrows = 0
 
     # Read through dataset by row
     p_isdir = isdir(p)
+    p_isfile = !p_isdir && isfile(p) # <-- avoid expensive unnecessary S3 API calls
     # TODO: Support more than just reading/writing single HDF5 files and
     # reading/writing directories containing CSV/Parquet/Arrow files
     files = []
@@ -560,7 +629,7 @@ function get_remote_location(remotepath)
     randomsample = DataFrame()
     files_to_read_from = if p_isdir
         readdir(p)
-    elseif isfile(p)
+    elseif p_isfile
         [p]
     else
         []
@@ -655,50 +724,68 @@ function get_remote_location(remotepath)
 
         # Get chunks to sample from
         localfilepath = p_isdir ? joinpath(p, filep) : p
-        chunks = if endswith(localfilepath, ".csv")
-            CSV.Chunks(localfilepath)
-        elseif endswith(localfilepath, ".parquet")
-            Tables.partitions(read_parquet(localfilepath))
-        elseif endswith(localfilepath, ".arrow")
-            Arrow.Stream(localfilepath)
-        else
-            error("Expected .csv or .parquet or .arrow")
-        end
-
-        # Sample from each chunk
-        for (i, chunk) in enumerate(chunks)
-            chunkdf = chunk |> DataFrames.DataFrame
-            chunknrows = nrow(chunkdf)
-            filenrows += chunknrows
-            totalnrows += chunknrows
-
-            # Append to randomsample
-            # chunksampleindices = map(rand() < 1 / get_job().sample_rate, 1:chunknrows)
-            chunksampleindices = randsubseq(1:chunknrows, 1 / get_job().sample_rate)
-            # if any(chunksampleindices)
-            if !isempty(chunksampleindices)
-                append!(randomsample, @view chunkdf[chunksampleindices, :])
+        with_downloaded_path_for_reading(localfilepath) do localfilepathp
+            chunks = if endswith(localfilepathp, ".csv")
+                CSV.Chunks(localfilepathp)
+            elseif endswith(localfilepathp, ".parquet")
+                Tables.partitions(read_parquet(localfilepathp))
+            elseif endswith(localfilepathp, ".arrow")
+                Arrow.Stream(localfilepathp)
+            else
+                error("Expected .csv or .parquet or .arrow")
             end
 
-            # Append to exactsample
-            samplenrows = getsamplenrows(totalnrows)
-            if nrow(exactsample) < samplenrows
-                append!(exactsample, first(chunkdf, samplenrows - nrow(exactsample)))
+            # Sample from each chunk
+            for (i, chunk) in enumerate(chunks)
+                @show i
+                chunkdf = chunk |> DataFrames.DataFrame
+                chunknrows = nrow(chunkdf)
+                filenrows += chunknrows
+                totalnrows += chunknrows
+
+                # Append to randomsample
+                # chunksampleindices = map(rand() < 1 / get_job().sample_rate, 1:chunknrows)
+                chunksampleindices = randsubseq(1:chunknrows, 1 / get_job().sample_rate)
+                # if any(chunksampleindices)
+                if !isempty(chunksampleindices)
+                    append!(randomsample, @view chunkdf[chunksampleindices, :])
+                end
+
+                # Append to exactsample
+                samplenrows = getsamplenrows(totalnrows)
+                @show samplenrows
+                if nrow(exactsample) < samplenrows
+                    append!(exactsample, first(chunkdf, samplenrows - nrow(exactsample)))
+                end
+
+                # nbytes += isnothing(chunkdf) ? pqf.meta.row_groups[i].total_byte_size : Base.summarysize(chunkdf)
+                # nbytes = nothing
+                nbytes += Base.summarysize(chunkdf)
+
+                @show nbytes
+                @show Int64(Sys.free_memory())
+                @show Int64(Sys.total_memory())
+
+                # TODO: Maybe call GC.gc() here if we get an error when sampling really large datasets
+                chunkdf = nothing
+                chunk = nothing
+                if Base.summarysize(exactsample) > Sys.free_memory()
+                    @warn "Sample is too large; try creating a job with a greater `sample_rate` than the number of workers (default is 2)"
+                end
+                if Base.summarysize(exactsample) + nbytes > Sys.free_memory()
+                    GC.gc()
+                end
             end
 
-            # nbytes += isnothing(chunkdf) ? pqf.meta.row_groups[i].total_byte_size : Base.summarysize(chunkdf)
-            # nbytes = nothing
-            nbytes += Base.summarysize(chunkdf)
+            # Add to list of file metadata
+            push!(
+                files,
+                Dict(
+                    "path" => p_isdir ? joinpath(remotepath, filep) : remotepath,
+                    "nrows" => filenrows,
+                ),
+            )
         end
-
-        # Add to list of file metadata
-        push!(
-            files,
-            Dict(
-                "path" => p_isdir ? joinpath(remotepath, filep) : remotepath,
-                "nrows" => filenrows,
-            ),
-        )
     end
 
     # Adjust sample to have samplenrows
@@ -716,20 +803,16 @@ function get_remote_location(remotepath)
     # TODO: Build up sample and return
 
     # Load metadata for reading
-    loc_for_reading, metadata_for_reading = if !isempty(files)
+    loc_for_reading, metadata_for_reading = if !isempty(files) || p_isdir # empty directory can still be read from
         ("Remote", Dict("path" => remotepath, "files" => files, "nrows" => totalnrows))
     else
         ("None", Dict{String,Any}())
     end
 
     # Load metadata for writing
-    loc_for_writing, metadata_for_writing = if p_isdir
-        # NOTE: `remotepath` should end with `.parquet` or `.csv` if Parquet
-        # or CSV dataset is desired to be created
-        ("Remote", Dict("path" => remotepath))
-    else
-        ("None", Dict{String,Any}())
-    end
+    # NOTE: `remotepath` should end with `.parquet` or `.csv` if Parquet
+    # or CSV dataset is desired to be created
+    loc_for_writing, metadata_for_writing = ("Remote", Dict("path" => remotepath))
 
     # TODO: Cache sample on disk
 

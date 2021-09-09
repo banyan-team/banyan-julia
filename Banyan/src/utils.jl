@@ -147,21 +147,26 @@ function configure(; kwargs...)
         if_in_or(:require_ec2_key_pair_name, kwargs, false)
 
     # Check environment variables
-    if user_id == nothing && haskey(ENV, "BANYAN_USER_ID")
+    if isnothing(user_id) && haskey(ENV, "BANYAN_USER_ID")
         user_id = ENV["BANYAN_USER_ID"]
     end
-    if api_key == nothing && haskey(ENV, "BANYAN_API_KEY")
+    if isnothing(api_key) && haskey(ENV, "BANYAN_API_KEY")
         api_key = ENV["BANYAN_API_KEY"]
+    end
+    if isnothing(username) && haskey(ENV, "BANYAN_USERNAME")
+        api_key = ENV["BANYAN_USERNAME"]
     end
 
     # Check banyanconfig file
-    if user_id == nothing && haskey(banyan_config, "banyan") && haskey(banyan_config["banyan"], "user_id")
+    if isnothing(user_id) && haskey(banyan_config, "banyan") && haskey(banyan_config["banyan"], "user_id")
         user_id = banyan_config["banyan"]["user_id"]
     end
-    if api_key == nothing && haskey(banyan_config, "banyan") && haskey(banyan_config["banyan"], "api_key")
+    if isnothing(api_key) && haskey(banyan_config, "banyan") && haskey(banyan_config["banyan"], "api_key")
         api_key = banyan_config["banyan"]["api_key"]
     end
-    
+    if isnothing(username) && haskey(banyan_config, "banyan") && haskey(banyan_config["banyan"], "username")
+        username = banyan_config["banyan"]["username"]
+    end
 
     # Initialize
     is_modified = false
@@ -170,7 +175,7 @@ function configure(; kwargs...)
     # Ensure a configuration has been created or can be created. Otherwise,
     # return nothing
     if isnothing(banyan_config)
-        if !isnothing(user_id) && !isnothing(api_key)
+        if !isnothing(user_id) && !isnothing(api_key) && !isnothing(username)
             banyan_config = Dict(
                 "banyan" =>
                     Dict("username" => username, "user_id" => user_id, "api_key" => api_key),
@@ -178,7 +183,7 @@ function configure(; kwargs...)
             )
             is_modified = true
         else
-            error("User ID and API key not provided")
+            error("Your username, user ID, and API key must be specified using either keyword arguments, environment variables, or banyanconfig.toml")
         end
     end
 
@@ -195,6 +200,10 @@ function configure(; kwargs...)
      end
     if !isnothing(api_key) && (api_key != banyan_config["banyan"]["api_key"])
         banyan_config["banyan"]["api_key"] = api_key
+        is_modified = true
+    end
+    if !isnothing(username) && (username != banyan_config["banyan"]["username"])
+        banyan_config["banyan"]["username"] = username
         is_modified = true
     end
 
@@ -348,6 +357,13 @@ function send_request_get_response(method, content::Dict)
     resp, data = request_json(
 	url, input=IOBuffer(JSON.json(content)), method="POST", headers=headers
     )
+    #println(resp)
+    #println(data)
+    if resp.status == 403
+        throw(ErrorException("Please use a valid user_id and api_key. Sign into the dashboard to retrieve these credentials."))
+    elseif resp.status == 500
+        throw(ErrorException(data))
+    end
     return data
 
 end
@@ -416,60 +432,3 @@ end
 orderinghash(x::Any) = x # This lets us handle numbers and dates
 orderinghash(s::String) = Integer.(codepoint.(first(s, 32) * repeat(" ", 32-length(s))))
 orderinghash(A::AbstractArray) = orderinghash(first(A))
-
-#########################
-# MOUNTED S3 FILESYSTEM #
-#########################
-
-function get_s3fs_path(path)
-    # Get information about requested object
-    s3path = S3Path(path)
-    bucket = s3path.bucket
-    key = s3path.key
-    # bucket = "banyan-cluster-data-myfirstcluster"
-    mount = joinpath(homedir(), ".banyan", "mnt", "s3", bucket)
-
-    # Ensure path to mount exists
-    no_mount = false
-    try
-        if !isdir(mount)
-            mkpath(mount)
-            # TODO: Ensure that no directory really means there is no mount
-            no_mount = true
-            @error "Attempting to remount S3FS because no directory found at $mount"
-        end
-        if !ismount(mount)
-            no_mount = true
-            @error "Attempting to remount S3FS because no mount found at $mount"
-        end
-    catch
-        no_mount = true
-        @error "Attempting to remount S3FS because attempting to stat the directory at $mount failed"
-    end
-
-    # Ensure something is mounted
-    if no_mount
-        try
-            run(`umount -fq $mount`)
-        catch e
-            @error "Failed to unmount with error: $e. Please try to force unmounting with \`umount -fq $mount\` and then re-run."
-        end
-
-        # TODO: Store buckets from different accounts/IAMs/etc. seperately
-        try
-            ACCESS_KEY_ID = get_aws_config()[:creds].access_key_id
-            SECRET_ACCESS_KEY = get_aws_config()[:creds].secret_key
-            passwd_s3fs_contents = ACCESS_KEY_ID * ":" * SECRET_ACCESS_KEY
-            HOME = homedir()
-            region = get_aws_config_region()
-            run(pipeline(`echo $passwd_s3fs_contents`, "$HOME/.passwd-s3fs"))
-            run(`chmod 600 $HOME/.passwd-s3fs`)
-            run(`s3fs $bucket $mount -o url=https://s3.$region.amazonaws.com -o endpoint=$region -o passwd_file=$HOME/.passwd-s3fs`)
-        catch e
-            error("Failed to mount S3 bucket \"$bucket\" at $mount using s3fs with error: $e. Please ensure s3fs is in PATH or mount manually.")
-        end
-    end
-
-    # Return local path to object
-    joinpath(mount, key)
-end

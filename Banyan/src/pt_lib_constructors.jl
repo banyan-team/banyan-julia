@@ -170,9 +170,12 @@ function Grouped(
     by = Symbol.(by)
     by = to_vector(by)
 
+    @show by
+    @show sample(f)
+
     # Create PTs for each key that can be used to group by
     pts::Vector{PartitionType} = []
-    for key in first(by, 8)
+    for (i, key) in enumerate(first(by, 8))
         # Handle combinations of `balanced` and `filtered_from`/`filtered_to`
         for b in (isnothing(balanced) ? [true, false] : [balanced])
             parameters = Dict("key" => key, "balanced" => b)
@@ -202,23 +205,44 @@ function Grouped(
                 # TODO: Support joins
                 if !isnothing(filtered_from)
                     filtered_from = to_vector(filtered_from)
+                    filtered_from_futures = [ff isa Pair ? first(ff) : ff for ff in filtered_from]
                     factor, from = maximum(filtered_from) do ff
-                        min_filtered_from = sample(f, :statistics, key, :min)
-                        max_filtered_from = sample(f, :statistics, key, :max)
+                        # Get key to use for filtering
+                        ff, fby = ff isa Pair ? ff : (ff => by)
+                        fby = fby isa Colon ? sample(ff, :keys) : by
+                        fby = to_vector(Symbol.(fby))
+                        fkey = fby[i]
+
+                        # Compute the amount to scale memory usage by based on data skew
+                        min_filtered_from = sample(ff, :statistics, fkey, :min)
+                        max_filtered_from = sample(ff, :statistics, fkey, :max)
                         # divisions_filtered_from = sample(ff, :statistics, key, :divisions)
                         f_percentile = sample(f, :statistics, key, :percentile, min_filtered_from, max_filtered_from)
-                        (f_percentile, filtered_from)
+                        (f_percentile, filtered_from_futures)
                     end
                     push!(constraints.constraints, ScaleBy(f, factor, from))
                 elseif !isnothing(filtered_to)
                     filtered_to = to_vector(filtered_to)
+                    # TODO: Revisit this and ensure it's okay to just take the
+                    # maximum and we don't have to actually multiply all of the
+                    # factors by which this fails to scale.
+                    filtered_to_futures = [ft isa Pair ? first(ft) : ft for ft in filtered_to]
                     factor, to = maximum(filtered_to) do ft
-                        min_filtered_to = sample(ft, :statistics, key, :min)
-                        max_filtered_to = sample(ft, :statistics, key, :max)
+                        # Get key to use for filtering
+                        ft, fby = ft isa Pair ? ft : (ft => by)
+                        fby = fby isa Colon ? sample(ff, :keys) : by
+                        fby = to_vector(Symbol.(fby))
+                        fkey = fby[i]
+
+                        # Compute the amount to scale memory usage by based on data skew
+                        @show sample(ft)
+                        min_filtered_to = sample(ft, :statistics, fkey, :min)
+                        max_filtered_to = sample(ft, :statistics, fkey, :max)
                         # f_divisions = sample(f, :statistics, key, :divisions)
                         f_percentile = sample(f, :statistics, key, :percentile, min_filtered_to, max_filtered_to)
-                        (1 / f_percentile, filtered_to)
+                        (1 / f_percentile, filtered_to_futures)
                     end
+                    # TODO: Return all filtered_from/filtered_to but with the appropriate factor and without pairs
                     push!(constraints.constraints, ScaleBy(f, factor, to))
                 elseif !isnothing(scaled_by_same_as)
                     push!(constraints.constraints, ScaleBy(f, 1.0, scaled_by_same_as))

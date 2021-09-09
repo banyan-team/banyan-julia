@@ -49,29 +49,46 @@ Banyan.convert(::Type{Future}, df::DataFrame) = df.data
 #     @partitioned df begin end
 # end
 
-function read_csv(path::String)
-    df_loc = Remote(path)
+function read_csv(path::String; kwargs...)
+    df_loc = Remote(path; kwargs...)
     df_nrows = Future(df_loc.nrows)
-    DataFrame(Future(df_loc), df_nrows)
+    DataFrame(Future(source=df_loc), df_nrows)
 end
 
-read_parquet(p) = read_csv(p)
-read_arrow(p) = read_csv(p)
+read_parquet(p; kwargs...) = read_csv(p; kwargs...)
+read_arrow(p; kwargs...) = read_csv(p; kwargs...)
 
 # TODO: For writing functions, if a file is specified, enforce Replicated
 
-function write_csv(df, path)
-    destined(df, Remote(path, delete_from_cache=true))
-    mutated(df)
+function write_csv(df, path; kwargs...)
+    # destined(df, Remote(path, delete_from_cache=true))
+    # mutated(df)
+    # partitioned_with() do
+    #     pt(df, Partitioned(df))
+    # end
+    # @partitioned df begin end
+    # compute(df)
+    # sourced(df, Remote(path)) # Allow data to be read from this path if needed in the future
+    # destined(df, None())
     partitioned_with() do
         pt(df, Partitioned(df))
     end
-    @partitioned df begin end
-    compute(df)
+    partitioned_computation(
+        df,
+        destination=Remote(path; merge(Dict(:invalidate_location=>true, :invalidate_sample=>true), kwargs)...),
+        new_source=_->Remote(path)
+    )
 end
 
-write_parquet(A, p) = write_csv(A, p)
-write_arrow(A, p) = write_csv(A, p)
+write_parquet(A, p; kwargs...) = write_csv(A, p; kwargs...)
+write_arrow(A, p; kwargs...) = write_csv(A, p; kwargs...)
+
+function Banyan.write_to_disk(df::DataFrame)
+    partitioned_with() do
+        pt(df, Partitioned(df))
+    end
+    partitioned_computation(df, destination=Disk())
+end
 
 # TODO: Duplicate above functions for Parquet, Arrow
 
@@ -328,11 +345,11 @@ function Base.filter(f, df::DataFrame; kwargs...)
     end
 
     @partitioned df res res_nrows f kwargs begin
-        @show df
+        # @show df
         res = filter(f, df; kwargs...)
-        @show res
+        # @show res
         res_nrows = nrow(res)
-        @show res_nrows
+        # @show res_nrows
     end
 
     res
@@ -596,9 +613,9 @@ function Base.getindex(df::DataFrame, rows=:, cols=:)
     filter_rows = !(rows isa Colon)
     columns = Symbol.(names(sample(df), cols))
     cols = Future(cols)
-    # @show sample(rows)
+    # # @show sample(rows)
     rows = rows isa AbstractFuture ? rows : Future(rows)
-    @show sample(rows)
+    # @show sample(rows)
 
     res_size =
         if filter_rows
@@ -699,14 +716,14 @@ function Base.getindex(df::DataFrame, rows=:, cols=:)
     @partitioned df df_nrows res res_size rows cols begin
         print("In getindex")
         res = df[rows, cols]
-        @show df
-        @show rows
-        @show res
+        # @show df
+        # @show rows
+        # @show res
         res_size = rows isa Colon ? df_nrows : size(res)
         res_size = res isa Base.Vector ? res_size : first(res_size)
     end
 
-    @show sample(res)
+    # @show sample(res)
 
     res
 
@@ -1350,18 +1367,19 @@ function DataFrames.innerjoin(dfs::DataFrame...; on, kwargs...)
     # TODO: Use something like this for join
     partitioned_with() do
         # unbalanced, ...., unbalanced -> balanced - "partial sort-merge join"
-        for (df, groupingkey) in zip(dfs, groupingkeys)
-            pt(df, Grouped(df, by=groupingkey, balanced=false, filtered_to=res), match=res, on=["divisions", "rev"])
+        dfs_with_groupingkeys = [df => groupingkey for (df, groupingkey) in zip(dfs, groupingkeys)]
+        for (df, groupingkey) in dfs_with_groupingkeys
+            pt(df, Grouped(df, by=groupingkey, balanced=false, filtered_to=(res=>first(groupingkeys))), match=res, on=["divisions", "rev"])
         end
-        pt(res, Grouped(res, by=first(groupingkeys), balanced=true, filtered_from=[dfs...]) & Drifted())
+        pt(res, Grouped(res, by=first(groupingkeys), balanced=true, filtered_from=dfs_with_groupingkeys) & Drifted())
 
         # balanced, unbalanced, ..., unbalanced -> unbalanced
         for i in 1:length(dfs)
             # "partial sort-merge join"
-            for (j, (df, groupingkey)) in enumerate(zip(dfs, groupingkeys))
-                pt(df, Grouped(df, by=groupingkey, balanced=(j==i), filtered_to=res), match=dfs[i], on=["divisions", "rev"])
+            for (j, (df, groupingkey)) in enumerate(dfs_with_groupingkeys)
+                pt(df, Grouped(df, by=groupingkey, balanced=(j==i), filtered_to=(res => first(groupingkeys))), match=dfs[i], on=["divisions", "rev"])
             end
-            pt(res, Grouped(res, by=first(groupingkeys), balanced=false, filtered_from=dfs[i]) & Drifted(), match=dfs[i], on=["divisions", "rev"])
+            pt(res, Grouped(res, by=first(groupingkeys), balanced=false, filtered_from=dfs_with_groupingkeys[i]) & Drifted(), match=dfs[i], on=["divisions", "rev"])
 
             # broadcast join
             pt(dfs[i], Distributed(dfs[i]))
@@ -1383,10 +1401,10 @@ function DataFrames.innerjoin(dfs::DataFrame...; on, kwargs...)
         # pg(res, Blocked() & Unbalanced() & Drifted())
 
         # unbalanced, unbalanced, ... -> unbalanced - "partial sort-merge join"
-        for (df, groupingkey) in zip(dfs, groupingkeys)
-            pt(df, Grouped(df, by=groupingkey, balanced=false, filtered_to=res), match=res, on=["divisions", "rev"])
+        for (df, groupingkey) in dfs_with_groupingkeys
+            pt(df, Grouped(df, by=groupingkey, balanced=false, filtered_to=(res => first(groupingkeys))), match=res, on=["divisions", "rev"])
         end
-        pt(res, Grouped(res, by=first(groupingkeys), balanced=false, filtered_from=[dfs...]) & Drifted())
+        pt(res, Grouped(res, by=first(groupingkeys), balanced=false, filtered_from=dfs_with_groupingkeys) & Drifted())
         
         # "replicated join"
         pt(res_nrows, Reducing(quote (a, b) -> a .+ b end))
@@ -1538,7 +1556,7 @@ function DataFrames.nonunique(df::DataFrame, cols=:; kwargs...)
 
     @partitioned df df_nrows res res_size cols kwargs begin
         res = nonunique(df, cols; kwargs...)
-        @show "nonunique" res
+        # @show "nonunique" res
         res_size = Tuple(df_nrows)
     end
 

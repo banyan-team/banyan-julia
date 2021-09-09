@@ -44,8 +44,8 @@
             x = BanyanArrays.fill(10.0, 2048)
             # x = map(e -> e / 10, x)
             @show typeof(x)
-            compute(x)
-            # compute(x)
+            write_to_disk(x)
+            # write_to_disk(x)
             @show typeof(x)
             sleep(15)
             @show typeof(x)
@@ -63,8 +63,8 @@
         x = BanyanArrays.fill(10.0, 2048)
         x = map(e -> e / 10, x)
         @show typeof(x)
-        compute(x)
-        compute(x)
+        write_to_disk(x)
+        write_to_disk(x)
         @show typeof(x)
         # NOTE: The only reason why we're not putting `collect(x)` inside the
         # the `@test` is because `@test` will catch exceptions and prevent the
@@ -73,7 +73,7 @@
         x_collect = collect(x)
         @test x_collect == Base.fill(1.0, 2048)
         @show typeof(x)
-        compute(x)
+        write_to_disk(x)
         x_collect = collect(x)
         @test x_collect == Base.fill(1.0, 2048)
         x_collect = collect(x)
@@ -84,11 +84,11 @@
         x = BanyanArrays.fill(10.0, 2048)
         x_sum = reduce(+, x)
         x = map(e -> e / 10, x)
-        compute(x)
-        compute(x_sum)
+        write_to_disk(x)
+        write_to_disk(x_sum)
         x_sum_collect = collect(x_sum)
         @test x_sum_collect == 10.0 * 2048
-        compute(x_sum)
+        write_to_disk(x_sum)
         x_collect = collect(x)
         @show length(x_collect)
         @test x_collect == Base.fill(1.0, 2048)
@@ -165,7 +165,7 @@
 
     #     # TODO: Support writing string arrays for this to work
     #     # This is unnecessary but will cache `res` on disk
-    #     # compute(res)
+    #     # write_to_disk(res)
     #     # res_collect = collect(res)
     #     # @test res_collect == BanyanArrays.fill("hello\nhello\nworld\n", 2048)
 

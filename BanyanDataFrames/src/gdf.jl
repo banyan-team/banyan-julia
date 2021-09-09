@@ -13,7 +13,7 @@ end
 Banyan.convert(::Type{Future}, gdf::GroupedDataFrame) = gdf.data
 Banyan.isview(gdf::GroupedDataFrame) = true
 
-Base.length(gdf::GroupedDataFrame) = compute(gdf.length)
+Base.length(gdf::GroupedDataFrame) = collect(gdf.length)
 Base.size(gdf::GroupedDataFrame) = Tuple(length(gdf))
 Base.ndims(gdf::GroupedDataFrame) = 1
 DataFrames.groupcols(gdf::GroupedDataFrame) = groupcols(sample(gdf))
@@ -115,6 +115,7 @@ end
 function DataFrames.select(gdf::GroupedDataFrame, args...; kwargs...)
     get(kwargs, :ungroup, true) || throw(ArgumentError("Select/transform/combine/subset operations on grouped dataframes must produce dataframes"))
     get(kwargs, :copycols, true) || throw(ArgumentError("Select/transform/combine/subset operations on grouped dataframes cannot return a view"))
+    get(kwargs, :keepkeys, true) || throw(ArgumentError("Select/transform/combine/subset operations on grouped dataframes must keep the grouping columns"))
 
     gdf_parent = gdf.parent
     groupcols = gdf.groupcols
@@ -131,7 +132,7 @@ function DataFrames.select(gdf::GroupedDataFrame, args...; kwargs...)
     end
 
     partitioned_with() do
-        pt(gdf_parent, Grouped(df, by=groupingkeys, scaled_by_same_as=res), match=res)
+        pt(gdf_parent, Grouped(gdf_parent, by=groupingkeys, scaled_by_same_as=res), match=res)
         pt(gdf, Blocked(along=1) & ScaledBySame(as=res))
         pt(res, ScaledBySame(as=gdf_parent))
         pt(gdf_parent, gdf, res, groupcols, groupkwargs, args, kwargs, Replicated())
@@ -196,6 +197,7 @@ end
 function DataFrames.transform(gdf::GroupedDataFrame, args...; kwargs...)
     get(kwargs, :ungroup, true) || throw(ArgumentError("Select/transform/combine/subset operations on grouped dataframes must produce dataframes"))
     get(kwargs, :copycols, true) || throw(ArgumentError("Select/transform/combine/subset operations on grouped dataframes cannot return a view"))
+    get(kwargs, :keepkeys, true) || throw(ArgumentError("Select/transform/combine/subset operations on grouped dataframes must keep the grouping columns"))
 
     gdf_parent = gdf.parent
     groupcols = gdf.groupcols
@@ -220,7 +222,7 @@ function DataFrames.transform(gdf::GroupedDataFrame, args...; kwargs...)
     # `partitioned_with`
 
     partitioned_with() do
-        pt(gdf_parent, Grouped(df, by=groupingkeys, scaled_by_same_as=res), match=res)
+        pt(gdf_parent, Grouped(gdf_parent, by=groupingkeys, scaled_by_same_as=res), match=res)
         pt(gdf, Blocked(along=1) & ScaledBySame(as=res))
         pt(res, ScaledBySame(as=gdf_parent))
         pt(gdf_parent, gdf, res, groupcols, groupkwargs, args, kwargs, Replicated())
@@ -239,6 +241,7 @@ end
 function DataFrames.combine(gdf::GroupedDataFrame, args...; kwargs...)
     get(kwargs, :ungroup, true) || throw(ArgumentError("Select/transform/combine/subset operations on grouped dataframes must produce dataframes"))
     get(kwargs, :copycols, true) || throw(ArgumentError("Select/transform/combine/subset operations on grouped dataframes cannot return a view"))
+    get(kwargs, :keepkeys, true) || throw(ArgumentError("Select/transform/combine/subset operations on grouped dataframes must keep the grouping columns"))
 
     gdf_parent = gdf.parent
     groupcols = gdf.groupcols
@@ -251,6 +254,9 @@ function DataFrames.combine(gdf::GroupedDataFrame, args...; kwargs...)
     # TODO: Put groupingkeys in GroupedDataFrame
     groupingkeys = names(sample(gdf_parent), collect(groupcols))
 
+    @show sample(gdf_parent)
+    @show groupingkeys
+
     partitioned_using() do
         keep_sample_keys(
             get(collect(kwargs), :keepkeys, true) ? groupingkeys : [], res, gdf_parent,
@@ -260,6 +266,9 @@ function DataFrames.combine(gdf::GroupedDataFrame, args...; kwargs...)
     end
 
     partitioned_with() do
+        @show sample(res)
+        # TODO: If we want to support `keepkeys=false`, we need to make the
+        # result be Blocked and `filtered_from` the input
         pts_for_filtering(gdf_parent, res, with=Grouped, by=groupingkeys)
         pt(gdf, Blocked(along=1) & ScaledBySame(as=gdf_parent))
         pt(res_nrows, Reducing(quote + end)) # TODO: Change to + if possible
@@ -270,6 +279,7 @@ function DataFrames.combine(gdf::GroupedDataFrame, args...; kwargs...)
     @partitioned gdf gdf_parent groupcols groupkwargs args kwargs res res_nrows begin
         println("here!")
         if !(gdf isa GroupedDataFrame) || gdf.parent != gdf_parent
+            println("right inside here")
             gdf = groupby(gdf_parent, groupcols; groupkwargs...)
         end
         println("here2!")
@@ -279,12 +289,20 @@ function DataFrames.combine(gdf::GroupedDataFrame, args...; kwargs...)
         println("here4!")
     end
 
+    @show gdf
+    @show gdf_parent
+    @show res
+    @show sample(gdf)
+    @show sample(gdf_parent)
+    @show sample(res)
+
     res
 end
 
 function DataFrames.subset(gdf::GroupedDataFrame, args...; kwargs...)
     get(kwargs, :ungroup, true) || throw(ArgumentError("Select/transform/combine/subset operations on grouped dataframes must produce dataframes"))
     get(kwargs, :copycols, true) || throw(ArgumentError("Select/transform/combine/subset operations on grouped dataframes cannot return a view"))
+    get(kwargs, :keepkeys, true) || throw(ArgumentError("Select/transform/combine/subset operations on grouped dataframes must keep the grouping columns"))
 
     gdf_parent = gdf.parent
     groupcols = gdf.groupcols
@@ -295,7 +313,7 @@ function DataFrames.subset(gdf::GroupedDataFrame, args...; kwargs...)
     kwargs = Future(kwargs)
 
     # TODO: Put groupingkeys in GroupedDataFrame
-    groupingkeys = names(sample(gdf_parent), compute(groupcols))
+    groupingkeys = names(sample(gdf_parent), collect(groupcols))
 
     partitioned_using() do
         keep_sample_keys(
