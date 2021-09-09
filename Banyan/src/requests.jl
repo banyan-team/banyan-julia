@@ -271,7 +271,7 @@ function partitioned_computation(fut::AbstractFuture; destination, new_source=no
         else
             # TODO: If not still merged to disk, we need to lazily set the location source to something else
             if !isnothing(new_source)
-                sourced(fut, sourced_after)
+                sourced(fut, new_source)
             else
                 sourced(fut, destination)
             end
