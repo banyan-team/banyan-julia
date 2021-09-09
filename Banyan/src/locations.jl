@@ -751,7 +751,7 @@ function get_remote_table_location(remotepath, remote_sample=nothing; shuffled=f
 
                     # Optimized stopping condition in the case that all the files are similar
                     num_files_scanned = fileidx - 1
-                    if similar_files && nrow(exactsample) == samplenrows && cld(num_files_scanned, get_job().sample_rate)
+                    if similar_files && nrow(exactsample) == samplenrows && num_files_scanned >= cld(length(files_to_read_from), get_job().sample_rate)
                         # If the files are similar and we have looked through
                         # a percentage of files that is in accordance with the
                         # sample rate, we can stop. We also make sure we have
@@ -787,8 +787,8 @@ function get_remote_table_location(remotepath, remote_sample=nothing; shuffled=f
         end
 
         # Optimized stopping condition in the case that all the files are similar
-        num_files_scanned = fileidx - 1
-        if similar_files && nrow(exactsample) == samplenrows && cld(num_files_scanned, get_job().sample_rate)
+        num_files_scanned = fileidx
+        if similar_files && nrow(exactsample) == samplenrows && num_files_scanned >= cld(length(files_to_read_from), get_job().sample_rate)
             break
         end
     end
