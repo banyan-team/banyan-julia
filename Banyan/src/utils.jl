@@ -147,21 +147,26 @@ function configure(; kwargs...)
         if_in_or(:require_ec2_key_pair_name, kwargs, false)
 
     # Check environment variables
-    if user_id == nothing && haskey(ENV, "BANYAN_USER_ID")
+    if isnothing(user_id) && haskey(ENV, "BANYAN_USER_ID")
         user_id = ENV["BANYAN_USER_ID"]
     end
-    if api_key == nothing && haskey(ENV, "BANYAN_API_KEY")
+    if isnothing(api_key) && haskey(ENV, "BANYAN_API_KEY")
         api_key = ENV["BANYAN_API_KEY"]
+    end
+    if isnothing(username) && haskey(ENV, "BANYAN_USERNAME")
+        api_key = ENV["BANYAN_USERNAME"]
     end
 
     # Check banyanconfig file
-    if user_id == nothing && haskey(banyan_config, "banyan") && haskey(banyan_config["banyan"], "user_id")
+    if isnothing(user_id) && haskey(banyan_config, "banyan") && haskey(banyan_config["banyan"], "user_id")
         user_id = banyan_config["banyan"]["user_id"]
     end
-    if api_key == nothing && haskey(banyan_config, "banyan") && haskey(banyan_config["banyan"], "api_key")
+    if isnothing(api_key) && haskey(banyan_config, "banyan") && haskey(banyan_config["banyan"], "api_key")
         api_key = banyan_config["banyan"]["api_key"]
     end
-    
+    if isnothing(username) && haskey(banyan_config, "banyan") && haskey(banyan_config["banyan"], "username")
+        username = banyan_config["banyan"]["username"]
+    end
 
     # Initialize
     is_modified = false
@@ -170,7 +175,7 @@ function configure(; kwargs...)
     # Ensure a configuration has been created or can be created. Otherwise,
     # return nothing
     if isnothing(banyan_config)
-        if !isnothing(user_id) && !isnothing(api_key)
+        if !isnothing(user_id) && !isnothing(api_key) && !isnothing(username)
             banyan_config = Dict(
                 "banyan" =>
                     Dict("username" => username, "user_id" => user_id, "api_key" => api_key),
@@ -178,7 +183,7 @@ function configure(; kwargs...)
             )
             is_modified = true
         else
-            error("User ID and API key not provided")
+            error("Your username, user ID, and API key must be specified using either keyword arguments, environment variables, or banyanconfig.toml")
         end
     end
 
@@ -195,6 +200,10 @@ function configure(; kwargs...)
      end
     if !isnothing(api_key) && (api_key != banyan_config["banyan"]["api_key"])
         banyan_config["banyan"]["api_key"] = api_key
+        is_modified = true
+    end
+    if !isnothing(username) && (username != banyan_config["banyan"]["username"])
+        banyan_config["banyan"]["username"] = username
         is_modified = true
     end
 
