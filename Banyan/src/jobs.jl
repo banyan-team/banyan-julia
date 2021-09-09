@@ -46,11 +46,11 @@ function create_job(;
     sample_rate::Integer = nworkers,
     job_name = nothing,
     files = nothing,
-    force_upload = false,
+    force_update_files = false,
     url = nothing,
     branch = nothing,
     directory = nothing,
-    force_pull = false,
+    force_reclone = false,
     kwargs...,
 )
     global jobs
@@ -113,7 +113,7 @@ function create_job(;
         if !isnothing(branch)
             environment_info["branch"] = branch
         end
-        environment_info["force_pull"] = force_pull
+        environment_info["force_reclone"] = force_reclone
         environment_info["environment_hash"] = get_hash(
             url * directory * (if isnothing(branch) "" else branch end)
         )
@@ -124,10 +124,11 @@ function create_job(;
     s3_bucket_name = get_cluster_s3_bucket_name(cluster_name)
     for f in files
         s3_path = S3Path("s3://$(s3_bucket_name)/$(basename(f)))", get_aws_config())
-        if !isfile(s3_path) || force_upload
+        if !isfile(s3_path) || force_update_files
             s3_put(get_aws_config(), s3_bucket_name, basename(f), load_file(f))
         end
     end
+    # TODO: Optimize so that we only upload the files if the filename doesn't already exist
     job_configuration["files"] = [basename(f) for f in files]
 
     # Create the job
