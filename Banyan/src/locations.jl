@@ -566,7 +566,7 @@ function get_remote_hdf5_location(remotepath, hdf5_ending, remote_sample=nothing
         else
             Sample(dset_sample, total_memory_usage = nbytes)
         end
-    else
+    end
 
     # Construct location with metadata
     return Location(

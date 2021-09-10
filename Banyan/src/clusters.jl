@@ -24,7 +24,7 @@ function load_file(path::String)
         String(read(open(path[8:end])))
     elseif startswith(path, "s3://")
         error("S3 path not currently supported")
-        String(read(S3Path(path)))
+        read(S3Path(path, config = get_aws_config()), String)
     elseif startswith(path, "http://") || startswith(path, "https://")
         String(HTTP.get(path).body)
     else
