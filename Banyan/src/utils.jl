@@ -138,7 +138,7 @@ function configure(; kwargs...)
 
     # Load arguments
     kwargs = Dict(kwargs)
-    username = if_in_or(:username, kwargs)
+    # username = if_in_or(:username, kwargs)
     user_id = if_in_or(:user_id, kwargs)
     api_key = if_in_or(:api_key, kwargs)
     ec2_key_pair_name = if_in_or(:ec2_key_pair_name, kwargs)
@@ -152,9 +152,9 @@ function configure(; kwargs...)
     if isnothing(api_key) && haskey(ENV, "BANYAN_API_KEY")
         api_key = ENV["BANYAN_API_KEY"]
     end
-    if isnothing(username) && haskey(ENV, "BANYAN_USERNAME")
-        api_key = ENV["BANYAN_USERNAME"]
-    end
+    # if isnothing(username) && haskey(ENV, "BANYAN_USERNAME")
+    #     api_key = ENV["BANYAN_USERNAME"]
+    # end
 
     # Check banyanconfig file
     if isnothing(user_id) && haskey(banyan_config, "banyan") && haskey(banyan_config["banyan"], "user_id")
@@ -163,9 +163,9 @@ function configure(; kwargs...)
     if isnothing(api_key) && haskey(banyan_config, "banyan") && haskey(banyan_config["banyan"], "api_key")
         api_key = banyan_config["banyan"]["api_key"]
     end
-    if isnothing(username) && haskey(banyan_config, "banyan") && haskey(banyan_config["banyan"], "username")
-        username = banyan_config["banyan"]["username"]
-    end
+    # if isnothing(username) && haskey(banyan_config, "banyan") && haskey(banyan_config["banyan"], "username")
+    #     username = banyan_config["banyan"]["username"]
+    # end
 
     # Initialize
     is_modified = false
@@ -187,11 +187,11 @@ function configure(; kwargs...)
     end
 
     # Check for changes in required
-    if !isnothing(username) &&
-       (username != banyan_config["banyan"]["username"])
-        banyan_config["banyan"]["username"] = username
-        is_modified = true
-    end
+    # if !isnothing(username) &&
+    #    (username != banyan_config["banyan"]["username"])
+    #     banyan_config["banyan"]["username"] = username
+    #     is_modified = true
+    # end
     if !isnothing(user_id) &&
         (user_id != banyan_config["banyan"]["user_id"])
          banyan_config["banyan"]["user_id"] = user_id
@@ -201,10 +201,10 @@ function configure(; kwargs...)
         banyan_config["banyan"]["api_key"] = api_key
         is_modified = true
     end
-    if !isnothing(username) && (username != banyan_config["banyan"]["username"])
-        banyan_config["banyan"]["username"] = username
-        is_modified = true
-    end
+    # if !isnothing(username) && (username != banyan_config["banyan"]["username"])
+    #     banyan_config["banyan"]["username"] = username
+    #     is_modified = true
+    # end
 
     # Check for changes in potentially required
 
