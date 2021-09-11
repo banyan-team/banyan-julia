@@ -9,7 +9,7 @@ function load_json(path::String)
         error("S3 path not currently supported")
         # JSON.parsefile(S3Path(path, config=get_aws_config()))
     elseif startswith(path, "http://") || startswith(path, "https://")
-	JSON.parse(String(HTTP.get(path).body))
+        JSON.parse(String(HTTP.get(path).body))
     else
         error("Path $path must start with \"file://\", \"s3://\", or \"http(s)://\"")
     end
@@ -213,10 +213,10 @@ function merge_banyanfile_with!(
 end
 
 function upload_banyanfile(
-    banyanfile::Union{String, Dict},
+    banyanfile::Union{String,Dict},
     s3_bucket_arn::String,
     cluster_name::String,
-    for_creation_or_update::Symbol
+    for_creation_or_update::Symbol,
 )
 
     # Get s3 bucket name from arn
@@ -227,14 +227,17 @@ function upload_banyanfile(
 
     # Check if postinstall script exists. If so, append.
     post_install_script_name = "banyan_$(cluster_name)_script.sh"
-    post_install_script =  ""
+    post_install_script = ""
     update_script_name = "banyan_$(cluster_name)_update_script.sh"
     update_script = "#!/bin/bash\n. \"/etc/parallelcluster/cfnconfig\"\n"
     try
-        post_install_script = String(s3_get(get_aws_config(), s3_bucket_name, post_install_script_name))
+        post_install_script =
+            String(s3_get(get_aws_config(), s3_bucket_name, post_install_script_name))
     catch
         if for_creation_or_update == :update
-            error("Script should already exist for created cluster or cluster to update does not exist")
+            error(
+                "Script should already exist for created cluster or cluster to update does not exist",
+            )
         end
         @debug "Creating new post install script for cluster"
     end
@@ -266,15 +269,15 @@ function upload_banyanfile(
     pt_lib = banyanfile["require"]["cluster"]["pt_lib"]
 
     if isnothing(pt_lib)
-       error("No pt_lib.jl provided")
+        error("No pt_lib.jl provided")
     end
     if isnothing(pt_lib_info)
-       error("No pt_lib_info.json provided")
+        error("No pt_lib_info.json provided")
     end
 
     # Upload all files, scripts, and pt_lib to s3 bucket
     for f in [
-        [(basename(f), load_file(f)) for f in vcat(files, scripts)];
+        [(basename(f), load_file(f)) for f in vcat(files, scripts)]
         [("pt_lib.jl", load_file(pt_lib))]
     ]
         s3_put(get_aws_config(), s3_bucket_name, f[1], f[2])
@@ -289,7 +292,7 @@ function upload_banyanfile(
     # Append to post-install script downloading files, scripts, pt_lib onto cluster
     update_script *= "if [ \"\${cfn_node_type}\" == MasterServer ];\nthen\n"
     for filename in [
-        [basename(f) for f in vcat(files, scripts)];
+        [basename(f) for f in vcat(files, scripts)]
         ["pt_lib.jl"]
     ]
         update_script *=
@@ -352,7 +355,7 @@ function create_cluster(;
     subnet_id = nothing,
     kwargs...,
 )
-    clusters = get_clusters(;kwargs...)
+    clusters = get_clusters(; kwargs...)
     if isnothing(name)
         name = "Cluster " * string(length(clusters) + 1)
     end
@@ -362,7 +365,10 @@ function create_cluster(;
     if haskey(clusters, name)
         if clusters[name][status] == "terminated"
             @warn "Cluster configuration with name $name already exists. Ignoring new configuration and re-creating cluster."
-            send_request_get_response(:create_cluster, Dict("cluster_name" => name, "recreate" => true))
+            send_request_get_response(
+                :create_cluster,
+                Dict("cluster_name" => name, "recreate" => true),
+            )
             return
         else
             error("Cluster with name $name already exists")
@@ -396,7 +402,7 @@ function create_cluster(;
         "ec2_key_pair" => c["aws"]["ec2_key_pair_name"],
         "aws_region" => get_aws_config_region(),
         "s3_read_write_resource" => s3_bucket_arn,
-	"recreate" => false
+        "recreate" => false,
     )
     if !isnothing(banyanfile_path)
         pt_lib_info = upload_banyanfile(banyanfile_path, s3_bucket_arn, name, :creation)
@@ -417,12 +423,7 @@ function create_cluster(;
     # Send request to create cluster
     send_request_get_response(:create_cluster, cluster_config)
 
-    return Cluster(
-	name,
-	:creating,
-	0,
-	s3_bucket_arn
-    )
+    return Cluster(name, :creating, 0, s3_bucket_arn)
 end
 
 function destroy_cluster(name::String; kwargs...)
@@ -434,15 +435,18 @@ end
 function delete_cluster(name::String; kwargs...)
     configure(; kwargs...)
     @debug "Deleting cluster"
-    send_request_get_response(:destroy_cluster, Dict{String, Any}("cluster_name" => name, "permanently_delete" => true))
+    send_request_get_response(
+        :destroy_cluster,
+        Dict{String,Any}("cluster_name" => name, "permanently_delete" => true),
+    )
 end
 
 # TODO: Update website display
 # TODO: Implement load_banyanfile
 function update_cluster(;
-    name::Union{String, Nothing} = nothing,
-    banyanfile_path::Union{String, Nothing} = nothing,
-    banyanfile::Union{Dict, Nothing} = nothing,
+    name::Union{String,Nothing} = nothing,
+    banyanfile_path::Union{String,Nothing} = nothing,
+    banyanfile::Union{Dict,Nothing} = nothing,
     reinstall_julia = false,
     force = false,
     destroy_all_jobs_before = false,
@@ -461,10 +465,7 @@ function update_cluster(;
         name
     end
 
-    update_args = Dict(
-        "cluster_name" => cluster_name,
-	"reinstall_julia" => reinstall_julia
-    )
+    update_args = Dict("cluster_name" => cluster_name, "reinstall_julia" => reinstall_julia)
 
     # Destroy all jobs before updating
     if destroy_all_jobs_before
@@ -475,6 +476,7 @@ function update_cluster(;
     if force
         assert_cluster_is_ready(name)
     end
+    update_args["force"] = force
 
     if !isnothing(banyanfile_path)
         # Retrieve the location of the current post_install script in S3 and upload
@@ -482,35 +484,23 @@ function update_cluster(;
         s3_bucket_arn = s3_bucket_name_to_arn(get_cluster(name).s3_bucket_arn)
 
         # Upload to S3
-        pt_lib_info = upload_banyanfile(
-            banyanfile_path,
-            s3_bucket_arn,
-            cluster_name,
-            :update
-        )
-	update_args["pt_lib_info"] = pt_lib_info
-	update_args["banyanfile"] = banyanfile
+        pt_lib_info =
+            upload_banyanfile(banyanfile_path, s3_bucket_arn, cluster_name, :update)
+        update_args["pt_lib_info"] = pt_lib_info
+        update_args["banyanfile"] = banyanfile
     elseif !isnothing(banyanfile)
         # Retrieve the location of the current post_install script in S3 and upload
-	# the updated version to the same location
-	s3_bucket_arn = s3_bucket_name_to_arn(get_cluster(name).s3_bucket_arn)
-        
+        # the updated version to the same location
+        s3_bucket_arn = s3_bucket_name_to_arn(get_cluster(name).s3_bucket_arn)
+
         # Upload to S3
-        pt_lib_info = upload_banyanfile(
-            banyanfile,
-            s3_bucket_arn,
-            cluster_name,
-            :update
-        )
+        pt_lib_info = upload_banyanfile(banyanfile, s3_bucket_arn, cluster_name, :update)
         update_args["pt_lib_info"] = pt_lib_info
         update_args["banyanfile"] = banyanfile
     end
 
     @info "Starting cluster update"
-    send_request_get_response(
-        :update_cluster,
-        update_args,
-    )
+    send_request_get_response(:update_cluster, update_args)
 end
 
 function assert_cluster_is_ready(name::String; kwargs...)
@@ -573,5 +563,5 @@ function get_cluster_s3_bucket_name(cluster_name; kwargs...)
     return s3_bucket_arn_to_name(cluster.s3_bucket_arn)
 end
 
-get_cluster(name::String, kwargs...) = get_clusters(;kwargs...)[name]
+get_cluster(name::String, kwargs...) = get_clusters(; kwargs...)[name]
 get_cluster() = get_cluster(get_cluster_name())
