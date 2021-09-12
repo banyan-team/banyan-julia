@@ -47,6 +47,7 @@ function create_job(;
     job_name = nothing,
     files = nothing,
     force_update_files = false,
+    pt_lib_info = "",
     url = nothing,
     branch = nothing,
     directory = nothing,
@@ -128,8 +129,13 @@ function create_job(;
             s3_put(get_aws_config(), s3_bucket_name, basename(f), load_file(f))
         end
     end
-    # TODO: Optimize so that we only upload the files if the filename doesn't already exist
+    # TODO: Optimize so that we only upload(and download onto cluster) the files if the filename doesn't already exist
     job_configuration["files"] = [basename(f) for f in files]
+
+    if pt_lib_info == ""
+        pt_lib_info = "https://github.com/banyan-team/banyan-julia/blob/v0.1.3/Banyan/res/pt_lib_info.json"
+    end
+    job_configuration["pt_lib_info"] = load_json(pt_lib_info)
 
     # Create the job
     @debug "Sending request for job creation"
