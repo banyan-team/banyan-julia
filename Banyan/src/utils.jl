@@ -359,9 +359,9 @@ function send_request_get_response(method, content::Dict)
     println(resp)
     println(data)
     if resp.status == 403
-        throw(ErrorException("Please use a valid user_id and api_key. Sign into the dashboard to retrieve these credentials."))
+        throw(ErrorException("Please use a valid user ID and API key. Sign into the dashboard to retrieve these credentials."))
     elseif resp.status == 500 || resp.status == 504
-        throw(ErrorException(data))
+        throw(ErrorException(string(data)))
     end
     return data
 

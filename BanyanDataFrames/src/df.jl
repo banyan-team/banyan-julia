@@ -105,7 +105,7 @@ orderinghash(s::String) = Integer.(codepoint.(collect(first(s, 32) * repeat(" ",
 
 function Banyan.sample_divisions(df::DataFrames.DataFrame, key)
     max_ngroups = sample_max_ngroups(df, key)
-    ngroups = min(max_ngroups, Banyan.get_job().nworkers, 128)
+    ngroups = min(max_ngroups, Banyan.get_job().sample_rate, 512)
     data = sort(df[!, key])
     datalength = length(data)
     grouplength = div(datalength, ngroups)

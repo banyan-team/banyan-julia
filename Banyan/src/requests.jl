@@ -218,7 +218,7 @@ function partitioned_computation(fut::AbstractFuture; destination, new_source=no
         while true
             # TODO: Use to_jl_value and from_jl_value to support Client
             message = receive_next_message(gather_queue)
-            @debug message
+            @show message
             message_type = message["kind"]
             if message_type == "SCATTER_REQUEST"
                 @debug "Received scatter request"
@@ -332,6 +332,8 @@ function send_evaluation(value_id::ValueId, job_id::JobId)
             "num_bang_values_issued" => get_num_bang_values_issued()
         ),
     )
+
+    @show response
 
     # Update counters for generating unique values
     set_num_bang_values_issued(response["num_bang_values_issued"])

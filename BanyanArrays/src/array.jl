@@ -81,7 +81,7 @@ orderinghash(A::U) where U <: Base.AbstractArray = orderinghash(first(A))
 
 function Banyan.sample_divisions(A::U, key) where U <: Base.AbstractArray{T,N} where {T,N}
     max_ngroups = sample_max_ngroups(df, key)
-    ngroups = min(max_ngroups, Banyan.get_job().nworkers * 8, 128)
+    ngroups = min(max_ngroups, Banyan.get_job().sample_rate, 512)
     data = sort(mapslices(first, transpose(A), dims=key))
     datalength = length(data)
     grouplength = div(datalength, ngroups)

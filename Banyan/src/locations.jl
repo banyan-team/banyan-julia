@@ -844,9 +844,15 @@ function get_remote_table_location(remotepath, remote_sample=nothing; shuffled=f
         if is_debug_on()
             @show samplenrows
         end
+        # If we already have enough rows in the exact sample...
+        if totalnrows <= MAX_EXACT_SAMPLE_LENGTH
+            randomsample = exactsample
+        end
+        # Regardless, expand the random sample as needed...
         if nrow(randomsample) < samplenrows
             append!(randomsample, first(exactsample, samplenrows - nrow(randomsample)))
         end
+        # ... and limit it as needed
         if nrow(randomsample) > samplenrows
             randomsample = first(randomsample, samplenrows)
         end

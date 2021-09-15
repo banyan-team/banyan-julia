@@ -137,7 +137,7 @@ function create_job(;
     end
     job_id = job_response["job_id"]
     @debug "Creating job $job_id"
-    @info "Created job with ID $job_id on cluster named \"$cluster_name\""
+    @info "Started creating job with ID $job_id on cluster named \"$cluster_name\""
 
     # Store in global state
     current_job_id = job_id

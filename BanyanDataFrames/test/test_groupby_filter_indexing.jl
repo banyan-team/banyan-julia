@@ -527,6 +527,9 @@ end
                 gdf_select_size = size(gdf_select)
                 gdf_transform_size = size(gdf_transform)
                 gdf_subset_nrow = nrow(gdf_subset)
+                @test gdf_subset_nrow == 474
+                gdf_subset_collected = sort(collect(gdf_subset))
+                gdf_subset_row474 = collect(gdf_subset_collected[474, :])
                 gdf_select_plf_square_add = round(
                     collect(
                         reduce(+, map(l -> l * l, gdf_select[:, :petal_length_function])),

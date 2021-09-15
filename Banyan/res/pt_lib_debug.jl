@@ -318,6 +318,13 @@ function ReadGroup(
     npartitions = nworkers * nbatches
     partition_divisions = get_divisions(divisions, npartitions)
 
+    # TODO: Do some reversing here instead of only doing it later in Shuffle
+    # to ensure that sorting in reverse order works correctly
+
+    if batch_idx == 1 && get_worker_idx(comm) == 1
+        println("In ReadGroup with divisions=$divisions and partition_divisions=get_divisions(divisions, npartitions)=$partition_divisions")
+    end
+
     # Get the divisions that are relevant to this batch by iterating
     # through the divisions in a stride and consolidating the list of divisions
     # for each partition. Then, ensure we use boundedlower=true only for the
@@ -337,6 +344,10 @@ function ReadGroup(
                 )
             end
         end
+    end
+
+    if get_worker_idx(comm) == 1
+        println("In ReadGroup on batch $batch_idx with curr_partition_divisions=$curr_partition_divisions for shuffling")
     end
 
     # Read in each batch and shuffle it to get the data for this partition
@@ -376,6 +387,9 @@ function ReadGroup(
         (partition_divisions[partition_idx], partition_idx > 1, partition_idx < npartitions)
 
     # # @show res
+    if isa_df(res)
+        println("Output of ReadGroup has length $(nrow(res))")
+    end
     res
 end
 
@@ -1987,6 +2001,8 @@ function Shuffle(
     if rev
         reverse!(divisions_by_worker)
     end
+
+    println("In Shuffle on worker_idx=$worker_idx with boundedlower=$boundedlower and boundedupper=$boundedupper")
 
     # Perform shuffle
     # @show divisions

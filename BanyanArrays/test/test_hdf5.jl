@@ -6,7 +6,7 @@ using HDF5
 
         original = h5open(download("https://support.hdfgroup.org/ftp/HDF5/examples/files/exbyapi/h5ex_d_fillval.h5"))
         with_downloaded_path_for_reading(joinpath(S3Path(s3_bucket_name, config = Banyan.get_aws_config()), "fillval.h5"), for_writing=true) do f
-            new = h5open(f, "w")
+            new = h5open(string(f), "w")
             new["DS1"] = repeat(original["DS1"][:,:], 100, 100)
             close(new)
         end

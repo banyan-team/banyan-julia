@@ -111,7 +111,9 @@ function with_downloaded_path_for_reading(func::Function, downloaded_path; for_w
 
     temp_downloaded_path = if downloaded_path isa S3Path
         temp_downloaded_path = Path(tempname() * splitext(downloaded_path)[2])
-        cp(downloaded_path, temp_downloaded_path)
+        if !for_writing
+            cp(downloaded_path, temp_downloaded_path)
+        end
         func(temp_downloaded_path)
         if for_writing
             cp(temp_downloaded_path, downloaded_path)
