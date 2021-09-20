@@ -100,6 +100,7 @@ function create_job(;
             manifest_toml = ""
             @warn "Manifest file not present for this environment"
         else
+	    println(local_environment_dir)
             manifest_toml = read(local_environment_dir * "Manifest.toml")
             environment_info["manifest_toml"] = manifest_toml
         end
