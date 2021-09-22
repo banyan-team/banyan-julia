@@ -168,12 +168,8 @@ function destroy_job(job_id::JobId; failed = nothing, force = false, kwargs...)
         push!(jobs_destroyed_recently, job_id)
     end
 
-    if isnothing(failed)
-        failed = false
-        if !isnothing(current_job_id) && get_job().current_status == "failed"
-            failed = true
-        end
-    end
+    # Set failed flag
+    failed = failed == true || !isnothing(current_job_id) && get_job().current_status == "failed"
 
 
     # configure(; kwargs...)
@@ -215,17 +211,7 @@ function get_jobs(cluster_name = nothing; status = nothing, kwargs...)
     response["jobs"]
 end
 
-function get_running_jobs(cluster_name = nothing; kwargs...)
-    @debug "Downloading description of jobs in each cluster"
-    configure(; kwargs...)
-    filters = Dict("status" => "running")
-    if !isnothing(cluster_name)
-        filters["cluster_name"] = cluster_name
-    end
-    response =
-        send_request_get_response(:describe_jobs, Dict{String,Any}("filters" => filters))
-    response["jobs"]
-end
+get_running_jobs(args...; kwargs...) = get_jobs(args...; status="running", kwargs...)
 
 function download_job_logs(job_id::JobId, cluster_name::String, filename::String=nothing; kwargs...)
     @debug "Downloading logs for job"

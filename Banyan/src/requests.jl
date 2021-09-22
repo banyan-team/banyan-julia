@@ -100,8 +100,12 @@ function partitioned_computation(fut::AbstractFuture; destination, new_source=no
             # annotated in a previous PA, we copy over the annotation (the
             # assigned PT stack) to the previous PA.
             for (j, pa) in enumerate(t.pa_union)
+                # For each PA in this PA union for this task, we consider the
+                # PAs before it
                 for previous_pa in Iterators.reverse(t.pa_union[1:j-1])
                     for value_id in keys(pa.partitions.pt_stacks)
+                        # Check if there is a previous PA where this value
+                        # does not have a PT.
                         if !(value_id in keys(previous_pa.partitions.pt_stacks))
                             # Cascade the PT composition backwards
                             previous_pa.partitions.pt_stacks[value_id] =
@@ -267,7 +271,7 @@ function partitioned_computation(fut::AbstractFuture; destination, new_source=no
 
         # This is where we update the location source.
         if is_merged_to_disk
-            sourced(fut, None())
+            sourced(fut, Disk())
         else
             # TODO: If not still merged to disk, we need to lazily set the location source to something else
             if !isnothing(new_source)

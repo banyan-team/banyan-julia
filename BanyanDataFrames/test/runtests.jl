@@ -35,15 +35,17 @@ end
 
 include("groupby_filter_indexing.jl")
 
-if isempty(ARGS)
-    runtests()
-elseif length(ARGS) == 1
-    runtests(Regex(first(ARGS)))
-else
-    error("Expected no more than a single pattern to match test set names on")
-end
-
-# Destroy jobs to clean up
-for job_id in values(jobs_for_testing)
-    destroy_job(job_id)
+try
+    if isempty(ARGS)
+        runtests()
+    elseif length(ARGS) == 1
+        runtests(Regex(first(ARGS)))
+    else
+        error("Expected no more than a single pattern to match test set names on")
+    end
+finally
+    # Destroy jobs to clean up
+    for job_id in values(jobs_for_testing)
+        destroy_job(job_id)
+    end
 end

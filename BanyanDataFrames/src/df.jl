@@ -657,16 +657,12 @@ function Base.getindex(df::DataFrame, rows=:, cols=:)
                 # unbalanced -> unbalanced
                 pt(df, dfpt_unbalanced, match=(return_blocked ? nothing : res), on=["distribution", "key", "divisions", "rev"])
                 pt(res, return_blocked ? Blocked(res, along=1, balanced=false, filtered_from=df) : respt_unbalanced & Drifted())
+                pt(rows, Blocked(along=1), match=df, on=["balanced", "id"])
         
                 # balanced -> unbalanced
                 pt(df, dfpt_balanced, match=(return_blocked ? nothing : res), on=["distribution", "key", "divisions", "rev"])
                 pt(res, return_blocked ? Blocked(res, along=1, balanced=false, filtered_from=df) : respt_unbalanced & Drifted())
-
-                if dfpt_balanced.distribution == "blocked" && dfpt_balanced.balanced
-                    pt(rows, Blocked(along=1) & Balanced(), match=df, on="balanced")
-                else
-                    pt(rows, Blocked(along=1), match=df, on=["balanced", "id"])
-                end
+                pt(rows, Blocked(along=1), match=df, on=(dfpt_balanced.distribution == "blocked" ? "balanced" : ["balanced", "id"]))
             end
 
             # pts_for_filtering(df, res, Blocked)
