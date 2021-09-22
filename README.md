@@ -10,3 +10,22 @@ Software libraries can be annotated with partition types and subsequent use of t
 Eventually, you will be able to use these libraries as drop-in replacements of the standard library Arrays and the DataFrames.jl library. By changing an import statement, you can run your code as is with Banyan scaling to arbitrary data or compute needs.
 
 Visit [Banyan Computing](https://www.banyancomputing.com/intro/) for full documentation.
+
+## Contributing
+
+Please create branches named according the the author name and the feature name
+like `{author-name}/{feature-name}`. For example: `caleb/add-tests-for-hdf5`.
+Then, submit a pull request on GitHub to merge your branch into the branch with
+the latest version number.
+
+## Testing
+
+To run tests, ensure that you have a Banyan account connected to an AWS account.
+Then, `cd` into the directory with the Banyan Julia project you want to run
+tests for (e.g., `Banyan` for Banyan.jl or `BanyanDataFrames` for
+BanyanDataFrames.jl) and run `julia --project=. -e "using Pkg; Pkg.test()"`.
+To filter and run a subset of test sets (where each test set is defined with
+`@testset`) with names matching a given pattern, run
+`julia --project=. -e "using Pkg; Pkg.test(test_args=[\"{pattern}\"])"` where
+the pattern could be, for example, `Sampl(.*)parquet` (a regular expression)
+or `Sample collection`.
