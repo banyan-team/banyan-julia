@@ -8,9 +8,7 @@ mutable struct Job
     cluster_name::String
     current_status::String
 
-    # TODO: Ensure that this struct and constructor (which are just for storing
-    # information about the job) does not conflict with the `Job` function that
-    # calls `create_job`
+    # This struct just stores local state for the job.
     function Job(cluster_name::String, job_id::JobId, nworkers::Integer, sample_rate::Integer)::Job
         new(job_id, nworkers, sample_rate, Dict(), [], Dict(), cluster_name)
     end

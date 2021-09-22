@@ -107,6 +107,8 @@ function include_all_tests()
     include_tests_to_run("test_medium_dataset.jl")
     include_tests_to_run("test_stress.jl")
     include_tests_to_run("test_groupby_filter_indexing.jl")
+    include("sample_collection.jl")
+    include("sample_computation.jl")
 end
 
 # bucket - name of cluster's s3 bucket
@@ -136,3 +138,9 @@ with_job(job=job) do j
         include_all_tests()
     end
 end
+
+# Requirements:
+# - Name testgroups and testsets and filter and run
+# - Create sample data in S3 only if needed
+# - Create jobs only if needed
+# - Run everything on different data and on different job configs

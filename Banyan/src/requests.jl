@@ -297,13 +297,13 @@ function configure_scheduling(;kwargs...)
     global report_schedule
     global encourage_parallelism
     global encourage_parallelism_with_batches
-    if haskey(kwargs, :report_schedule)
+    if get(kwargs, :report_schedule, false) || haskey(kwargs, :name)
         report_schedule = kwargs[:report_schedule]
     end
-    if haskey(kwargs, :encourage_parallelism)
+    if get(kwargs, :encourage_parallelism, false) || get(kwargs, :name, "") == "parallelism encouraged"
         encourage_parallelism = kwargs[:encourage_parallelism]
     end
-    if haskey(kwargs, :encourage_parallelism_with_batches)
+    if haskey(kwargs, :encourage_parallelism_with_batches) || get(kwargs, :name, "") == "parallelism and batches encouraged"
         encourage_parallelism_with_batches = kwargs[:encourage_parallelism_with_batches]
     end
 end

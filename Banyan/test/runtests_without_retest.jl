@@ -3,8 +3,6 @@
 
 using Test
 using Banyan
-using BanyanArrays
-using AWSS3
 
 function include_tests_to_run(args...)
     # TODO: Probably remove the `clear_jobs`
@@ -24,7 +22,6 @@ get_enabled_tests() = lowercase.(ARGS)
 # - BANYAN_CLUSTER_NAME (required)
 # - BANYAN_NWORKERS (defaults to 2)
 # - BANYAN_NWORKERS_ALL (defaults to "false")
-# - BANYAN_SCHEDULING_CONFIG_ALL (defaults to "false")
 # - NUM_TRIALS (defaults to 1)
 
 # TODO: Copy the below to other Banyan projects' test suites if changes are made
@@ -34,18 +31,7 @@ user_id = get(ENV, "BANYAN_USER_ID", nothing)
 api_key = get(ENV, "BANYAN_API_KEY", nothing)
 cluster_name = get(ENV, "BANYAN_CLUSTER_NAME", nothing)
 nworkers = get(ENV, "BANYAN_NWORKERS", "2")
-ntrials = parse(Int, get(ENV, "BANYAN_NTRIALS", "1"))
-s3_bucket_name = get_s3_bucket_path(cluster_name)
-
-global job = create_job(
-    username = username,
-    user_id = user_id,
-    api_key = api_key,
-    cluster_name = cluster_name,
-    nworkers = parse(Int32, nworkers),
-    banyanfile_path = "file://res/Banyanfile.json",
-    print_logs = true
-)
+ntrials = parse(Int, get(ENV, "NUM_TRIALS", "1")) # TODO: Make this BANYAN_NTRIALS
 
 function run_with_job(test_fn, name)
     # This function should be used for tests that need a job to be already
@@ -69,13 +55,17 @@ function run_with_job(test_fn, name)
                 end
             end
         elseif !isnothing(nworkers)
-            with_job(job=job, destroy_job_on_exit=false) do j
+            with_job(
+                username = username,
+		api_key = api_key,
+		cluster_name = cluster_name,
+		nworkers = parse(Int32, nworkers),
+		banyanfile_path = "file://res/Banyanfile.json",
+		user_id = user_id,
+		destroy_job_on_exit=false
+	    ) do j
                 for i in 1:ntrials
-                    if ntrials > 1
-                        @time test_fn(j)
-                    else
-                        @time test_fn(j)
-                    end
+                    @time test_fn(j)
                 end
             end
         end
@@ -107,31 +97,6 @@ function run(test_fn, name)
     end
 end
 
-function include_all_tests()
-    include_tests_to_run("test_mapreduce.jl")
-    include_tests_to_run("test_hdf5.jl")
-    include_tests_to_run("test_black_scholes.jl")
-end
-
-with_job(job=job) do j
-    # NOTE: We need to wrap the `include`s in `with_job` because if the tests
-    # fail without an error occuring, then a `LoadError` gets thrown. If an
-    # error occurs inside a test, the job gets destroyed and the error is
-    # rethrown and then caught here. So if an error occurs, `destroy_job` gets
-    # called twice. But that's OK. And because we store
-    # `jobs_destroyed_recently`, we will only submit a single call to
-    # `destroy-job`.
-    configure_scheduling(report_schedule=true)
-    if get(ENV, "BANYAN_SCHEDULING_CONFIG_ALL", "false") == "true"
-        println("Running tests as is")
-        include_all_tests()
-        println("Running tests with parallelism encouraged")
-        configure_scheduling(encourage_parallelism=true)
-        include_all_tests()
-        println("Running tests with parallelism and batching encouraged")
-        configure_scheduling(encourage_parallelism_with_batches=true)
-        include_all_tests()
-    else
-        include_all_tests()
-    end
-end
+include_tests_to_run("test_cluster.jl")
+include_tests_to_run("test_job.jl")
+include_tests_to_run("test_future.jl")

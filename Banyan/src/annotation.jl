@@ -275,25 +275,26 @@ function apply_mutation(mutation::Dict{Future,Future})
             end
 
             # Swap other fields of the `Future`s and their locations
+            job_locations = get_job().locations
             old.value,
             old.value_id,
             old.mutated,
             old.stale,
-            get_job().locations[old.value_id],
+            job_locations[old.value_id],
             new.value,
             new.value_id,
             new.mutated,
             new.stale,
-            get_job().locations[new.value_id] = new.value,
+            job_locations[new.value_id] = new.value,
             new.value_id,
             new.mutated,
             new.stale,
-            get_job().locations[new.value_id],
+            job_locations[new.value_id],
             old.value,
             old.value_id,
             old.mutated,
             old.stale,
-            get_job().locations[old.value_id]
+            job_locations[old.value_id]
         end
     end
 end
