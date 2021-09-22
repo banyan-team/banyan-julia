@@ -36,10 +36,19 @@ end
 include("sample_collection.jl")
 include("sample_computation.jl")
 
-if isempty(ARGS)
-    runtests()
-elseif length(ARGS) == 1
-    runtests(Regex(first(ARGS)))
-else
-    error("Expected no more than a single pattern to match test set names on")
+try
+    if isempty(ARGS)
+        runtests()
+    elseif length(ARGS) == 1
+        runtests(Regex(first(ARGS)))
+    else
+        error("Expected no more than a single pattern to match test set names on")
+    end
+finally
+    println("hi!")
+
+    # Destroy jobs to clean up
+    for job_id in values(jobs_for_testing)
+        destroy_job(job_id)
+    end
 end

@@ -42,3 +42,8 @@ elseif length(ARGS) == 1
 else
     error("Expected no more than a single pattern to match test set names on")
 end
+
+# Destroy jobs to clean up
+for job_id in values(jobs_for_testing)
+    destroy_job(job_id)
+end
