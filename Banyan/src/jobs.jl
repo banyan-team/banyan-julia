@@ -280,14 +280,6 @@ function with_job(f::Function; kwargs...)
     end
 end
 
-function clear_jobs()
-    global jobs
-    global current_job_id
-    if !isnothing(current_job_id)
-        empty!(jobs[current_job_id].pending_requests)
-    end
-end
-
 # `create_job` creates a new job. `use_job` will create the job or reuse an
 # existing job created by this process with the same configuration if possible.
 # `with_job`
