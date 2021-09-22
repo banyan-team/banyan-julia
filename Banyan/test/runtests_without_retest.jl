@@ -6,7 +6,6 @@ using Banyan
 
 function include_tests_to_run(args...)
     # TODO: Probably remove the `clear_jobs`
-    clear_jobs()
     for arg in args
         include(arg)
     end

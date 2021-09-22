@@ -8,7 +8,6 @@ using AWSS3
 
 function include_tests_to_run(args...)
     # TODO: Probably remove the `clear_jobs`
-    clear_jobs()
     for arg in args
         include(arg)
     end
@@ -44,7 +43,7 @@ global job = create_job(
     cluster_name = cluster_name,
     nworkers = parse(Int32, nworkers),
     banyanfile_path = "file://res/Banyanfile.json",
-    print_logs = true
+    return_logs = true
 )
 
 function run_with_job(test_fn, name)
