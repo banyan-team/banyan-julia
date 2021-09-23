@@ -100,8 +100,12 @@ function partitioned_computation(fut::AbstractFuture; destination, new_source=no
             # annotated in a previous PA, we copy over the annotation (the
             # assigned PT stack) to the previous PA.
             for (j, pa) in enumerate(t.pa_union)
+                # For each PA in this PA union for this task, we consider the
+                # PAs before it
                 for previous_pa in Iterators.reverse(t.pa_union[1:j-1])
                     for value_id in keys(pa.partitions.pt_stacks)
+                        # Check if there is a previous PA where this value
+                        # does not have a PT.
                         if !(value_id in keys(previous_pa.partitions.pt_stacks))
                             # Cascade the PT composition backwards
                             previous_pa.partitions.pt_stacks[value_id] =
@@ -218,7 +222,7 @@ function partitioned_computation(fut::AbstractFuture; destination, new_source=no
         while true
             # TODO: Use to_jl_value and from_jl_value to support Client
             message = receive_next_message(gather_queue)
-            @debug message
+            @show message
             message_type = message["kind"]
             if message_type == "SCATTER_REQUEST"
                 @debug "Received scatter request"
@@ -267,11 +271,11 @@ function partitioned_computation(fut::AbstractFuture; destination, new_source=no
 
         # This is where we update the location source.
         if is_merged_to_disk
-            sourced(fut, None())
+            sourced(fut, Disk())
         else
             # TODO: If not still merged to disk, we need to lazily set the location source to something else
             if !isnothing(new_source)
-                sourced(fut, sourced_after)
+                sourced(fut, new_source)
             else
                 sourced(fut, destination)
             end
@@ -297,13 +301,13 @@ function configure_scheduling(;kwargs...)
     global report_schedule
     global encourage_parallelism
     global encourage_parallelism_with_batches
-    if haskey(kwargs, :report_schedule)
+    if get(kwargs, :report_schedule, false) || haskey(kwargs, :name)
         report_schedule = kwargs[:report_schedule]
     end
-    if haskey(kwargs, :encourage_parallelism)
+    if get(kwargs, :encourage_parallelism, false) || get(kwargs, :name, "") == "parallelism encouraged"
         encourage_parallelism = kwargs[:encourage_parallelism]
     end
-    if haskey(kwargs, :encourage_parallelism_with_batches)
+    if haskey(kwargs, :encourage_parallelism_with_batches) || get(kwargs, :name, "") == "parallelism and batches encouraged"
         encourage_parallelism_with_batches = kwargs[:encourage_parallelism_with_batches]
     end
 end
@@ -332,6 +336,8 @@ function send_evaluation(value_id::ValueId, job_id::JobId)
             "num_bang_values_issued" => get_num_bang_values_issued()
         ),
     )
+
+    @show response
 
     # Update counters for generating unique values
     set_num_bang_values_issued(response["num_bang_values_issued"])

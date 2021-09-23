@@ -359,9 +359,9 @@ function send_request_get_response(method, content::Dict)
     println(resp)
     println(data)
     if resp.status == 403
-        throw(ErrorException("Please use a valid user_id and api_key. Sign into the dashboard to retrieve these credentials."))
+        throw(ErrorException("Please use a valid user ID and API key. Sign into the dashboard to retrieve these credentials."))
     elseif resp.status == 500 || resp.status == 504
-        throw(ErrorException(data))
+        throw(ErrorException(string(data)))
     end
     return data
 
@@ -428,6 +428,8 @@ end
 # equally-sized numbers
 
 # NOTE: This is duplicated between pt_lib.jl and the client library
+x = [5,6,7,7]
+f(x) = x * 2
 orderinghash(x::Any) = x # This lets us handle numbers and dates
 orderinghash(s::String) = Integer.(codepoint.(first(s, 32) * repeat(" ", 32-length(s))))
 orderinghash(A::AbstractArray) = orderinghash(first(A))

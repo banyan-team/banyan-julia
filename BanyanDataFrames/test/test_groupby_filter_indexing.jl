@@ -29,75 +29,93 @@ function get_local_path_tripdata(s3_path)
 end
 
 function setup_basic_tests(bucket_name)
-    iris_download_path = "https://gist.githubusercontent.com/curran/a08a1080b88344b0c8a7/raw/0e7a9b0a5d22642a06d3d5b9bcbad9890c8ee534/iris.csv"
-    iris_species_info_download_path = "https://raw.githubusercontent.com/banyan-team/banyan-julia/v0.1.3/BanyanDataFrames/test/res/iris_species_info.csv"
-    iris_local_path = download(iris_download_path)
-    iris_species_info_local_path = download(iris_species_info_download_path)
-    df = CSV.read(iris_local_path, DataFrames.DataFrame)
-    df_s = CSV.read(iris_species_info_local_path, DataFrames.DataFrame)
-    # Duplicate df six times and change the species names
-    species_list = df[:, :species]
-    df = reduce(vcat, [df, df, df, df, df, df])
-    for i = 4:18
-        append!(species_list, Base.fill("species_$(i)", 50))
-    end
-    df[:, :species] = species_list
-    write_df_to_csv_to_s3(
-        df,
+    iris_s3_paths = [
         "iris_large.csv",
-        p"iris_large.csv",
-        bucket_name,
-        "iris_large.csv",
-    )
-    write_df_to_parquet_to_s3(
-        df,
         "iris_large.parquet",
-        p"iris_large.parquet",
-        bucket_name,
-        "iris_large.parquet",
-    )
-    write_df_to_arrow_to_s3(
-        df,
         "iris_large.arrow",
-        p"iris_large.arrow",
-        bucket_name,
-        "iris_large.arrow",
-    )
-
-    # Write to dir
-    df_shuffle = df[shuffle(1:nrow(df)), :]
-    chunk_size = 100
-    for i = 1:9
+        "iris_large_dir.csv/",
+        "iris_species_info.csv",
+        "iris_species_info.parquet",
+        "iris_species_info.arrow",
+    ]
+    to_be_downloaded = [
+        iris_s3_path for iris_s3_path in iris_s3_paths if
+        # TODO: Use the following when AWSS3.jl supports folders
+        # !s3_exists(Banyan.get_aws_config(), bucket_name, iris_s3_path)
+        !(iris_s3_path in readdir(S3Path("s3://$bucket_name", config=Banyan.get_aws_config())))
+    ]
+    if !isempty(to_be_downloaded)
+        @info "Downloading $to_be_downloaded"
+        iris_download_path = "https://gist.githubusercontent.com/curran/a08a1080b88344b0c8a7/raw/0e7a9b0a5d22642a06d3d5b9bcbad9890c8ee534/iris.csv"
+        iris_species_info_download_path = "https://raw.githubusercontent.com/banyan-team/banyan-julia/v0.1.3/BanyanDataFrames/test/res/iris_species_info.csv"
+        iris_local_path = download(iris_download_path)
+        iris_species_info_local_path = download(iris_species_info_download_path)
+        df = CSV.read(iris_local_path, DataFrames.DataFrame)
+        df_s = CSV.read(iris_species_info_local_path, DataFrames.DataFrame)
+        # Duplicate df six times and change the species names
+        species_list = df[:, :species]
+        df = reduce(vcat, [df, df, df, df, df, df])
+        for i = 4:18
+            append!(species_list, Base.fill("species_$(i)", 50))
+        end
+        df[:, :species] = species_list
         write_df_to_csv_to_s3(
-            df_shuffle[((i-1)*chunk_size+1):i*chunk_size, :],
-            "iris_large_chunk.csv",
-            p"iris_large_chunk.csv",
+            df,
+            "iris_large.csv",
+            p"iris_large.csv",
             bucket_name,
-            "iris_large_dir.csv/iris_large_chunk$(i).csv",
+            "iris_large.csv",
+        )
+        write_df_to_parquet_to_s3(
+            df,
+            "iris_large.parquet",
+            p"iris_large.parquet",
+            bucket_name,
+            "iris_large.parquet",
+        )
+        write_df_to_arrow_to_s3(
+            df,
+            "iris_large.arrow",
+            p"iris_large.arrow",
+            bucket_name,
+            "iris_large.arrow",
+        )
+
+        # Write to dir
+        df_shuffle = df[shuffle(1:nrow(df)), :]
+        chunk_size = 100
+        for i = 1:9
+            write_df_to_csv_to_s3(
+                df_shuffle[((i-1)*chunk_size+1):i*chunk_size, :],
+                "iris_large_chunk.csv",
+                p"iris_large_chunk.csv",
+                bucket_name,
+                "iris_large_dir.csv/iris_large_chunk$(i).csv",
+            )
+        end
+
+        write_df_to_csv_to_s3(
+            df_s,
+            "iris_species_info.csv",
+            p"iris_species_info.csv",
+            bucket_name,
+            "iris_species_info.csv",
+        )
+        write_df_to_parquet_to_s3(
+            df_s,
+            "iris_species_info.parquet",
+            p"iris_species_info.parquet",
+            bucket_name,
+            "iris_species_info.parquet",
+        )
+        write_df_to_arrow_to_s3(
+            df_s,
+            "iris_species_info.arrow",
+            p"iris_species_info.arrow",
+            bucket_name,
+            "iris_species_info.arrow",
         )
     end
-
-    write_df_to_csv_to_s3(
-        df_s,
-        "iris_species_info.csv",
-        p"iris_species_info.csv",
-        bucket_name,
-        "iris_species_info.csv",
-    )
-    write_df_to_parquet_to_s3(
-        df_s,
-        "iris_species_info.parquet",
-        p"iris_species_info.parquet",
-        bucket_name,
-        "iris_species_info.parquet",
-    )
-    write_df_to_arrow_to_s3(
-        df_s,
-        "iris_species_info.arrow",
-        p"iris_species_info.arrow",
-        bucket_name,
-        "iris_species_info.arrow",
-    )
 
     # Write empty dataframe
     empty_df = DataFrames.DataFrame()
@@ -177,7 +195,11 @@ function setup_stress_tests(bucket_name)
 
             # Loop over missing files and upload to s3
             for s3_path in dst_s3_paths_missing
-                cp(get_local_path_tripdata(s3_path), s3_path, config=Banyan.get_aws_config())
+                cp(
+                    get_local_path_tripdata(s3_path),
+                    s3_path,
+                    config = Banyan.get_aws_config(),
+                )
             end
         end
     end
@@ -265,6 +287,8 @@ end
                 sub2_nrow = nrow(sub2)
                 sepal_length_sub_sum = round(collect(reduce(+, sub[:, :sepal_length])))
                 sepal_length_sub2_sum = round(collect((reduce(+, sub2[:, :sepal_length]))))
+                @show collect(sub2)
+                @show collect(sub2[:, [:species]])
                 sub2_species = Set(collect(sub2[:, [:species]])[:, :species])
 
                 # Assert
@@ -503,6 +527,9 @@ end
                 gdf_select_size = size(gdf_select)
                 gdf_transform_size = size(gdf_transform)
                 gdf_subset_nrow = nrow(gdf_subset)
+                @test gdf_subset_nrow == 474
+                gdf_subset_collected = sort(collect(gdf_subset))
+                gdf_subset_row474 = collect(gdf_subset_collected[474, :])
                 gdf_select_plf_square_add = round(
                     collect(
                         reduce(+, map(l -> l * l, gdf_select[:, :petal_length_function])),

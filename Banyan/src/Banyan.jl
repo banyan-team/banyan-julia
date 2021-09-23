@@ -71,7 +71,6 @@ export Job,
     create_job,
     destroy_job,
     destroy_all_jobs,
-    clear_jobs,
     get_jobs,
     get_job,
     get_job_id,
@@ -93,8 +92,8 @@ export sample_memory_usage,
 
 # Locations
 export Location, LocationSource, LocationDestination, located, sourced, destined
-export Value, Size, Client, None, Remote
-export clear_locations_cache
+export Value, Size, Client, Disk, None, Remote
+export clear_locations, clear_samples, invalidate_location, invalidate_sample
 
 # Partition types
 export PartitionType, pt, pc, mutated, @partitioned

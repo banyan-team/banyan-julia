@@ -341,6 +341,7 @@ getsamplenrows(totalnrows) =
         # (totalnrows == 0)
         totalnrows
     else
+        # Must have at least 1 row
         cld(totalnrows, get_job().sample_rate)
     end
 
@@ -377,15 +378,15 @@ function Remote(p; shuffled=false, similar_files=false, location_invalid = false
 
     # Get cached location if it exists
     remote_location = if isfile(locationpath) && !location_invalid
-        deserialize(samplepath)
+        deserialize(locationpath)
     else
-        get_remote_location(p, remote_sample)
+        get_remote_location(p, remote_sample, shuffled=shuffled, similar_files=similar_files)
     end
     remote_sample = remote_location.sample
 
     # Store location in cache
     if !invalidate_location
-        mkpath(locationpath)
+        mkpath(locationspath)
         serialize(locationpath, remote_location)
     else
         rm(locationpath, force=true, recursive=true)
@@ -393,16 +394,16 @@ function Remote(p; shuffled=false, similar_files=false, location_invalid = false
 
     # Store sample in cache
     if !invalidate_sample
-        mkpath(samplepath)
+        mkpath(samplespath)
         serialize(samplepath, remote_sample)
     else
-        rm(locationpath, force=true, recursive=true)
+        rm(samplepath, force=true, recursive=true)
     end
 
-    location
+    remote_location
 end
 
-function get_remote_location(remotepath, remote_sample=nothing)::Location
+function get_remote_location(remotepath, remote_sample=nothing; shuffled=false, similar_files=false)::Location
     @info "Collecting sample from $remotepath\n\nThis will take some time but the sample will be cached for future use. Note that writing to this location will invalidate the cached sample."
 
     # This is so that we can make sure that any random selection fo rows is deterministic. Might not be needed
@@ -420,13 +421,13 @@ function get_remote_location(remotepath, remote_sample=nothing)::Location
     
     # Return either an HDF5 location or a table location
     if isa_hdf5
-        get_remote_hdf5_location(remotepath, hdf5_ending, remote_sample)
+        get_remote_hdf5_location(remotepath, hdf5_ending, remote_sample; shuffled=shuffled, similar_files=similar_files)
     else
-        get_remote_table_location(remotepath, remote_sample)
+        get_remote_table_location(remotepath, remote_sample; shuffled=shuffled, similar_files=similar_files)
     end
 end
 
-function get_remote_hdf5_location(remotepath, hdf5_ending, remote_sample=nothing)::Location
+function get_remote_hdf5_location(remotepath, hdf5_ending, remote_sample=nothing; shuffled=false, similar_files=false)::Location
     # Get the actual path by removing the dataset from the path
     remotepath, datasetpath = if hdf5_ending == ""
         remotepath, nothing
@@ -453,10 +454,6 @@ function get_remote_hdf5_location(remotepath, hdf5_ending, remote_sample=nothing
     # Handle single-file nd-arrays
 
     # TODO: Support HDF5 files that don't have .h5 in their filenmae
-    if is_debug_on()
-        @show p
-        @show hdf5_ending
-    end
     # filename, datasetpath = split(p, hdf5_ending)
     # remotefilename, _ = split(remotepath, hdf5_ending)
     # filename *= hdf5_ending
@@ -469,34 +466,15 @@ function get_remote_hdf5_location(remotepath, hdf5_ending, remote_sample=nothing
     # TODO: Determine why location parameters are not getting populated
 
     # Open HDF5 file
-    sample = []
-    datasize = [0]
+    dset_sample = nothing
+    datasize = nothing
     datandims = nothing
     dataeltype = nothing
-    if is_debug_on()
-        @show dataeltype
-    end
     dataset_to_read_from_exists = false
     if isfile(p)
-        if is_debug_on()
-            @show dataeltype
-        end
         with_downloaded_path_for_reading(p) do pp
             f = h5open(pp, "r")
-
-            # if !(datasetpath in keys(f))
-            #     throw(ArgumentError("Dataset \"$datasetpath\" could not be found in the HDF5 file at $remotepath"))
-            # end
-            if is_debug_on()
-                @show f
-                @show keys(f)
-                @show typeof(f)
-                @show datasetpath
-            end
             if haskey(f, datasetpath)
-                if is_debug_on()
-                    println("Inside if")
-                end
                 dataset_to_read_from_exists = true
 
                 dset = f[datasetpath]
@@ -510,9 +488,6 @@ function get_remote_hdf5_location(remotepath, hdf5_ending, remote_sample=nothing
                 # Collect metadata
                 nbytes += length(dset) * sizeof(eltype(dset))
                 datasize = size(dset)
-                if is_debug_on()
-                    @show datasize
-                end
                 datandims = ndims(dset)
                 dataeltype = eltype(dset)
 
@@ -523,31 +498,28 @@ function get_remote_hdf5_location(remotepath, hdf5_ending, remote_sample=nothing
                     remainingcolons = repeat([:], ndims(dset) - 1)
                     # Start of with an empty array. The dataset has to have at
                     # least one row so we read that in and then take no data.
-                    sample = dset[1:1, remainingcolons...][1:0, remainingcolons...]
-                    if datalength < MAX_EXACT_SAMPLE_LENGTH
-                        sampleindices = randsubseq(1:datalength, 1 / get_job().sample_rate)
-                        if is_debug_on()
-                            @show sampleindices
-                        end
+                    # dset_sample = dset[1:1, remainingcolons...][1:0, remainingcolons...]
+                    # If the data is already shuffled or if we just want to
+                    # take an exact sample, we don't need to randomly sample here.
+                    if datalength > MAX_EXACT_SAMPLE_LENGTH || shuffled
+                         sampleindices = randsubseq(1:datalength, 1 / get_job().sample_rate)
                         # sample = dset[sampleindices, remainingcolons...]
-                        sample = vcat([dset[sampleindex, remainingcolons...] for sampleindex in sampleindices]...)
-                        if is_debug_on()
-                            @show sampleindices
+                        if !isempty(sampleindices)
+                            dset_sample = vcat([dset[sampleindex, remainingcolons...] for sampleindex in sampleindices]...)
                         end
                     end
-                    if is_debug_on()
-                        @show datalength
+                    
+                    # Ensure that we have at least an empty initial array
+                    if isnothing(dset_sample)
+                        dset_sample = dset[1:1, remainingcolons...][1:0, remainingcolons...]
                     end
 
                     # Extend or chop sample as needed
                     samplelength = getsamplenrows(datalength)
                     # TODO: Warn about the sample size being too large
-                    if is_debug_on()
-                        @show samplelength
-                    end
                     if size(sample, 1) < samplelength
-                        sample = vcat(
-                            sample,
+                        dset_sample = vcat(
+                            dset_sample,
                             dset[1:(samplelength-size(sample, 1)), remainingcolons...],
                         )
                     else
@@ -586,16 +558,14 @@ function get_remote_hdf5_location(remotepath, hdf5_ending, remote_sample=nothing
         ("Remote", Dict("path" => remotepath, "subpath" => datasetpath))
 
     # Get the remote sample
-    remote_sample = if isnothing(remote_sample)
-        if isnothing(loc_for_reading)
+    if isnothing(remote_sample)
+        remote_sample = if isnothing(loc_for_reading)
             Sample()
         elseif totalnrows <= MAX_EXACT_SAMPLE_LENGTH
-            ExactSample(sample, total_memory_usage = nbytes)
+            ExactSample(dset_sample, total_memory_usage = nbytes)
         else
-            Sample(sample, total_memory_usage = nbytes)
+            Sample(dset_sample, total_memory_usage = nbytes)
         end
-    else
-        remote_sample
     end
 
     # Construct location with metadata
@@ -608,7 +578,7 @@ function get_remote_hdf5_location(remotepath, hdf5_ending, remote_sample=nothing
     )
 end
 
-function get_remote_table_location(remotepath, remote_sample=nothing)::Location
+function get_remote_table_location(remotepath, remote_sample=nothing; shuffled=false, similar_files=false)::Location
     p = download_remote_path(remotepath)
 
     # TODO: Support more cases beyond just single files and all files in
@@ -628,13 +598,13 @@ function get_remote_table_location(remotepath, remote_sample=nothing)::Location
     exactsample = DataFrame()
     randomsample = DataFrame()
     files_to_read_from = if p_isdir
-        readdir(p)
+        Random.shuffle(readdir(p))
     elseif p_isfile
         [p]
     else
         []
     end
-    for filep in files_to_read_from
+    for (fileidx, filep) in enumerate(files_to_read_from)
         filenrows = 0
         # TODO: Ensure usage of Base.summarysize is reasonable
         # if endswith(filep, ".csv")
@@ -725,56 +695,85 @@ function get_remote_table_location(remotepath, remote_sample=nothing)::Location
         # Get chunks to sample from
         localfilepath = p_isdir ? joinpath(p, filep) : p
         with_downloaded_path_for_reading(localfilepath) do localfilepathp
-            chunks = if endswith(localfilepathp, ".csv")
-                CSV.Chunks(localfilepathp)
-            elseif endswith(localfilepathp, ".parquet")
-                Tables.partitions(read_parquet(localfilepathp))
-            elseif endswith(localfilepathp, ".arrow")
-                Arrow.Stream(localfilepathp)
+            # If the data is shuffled, we don't read it it in until we know how
+            # many rows there are.
+            if isnothing(remote_sample) && !shuffled
+                chunks = if endswith(localfilepathp, ".csv")
+                    CSV.Chunks(localfilepathp)
+                elseif endswith(localfilepathp, ".parquet")
+                    Tables.partitions(read_parquet(localfilepathp))
+                elseif endswith(localfilepathp, ".arrow")
+                    Arrow.Stream(localfilepathp)
+                else
+                    error("Expected .csv or .parquet or .arrow")
+                end
+
+                # Sample from each chunk
+                for (i, chunk) in enumerate(chunks)
+                    @show i
+                    chunkdf = chunk |> DataFrames.DataFrame
+                    chunknrows = nrow(chunkdf)
+                    filenrows += chunknrows
+                    totalnrows += chunknrows
+
+                    # Append to randomsample
+                    # chunksampleindices = map(rand() < 1 / get_job().sample_rate, 1:chunknrows)
+                    chunksampleindices = randsubseq(1:chunknrows, 1 / get_job().sample_rate)
+                    # if any(chunksampleindices)
+                    if !isempty(chunksampleindices)
+                        append!(randomsample, @view chunkdf[chunksampleindices, :])
+                    end
+
+                    # Append to exactsample
+                    samplenrows = getsamplenrows(totalnrows)
+                    @show samplenrows
+                    if nrow(exactsample) < samplenrows
+                        append!(exactsample, first(chunkdf, samplenrows - nrow(exactsample)))
+                    end
+
+                    # nbytes += isnothing(chunkdf) ? pqf.meta.row_groups[i].total_byte_size : Base.summarysize(chunkdf)
+                    # nbytes = nothing
+                    nbytes += Base.summarysize(chunkdf)
+
+                    @show nbytes
+                    @show Int64(Sys.free_memory())
+                    @show Int64(Sys.total_memory())
+
+                    # TODO: Maybe call GC.gc() here if we get an error when sampling really large datasets
+                    chunkdf = nothing
+                    chunk = nothing
+                    if Base.summarysize(exactsample) > cld(Sys.free_memory(), 2)
+                        @warn "Sample is too large; try creating a job with a greater `sample_rate` than the number of workers (default is 2)"
+                    end
+                    if Base.summarysize(exactsample) + nbytes > Sys.free_memory()
+                        GC.gc()
+                    end
+
+                    # Optimized stopping condition in the case that all the files are similar
+                    num_files_scanned = fileidx - 1
+                    if similar_files && nrow(exactsample) == samplenrows && num_files_scanned >= cld(length(files_to_read_from), get_job().sample_rate)
+                        # If the files are similar and we have looked through
+                        # a percentage of files that is in accordance with the
+                        # sample rate, we can stop. We also make sure we have
+                        # enough of the exact sample in case the random sample
+                        # comes short because of the random selection.
+                        break
+                    end
+                end
             else
-                error("Expected .csv or .parquet or .arrow")
-            end
-
-            # Sample from each chunk
-            for (i, chunk) in enumerate(chunks)
-                @show i
-                chunkdf = chunk |> DataFrames.DataFrame
-                chunknrows = nrow(chunkdf)
-                filenrows += chunknrows
-                totalnrows += chunknrows
-
-                # Append to randomsample
-                # chunksampleindices = map(rand() < 1 / get_job().sample_rate, 1:chunknrows)
-                chunksampleindices = randsubseq(1:chunknrows, 1 / get_job().sample_rate)
-                # if any(chunksampleindices)
-                if !isempty(chunksampleindices)
-                    append!(randomsample, @view chunkdf[chunksampleindices, :])
+                filenrows = if endswith(localfilepathp, ".csv")
+                    sum((1 for row in CSV.Rows(localfilepathp)))
+                elseif endswith(localfilepathp, ".parquet")
+                    nrows(Parquet.File(localfilepathp))
+                elseif endswith(localfilepathp, ".arrow")
+                    rowcount(Arrow.Table(localfilepathp))
+                else
+                    error("Expected .csv or .parquet or .arrow")
                 end
+                totalnrows += filenrows
 
-                # Append to exactsample
-                samplenrows = getsamplenrows(totalnrows)
-                @show samplenrows
-                if nrow(exactsample) < samplenrows
-                    append!(exactsample, first(chunkdf, samplenrows - nrow(exactsample)))
-                end
-
-                # nbytes += isnothing(chunkdf) ? pqf.meta.row_groups[i].total_byte_size : Base.summarysize(chunkdf)
-                # nbytes = nothing
-                nbytes += Base.summarysize(chunkdf)
-
-                @show nbytes
-                @show Int64(Sys.free_memory())
-                @show Int64(Sys.total_memory())
-
-                # TODO: Maybe call GC.gc() here if we get an error when sampling really large datasets
-                chunkdf = nothing
-                chunk = nothing
-                if Base.summarysize(exactsample) > Sys.free_memory()
-                    @warn "Sample is too large; try creating a job with a greater `sample_rate` than the number of workers (default is 2)"
-                end
-                if Base.summarysize(exactsample) + nbytes > Sys.free_memory()
-                    GC.gc()
-                end
+                # TODO: Maybe also compute nbytes or perhaps it's okay to just
+                # use the sample to estimate the total memory usage
             end
 
             # Add to list of file metadata
@@ -786,18 +785,77 @@ function get_remote_table_location(remotepath, remote_sample=nothing)::Location
                 ),
             )
         end
+
+        # Optimized stopping condition in the case that all the files are similar
+        num_files_scanned = fileidx
+        if similar_files && nrow(exactsample) == samplenrows && num_files_scanned >= cld(length(files_to_read_from), get_job().sample_rate)
+            break
+        end
+    end
+
+    # Optimized sample collection if the data is shuffled
+    if isnothing(remote_sample) && shuffled
+        # We should now know exactly how many rows there are and how many
+        # to sample.
+        samplenrows = getsamplenrows(totalnrows)
+
+        # So we can iterate through the files (reverse in case some caching helps
+        # us)
+        for filep in reverse(files_to_read_from)
+            localfilepath = p_isdir ? joinpath(p, filep) : p
+            with_downloaded_path_for_reading(localfilepath) do localfilepathp
+                chunks = if endswith(localfilepathp, ".csv")
+                    CSV.Chunks(localfilepathp)
+                elseif endswith(localfilepathp, ".parquet")
+                    Tables.partitions(read_parquet(localfilepathp))
+                elseif endswith(localfilepathp, ".arrow")
+                    Arrow.Stream(localfilepathp)
+                else
+                    error("Expected .csv or .parquet or .arrow")
+                end
+
+                # Sample from each chunk
+                for (i, chunk) in enumerate(chunks)
+                    # Read in chunk
+                    chunkdf = chunk |> DataFrames.DataFrame
+
+                    # Append to exactsample
+                    if nrow(exactsample) < samplenrows
+                        append!(exactsample, first(chunkdf, samplenrows - nrow(exactsample)))
+                    end
+
+                    # Stop as soon as we get our sample
+                    if nrow(exactsample) == samplenrows
+                        break
+                    end
+                end
+            end
+
+            # Stop as soon as we get our sample
+            if nrow(exactsample) == samplenrows
+                break
+            end
+        end
     end
 
     # Adjust sample to have samplenrows
-    samplenrows = getsamplenrows(totalnrows) # Either a subset of rows or the whole thing
-    if is_debug_on()
-        @show samplenrows
-    end
-    if nrow(randomsample) < samplenrows
-        append!(randomsample, first(exactsample, samplenrows - nrow(randomsample)))
-    end
-    if nrow(randomsample) > samplenrows
-        randomsample = first(randomsample, samplenrows)
+    if isnothing(remote_sample)
+        samplenrows = getsamplenrows(totalnrows) # Either a subset of rows or the whole thing
+        if is_debug_on()
+            @show samplenrows
+        end
+        # If we already have enough rows in the exact sample...
+        if totalnrows <= MAX_EXACT_SAMPLE_LENGTH
+            randomsample = exactsample
+        end
+        # Regardless, expand the random sample as needed...
+        if nrow(randomsample) < samplenrows
+            append!(randomsample, first(exactsample, samplenrows - nrow(randomsample)))
+        end
+        # ... and limit it as needed
+        if nrow(randomsample) > samplenrows
+            randomsample = first(randomsample, samplenrows)
+        end
     end
 
     # TODO: Build up sample and return
@@ -816,18 +874,23 @@ function get_remote_table_location(remotepath, remote_sample=nothing)::Location
 
     # TODO: Cache sample on disk
 
+    # Get remote sample
+    if isnothing(remote_sample)
+        remote_sample = if isnothing(loc_for_reading)
+            Sample()
+        elseif totalnrows <= MAX_EXACT_SAMPLE_LENGTH
+            ExactSample(randomsample, total_memory_usage = nbytes)
+        else
+            Sample(randomsample, total_memory_usage = nbytes)
+        end
+    end
+
     # Construct location with metadata
     Location(
         loc_for_reading,
         loc_for_writing,
         metadata_for_reading,
         metadata_for_writing,
-        if isnothing(loc_for_reading)
-            Sample()
-        elseif totalnrows <= MAX_EXACT_SAMPLE_LENGTH
-            ExactSample(randomsample, total_memory_usage = nbytes)
-        else
-            Sample(randomsample, total_memory_usage = nbytes)
-        end,
+        remote_sample,
     )
 end

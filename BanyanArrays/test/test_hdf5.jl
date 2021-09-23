@@ -5,15 +5,15 @@ using HDF5
         global s3fs_bucket_location
 
         original = h5open(download("https://support.hdfgroup.org/ftp/HDF5/examples/files/exbyapi/h5ex_d_fillval.h5"))
-        with_downloaded_path_for_reading(joinpath(S3Path(s3_bucket_name), "fillval.h5"), for_writing=true) do f
-            new = h5open(f, "w")
+        with_downloaded_path_for_reading(joinpath(S3Path(s3_bucket_name, config = Banyan.get_aws_config()), "fillval.h5"), for_writing=true) do f
+            new = h5open(string(f), "w")
             new["DS1"] = repeat(original["DS1"][:,:], 100, 100)
             close(new)
         end
         close(original)
 
         # rm(get_s3fs_path(joinpath(s3_bucket_name, "fillval_copy.h5")), force=true)
-        rm(joinpath(S3Path(s3_bucket_name), "fillval_copy.h5"), force=true)
+        rm(joinpath(S3Path(s3_bucket_name, config = Banyan.get_aws_config()), "fillval_copy.h5"), force=true)
         # TODO: Maybe fsync here so that the directory gets properly updated
     end
 
