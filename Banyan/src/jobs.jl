@@ -1,7 +1,3 @@
-<<<<<<< HEAD
-=======
-
->>>>>>> Initial implementation
 # Process-local dictionary mapping from job IDs to instances of `Job`
 global jobs = Dict()
 
@@ -155,7 +151,7 @@ function create_job(;
     job_configuration["pf_dispatch_table"] = load_json(pf_dispatch_table)
 
     if pt_lib_info == ""
-        pt_lib_info = "https://github.com/banyan-team/banyan-julia/blob/v0.1.3/Banyan/res/pt_lib_info.json"
+        pt_lib_info = "https://raw.githubusercontent.com/banyan-team/banyan-julia/v0.1.3/Banyan/res/pt_lib_info.json"
     end
     job_configuration["pt_lib_info"] = load_json(pt_lib_info)
 
