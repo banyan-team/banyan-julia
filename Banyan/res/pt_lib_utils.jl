@@ -86,6 +86,8 @@ function merge_on_executor(obj...; key = nothing)
     elseif isa_array(first_obj)
         # @show obj
         cat(obj...; dims = key)
+    elseif isa_gdf(first_obj)
+        nothing
     else
         # error("Expected either AbstractDataFrame or AbstractArray for concatenation")
         # TODO: Handle grouped dataframe better
