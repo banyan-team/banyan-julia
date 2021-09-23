@@ -6,5 +6,6 @@
 #         "parallelism and batches encouraged",
 #     ],
 #     src_name in ["iris_small.parquet", "iris_big.parquet"]
-
+#     use_job_for_testing(scheduling_config_name=scheduling_config)
+    
 # end

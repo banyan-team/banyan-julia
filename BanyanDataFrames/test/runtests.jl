@@ -23,7 +23,7 @@ function use_job_for_testing(;
             create_job(
                 cluster_name = ENV["BANYAN_CLUSTER_NAME"],
                 nworkers = 2,
-                banyanfile_path = "file://res/Banyanfile.json",
+                banyanfile_path = "file://res/BanyanfileDebug.json",
                 sample_rate = sample_rate,
                 return_logs = true,
             )
@@ -33,16 +33,29 @@ function use_job_for_testing(;
     configure_scheduling(name = scheduling_config_name)
 end
 
+include("utils_data.jl")
+
+# TODO: Break up these use_* functions to be parametrized on the data format
+# and only load in the files for that format. Then, testsets in
+# groupby_filter_indexing.jl can iterate over all file types
+
+function use_basic_data()
+    cleanup_tests()
+    # NOTE: There might be an issue here where because of S3's eventual
+    # consistency property, this causes failures in writing new files
+    # that are being deleted where the delete happens after the new write.
+    setup_basic_tests()
+end
+
+function use_stress_data()
+    cleanup_tests()
+    setup_stress_tests()
+end
+
 include("groupby_filter_indexing.jl")
 
 try
-    if isempty(ARGS)
-        runtests()
-    elseif length(ARGS) == 1
-        runtests(Regex(first(ARGS)))
-    else
-        error("Expected no more than a single pattern to match test set names on")
-    end
+    runtests(Regex.(ARGS)...)
 finally
     # Destroy jobs to clean up
     for job_id in values(jobs_for_testing)

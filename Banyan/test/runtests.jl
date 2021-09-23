@@ -23,7 +23,7 @@ function use_job_for_testing(;
             create_job(
                 cluster_name = ENV["BANYAN_CLUSTER_NAME"],
                 nworkers = 2,
-                banyanfile_path = "file://res/Banyanfile.json",
+                banyanfile_path = "file://res/BanyanfileDebug.json",
                 sample_rate = sample_rate,
                 return_logs = true,
             )
@@ -37,13 +37,7 @@ include("sample_collection.jl")
 include("sample_computation.jl")
 
 try
-    if isempty(ARGS)
-        runtests()
-    elseif length(ARGS) == 1
-        runtests(Regex(first(ARGS)))
-    else
-        error("Expected no more than a single pattern to match test set names on")
-    end
+    runtests(Regex.(ARGS)...)
 finally
     # Destroy jobs to clean up
     for job_id in values(jobs_for_testing)

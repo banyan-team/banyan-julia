@@ -436,6 +436,11 @@ macro partitioned(ex...)
         #     end
         # end
 
+        # TODO: Ensure that if the sample computation fails, before we rethrow
+        # the error (so that it is displayed in a notebook or crashes a
+        # script/Lambda function that is running the job) we should ensure that
+        # we haven't recorded a faulty task or messed up the state in any way.
+
         # Apply all delayed source and destination assignment
         for splatted_future in splatted_futures
             apply_sourced_or_destined_funcs(splatted_future)
