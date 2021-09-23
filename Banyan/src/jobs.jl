@@ -224,8 +224,10 @@ function get_jobs(cluster_name=nothing; status=nothing, kwargs...)
     else
         curr_last_eval = indiv_response["last_eval"]
         while finished == false
+            println(curr_last_eval)
             indiv_response = send_request_get_response(:describe_jobs, Dict{String,Any}("filters"=>filters, "thisStartKey"=>curr_last_eval))
-            response["jobs"] = push!(response["jobs"], indiv_response["jobs"])
+            response["jobs"] = merge!(response["jobs"], indiv_response["jobs"])
+            # print(indiv_response["last_eval"])
             if indiv_response["last_eval"] == nothing 
                 finished = true
             else
