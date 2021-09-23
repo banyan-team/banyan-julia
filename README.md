@@ -20,12 +20,23 @@ the latest version number.
 
 ## Testing
 
+To see an example of how to add tests, see `BanyanArrays/test/runtests.jl` and `BanyanArrays/test/hdf5.jl`.
+
 To run tests, ensure that you have a Banyan account connected to an AWS account.
 Then, `cd` into the directory with the Banyan Julia project you want to run
 tests for (e.g., `Banyan` for Banyan.jl or `BanyanDataFrames` for
 BanyanDataFrames.jl) and run `julia --project=. -e "using Pkg; Pkg.test()"`.
 To filter and run a subset of test sets (where each test set is defined with
 `@testset`) with names matching a given pattern, run
-`julia --project=. -e "using Pkg; Pkg.test(test_args=[\"{pattern}\"])"` where
+`julia --project=. -e "using Pkg; Pkg.test(test_args=[\"{pattern 1}\", \"{pattern 2}\"])"` where
 the pattern could be, for example, `Sampl(.*)parquet` (a regular expression)
 or `Sample collection`.
+
+You must then specify the cluster name with the `BANYAN_CLUSTER_NAME`
+environment variable. You must also specify the relevant `BANYAN_*`
+and `AWS_*` environment variables to provide credentials. AWS
+credentials are specified in the same way as they would be if using
+the AWS CLI (either use environment variables or use the relevant
+AWS configuration files) and the Banyan environment variables
+are saved in `banyanconfig.toml` so you don't need to specify it
+every time.
