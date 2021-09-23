@@ -328,12 +328,7 @@ end
 # overall data size. This way, two arrays that have the same actual size will
 # be guaranteed to have the same sample size.
 
-# MAX_EXACT_SAMPLE_LENGTH = 1024
-MAX_EXACT_SAMPLE_LENGTH = if is_debug_on()
-    50
-else
-    1024
-end
+MAX_EXACT_SAMPLE_LENGTH = parse(Int, get(ENV, "MAX_EXACT_SAMPLE_LENGTH", "2048"))
 
 getsamplenrows(totalnrows) =
     if totalnrows <= MAX_EXACT_SAMPLE_LENGTH

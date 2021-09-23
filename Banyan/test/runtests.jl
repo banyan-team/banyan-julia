@@ -4,6 +4,7 @@ global jobs_for_testing = Dict()
 
 function use_job_for_testing(;
     sample_rate = 2,
+    max_exact_sample_length = 50,
     scheduling_config_name = "default scheduling",
 )
     haskey(ENV, "BANYAN_CLUSTER_NAME") || error(
@@ -29,6 +30,9 @@ function use_job_for_testing(;
             )
         end,
     )
+
+    # Set the maximum exact sample length
+    ENV["MAX_EXACT_SAMPLE_LENGTH"] = string(max_exact_sample_length)
 
     configure_scheduling(name = scheduling_config_name)
 end
