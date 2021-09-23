@@ -1,4 +1,3 @@
-
 # Process-local dictionary mapping from job IDs to instances of `Job`
 global jobs = Dict()
 
@@ -45,7 +44,7 @@ function create_job(;
     store_logs_in_s3::Bool = true,
     sample_rate::Integer = nworkers,
     job_name = nothing,
-    files = nothing,
+    files = [],
     force_update_files = false,
     pt_lib_info = "",
     url = nothing,
@@ -89,22 +88,32 @@ function create_job(;
         job_configuration["job_name"] = job_name
     end
 
+    s3_bucket_name = get_cluster_s3_bucket_name(cluster_name)
+
     environment_info = Dict{String,Any}()
     # If a url is not provided, then use the local environment
     if isnothing(url)
         # TODO: Optimize to not have to send tomls on every call
         local_environment_dir = get_julia_environment_dir()
-        project_toml = read(local_environment_dir * "Project.toml")
-        environment_info["project_toml"] = project_toml
-        if !isfile(local_environment_dir * "Manifest.toml")
+        project_toml = load_file("file://$(local_environment_dir)Project.toml")
+        if !isfile("$(local_environment_dir)Manifest.toml")
             manifest_toml = ""
             @warn "Manifest file not present for this environment"
         else
-	    println(local_environment_dir)
-            manifest_toml = read(local_environment_dir * "Manifest.toml")
-            environment_info["manifest_toml"] = manifest_toml
+            manifest_toml = load_file("file://" * local_environment_dir * "Manifest.toml")
         end
-        environment_info["environment_hash"] = get_hash(project_toml * manifest_toml)
+        environment_hash = get_hash(project_toml * manifest_toml)
+	environment_info["environment_hash"] = environment_hash
+	environment_info["project_toml"] = "$(environment_hash)/Project.toml"
+	if !isfile(S3Path("s3://$(s3_bucket_name)/$(environment_hash)/Project.toml", config=get_aws_config()))
+            s3_put(get_aws_config(), s3_bucket_name, "$(environment_hash)/Project.toml", project_toml)
+        end
+	if manifest_toml != ""
+	    environment_info["manifest_toml"] = "$(environment_hash)/Manifest.toml"
+	    if !isfile(S3Path("s3://$(s3_bucket_name)/$(environment_hash)/Manifest.toml", config=get_aws_config()))
+	        s3_put(get_aws_config(), s3_bucket_name, "$(environment_hash)/Manifest.toml", manifest_toml)
+            end
+	end
     else
         # Otherwise, use url and optionally a particular branch
         environment_info["url"] = url
@@ -123,9 +132,8 @@ function create_job(;
     job_configuration["environment_info"] = environment_info
 
     # Upload files to S3
-    s3_bucket_name = get_cluster_s3_bucket_name(cluster_name)
     for f in files
-        s3_path = S3Path("s3://$(s3_bucket_name)/$(basename(f)))", get_aws_config())
+        s3_path = S3Path("s3://$(s3_bucket_name)/$(basename(f))", config=get_aws_config())
         if !isfile(s3_path) || force_update_files
             s3_put(get_aws_config(), s3_bucket_name, basename(f), load_file(f))
         end
@@ -134,7 +142,7 @@ function create_job(;
     job_configuration["files"] = [basename(f) for f in files]
 
     if pt_lib_info == ""
-        pt_lib_info = "https://github.com/banyan-team/banyan-julia/blob/v0.1.3/Banyan/res/pt_lib_info.json"
+        pt_lib_info = "https://raw.githubusercontent.com/banyan-team/banyan-julia/v0.1.3/Banyan/res/pt_lib_info.json"
     end
     job_configuration["pt_lib_info"] = load_json(pt_lib_info)
 
