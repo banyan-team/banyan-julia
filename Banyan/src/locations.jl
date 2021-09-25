@@ -354,6 +354,23 @@ invalidate_location(p) = rm(joinpath(homedir(), ".banyan", "locations", p |> has
 invalidate_sample(p) = rm(joinpath(homedir(), ".banyan", "samples", p |> hash |> string), force=true, recursive=true)
 
 function Remote(p; shuffled=false, similar_files=false, location_invalid = false, sample_invalid = false, invalidate_location = false, invalidate_sample = false)
+    # In the context of remote locations, the location refers to just the non-sample part of it; i.e., the
+    # info about what files are in the dataset and how many rows they have.
+
+    # Set shuffled to true if the data is fully shuffled and so we can just take
+    # the first rows of the data to get our sample.
+    # Set similar_files to true if the files are simialr enough (in their distribution
+    # of data) that we can just randomly select files and only sample from those.
+    # Invalidate the location only when the number of files or their names or the
+    # number of rows they have changes. If you just update a few rows, there's no
+    # need to invalidate the location.
+    # Invalidate the sample only when the data has drifted enough. So if you update
+    # a row to have an outlier or if you add a whole bunch of new rows, make sure
+    # to udpate the sample.
+
+    # TODO: Store the time it took to collect a sample so that the user is
+    # warned when invalidating a sample that took a long time to collect
+
     # TODO: Document the caching behavior better
     # Read location from cache. The location will include metadata like the
     # number of rows in each file as well as a sample that can be used on the
@@ -375,8 +392,9 @@ function Remote(p; shuffled=false, similar_files=false, location_invalid = false
     remote_location = if isfile(locationpath) && !location_invalid
         deserialize(locationpath)
     else
-        get_remote_location(p, remote_sample, shuffled=shuffled, similar_files=similar_files)
+        nothing
     end
+    remote_location = get_remote_location(p, remote_location, remote_sample, shuffled=shuffled, similar_files=similar_files)
     remote_sample = remote_location.sample
 
     # Store location in cache
@@ -398,8 +416,14 @@ function Remote(p; shuffled=false, similar_files=false, location_invalid = false
     remote_location
 end
 
-function get_remote_location(remotepath, remote_sample=nothing; shuffled=false, similar_files=false)::Location
+function get_remote_location(remotepath, remote_location=nothing, remote_sample=nothing; shuffled=false, similar_files=false)::Location
     @info "Collecting sample from $remotepath\n\nThis will take some time but the sample will be cached for future use. Note that writing to this location will invalidate the cached sample."
+
+    # If both the location and sample are already cached, just return them
+    if !isnothing(remote_location) && !isnothing(remote_sample)
+        remote_location.sample = remote_sample
+        return remote_location
+    end
 
     # This is so that we can make sure that any random selection fo rows is deterministic. Might not be needed
     Random.seed!(hash(get_job_id()))
@@ -416,13 +440,13 @@ function get_remote_location(remotepath, remote_sample=nothing; shuffled=false, 
     
     # Return either an HDF5 location or a table location
     if isa_hdf5
-        get_remote_hdf5_location(remotepath, hdf5_ending, remote_sample; shuffled=shuffled, similar_files=similar_files)
+        get_remote_hdf5_location(remotepath, hdf5_ending, remote_location, remote_sample; shuffled=shuffled, similar_files=similar_files)
     else
-        get_remote_table_location(remotepath, remote_sample; shuffled=shuffled, similar_files=similar_files)
+        get_remote_table_location(remotepath, remote_location, remote_sample; shuffled=shuffled, similar_files=similar_files)
     end
 end
 
-function get_remote_hdf5_location(remotepath, hdf5_ending, remote_sample=nothing; shuffled=false, similar_files=false)::Location
+function get_remote_hdf5_location(remotepath, hdf5_ending, remote_location=nothing, remote_sample=nothing; shuffled=false, similar_files=false)::Location
     # Get the actual path by removing the dataset from the path
     remotepath, datasetpath = if hdf5_ending == ""
         remotepath, nothing
@@ -573,21 +597,25 @@ function get_remote_hdf5_location(remotepath, hdf5_ending, remote_sample=nothing
     )
 end
 
-function get_remote_table_location(remotepath, remote_sample=nothing; shuffled=false, similar_files=false)::Location
+function get_remote_table_location(remotepath, remote_location=nothing, remote_sample=nothing; shuffled=false, similar_files=false)::Location
     p = download_remote_path(remotepath)
+
+    # TODO: Support reusing an existing remote_location to compute a new remote sample 
 
     # TODO: Support more cases beyond just single files and all files in
     # given directory (e.g., wildcards)
 
-    nbytes = 0
-    totalnrows = 0
+    # If !isnothing(remote_location), we make sure to not update nbytes, totalnrows, and files
+
+    nbytes = isnothing(remote_location) ? 0 : remote_location.nbytes
+    totalnrows = isnothing(remote_location) ? 0 : remote_location.nrows
 
     # Read through dataset by row
     p_isdir = isdir(p)
     p_isfile = !p_isdir && isfile(p) # <-- avoid expensive unnecessary S3 API calls
     # TODO: Support more than just reading/writing single HDF5 files and
     # reading/writing directories containing CSV/Parquet/Arrow files
-    files = []
+    files = isnothing(remote_location) ? [] : remote_location.files
     # TODO: Check for presence of cached file here and job configured to use
     # cache before proceeding
     exactsample = DataFrame()
@@ -709,7 +737,9 @@ function get_remote_table_location(remotepath, remote_sample=nothing; shuffled=f
                     chunkdf = chunk |> DataFrames.DataFrame
                     chunknrows = nrow(chunkdf)
                     filenrows += chunknrows
-                    totalnrows += chunknrows
+                    if isnothing(remote_location)
+                        totalnrows += chunknrows
+                    end
 
                     # Append to randomsample
                     # chunksampleindices = map(rand() < 1 / get_job().sample_rate, 1:chunknrows)
@@ -728,7 +758,9 @@ function get_remote_table_location(remotepath, remote_sample=nothing; shuffled=f
 
                     # nbytes += isnothing(chunkdf) ? pqf.meta.row_groups[i].total_byte_size : Base.summarysize(chunkdf)
                     # nbytes = nothing
-                    nbytes += Base.summarysize(chunkdf)
+                    if isnothing(remote_location)
+                        nbytes += Base.summarysize(chunkdf)
+                    end
 
                     @show nbytes
                     @show Int64(Sys.free_memory())
@@ -752,10 +784,24 @@ function get_remote_table_location(remotepath, remote_sample=nothing; shuffled=f
                         # sample rate, we can stop. We also make sure we have
                         # enough of the exact sample in case the random sample
                         # comes short because of the random selection.
+                        # 
+                        # Note that the condition checking the number of files
+                        # scanned is important because when files are similar
+                        # all we know is that each file has a similar
+                        # distribution of data. For example, each file might
+                        # contain data from years 2000-2020 sorted by year.
+                        # In that case, if the sample rate is 2, we only need
+                        # to look at a random selection of _half_ of the files
+                        # and use data from those files. Right now, we use the
+                        # `exact_sample` computed along those files which will
+                        # return a non-random selection from those half of the
+                        # files and that could be improved by making that
+                        # random in the case of files having inequal number of
+                        # rows.
                         break
                     end
                 end
-            else
+            elseif isnothing(remote_location)
                 filenrows = if endswith(localfilepathp, ".csv")
                     sum((1 for row in CSV.Rows(localfilepathp)))
                 elseif endswith(localfilepathp, ".parquet")
@@ -767,18 +813,24 @@ function get_remote_table_location(remotepath, remote_sample=nothing; shuffled=f
                 end
                 totalnrows += filenrows
 
+                # TODO: Update nbytes if there is no existing location and
+                # we need nbytes for the location even though we don't need
+                # to collect a sample.
+
                 # TODO: Maybe also compute nbytes or perhaps it's okay to just
                 # use the sample to estimate the total memory usage
             end
 
             # Add to list of file metadata
-            push!(
-                files,
-                Dict(
-                    "path" => p_isdir ? joinpath(remotepath, filep) : remotepath,
-                    "nrows" => filenrows,
-                ),
-            )
+            if isnothing(remote_location)
+                push!(
+                    files,
+                    Dict(
+                        "path" => p_isdir ? joinpath(remotepath, filep) : remotepath,
+                        "nrows" => filenrows,
+                    ),
+                )
+            end
         end
 
         # Optimized stopping condition in the case that all the files are similar
@@ -857,7 +909,7 @@ function get_remote_table_location(remotepath, remote_sample=nothing; shuffled=f
 
     # Load metadata for reading
     loc_for_reading, metadata_for_reading = if !isempty(files) || p_isdir # empty directory can still be read from
-        ("Remote", Dict("path" => remotepath, "files" => files, "nrows" => totalnrows))
+        ("Remote", Dict("path" => remotepath, "files" => files, "nrows" => totalnrows, "nbytes" => nbytes))
     else
         ("None", Dict{String,Any}())
     end
