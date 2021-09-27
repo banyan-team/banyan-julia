@@ -1,5 +1,6 @@
 using TimeZones
-
+# TODO: optimize to build only if timeZones is used
+TimeZones.build()
 using Base: AbstractVecOrTuple
 
 ##############
