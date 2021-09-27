@@ -18,6 +18,18 @@ like `{author-name}/{feature-name}`. For example: `caleb/add-tests-for-hdf5`.
 Then, submit a pull request on GitHub to merge your branch into the branch with
 the latest version number.
 
+When pulling/pushing code, you may need to add the appropriate SSH key. Look
+up GitHub documentation for how to generate an SSH key, then make sure to add
+it. You may need to do this repeatedly if you have multiple SSH keys for
+different GitHub accounts. For example, on Windows you may need to:
+
+```
+eval `ssh-agent`
+ssh-add -D
+ssh-add /c/Users/Claris/.ssh/id_rsa_clarisw
+git remote set-url origin git@github.com:banyan-team/banyan-website.git
+```
+
 ## Testing
 
 To see an example of how to add tests, see `BanyanArrays/test/runtests.jl` and `BanyanArrays/test/hdf5.jl`.
