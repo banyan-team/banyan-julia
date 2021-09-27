@@ -430,8 +430,7 @@ end
 # equally-sized numbers
 
 # NOTE: This is duplicated between pt_lib.jl and the client library
-x = [5,6,7,7]
-f(x) = x * 2
+# NOTE: This is an "order-preserving hash function" (google that for more info)
 orderinghash(x::Any) = x # This lets us handle numbers and dates
 orderinghash(s::String) = Integer.(codepoint.(first(s, 32) * repeat(" ", 32-length(s))))
 orderinghash(A::AbstractArray) = orderinghash(first(A))

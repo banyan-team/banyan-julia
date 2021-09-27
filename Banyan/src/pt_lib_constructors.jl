@@ -118,13 +118,20 @@ function Blocked(
                 if !isnothing(filtered_from)
                     filtered_from = to_vector(filtered_from)
                     factor, from = maximum(filtered_from) do ff
+                        # If 100 elements get filtered to 20 elements and the
+                        # original data was block-partitioned in a balanced
+                        # way, the result may all be on one partition in the
+                        # msot extreme case (not balanced at all) and so we
+                        # should adjust the memory usage of the result by
+                        # multiplying it by the size of the original / the size
+                        # of the result (100 / 20 = 5).
                         (sample(ff, :memory_usage) / sample(f, :memory_usage), filtered_from)
                     end
                     push!(constraints.constraints, ScaleBy(f, factor, from))
                 elseif !isnothing(filtered_to)
                     filtered_to = to_vector(filtered_to)
                     factor, to = maximum(filtered_to) do ft
-                        (sample(ft, :memory_usage) / sample(f, :memory_usage), filtered_to)
+                        (sample(f, :memory_usage) / sample(ft, :memory_usage), filtered_to)
                     end
                     push!(constraints.constraints, ScaleBy(f, factor, to))
                 elseif !isnothing(scaled_by_same_as)
@@ -214,11 +221,11 @@ function Grouped(
                         fkey = fby[i]
 
                         # Compute the amount to scale memory usage by based on data skew
-                        min_filtered_from = sample(ff, :statistics, fkey, :min)
-                        max_filtered_from = sample(ff, :statistics, fkey, :max)
+                        min_filtered_to = sample(f, :statistics, fkey, :min)
+                        max_filtered_to = sample(f, :statistics, fkey, :max)
                         # divisions_filtered_from = sample(ff, :statistics, key, :divisions)
-                        f_percentile = sample(f, :statistics, key, :percentile, min_filtered_from, max_filtered_from)
-                        (f_percentile, filtered_from_futures)
+                        ff_percentile = sample(ff, :statistics, key, :percentile, min_filtered_to, max_filtered_to)
+                        (1 / ff_percentile, filtered_from_futures)
                     end
                     push!(constraints.constraints, ScaleBy(f, factor, from))
                 elseif !isnothing(filtered_to)

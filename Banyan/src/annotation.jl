@@ -40,20 +40,46 @@ end
 # Setting up sample properties in beforecompute #
 #################################################
 
+# These functions are necessary because when we construct PT's to assign to
+# futures for annotated code (especially code in BDF.jl), we rely on statistics
+# of the samples of the futures to construct the PTs. But computing statistics
+# is expensive and we only want to compute it for the keys/columns that are
+# actually used for grouping/sorting/etc. So we propagate this through the
+# `:groupingkeys` sample property of different futures (each future has a
+# set of sample properties).
+# 
+# These `keep_*` functions specify how `statistics` and `groupingkeys` sample
+# properties should propagate. These functions are called inside of a
+# `partitioned_using` so that they are called in a forward pass through all the
+# tasks (code regions) detected and also in a backward pass to properly
+# propagate the `groupingkeys` sample property. For example, a groupby may only
+# happen in the very last task indicating that a particular column can be in
+# the `groupingkeys` (the column used for the groupby) but we need to specify
+# that that column could have been used for grouping the data throughout (if
+# all tasks are amenable like that).
+# 
+# Of course, columns can be dropped or
+# renamed and so that makes things a bit challenging in properly propagating
+# information about sample properties and that's why we have a lot of these
+# keep_* functions.
+
 function partitioned_using(handler::Function)
     global curr_delayed_task
     curr_delayed_task.partitioned_using_func = handler
 end
 
-# TODO: Switch key names from strings to symbols if performance is an issue
-
 function keep_all_sample_keys(participants::AbstractFuture...; drifted = false)
+    # This can be use on an input and output that share the same keys that they
+    # can be grouped by.
+
     # Take the union of discovered grouping keys. Grouping keys are discovered
     # through calls to `keep_keys` in functions where we know that we need
     # to allow grouping by certain keys such as sorting and join functions.
     groupingkeys = union([sample(p, :groupingkeys) for p in participants]...)
-    if !drifted
-        statistics = merge([sample(p, :statistics) for p in participants]...)
+    statistics = if !drifted
+        merge([sample(p, :statistics) for p in participants]...)
+    else
+        nothing
     end
 
     # Only allow keys that are actually in the keys of the participants
@@ -99,7 +125,7 @@ function keep_sample_keys_named(
         (participant, Symbol.(to_vector(key_names))) for
         (participant, key_names) in participants
     ]
-    nkeys = length(last(first(participants)))
+    nkeys = length(first(participants)[2])
     for i = 1:nkeys
         # Copy over allowed grouping keys
         for (p, keys) in participants

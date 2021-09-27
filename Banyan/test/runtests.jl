@@ -67,6 +67,29 @@ function use_data(file_extension, remote_kind, single_file)
     # Return the path to be passed into a read_* function
     if remote_kind == "Internet"
         url * file_extension_is_hdf5 ? "/DS1" : ""
+    elseif remote_kind == "Disk"
+        # Get names and paths
+        testing_dataset_local_name =
+            (file_extension_is_hdf5 ? "fillval" : "iris") * ".$file_extension"
+        testing_dataset_local_path =
+            joinpath(homedir(), ".banyan", "testing_datasets", testing_dataset_local_name)
+            
+        # Download if not already download
+        if !isfile(testing_dataset_local_path)
+            # Download to local ~/.banyan/testing_datasets
+            download(url, testing_dataset_local_path)
+
+            # Convert file if needed
+            if file_extension == "parquet"
+                df = CSV.read(testing_dataset_local_path, DataFrame)
+                write_parquet(testing_dataset_local_path, df)
+            elseif file_extension == "arrow"
+                df = CSV.read(testing_dataset_local_path, DataFrame)
+                Arrow.write(testing_dataset_local_path, df)
+            end
+        end
+
+        testing_dataset_local_path
     elseif remote_kind == "S3"
         # Get names and paths
         testing_dataset_local_name =
@@ -107,7 +130,7 @@ function use_data(file_extension, remote_kind, single_file)
                 for i = 0:9
                     cp(
                         testing_dataset_local_path,
-                        joinpath(testing_dataset_s3_path, "part_$i"),
+                        joinpath(testing_dataset_s3_path, "part_$i.$file_extension"),
                     )
                 end
             end
@@ -119,6 +142,11 @@ function use_data(file_extension, remote_kind, single_file)
     end
 end
 
+# This function is sort of a convenience for testing - it allows us to use
+# a single string name to vaguely describe what data we want and to then
+# specify if we want it on the Internet or on S3. Motivated because not
+# every permutation of the values of the parameters for the other `use_data`
+# are valid (e.g., HDF5 data cannot _not_ be a single file).
 use_data(name, remote_kind) =
     use_data(last(split(name, ".")), remote_kind, contains(name, "file"))
 
