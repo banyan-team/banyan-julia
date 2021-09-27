@@ -564,3 +564,5 @@ function get_cluster_s3_bucket_name(cluster_name=get_cluster_name(); kwargs...)
 end
 
 get_cluster(name::String=get_cluster_name(), kwargs...) = get_clusters(; kwargs...)[name]
+
+get_running_clusters(args...; kwargs...) = filter(entry -> entry[2].status == :running, get_clusters(args...; kwargs...))

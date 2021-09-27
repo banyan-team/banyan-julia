@@ -6,23 +6,23 @@
 # - Test shuffled, similar files, default, invalidated location but reused sample or reused location
 # - Verify no error, length of returned sample, location files and their nrows,
 # (eventually) ensure that rows come from the right files
-@testset "$exact_or_inexact sample collected from $src_name on $on with $optimization $with_or_without_s3fs S3FS reusing $reusing" for exact_or_inexact in
+@testset "$exact_or_inexact sample collected from $(titlecase(file_extension)) $(single_file ? "file" : "directory") on $on $with_or_without_s3fs S3FS  with $optimization reusing $reusing" for exact_or_inexact in
                                                                                                                                        [
         "Exact",
         "Inexact",
     ],
-    (src_name, on, src_nrows) in [
-        ("fillval_in_a_file.h5", "S3", 10),
-        ("fillval_in_a_file.h5", "Internet", 10),
-        ("iris_in_a_file.csv", "S3", 150),
-        ("iris_in_a_file.parquet", "S3", 150),
-        ("iris_in_a_file.arrow", "S3", 150),
-        ("iris_in_a_file.csv", "Internet", 150),
-        ("iris_in_a_file.parquet", "Internet", 150),
-        ("iris_in_a_file.arrow", "Internet", 150),
-        ("iris_in_a_dir.csv", "S3", 150 * 10),
-        ("iris_in_a_dir.parquet", "S3", 150 * 10),
-        ("iris_in_a_dir.arrow", "S3", 150 * 10),
+    (file_extension, single_file, on, src_nrows) in [
+        ("h5", true, "S3", 10),
+        ("h5", true, "Internet", 10),
+        ("csv", true, "S3", 150),
+        ("parquet", true, "S3", 150),
+        ("arrow", true, "S3", 150),
+        ("csv", true, "Internet", 150),
+        ("parquet", true, "Internet", 150),
+        ("arrow", true, "Internet", 150),
+        ("csv", false, "S3", 150 * 10),
+        ("parquet", false, "S3", 150 * 10),
+        ("arrow", false, "S3", 150 * 10),
     ],
     optimization in ["shuffled", "similar files"],
     reusing in ["nothing", "sample", "location", "sample and location"],
@@ -36,7 +36,7 @@
     )
 
     # Use data to collect a sample from
-    src_name = use_data(src_name, on)
+    src_name = use_data(file_extension, on, single_file)
 
     # Construct location
     if reusing != "nothing"
@@ -51,7 +51,7 @@
     )
 
     # Verify the location
-    if "h5" in src_name
+    if contains(src_name, "h5")
         @test remote_location.ndims == 2
         @test !contains(remote_location.path, "DS1")
         @test remote_location.subpath == "DS1"

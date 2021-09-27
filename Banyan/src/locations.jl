@@ -530,13 +530,17 @@ function get_remote_hdf5_location(remotepath, hdf5_ending, remote_location=nothi
                     
                     # Ensure that we have at least an empty initial array
                     if isnothing(dset_sample)
+                        # NOTE: HDF5.jl does not support taking an empty slice
+                        # so we have to read in the first row and then take a
+                        # slice and this assumes that HDF5 datasets are always
+                        # non-empty (which I think they always are).
                         dset_sample = dset[1:1, remainingcolons...][1:0, remainingcolons...]
                     end
 
                     # Extend or chop sample as needed
                     samplelength = getsamplenrows(datalength)
                     # TODO: Warn about the sample size being too large
-                    if size(sample, 1) < samplelength
+                    if size(dset_sample, 1) < samplelength
                         dset_sample = vcat(
                             dset_sample,
                             dset[1:(samplelength-size(sample, 1)), remainingcolons...],
@@ -815,7 +819,7 @@ function get_remote_table_location(remotepath, remote_location=nothing, remote_s
 
                 # TODO: Update nbytes if there is no existing location and
                 # we need nbytes for the location even though we don't need
-                # to collect a sample.
+                # to collect a sample.+++
 
                 # TODO: Maybe also compute nbytes or perhaps it's okay to just
                 # use the sample to estimate the total memory usage

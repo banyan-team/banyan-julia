@@ -117,7 +117,7 @@ function verify_file_in_s3(bucket, path, download_path)
         if typeof(download_path) == String && (startswith(download_path, "https://") || startswith(download_path, "http://"))
             download(download_path, S3Path("s3://$(bucket)/$(path)", config=Banyan.get_aws_config()))
         else  # upload local file
-            cp(download_path, S3Path("s3://$(bucket)/$(path)", config=Banyan.get_aws_config()))
+            cp(Path(download_path), S3Path("s3://$(bucket)/$(path)", config=Banyan.get_aws_config()))
         end
     end
 end

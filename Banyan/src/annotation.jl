@@ -563,7 +563,12 @@ macro partitioned(ex...)
         # Stacktrace:
         #   [1] merge(a::NamedTuple{(:dims,), Tuple{Colon}}, itr::Int32)
         #     @ Base ./namedtuple.jl:281      
-        $(esc(code))
+        try
+            $(esc(code))
+        catch
+            # TODO: In the case of an error, 
+            rethrow()
+        end
 
         # Move results from variables back into the samples. Also, update the
         # memory usage accordingly.

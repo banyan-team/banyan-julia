@@ -16,7 +16,7 @@ global jobs = Dict()
 # ergonomic.
 global current_job_id = nothing
 
-function set_job_id(job_id::Union{JobId,Nothing})
+function set_job(job_id::Union{JobId,Nothing})
     global current_job_id
     current_job_id = job_id
 end
@@ -25,7 +25,7 @@ function get_job_id()::JobId
     global current_job_id
     if isnothing(current_job_id)
         error(
-            "No job selected using `with_job` or `create_job` or `set_job_id`. The current job may have been destroyed or no job may have been created yet",
+            "No job selected using `with_job` or `create_job` or `set_job`. The current job may have been destroyed or no job may have been created yet",
         )
     end
     current_job_id
@@ -183,7 +183,7 @@ function destroy_job(job_id::JobId; failed = nothing, force = false, kwargs...)
 
     # Remove from global state
     if !isnothing(current_job_id) && get_job_id() == job_id
-        set_job_id(nothing)
+        set_job(nothing)
     end
     delete!(jobs, job_id)
 end

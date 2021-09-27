@@ -61,6 +61,7 @@ export Cluster,
     update_cluster,
     destroy_cluster,
     get_clusters,
+    get_running_clusters,
     get_cluster,
     get_cluster_s3_bucket_name,
     assert_cluster_is_ready
@@ -71,10 +72,12 @@ export Job,
     create_job,
     destroy_job,
     destroy_all_jobs,
+    set_job,
     get_jobs,
     get_job,
     get_job_id,
-    get_cluster_name
+    get_cluster_name,
+    get_running_jobs
 
 # Futures
 export AbstractFuture, Future, partitioned_computation, write_to_disk, collect

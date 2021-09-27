@@ -32,7 +32,7 @@ end
     @test Banyan.sample_maximum(df, :y) == orderinghash("d")
 end
 
-@testset "Ordering hash" begin
+@testset "Ordering hash for samples" begin
     increasing_array_1d = range(1,100,length=100)
     increasing_array_1d_smaller = range(-50,49,length=100)
     increasing_array_2d = reshape(range(1,100,length=100), (10,10))
@@ -199,7 +199,7 @@ function is_split_divisions_valid(splits, original=nothing)
     end
 end
 
-@testset "Splitting divisions" begin
+@testset "Splitting sampled divisions" begin
     # TOOD: Test `get_partition_idx_from_divisions`
 
     df = CSV.read(use_data("iris_in_a_file.csv", "Disk"), DataFrame)

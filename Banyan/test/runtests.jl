@@ -1,5 +1,6 @@
 using ReTest
-using DataFrames, CSV, Parquet, Arrow
+using Banyan
+using FilePathsBase, AWSS3, DataFrames, CSV, Parquet, Arrow
 
 global jobs_for_testing = Dict()
 
@@ -19,14 +20,14 @@ function use_job_for_testing(;
 
     # Set the job and create a new one if needed
     global jobs_for_testing
-    set_job_id(
+    set_job(
         if haskey(jobs_for_testing, job_config_hash)
             jobs_for_testing[job_config_hash]
         else
             create_job(
                 cluster_name = ENV["BANYAN_CLUSTER_NAME"],
                 nworkers = 2,
-                banyanfile_path = "file://res/BanyanfileDebug.json",
+                banyanfile_path = "file://res/Banyanfile.json",
                 sample_rate = sample_rate,
                 return_logs = true,
             )
@@ -66,7 +67,7 @@ function use_data(file_extension, remote_kind, single_file)
 
     # Return the path to be passed into a read_* function
     if remote_kind == "Internet"
-        url * file_extension_is_hdf5 ? "/DS1" : ""
+        url * (file_extension_is_hdf5 ? "/DS1" : "")
     elseif remote_kind == "Disk"
         # Get names and paths
         testing_dataset_local_name =
@@ -77,6 +78,7 @@ function use_data(file_extension, remote_kind, single_file)
         # Download if not already download
         if !isfile(testing_dataset_local_path)
             # Download to local ~/.banyan/testing_datasets
+            mkpath(joinpath(homedir(), ".banyan", "testing_datasets"))
             download(url, testing_dataset_local_path)
 
             # Convert file if needed
@@ -103,7 +105,7 @@ function use_data(file_extension, remote_kind, single_file)
             ".$file_extension"
         testing_dataset_s3_path = S3Path(
             "s3://$(get_cluster_s3_bucket_name())/$testing_dataset_s3_name",
-            config = get_aws_config(),
+            config = Banyan.get_aws_config(),
         )
 
         # Create the file if not already created
@@ -111,6 +113,7 @@ function use_data(file_extension, remote_kind, single_file)
             # Download if not already download
             if !isfile(testing_dataset_local_path)
                 # Download to local ~/.banyan/testing_datasets
+                mkpath(joinpath(homedir(), ".banyan", "testing_datasets"))
                 download(url, testing_dataset_local_path)
 
                 # Convert file if needed
@@ -125,30 +128,22 @@ function use_data(file_extension, remote_kind, single_file)
 
             # Upload to S3
             if single_file
-                cp(testing_dataset_local_path, testing_dataset_s3_path)
+                cp(Path(testing_dataset_local_path), testing_dataset_s3_path)
             else
                 for i = 0:9
                     cp(
-                        testing_dataset_local_path,
+                        Path(testing_dataset_local_path),
                         joinpath(testing_dataset_s3_path, "part_$i.$file_extension"),
                     )
                 end
             end
         end
 
-        string(testing_dataset_s3_path) * file_extension_is_hdf5 ? "/DS1" : ""
+        string(testing_dataset_s3_path) * (file_extension_is_hdf5 ? "/DS1" : "")
     else
         error("Unsupported kind of remote: $remote_kind")
     end
 end
-
-# This function is sort of a convenience for testing - it allows us to use
-# a single string name to vaguely describe what data we want and to then
-# specify if we want it on the Internet or on S3. Motivated because not
-# every permutation of the values of the parameters for the other `use_data`
-# are valid (e.g., HDF5 data cannot _not_ be a single file).
-use_data(name, remote_kind) =
-    use_data(last(split(name, ".")), remote_kind, contains(name, "file"))
 
 include("sample_collection.jl")
 include("sample_computation.jl")
@@ -158,6 +153,7 @@ try
 finally
     # Destroy jobs to clean up
     for job_id in values(jobs_for_testing)
+        @info "Destroying $job_id"
         destroy_job(job_id)
     end
 end

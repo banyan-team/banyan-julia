@@ -1,5 +1,6 @@
 using ReTest
-using HDF5
+using Banyan
+using FilePathsBase, AWSS3, HDF5
 
 global jobs_for_testing = Dict()
 
@@ -17,7 +18,7 @@ function use_job_for_testing(;
 
     # Set the job and create a new one if needed
     global jobs_for_testing
-    set_job_id(
+    set_job(
         if haskey(jobs_for_testing, job_config_hash)
             jobs_for_testing[job_config_hash]
         else
