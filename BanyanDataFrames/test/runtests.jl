@@ -1,3 +1,6 @@
+using BanyanDataFrames
+using BanyanArrays
+using Banyan
 using ReTest
 using Banyan, BanyanDataFrames
 using FilePathsBase, AWSS3, DataFrames, CSV, Parquet, Arrow
@@ -74,6 +77,8 @@ function use_job_for_testing(
 end
 
 include("utils_data.jl")
+include("groupby_filter_indexing.jl")
+include("test_jobs.jl")
 
 function use_data(file_extension, remote_kind, single_file)
     # TODO: Handle case where file_extension == "hdf5" and single_file=false

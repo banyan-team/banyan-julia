@@ -1,3 +1,4 @@
+using Banyan
 using ReTest
 using Banyan
 using FilePathsBase, AWSS3, DataFrames, CSV, Parquet, Arrow
@@ -175,6 +176,7 @@ end
 
 include("sample_collection.jl")
 include("sample_computation.jl")
+include("test_jobs.jl")
 
 try
     runtests(Regex.(ARGS)...)

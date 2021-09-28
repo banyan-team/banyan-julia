@@ -46,6 +46,7 @@ function create_job(;
     job_name = nothing,
     files = [],
     force_update_files = false,
+    pt_lib = "",
     pt_lib_info = "",
     url = nothing,
     branch = nothing,
@@ -59,6 +60,11 @@ function create_job(;
     @debug "Creating job"
     if cluster_name == ""
         cluster_name = nothing
+    end
+
+    if pt_lib == ""
+        pt_lib = "https://raw.githubusercontent.com/banyan-team/banyan-julia/v0.1.3/Banyan/res/pt_lib.jl"
+        push!(files, "https://raw.githubusercontent.com/banyan-team/banyan-julia/v0.1.3/Banyan/res/utils.jl")
     end
 
     # Configure
@@ -103,17 +109,17 @@ function create_job(;
             manifest_toml = load_file("file://" * local_environment_dir * "Manifest.toml")
         end
         environment_hash = get_hash(project_toml * manifest_toml)
-	environment_info["environment_hash"] = environment_hash
-	environment_info["project_toml"] = "$(environment_hash)/Project.toml"
-	if !isfile(S3Path("s3://$(s3_bucket_name)/$(environment_hash)/Project.toml", config=get_aws_config()))
+        environment_info["environment_hash"] = environment_hash
+        environment_info["project_toml"] = "$(environment_hash)/Project.toml"
+        if !isfile(S3Path("s3://$(s3_bucket_name)/$(environment_hash)/Project.toml", config=get_aws_config()))
             s3_put(get_aws_config(), s3_bucket_name, "$(environment_hash)/Project.toml", project_toml)
         end
-	if manifest_toml != ""
-	    environment_info["manifest_toml"] = "$(environment_hash)/Manifest.toml"
-	    if !isfile(S3Path("s3://$(s3_bucket_name)/$(environment_hash)/Manifest.toml", config=get_aws_config()))
-	        s3_put(get_aws_config(), s3_bucket_name, "$(environment_hash)/Manifest.toml", manifest_toml)
+        if manifest_toml != ""
+            environment_info["manifest_toml"] = "$(environment_hash)/Manifest.toml"
+            if !isfile(S3Path("s3://$(s3_bucket_name)/$(environment_hash)/Manifest.toml", config=get_aws_config()))
+                s3_put(get_aws_config(), s3_bucket_name, "$(environment_hash)/Manifest.toml", manifest_toml)
             end
-	end
+        end
     else
         # Otherwise, use url and optionally a particular branch
         environment_info["url"] = url
@@ -132,6 +138,7 @@ function create_job(;
     job_configuration["environment_info"] = environment_info
 
     # Upload files to S3
+    files = vcat(files, [pt_lib])
     for f in files
         s3_path = S3Path("s3://$(s3_bucket_name)/$(basename(f))", config=get_aws_config())
         if !isfile(s3_path) || force_update_files
