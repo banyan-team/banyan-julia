@@ -200,35 +200,23 @@ function get_jobs(cluster_name=nothing; status=nothing, kwargs...)
         filters["status"] = status
     end
     
-    # finished = false
-    # Jobs = []
-    # Last_eval, next_jobs = describe_jobs()
-    # jobs.append(next_jobs)
-    # If (last_eval = None)
-    # Finished = True
-    # While finished = False0
-    # New_eval, next_jobs = describe_jobs(last_eval)
-    # jobs.append(next_jobs)
-    # if(new_eval = None)
-    #         Finished = True
-    # Last_eval = new_eval
-    # return jobs
-
     
     response = Dict("last_eval_key" => 50394, "jobs" => [])
     finished = false
     indiv_response = send_request_get_response(:describe_jobs, Dict{String,Any}("filters"=>filters))
     response = indiv_response
-    if indiv_response["last_eval"] == nothing 
+    if  isnothing(indiv_response["last_eval"])
         finished = true
     else
         curr_last_eval = indiv_response["last_eval"]
         while finished == false
-            println(curr_last_eval)
-            indiv_response = send_request_get_response(:describe_jobs, Dict{String,Any}("filters"=>filters, "thisStartKey"=>curr_last_eval))
+            if is_debug()
+                println(curr_last_eval)
+            end
+            indiv_response = send_request_get_response(:describe_jobs, Dict{String,Any}("filters"=>filters, "this_start_key"=>curr_last_eval))
             response["jobs"] = merge!(response["jobs"], indiv_response["jobs"])
             # print(indiv_response["last_eval"])
-            if indiv_response["last_eval"] == nothing 
+            if isnothing(indiv_response["last_eval"])
                 finished = true
             else
                 curr_last_eval = indiv_response["last_eval"]
