@@ -1,4 +1,5 @@
 using Base: Integer, AbstractVecOrTuple
+using MPI, HDF5, DataFrames
 
 ####################
 # Helper functions #
@@ -132,6 +133,12 @@ end
 
 isoverlapping(a::AbstractRange, b::AbstractRange) = a.start ≤ b.stop && b.start ≤ a.stop
 
+######################################################
+# Helper functions for serialization/deserialization #
+######################################################
+
+to_jl_value(jl) = Dict("is_banyan_value" => true, "contents" => to_jl_value_contents(jl))
+
 # NOTE: This function is shared between the client library and the PT library
 to_jl_value_contents(jl) = begin
     # Handle functions defined in a module
@@ -166,11 +173,17 @@ from_jl_value_contents(jl_value_contents) = begin
     end
 end
 
-# NOTE: This is duplicated between pt_lib.jl and the client library
+
+##########################################
+# Ordering hash for computing  divisions #
+##########################################
+
+# NOTE: `orderinghash` must either return a number or a vector of
+# equally-sized numbers
+# NOTE: This is an "order-preserving hash function" (google that for more info)
 orderinghash(x::Any) = x # This lets us handle numbers and dates
-orderinghash(s::String) =
-    Integer.(codepoint.(collect(first(s, 32) * repeat(" ", 32 - length(s)))))
-orderinghash(A::U) where U <: Base.AbstractArray = orderinghash(first(A))
+orderinghash(s::String) = Integer.(codeunits(first(s, 32) * repeat(" ", 32-length(s))))
+orderinghash(A::AbstractArray) = orderinghash(first(A))
 
 to_vector(v::Vector) = v
 to_vector(v) = [v]

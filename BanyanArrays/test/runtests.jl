@@ -1,5 +1,5 @@
 using ReTest
-using Banyan
+using Banyan, BanyanArrays
 using FilePathsBase, AWSS3, HDF5
 
 global jobs_for_testing = Dict()
@@ -73,6 +73,7 @@ function use_data(data_src="S3")
     data_for_testing = true
 end
 
+include("sample_computation.jl")
 include("mapreduce.jl")
 include("hdf5.jl")
 include("bs.jl")

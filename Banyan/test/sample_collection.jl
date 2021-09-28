@@ -74,8 +74,9 @@
     # TODO: Fix sample collection in the optimizations/reuse and nbytes
 
     # Verify the sample
+    @show src_name
     sample_nrows =
-        "h5" in src_name ? size(remote_location.sample, 1) : nrows(remote_location.sample)
+        contains("h5", src_name) ? size(remote_location.sample.value, 1) : nrows(remote_location.sample.value)
     if exact_or_inexact == "Exact"
         @test sample_nrows == src_nrows
     else

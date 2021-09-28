@@ -444,7 +444,7 @@ end
     end
 end
 
-@testset "Filtering stress for initial functionality with $scheduling_config" for scheduling_config in
+@testset "Empty with stress for initial functionality with $scheduling_config" for scheduling_config in
                                                                                   [
     "default scheduling",
     "parallelism encouraged",

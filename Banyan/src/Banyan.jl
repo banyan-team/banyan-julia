@@ -155,6 +155,10 @@ using IterTools
 # into their respective libraries where they can be specialized
 using HDF5, CSV, Parquet, Arrow, DataFrames
 
+# Utility that is unused and not exported but kept for testing. IT is used in
+# pt_lib.jl.
+include("utils_pt_lib.jl")
+
 # Jobs
 include("id.jl")
 include("utils.jl")

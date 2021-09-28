@@ -252,46 +252,6 @@ Disk() = None() # The scheduler intelligently determines when to split from and 
 # "Memory" or "Disk" locations by the scheduler depending on where the relevant
 # data is.
 
-######################################################
-# Helper functions for serialization/deserialization #
-######################################################
-
-to_jl_value(jl) = Dict("is_banyan_value" => true, "contents" => to_jl_value_contents(jl))
-
-# NOTE: This function is shared between the client library and the PT library
-to_jl_value_contents(jl) = begin
-    # Handle functions defined in a module
-    # TODO: Document this special case
-    # if jl isa Function && !(isdefined(Base, jl) || isdefined(Core, jl) || isdefined(Main, jl))
-    if jl isa Expr && eval(jl) isa Function
-        jl = Dict("is_banyan_udf" => true, "code" => jl)
-    end
-
-    # Convert Julia object to string
-    io = IOBuffer()
-    iob64_encode = Base64EncodePipe(io)
-    serialize(iob64_encode, jl)
-    close(iob64_encode)
-    String(take!(io))
-end
-
-# NOTE: This function is shared between the client library and the PT library
-from_jl_value_contents(jl_value_contents) = begin
-    # Converty string to Julia object
-    io = IOBuffer()
-    iob64_decode = Base64DecodePipe(io)
-    write(io, jl_value_contents)
-    seekstart(io)
-    res = deserialize(iob64_decode)
-
-    # Handle functions defined in a module
-    if res isa Dict && haskey(res, "is_banyan_udf") && res["is_banyan_udf"]
-        eval(res["code"])
-    else
-        res
-    end
-end
-
 # NOTE: Currently, we only support s3:// or http(s):// and only either a
 # single file or a directory containing files that comprise the dataset.
 # What we currently support:
