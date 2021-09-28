@@ -206,10 +206,6 @@ function get_divisions(divisions, npartitions)
         # ndivisions_per_partition = div(ndivisions, npartitions)
         [
             begin
-                # islastpartition = partition_idx == npartitions
-                # firstdivisioni = ((partition_idx-1) * ndivisions_per_partition) + 1
-                # lastdivisioni = islastpartition ? ndivisions : partition_idx * ndivisions_per_partition
-                # divisions[firstdivisioni:lastdivisioni]
                 divisions[split_len(ndivisions, partition_idx, npartitions)]
             end for partition_idx = 1:npartitions
         ]
@@ -267,12 +263,17 @@ function get_divisions(divisions, npartitions)
                     for j = 1:ndivisionsplits
                         # Update the start and end of the division
                         # islastsplit = j == ndivisionsplits
-                        splitdivisions[j][1][i] = j == 1 ? dbegin : start
+                        splitdivisions[j][1][i] = j == 1 ? dbegin : copy(start)
                         start += cld(dend - dbegin, ndivisionsplits)
                         start = min(start, dend)
-                        splitdivisions[j][2][i] = j == ndivisionsplits ? dend : start
+                        splitdivisions[j][2][i] = j == ndivisionsplits ? dend : copy(start)
                         # splitdivisions[j][1][i] = dbegin + (dpersplit * (j-1))
                         # splitdivisions[j][2][i] = islastsplit ? dend : dbegin + dpersplit * j
+
+                        # Ensure that the remaining indices are matching between the start and end.
+                        if j < ndivisionsplits
+                            splitdivisions[j][2][i+1:end] = splitdivisions[j][1][i+1:end]
+                        end
                     end
 
                     # Stop if we have found a difference we can
