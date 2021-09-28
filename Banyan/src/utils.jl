@@ -1,5 +1,6 @@
 using TimeZones
-
+# TODO: optimize to build only if timeZones is used
+TimeZones.build()
 using Base: AbstractVecOrTuple
 
 ##############
@@ -111,6 +112,7 @@ function write_config()
     banyanconfig_path = joinpath(homedir(), ".banyan", "banyanconfig.toml")
     mkpath(joinpath(homedir(), ".banyan"))
     f = open(banyanconfig_path, "w")
+    @show banyan_config
     TOML.print(f, banyan_config)
     close(f)
 end

@@ -198,8 +198,32 @@ function get_jobs(cluster_name = nothing; status = nothing, kwargs...)
     if !isnothing(status)
         filters["status"] = status
     end
-    response =
-        send_request_get_response(:describe_jobs, Dict{String,Any}("filters" => filters))
+    
+    response = Dict("last_eval_key" => 50394, "jobs" => [])
+    finished = false
+    indiv_response = send_request_get_response(:describe_jobs, Dict{String,Any}("filters"=>filters))
+    response = indiv_response
+    if  isnothing(indiv_response["last_eval"])
+        finished = true
+    else
+        curr_last_eval = indiv_response["last_eval"]
+        while finished == false
+            if is_debug()
+                println(curr_last_eval)
+            end
+            indiv_response = send_request_get_response(:describe_jobs, Dict{String,Any}("filters"=>filters, "this_start_key"=>curr_last_eval))
+            response["jobs"] = merge!(response["jobs"], indiv_response["jobs"])
+            # print(indiv_response["last_eval"])
+            if isnothing(indiv_response["last_eval"])
+                finished = true
+            else
+                curr_last_eval = indiv_response["last_eval"]
+            end
+        end
+    end
+    # response =
+    #     send_request_get_response(:describe_jobs, Dict{String,Any}("filters"=>filters))
+    
     for (id, j) in response["jobs"]
         if response["jobs"][id]["ended"] == ""
             response["jobs"][id]["ended"] = nothing
