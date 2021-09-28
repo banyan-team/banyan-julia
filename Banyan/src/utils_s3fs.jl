@@ -46,7 +46,7 @@ function download_remote_s3_path(path)
     global failed_to_use_s3fs
 
     # Get information about requested object
-    s3path = S3Path(path)
+    s3path = S3Path(path, config = get_aws_config())
     bucket = s3path.bucket
     key = s3path.key
     # bucket = "banyan-cluster-data-myfirstcluster"
@@ -60,11 +60,11 @@ function download_remote_s3_path(path)
                 mkpath(mount)
                 # TODO: Ensure that no directory really means there is no mount
                 no_mount = true
-                @error "Attempting to remount S3FS because no directory found at $mount"
+                @warn "Attempting to remount S3FS because no directory found at $mount"
             end
             if !ismount(mount)
                 no_mount = true
-                @error "Attempting to remount S3FS because no mount found at $mount"
+                @warn "Attempting to remount S3FS because no mount found at $mount"
             end
         catch
             no_mount = true
@@ -111,7 +111,9 @@ function with_downloaded_path_for_reading(func::Function, downloaded_path; for_w
 
     temp_downloaded_path = if downloaded_path isa S3Path
         temp_downloaded_path = Path(tempname() * splitext(downloaded_path)[2])
-        cp(downloaded_path, temp_downloaded_path)
+        if !for_writing
+            cp(downloaded_path, temp_downloaded_path)
+        end
         func(temp_downloaded_path)
         if for_writing
             cp(temp_downloaded_path, downloaded_path)

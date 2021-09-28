@@ -335,6 +335,7 @@ function DataFrames.subset(gdf::GroupedDataFrame, args...; kwargs...)
             gdf = groupby(gdf_parent, groupcols; groupkwargs...)
         end
         res = subset(gdf, args...; kwargs...)
+        println("In subset with length(gdf)=$(length(gdf)) and nrow(gdf_parent)=$(nrow(gdf_parent)) and nrow(res)=$(nrow(res))")
         res_nrows = nrow(res)
     end
 

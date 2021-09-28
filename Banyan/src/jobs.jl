@@ -16,7 +16,7 @@ global jobs = Dict()
 # ergonomic.
 global current_job_id = nothing
 
-function set_job_id(job_id::Union{JobId, Nothing})
+function set_job_id(job_id::Union{JobId,Nothing})
     global current_job_id
     current_job_id = job_id
 end
@@ -24,12 +24,14 @@ end
 function get_job_id()::JobId
     global current_job_id
     if isnothing(current_job_id)
-        error("No job selected using `with_job` or `create_job` or `set_job_id`. The current job may have been destroyed or no job may have been created yet")
+        error(
+            "No job selected using `with_job` or `create_job` or `set_job_id`. The current job may have been destroyed or no job may have been created yet",
+        )
     end
     current_job_id
 end
 
-function get_job()
+function get_job()::Job
     global jobs
     jobs[get_job_id()]
 end
@@ -40,6 +42,7 @@ function create_job(;
     cluster_name::String = nothing,
     nworkers::Integer = 2,
     banyanfile_path::String = "",
+    # TODO: Rename return_logs -> print_logs
     return_logs::Bool = false,
     store_logs_in_s3::Bool = true,
     sample_rate::Integer = nworkers,
@@ -73,10 +76,10 @@ function create_job(;
     job_configuration = Dict{String,Any}(
         "cluster_name" => cluster_name,
         "num_workers" => nworkers,
-    	"return_logs" => return_logs,
-	"store_logs_in_s3" => store_logs_in_s3
+        "return_logs" => return_logs,
+        "store_logs_in_s3" => store_logs_in_s3,
     )
-    if job_name != nothing
+    if !isnothing(job_name)
         job_configuration["job_name"] = job_name
     end
     if !isnothing(banyanfile_path)
@@ -96,48 +99,48 @@ function create_job(;
         @info "Waiting for cluster named \"$cluster_name\" to become currently available for running a job"
         # Upload/send defaults for pt_lib.jl and pt_lib_info.json
         banyan_dir = dirname(dirname(pathof(Banyan)))
-	#s3_bucket_name = s3_bucket_arn_to_name(get_cluster(name=cluster_name).s3_bucket_arn)
-	#pt_lib_path = "file://$banyan_dir/res/pt_lib.jl"
-	#s3_put(get_aws_config(), s3_bucket_name, basename(pt_lib_path), String(read(open(pt_lib_path[8:end]))))
-	#job_configuration["pt_lib_info"] = load_json("file://$banyan_dir/res/pt_lib_info.json")
+        #s3_bucket_name = s3_bucket_arn_to_name(get_cluster(name=cluster_name).s3_bucket_arn)
+        #pt_lib_path = "file://$banyan_dir/res/pt_lib.jl"
+        #s3_put(get_aws_config(), s3_bucket_name, basename(pt_lib_path), String(read(open(pt_lib_path[8:end]))))
+        #job_configuration["pt_lib_info"] = load_json("file://$banyan_dir/res/pt_lib_info.json")
         update_cluster(
-            name=cluster_name,
-	    banyanfile_path="file://$(banyan_dir)/res/Banyanfile.json",
-	    for_creation_or_update=:update,
-#	    banyanfile=Dict(
-#		"include" => [],
-#	        "require" => Dict(
-#		    "language" => "jl",
-#		    "cluster" => Dict(
-#		        "files" => [],
-#			"scripts" => [],
-#			"packages" => [],
-#		        "pt_lib" => "file://$(banyan_dir)/res/pt_lib.jl",
-#			"pt_lib_info" => "file://$(banyan_dir)/res/pt_lib_info.json"
-#		    ),
-#		    "job" => Dict()
-#		)
-#	    )
-	)
-	sleep(5)
-	# Wait for cluster to finish updating
-	while get_cluster(cluster_name).status == :updating
-	   sleep(5)
-	   @debug "Cluster is still updating."
-	end
-	# Try again
-	if get_cluster(cluster_name).status != :running
-	    job_response = send_request_get_response(:create_job, job_configuration)
-	else
-	    error("Please update the cluster with a pt_lib_info.json and pt_lib.jl")
-	end
+            name = cluster_name,
+            banyanfile_path = "file://$(banyan_dir)/res/Banyanfile.json",
+            for_creation_or_update = :update,
+            #	    banyanfile=Dict(
+            #		"include" => [],
+            #	        "require" => Dict(
+            #		    "language" => "jl",
+            #		    "cluster" => Dict(
+            #		        "files" => [],
+            #			"scripts" => [],
+            #			"packages" => [],
+            #		        "pt_lib" => "file://$(banyan_dir)/res/pt_lib.jl",
+            #			"pt_lib_info" => "file://$(banyan_dir)/res/pt_lib_info.json"
+            #		    ),
+            #		    "job" => Dict()
+            #		)
+            #	    )
+        )
+        sleep(5)
+        # Wait for cluster to finish updating
+        while get_cluster(cluster_name).status == :updating
+            sleep(5)
+            @debug "Cluster is still updating."
+        end
+        # Try again
+        if get_cluster(cluster_name).status != :running
+            job_response = send_request_get_response(:create_job, job_configuration)
+        else
+            error("Please update the cluster with a pt_lib_info.json and pt_lib.jl")
+        end
     end
     if !job_response["ready_for_jobs"]
         error("Please update the cluster with a pt_lib_info.json and pt_lib.jl")
     end
     job_id = job_response["job_id"]
     @debug "Creating job $job_id"
-    @info "Created job with ID $job_id on cluster named \"$cluster_name\""
+    @info "Started creating job with ID $job_id on cluster named \"$cluster_name\""
 
     # Store in global state
     current_job_id = job_id
@@ -154,10 +157,10 @@ end
 
 global jobs_destroyed_recently = Set()
 
-function destroy_job(job_id::JobId; failed = nothing, force=false, kwargs...)
+function destroy_job(job_id::JobId; failed = nothing, force = false, kwargs...)
     global current_job_id
     global jobs_destroyed_recently
-    
+
     if job_id in jobs_destroyed_recently && !force
         @info "Job with ID $job_id already destroyed; use force=true to destroy anyway"
         return nothing
@@ -165,12 +168,8 @@ function destroy_job(job_id::JobId; failed = nothing, force=false, kwargs...)
         push!(jobs_destroyed_recently, job_id)
     end
 
-    if isnothing(failed)
-        failed = false
-        if !isnothing(current_job_id) && get_job().current_status == "failed"
-    	    failed = true
-        end
-    end
+    # Set failed flag
+    failed = failed == true || !isnothing(current_job_id) && get_job().current_status == "failed"
 
 
     # configure(; kwargs...)
@@ -189,7 +188,7 @@ function destroy_job(job_id::JobId; failed = nothing, force=false, kwargs...)
     delete!(jobs, job_id)
 end
 
-function get_jobs(cluster_name=nothing; status=nothing, kwargs...)
+function get_jobs(cluster_name = nothing; status = nothing, kwargs...)
     @debug "Downloading description of jobs in each cluster"
     configure(; kwargs...)
     filters = Dict()
@@ -199,7 +198,6 @@ function get_jobs(cluster_name=nothing; status=nothing, kwargs...)
     if !isnothing(status)
         filters["status"] = status
     end
-    
     
     response = Dict("last_eval_key" => 50394, "jobs" => [])
     finished = false
@@ -228,47 +226,37 @@ function get_jobs(cluster_name=nothing; status=nothing, kwargs...)
     
     for (id, j) in response["jobs"]
         if response["jobs"][id]["ended"] == ""
-	    response["jobs"][id]["ended"] = nothing
-	else
-	    response["jobs"][id]["ended"] = parse_time(response["jobs"][id]["ended"])
-	end
-	response["jobs"][id]["created"] = parse_time(response["jobs"][id]["created"])
+            response["jobs"][id]["ended"] = nothing
+        else
+            response["jobs"][id]["ended"] = parse_time(response["jobs"][id]["ended"])
+        end
+        response["jobs"][id]["created"] = parse_time(response["jobs"][id]["created"])
     end
     response["jobs"]
 end
 
-function get_running_jobs(cluster_name=nothing; kwargs...)
-    @debug "Downloading description of jobs in each cluster"
-    configure(; kwargs...)
-    filters = Dict(
-	"status" => "running"
-    )
-    if !isnothing(cluster_name)
-        filters["cluster_name"] = cluster_name
-    end
-    response = 
-        send_request_get_response(:describe_jobs, Dict{String,Any}("filters"=>filters))
-    response["jobs"]
-end
+get_running_jobs(args...; kwargs...) = get_jobs(args...; status="running", kwargs...)
 
-function download_job_logs(job_id::JobId, cluster_name::String, filename::String; kwargs...)
+function download_job_logs(job_id::JobId, cluster_name::String, filename::String=nothing; kwargs...)
     @debug "Downloading logs for job"
     configure(; kwargs...)
     s3_bucket_arn = get_cluster(cluster_name).s3_bucket_arn
     s3_bucket_name = s3_bucket_arn_to_name(s3_bucket_arn)
     log_file_name = "banyan-log-for-job-$(job_id)"
+    filename = !isnothing(filename) ? filename : joinpath(homedir(), ".banyan", "logs")
     s3_get_file(get_aws_config(), s3_bucket_name, log_file_name, filename)
+    @info "Downloaded logs for job with ID $job_id to $filename"
 end
 
 function destroy_all_jobs(cluster_name::String; kwargs...)
     @debug "Destroying all running jobs for cluster"
     configure(; kwargs...)
-    jobs = get_jobs(cluster_name, status="running")
+    jobs = get_jobs(cluster_name, status = "running")
     for (job_id, job) in jobs
         if job["status"] == "running"
-	    @info "Destroying job id $job_id"
+            @info "Destroying job id $job_id"
             destroy_job(job_id, kwargs...)
-	end
+        end
     end
 end
 
@@ -280,7 +268,7 @@ function with_job(f::Function; kwargs...)
     use_existing_job = :job in keys(kwargs)
     destroy_job_on_error = get(kwargs, :destroy_job_on_error, true)
     destroy_job_on_exit = get(kwargs, :destroy_job_on_exit, true)
-    j = use_existing_job ? kwargs[:job] : create_job(;kwargs...)
+    j = use_existing_job ? kwargs[:job] : create_job(; kwargs...)
     destroyed = false
     try
         f(j)
@@ -297,18 +285,30 @@ function with_job(f::Function; kwargs...)
         # We only destroy the job if it hasn't already been destroyed because
         # of an error and if we don't intend to reuse a job
         if destroy_job_on_exit && !destroyed
-    	    destroy_job(j)
+            destroy_job(j)
         end
     end
 end
 
-function clear_jobs()
-    global jobs
-    global current_job_id
-    if !isnothing(current_job_id)
-        empty!(jobs[current_job_id].pending_requests)
-    end
-end
+# `create_job` creates a new job. `use_job` will create the job or reuse an
+# existing job created by this process with the same configuration if possible.
+# `with_job`
 
-# TODO: Fix bug causing nbatches to be 2 when it should be 25
-# TODO: Fix finalizer of Job
+# Every job is owned by some process that created it. Until that process
+# calls destroy_job, it maintains ownership.
+
+# create_job should be optimized to try to re-use resources if possible. If a
+# job was created by the current process with the same configuration, that job
+# will be reused (unless force=true).
+
+# In an interactive use-case, re-running a notebook and creating a job should
+# probably anyway create a new job since it is running again. And the way a
+# notebook is used is that you only re-run the cell that you edit. So you will
+# keep re-using the job. If anything, we should have an option to automatically
+# destroy the job after some time or make it so that if a job is used but it is
+# destroyed, then the job should be reinstated. Actually, never mind. We
+# shouldn't reinstate the job. If something fails and it is a hard failure, the
+# job should be restarted. The only thing we should do for that is make sure
+# that recoverable exceptions on the backend are propagated while errors that
+# cause the job to crash result in the job being ended. Then we should reuse
+# destroyed jobs that haven't crashed.
