@@ -49,11 +49,16 @@ IRIS_DOWNLOAD_PATH = "https://gist.githubusercontent.com/curran/a08a1080b88344b0
 
     # Describe jobs
     curr_jobs = get_jobs(ENV["BANYAN_CLUSTER_NAME"], status="running")
+<<<<<<< HEAD
     # @test length(curr_jobs) == 1
+=======
+    @test length(curr_jobs) == 1
+>>>>>>> Remove Banyanfiles and update tests
     @test haskey(curr_jobs, job_id)
     @test curr_jobs[job_id]["status"] == "running"
 
     # Perform computation 1
+<<<<<<< HEAD
     # bucket_name = get_cluster_s3_bucket_name(ENV["BANYAN_CLUSTER_NAME"])
     # df = read_csv("s3://$(bucket_name)/iris.csv")
     # gdf = groupby(df, :species)
@@ -66,6 +71,15 @@ IRIS_DOWNLOAD_PATH = "https://gist.githubusercontent.com/curran/a08a1080b88344b0
     y = map(i -> i^2, x)
     res = collect(y)
     @test all(res .== 16.0)
+=======
+    bucket_name = get_cluster_s3_bucket_name(ENV["BANYAN_CLUSTER_NAME"])
+    df = read_csv("s3://$(bucket_name)/iris.csv")
+    gdf = groupby(df, :species)
+    pl_means = combine(gdf, :petal_length => mean)
+    res = collect(pl_means)
+    @test res[:, :petal_length_mean] == [1.464, 4.26, 5.552]
+    @test res[:, :species] == ["setosa", "versicolor", "virginica"]
+>>>>>>> Remove Banyanfiles and update tests
 
     # Destroy job
     destroy_job(job_id)
