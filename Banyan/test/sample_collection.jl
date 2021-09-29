@@ -33,53 +33,54 @@
         sample_rate = 2,
         max_exact_sample_length = exact_or_inexact == "Exact" ? 1_024_000 : 0,
         with_s3fs = with_or_without_s3fs == "with",
-    )
+    ) do
 
-    # Use data to collect a sample from
-    src_name = use_data(file_extension, on, single_file)
+        # Use data to collect a sample from
+        src_name = use_data(file_extension, on, single_file)
 
-    # Construct location
-    if reusing != "nothing"
-        Remote(src_name, location_invalid = true, sample_invalid = true)
-    end
-    remote_location = Remote(
-        src_name,
-        location_invalid = (reusing == "nothing" || reusing == "location"),
-        sample_invalid = (reusing == "nothing" || reusing == "sample"),
-        shuffled = optimization == "shuffled",
-        similar_files = optimization == "similar files",
-    )
-
-    # Verify the location
-    if contains(src_name, "h5")
-        @test remote_location.ndims == 2
-        @test !contains(remote_location.path, "DS1")
-        @test remote_location.subpath == "DS1"
-        @test remote_location.size[1] == src_nrows
-    else
-        @test remote_location.nbytes > 0
-        @test remote_location.nrows == src_nrows
-
-        if contains(src_name, "dir")
-            @test length(remote_location.files) == 10
-            for f in remote_location.files
-                @test f["nrows"] == 150
-            end
-        else
-            @test length(remote_location.files) == 1
+        # Construct location
+        if reusing != "nothing"
+            Remote(src_name, location_invalid = true, sample_invalid = true)
         end
-    end
+        remote_location = Remote(
+            src_name,
+            location_invalid = (reusing == "nothing" || reusing == "location"),
+            sample_invalid = (reusing == "nothing" || reusing == "sample"),
+            shuffled = optimization == "shuffled",
+            similar_files = optimization == "similar files",
+        )
 
-    # TODO: Add these tests
-    # TODO: Fix sample collection in the optimizations/reuse and nbytes
+        # Verify the location
+        if contains(src_name, "h5")
+            @test remote_location.ndims == 2
+            @test !contains(remote_location.path, "DS1")
+            @test remote_location.subpath == "DS1"
+            @test remote_location.size[1] == src_nrows
+        else
+            @test remote_location.nbytes > 0
+            @test remote_location.nrows == src_nrows
 
-    # Verify the sample
-    @show src_name
-    sample_nrows =
-        contains("h5", src_name) ? size(remote_location.sample.value, 1) : nrows(remote_location.sample.value)
-    if exact_or_inexact == "Exact"
-        @test sample_nrows == src_nrows
-    else
-        @test sample_nrows == cld(src_nrows, 2)
+            if contains(src_name, "dir")
+                @test length(remote_location.files) == 10
+                for f in remote_location.files
+                    @test f["nrows"] == 150
+                end
+            else
+                @test length(remote_location.files) == 1
+            end
+        end
+
+        # TODO: Add these tests
+        # TODO: Fix sample collection in the optimizations/reuse and nbytes
+
+        # Verify the sample
+        @show src_name
+        sample_nrows =
+            contains("h5", src_name) ? size(remote_location.sample.value, 1) : nrows(remote_location.sample.value)
+        if exact_or_inexact == "Exact"
+            @test sample_nrows == src_nrows
+        else
+            @test sample_nrows == cld(src_nrows, 2)
+        end
     end
 end

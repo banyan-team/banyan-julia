@@ -4,7 +4,13 @@ using FilePathsBase, AWSS3, DataFrames, CSV, Parquet, Arrow
 
 global jobs_for_testing = Dict()
 
-function use_job_for_testing(;
+function destroy_all_jobs_for_testing()
+    for job_id in values(jobs_for_testing)
+        destroy_job(job_id)
+    end
+end
+
+function use_job_for_testing(f::Function;
     sample_rate = 2,
     scheduling_config_name = "default scheduling",
 )
@@ -32,7 +38,23 @@ function use_job_for_testing(;
         end,
     )
 
+    # If selected job has already failed, this will throw an error.
+    get_job()
+
     configure_scheduling(name = scheduling_config_name)
+
+    try
+        f()
+    catch
+        # We will destroy the job if any error occurs. This is because we can't
+        # properly intercept errors that happen in tests. If an error occurs,
+        # the whole test suite exits and we don't have an opportunity to delete
+        # stray jobs. This ensures that jobs are destroyed. In later tests sets,
+        # `get_job()` is called which ensures that the job hasn't yet been
+        # destroyed or failed.
+        destroy_all_jobs_for_testing()
+        rethrow()
+    end
 end
 
 include("utils_data.jl")
@@ -161,7 +183,5 @@ try
     runtests(Regex.(ARGS)...)
 finally
     # Destroy jobs to clean up
-    for job_id in values(jobs_for_testing)
-        destroy_job(job_id)
-    end
+    destroy_all_jobs_for_testing()
 end

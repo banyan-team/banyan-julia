@@ -4,7 +4,13 @@ using FilePathsBase, AWSS3, DataFrames, CSV, Parquet, Arrow
 
 global jobs_for_testing = Dict()
 
-function use_job_for_testing(;
+function destroy_all_jobs_for_testing()
+    for job_id in values(jobs_for_testing)
+        destroy_job(job_id)
+    end
+end
+
+function use_job_for_testing(f::Function;
     sample_rate = 2,
     max_exact_sample_length = 50,
     with_s3fs = nothing,
@@ -15,7 +21,9 @@ function use_job_for_testing(;
     )
 
     # This will be a more complex hash if there are more possible ways of
-    # configuring a job for testing
+    # configuring a job for testing. Different sample rates are typically used
+    # to test different data sizes. Stress tests may need a much greater sample
+    # rate.
     job_config_hash = sample_rate
 
     # Set the job and create a new one if needed
@@ -34,8 +42,11 @@ function use_job_for_testing(;
         end,
     )
 
+    # If selected job has already failed, this will throw an error.
+    get_job()
+
     # Set the maximum exact sample length
-    ENV["MAX_EXACT_SAMPLE_LENGTH"] = string(max_exact_sample_length)
+    ENV["BANYAN_MAX_EXACT_SAMPLE_LENGTH"] = string(max_exact_sample_length)
 
     # Force usage of S3FS if so desired
     if !isnothing(with_s3fs)
@@ -43,6 +54,20 @@ function use_job_for_testing(;
     end
 
     configure_scheduling(name = scheduling_config_name)
+
+    try
+        f()
+    catch
+        # We will destroy the job if any error occurs. This is because we can't
+        # properly intercept errors that happen in tests. If an error occurs,
+        # the whole test suite exits and we don't have an opportunity to delete
+        # stray jobs. This ensures that jobs are destroyed. In later tests sets,
+        # `get_job()` is called which ensures that the job hasn't yet been
+        # destroyed or failed.
+        destroy_all_jobs_for_testing()
+        rethrow()
+        # If no errors occur, we will destroy all jobs in the `finally...` block.
+    end
 end
 
 function use_data(file_extension, remote_kind, single_file)
@@ -151,9 +176,6 @@ include("sample_computation.jl")
 try
     runtests(Regex.(ARGS)...)
 finally
-    # Destroy jobs to clean up
-    for job_id in values(jobs_for_testing)
-        @info "Destroying $job_id"
-        destroy_job(job_id)
-    end
+    # Destroy jobs to clean up.
+    destroy_all_jobs_for_testing()
 end

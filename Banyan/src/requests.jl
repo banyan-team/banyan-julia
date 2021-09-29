@@ -50,6 +50,8 @@ function partitioned_computation(fut::AbstractFuture; destination, new_source=no
 
     if fut.mutated || (destination.dst_name == "Client" && fut.stale)
         # TODO: Check to ensure that `fut` is annotated
+        # This creates an empty final task that ensures that the future
+        # will be scheduled to get sent to its destination.
         destined(fut, destination)
         mutated(fut)
         @partitioned fut begin end

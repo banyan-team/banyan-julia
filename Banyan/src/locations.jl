@@ -288,10 +288,10 @@ Disk() = None() # The scheduler intelligently determines when to split from and 
 # overall data size. This way, two arrays that have the same actual size will
 # be guaranteed to have the same sample size.
 
-MAX_EXACT_SAMPLE_LENGTH = parse(Int, get(ENV, "MAX_EXACT_SAMPLE_LENGTH", "2048"))
+BANYAN_MAX_EXACT_SAMPLE_LENGTH = parse(Int, get(ENV, "BANYAN_MAX_EXACT_SAMPLE_LENGTH", "2048"))
 
 getsamplenrows(totalnrows) =
-    if totalnrows <= MAX_EXACT_SAMPLE_LENGTH
+    if totalnrows <= BANYAN_MAX_EXACT_SAMPLE_LENGTH
         # NOTE: This includes the case where the dataset is empty
         # (totalnrows == 0)
         totalnrows
@@ -480,7 +480,7 @@ function get_remote_hdf5_location(remotepath, hdf5_ending, remote_location=nothi
                     # dset_sample = dset[1:1, remainingcolons...][1:0, remainingcolons...]
                     # If the data is already shuffled or if we just want to
                     # take an exact sample, we don't need to randomly sample here.
-                    if datalength > MAX_EXACT_SAMPLE_LENGTH || shuffled
+                    if datalength > BANYAN_MAX_EXACT_SAMPLE_LENGTH || shuffled
                          sampleindices = randsubseq(1:datalength, 1 / get_job().sample_rate)
                         # sample = dset[sampleindices, remainingcolons...]
                         if !isempty(sampleindices)
@@ -544,7 +544,7 @@ function get_remote_hdf5_location(remotepath, hdf5_ending, remote_location=nothi
     if isnothing(remote_sample)
         remote_sample = if isnothing(loc_for_reading)
             Sample()
-        elseif totalnrows <= MAX_EXACT_SAMPLE_LENGTH
+        elseif totalnrows <= BANYAN_MAX_EXACT_SAMPLE_LENGTH
             ExactSample(dset_sample, total_memory_usage = nbytes)
         else
             Sample(dset_sample, total_memory_usage = nbytes)
@@ -856,7 +856,7 @@ function get_remote_table_location(remotepath, remote_location=nothing, remote_s
             @show samplenrows
         end
         # If we already have enough rows in the exact sample...
-        if totalnrows <= MAX_EXACT_SAMPLE_LENGTH
+        if totalnrows <= BANYAN_MAX_EXACT_SAMPLE_LENGTH
             randomsample = exactsample
         end
         # Regardless, expand the random sample as needed...
@@ -889,7 +889,7 @@ function get_remote_table_location(remotepath, remote_location=nothing, remote_s
     if isnothing(remote_sample)
         remote_sample = if isnothing(loc_for_reading)
             Sample()
-        elseif totalnrows <= MAX_EXACT_SAMPLE_LENGTH
+        elseif totalnrows <= BANYAN_MAX_EXACT_SAMPLE_LENGTH
             ExactSample(randomsample, total_memory_usage = nbytes)
         else
             Sample(randomsample, total_memory_usage = nbytes)

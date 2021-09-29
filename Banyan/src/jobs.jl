@@ -25,15 +25,18 @@ function get_job_id()::JobId
     global current_job_id
     if isnothing(current_job_id)
         error(
-            "No job selected using `with_job` or `create_job` or `set_job`. The current job may have been destroyed or no job may have been created yet",
+            "No job selected using `create_job` or `with_job` or `set_job`. The current job may have been destroyed or no job may have been created yet",
         )
     end
     current_job_id
 end
 
-function get_job()::Job
+function get_job(job_id=get_job_id())::Job
     global jobs
-    jobs[get_job_id()]
+    if !haskey(jobs, job_id)
+        error("The selected job does not have any information; if it was created by this process, it has either failed or been destroyed.")
+    end
+    jobs[job_id]
 end
 
 get_cluster_name() = get_job().cluster_name
@@ -155,29 +158,25 @@ function create_job(;
     return job_id
 end
 
-global jobs_destroyed_recently = Set()
+function destroy_job(job_id::JobId = get_job_id(); failed = nothing, force = false, kwargs...)
+    global jobs
+    # global current_job_id
 
-function destroy_job(job_id::JobId; failed = nothing, force = false, kwargs...)
-    global current_job_id
-    global jobs_destroyed_recently
-
-    if job_id in jobs_destroyed_recently && !force
-        @info "Job with ID $job_id already destroyed; use force=true to destroy anyway"
-        return nothing
-    else
-        push!(jobs_destroyed_recently, job_id)
-    end
+    # TODO: Set current_status of job if failed=true
 
     # Set failed flag
-    failed = failed == true || !isnothing(current_job_id) && get_job().current_status == "failed"
-
+    # failed = failed == true || !haskey(jobs, job_id) && get_job(job_id).current_status == "failed"
+    # if failed && haskey(jobs, job_id)
+    #     job = get_job(job_id)
+    #     job.current_status = "failed"
+    # end
 
     # configure(; kwargs...)
 
     @debug "Destroying job with ID $job_id"
     send_request_get_response(
         :destroy_job,
-        Dict{String,Any}("job_id" => job_id, "failed" => failed),
+        Dict{String,Any}("job_id" => job_id, "failed" => failed == true),
     )
     @info "Destroyed job with ID $job_id"
 
@@ -269,10 +268,11 @@ function with_job(f::Function; kwargs...)
     destroy_job_on_error = get(kwargs, :destroy_job_on_error, true)
     destroy_job_on_exit = get(kwargs, :destroy_job_on_exit, true)
     j = use_existing_job ? kwargs[:job] : create_job(; kwargs...)
-    destroyed = false
+    destroyed = false # because of weird catch/finally stuff
     try
+        set_job(j)
         f(j)
-    catch err
+    catch
         # If there is an error we definitely destroy the job
         # TODO: Cache the job so that even if there is a failure we can still
         # reuse it
@@ -280,7 +280,7 @@ function with_job(f::Function; kwargs...)
             destroy_job(j)
             destroyed = true
         end
-        rethrow(err)
+        rethrow()
     finally
         # We only destroy the job if it hasn't already been destroyed because
         # of an error and if we don't intend to reuse a job
