@@ -333,7 +333,8 @@ function send_evaluation(value_id::ValueId, job_id::JobId)
                 "encourage_parallelism" => encourage_parallelism,
                 "encourage_parallelism_with_batches" => encourage_parallelism_with_batches
             ),
-            "num_bang_values_issued" => get_num_bang_values_issued()
+            "num_bang_values_issued" => get_num_bang_values_issued(),
+            "packages" => get_loaded_packages()
         ),
     )
 

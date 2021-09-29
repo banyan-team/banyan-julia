@@ -1,5 +1,4 @@
 using BanyanDataFrames
-using BanyanArrays
 using Banyan
 using ReTest
 using Banyan, BanyanDataFrames
