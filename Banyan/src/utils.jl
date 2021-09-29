@@ -575,6 +575,16 @@ function get_julia_version()
     return string(VERSION)
 end
 
+function get_loaded_packages()
+    modules = map(
+        m -> string(m),
+        filter(
+            m -> Main.eval(m) isa Module && !(m in [:Main, :Base, :Core]),
+            names(Main, imported=true)
+        )
+    )
+end
+
 # Returns the directory in which the Project.toml file is located
 function get_julia_environment_dir()
     return replace(Pkg.project().path, "Project.toml" => "")
