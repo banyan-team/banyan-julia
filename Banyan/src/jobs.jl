@@ -199,6 +199,7 @@ function get_jobs(cluster_name = nothing; status = nothing, kwargs...)
         filters["status"] = status
     end
     
+    
     response = Dict("last_eval_key" => 50394, "jobs" => [])
     finished = false
     indiv_response = send_request_get_response(:describe_jobs, Dict{String,Any}("filters"=>filters))
@@ -208,7 +209,7 @@ function get_jobs(cluster_name = nothing; status = nothing, kwargs...)
     else
         curr_last_eval = indiv_response["last_eval"]
         while finished == false
-            if is_debug()
+            if is_debug_on()
                 println(curr_last_eval)
             end
             indiv_response = send_request_get_response(:describe_jobs, Dict{String,Any}("filters"=>filters, "this_start_key"=>curr_last_eval))
