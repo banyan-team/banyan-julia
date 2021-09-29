@@ -131,7 +131,33 @@ export partitioned_using,
 
 # Debugging
 export is_debug_on,
-    get_s3fs_bucket_path, get_s3_bucket_path, with_downloaded_path_for_reading, configure_scheduling, orderinghash
+    get_s3fs_bucket_path,
+    get_s3_bucket_path,
+    with_downloaded_path_for_reading,
+    configure_scheduling,
+    orderinghash
+
+# Partitioning functions for usage in jobs that run on the cluster; dispatched
+# based on `res/pf_dispatch_table.json`.
+export ReturnNull,
+    ReadBlock,
+    ReadGroup,
+    Write,
+    SplitBlock,
+    SplitGroup,
+    Merge,
+    CopyFrom,
+    CopyTo,
+    ReduceAndCopyTo,
+    ReduceWithKeyAndCopyTo,
+    Divide,
+    Reduce,
+    ReduceWithKey,
+    Rebalance,
+    Distribute,
+    Consolidate,
+    DistributeAndShuffle,
+    Shuffle
 
 using AWS: _get_ini_value
 using AWSCore
@@ -155,9 +181,16 @@ using IterTools
 # into their respective libraries where they can be specialized
 using HDF5, CSV, Parquet, Arrow, DataFrames
 
-# Utility that is unused and not exported but kept for testing. IT is used in
-# pt_lib.jl.
-include("utils_pt_lib.jl")
+# Banyan.jl is intended both for usage as a client library and also for
+# inclusion in the environment that is used for jobs that run on the cluster.
+# When running on the cluster, partitioning functions define how to split,
+# merge, and cast data between different kinds of partitioning. Partitioning
+# functions get defined in Banyan.jl and included in jobs that run on clusters
+# and functions get dispatched based on the `pf_dispatch_table.json`
+# (originally called `pt_lib_info.json`) which is used by the scheduler behind
+# the scenes.
+include("utils_pfs.jl")
+include("pfs.jl")
 
 # Jobs
 include("id.jl")
