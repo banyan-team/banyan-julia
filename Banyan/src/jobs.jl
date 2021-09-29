@@ -160,7 +160,7 @@ end
 
 function destroy_job(job_id::JobId = get_job_id(); failed = nothing, force = false, kwargs...)
     global jobs
-    # global current_job_id
+    global current_job_id
 
     # TODO: Set current_status of job if failed=true
 

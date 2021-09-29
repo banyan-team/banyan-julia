@@ -5,6 +5,7 @@ using FilePathsBase, AWSS3, HDF5
 global jobs_for_testing = Dict()
 
 function destroy_all_jobs_for_testing()
+    global jobs_for_testing
     for job_id in values(jobs_for_testing)
         destroy_job(job_id)
     end
