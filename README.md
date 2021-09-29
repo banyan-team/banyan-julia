@@ -52,3 +52,8 @@ the AWS CLI (either use environment variables or use the relevant
 AWS configuration files) and the Banyan environment variables
 are saved in `banyanconfig.toml` so you don't need to specify it
 every time.
+
+## Development
+
+Make sure to use the `] dev ...` command or `Pkg.dev(...)` to ensure that when you
+are using BanyanArrays.jl or BanyanDataFrames.jl you are using the local version.

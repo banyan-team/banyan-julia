@@ -462,15 +462,10 @@ macro partitioned(ex...)
         #     end
         # end
 
-        # TODO: Ensure that if the sample computation fails, before we rethrow
+        # If any sample computation fails, before we rethrow
         # the error (so that it is displayed in a notebook or crashes a
-        # script/Lambda function that is running the job) we should ensure that
+        # script/Lambda function that is running the job) we ensure that
         # we haven't recorded a faulty task or messed up the state in any way.
-
-        # Apply all delayed source and destination assignment
-        for splatted_future in splatted_futures
-            apply_sourced_or_destined_funcs(splatted_future)
-        end
 
         # Fill in task with code and value names pulled using the macror
         unsplatted_variable_names = [$(variable_names...)]
@@ -524,17 +519,11 @@ macro partitioned(ex...)
         # evaluation
         for fut in splatted_futures
             if any((fut.value_id == m.value_id for m in values(task.mutation)))
-                fut.stale = true
-                fut.mutated = true
                 task.effects[fut.value_id] = "MUT"
             else
                 task.effects[fut.value_id] = "CONST"
             end
         end
-
-        # Record request to record task in backend's dependency graph and reset
-        record_request(RecordTaskRequest(task))
-        finish_task()
 
         # TODO: When mutating a value, ensure that the old future has a sample
         # of the old value and the new future of the new
@@ -566,9 +555,36 @@ macro partitioned(ex...)
         try
             $(esc(code))
         catch
-            # TODO: In the case of an error, 
+            # I
+            finish_task()
+            $(reassigning_futures...)
             rethrow()
         end
+
+        # NOTE: We only update futures' state, record requests, update samples,
+        # apply mutation _IF_ the sample computation succeeds. Regardless of
+        # whether it succeeds, we make sure to clear the task (so that future
+        # usage in the REPL or notebook can proceed, generating new tasks) and
+        # reassign all variables.
+
+        # Update mutated futures
+        for fut in splatted_futures
+            if any((fut.value_id == m.value_id for m in values(task.mutation)))
+                fut.stale = true
+                fut.mutated = true
+            end
+        end
+
+        # Apply all delayed source and destination assignment. This will
+        # perform any expensive sample collection that may require for example
+        # an expensive scan of S3. This will record `RecordLocationRequest`s.
+        for splatted_future in splatted_futures
+            apply_sourced_or_destined_funcs(splatted_future)
+        end
+
+        # Record request to record task in backend's dependency graph and reset
+        record_request(RecordTaskRequest(task))
+        finish_task()
 
         # Move results from variables back into the samples. Also, update the
         # memory usage accordingly.
@@ -588,6 +604,7 @@ macro partitioned(ex...)
         # end
         # end
 
+        # This basically undoes `$(assigning_samples...)`.
         $(reassigning_futures...)
 
         # Make a call to `apply_mutation` to handle calls to `mut` like
