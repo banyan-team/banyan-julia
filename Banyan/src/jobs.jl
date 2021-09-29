@@ -45,12 +45,13 @@ function create_job(;
     sample_rate::Integer = nworkers,
     job_name = nothing,
     files = [],
+    code_files = [],
     force_update_files = false,
-    pt_lib = "",
-    pt_lib_info = "",
+    pf_dispatch_table = "",
     url = nothing,
     branch = nothing,
     directory = nothing,
+    dev_paths = [],
     force_reclone = false,
     kwargs...,
 )
@@ -62,10 +63,9 @@ function create_job(;
         cluster_name = nothing
     end
 
-    if pt_lib == ""
-        pt_lib = "https://raw.githubusercontent.com/banyan-team/banyan-julia/v0.1.3/Banyan/res/pt_lib.jl"
-        push!(files, "https://raw.githubusercontent.com/banyan-team/banyan-julia/v0.1.3/Banyan/res/utils.jl")
-    end
+    # TODO: Remove this code when @calebwin's PR gets merged in
+    push!(code_files, "https://raw.githubusercontent.com/banyan-team/banyan-julia/v0.1.3/Banyan/res/pt_lib.jl")
+    push!(files, "https://raw.githubusercontent.com/banyan-team/banyan-julia/v0.1.3/Banyan/res/pt_lib_utils.jl")
 
     # Configure
     configure(; kwargs...)
@@ -138,8 +138,7 @@ function create_job(;
     job_configuration["environment_info"] = environment_info
 
     # Upload files to S3
-    files = vcat(files, [pt_lib])
-    for f in files
+    for f in vcat(files, code_files)
         s3_path = S3Path("s3://$(s3_bucket_name)/$(basename(f))", config=get_aws_config())
         if !isfile(s3_path) || force_update_files
             s3_put(get_aws_config(), s3_bucket_name, basename(f), load_file(f))
@@ -147,17 +146,17 @@ function create_job(;
     end
     # TODO: Optimize so that we only upload(and download onto cluster) the files if the filename doesn't already exist
     job_configuration["files"] = [basename(f) for f in files]
+    job_configuration["code_files"] = [basename(f) for f in code_files]
 
-    if pt_lib_info == ""
-        pt_lib_info = "https://raw.githubusercontent.com/banyan-team/banyan-julia/v0.1.3/Banyan/res/pt_lib_info.json"
+    if pf_dispatch_table == ""
+        pf_dispatch_table = "https://raw.githubusercontent.com/banyan-team/banyan-julia/v0.1.3/Banyan/res/pt_lib_info.json"
     end
-    job_configuration["pt_lib_info"] = load_json(pt_lib_info)
+    job_configuration["pf_dispatch_table"] = load_json(pf_dispatch_table)
 
     # Create the job
     @debug "Sending request for job creation"
     job_response = send_request_get_response(:create_job, job_configuration)
     # if !job_response["ready_for_jobs"]
-
     #     # Try again
     #     job_response = send_request_get_response(:create_job, job_configuration)
     # end

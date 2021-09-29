@@ -34,7 +34,8 @@ IRIS_DOWNLOAD_PATH = "https://gist.githubusercontent.com/curran/a08a1080b88344b0
         pt_lib_info = pt_lib_info,
         url = "https://github.com/banyan-team/banyan-julia.git",
         branch = "v0.1.3",
-        directory = "banyan-julia/BanyanDataFrames",
+        directory = "banyan-julia/BanyanDataFrames/test",
+        force_reclone = true
     )
     @test get_job_id() == job_id
     @test get_job().cluster_name == ENV["BANYAN_CLUSTER_NAME"]
