@@ -221,10 +221,10 @@ function Grouped(
                         fkey = fby[i]
 
                         # Compute the amount to scale memory usage by based on data skew
-                        min_filtered_to = sample(f, :statistics, fkey, :min)
-                        max_filtered_to = sample(f, :statistics, fkey, :max)
+                        min_filtered_to = sample(f, :statistics, key, :min)
+                        max_filtered_to = sample(f, :statistics, key, :max)
                         # divisions_filtered_from = sample(ff, :statistics, key, :divisions)
-                        ff_percentile = sample(ff, :statistics, key, :percentile, min_filtered_to, max_filtered_to)
+                        ff_percentile = sample(ff, :statistics, fkey, :percentile, min_filtered_to, max_filtered_to)
                         (1 / ff_percentile, filtered_from_futures)
                     end
                     push!(constraints.constraints, ScaleBy(f, factor, from))
