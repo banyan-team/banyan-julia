@@ -35,6 +35,10 @@ IRIS_DOWNLOAD_PATH = "https://gist.githubusercontent.com/curran/a08a1080b88344b0
         url = "https://github.com/banyan-team/banyan-julia.git",
         branch = "v0.1.3",
         directory = "banyan-julia/BanyanDataFrames/test",
+        dev_paths = [
+            "banyan-julia/Banyan",
+            "banyan-julia/BanyanDataFrames"
+        ],
         force_reclone = true
     )
     @test get_job_id() == job_id
@@ -44,7 +48,7 @@ IRIS_DOWNLOAD_PATH = "https://gist.githubusercontent.com/curran/a08a1080b88344b0
 
     # Describe jobs
     curr_jobs = get_jobs(ENV["BANYAN_CLUSTER_NAME"], status="running")
-    @test length(curr_jobs) == 1
+    # @test length(curr_jobs) == 1
     @test haskey(curr_jobs, job_id)
     @test curr_jobs[job_id]["status"] == "running"
 

@@ -130,6 +130,7 @@ function create_job(;
         if !isnothing(branch)
             environment_info["branch"] = branch
         end
+        environment_info["dev_paths"] = dev_paths
         environment_info["force_reclone"] = force_reclone
         environment_info["environment_hash"] = get_hash(
             url * directory * (if isnothing(branch) "" else branch end)
