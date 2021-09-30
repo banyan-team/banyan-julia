@@ -102,7 +102,7 @@ Banyan.sample_keys(df::DataFrames.DataFrame) = propertynames(df)
 function Banyan.sample_divisions(df::DataFrames.DataFrame, key)
     max_ngroups = sample_max_ngroups(df, key)
     ngroups = min(max_ngroups, 512)
-    data = sort(orderinghash.(df[!, key]))
+    data = sort(map(orderinghash, df[!, key]))
     datalength = length(data)
     grouplength = div(datalength, ngroups)
     [
@@ -115,7 +115,7 @@ function Banyan.sample_divisions(df::DataFrames.DataFrame, key)
     ]
 end
 
-function Banyan.sample_percentile(A::DataFrames.DataFrame, key, minvalue, maxvalue)
+function Banyan.sample_percentile(df::DataFrames.DataFrame, key, minvalue, maxvalue)
     # NOTE: This may cause some problems because the way that data is ultimately split may
     # not allow a really fine division of groups. So in the case of some filtering, the rate
     # of filtering may be 90% but if there are only like 3 groups then maybe it ends up being like
@@ -124,7 +124,7 @@ function Banyan.sample_percentile(A::DataFrames.DataFrame, key, minvalue, maxval
     # call sample_divisions with a reasonable number of divisions and then counting how many
     # divisions the range actually belongs to.
 
-    count(map(orderinghash |> oh->oh >= minvalue && oh <= maxvalue, df[!, key])) / size(A, key)
+    count(map(o -> begin oh = orderinghash(o); oh >= minvalue && oh <= maxvalue end, df[!, key])) / nrow(df)
 
     # # minvalue and maxvalue should already be order-preserved hashes
     # # minvalue, maxvalue = orderinghash(minvalue), orderinghash(maxvalue)
@@ -154,9 +154,9 @@ function Banyan.sample_percentile(A::DataFrames.DataFrame, key, minvalue, maxval
     # percentile
 end
 
-Banyan.sample_max_ngroups(df::DataFrames.DataFrame, key) = div(nrow(df), maximum(combine(groupby(df, key), nrow).nrow))
-Banyan.sample_min(df::DataFrames.DataFrame, key) = minimum(orderinghash.(df[!, key]))
-Banyan.sample_max(df::DataFrames.DataFrame, key) = maximum(orderinghash.(df[!, key]))
+Banyan.sample_max_ngroups(df::DataFrames.DataFrame, key) = div(nrow(df), maximum(combine(groupby(df[!, [key,]], key), nrow).nrow))
+Banyan.sample_min(df::DataFrames.DataFrame, key) = minimum(map(orderinghash, df[!, key]))
+Banyan.sample_max(df::DataFrames.DataFrame, key) = maximum(map(orderinghash, df[!, key]))
 
 # DataFrame properties
 

@@ -1,12 +1,13 @@
 @testset "Sample properties for arrays" begin
-    @test Banyan.sample_axes(ones(10,10)) == [1, 2]
-    @test Banyan.sample_axes(ones(10)) == [1]
-    @test Banyan.sample_keys(ones(10,10)) == [1, 2]
-    @test Banyan.sample_keys(ones(10)) == [1]
+    @test Banyan.sample_axes(Base.ones(10,10)) == [1, 2]
+    @test Banyan.sample_axes(Base.ones(10)) == [1]
+    @test Banyan.sample_keys(Base.ones(10,10)) == [1, 2]
+    @test Banyan.sample_keys(Base.ones(10)) == [1]
 
     increasing_array_1d = range(1,100,length=100)
     increasing_array_2d = reshape(range(1,100,length=100), (10,10))
-    string_array_2d = fill("abc", (10,10))
+    string_array_1d = Base.fill("abc", 10)
+    string_array_2d = Base.fill("abc", (10,10))
 
     @test Banyan.sample_min(increasing_array_1d, 1) == 1
     @test Banyan.sample_max(increasing_array_1d, 1) == 100
@@ -14,6 +15,8 @@
     @test Banyan.sample_max(increasing_array_2d, 1) == 10
     @test Banyan.sample_min(increasing_array_2d, 2) == 1
     @test Banyan.sample_max(increasing_array_2d, 2) == 91
+    @test Banyan.sample_min(string_array_1d, 1) == orderinghash("abc")
+    @test Banyan.sample_max(string_array_1d, 1) == orderinghash("abc")
     @test Banyan.sample_min(string_array_2d, 1) == orderinghash("abc")
     @test Banyan.sample_max(string_array_2d, 1) == orderinghash("abc")
     @test Banyan.sample_min(string_array_2d, 2) == orderinghash("abc")
@@ -49,12 +52,15 @@ end
 end
 
 @testset "Sample # of groups for arrays" begin
-    @test Banyan.sample_max_ngroups(ones(10,10), 1) == 10
-    @test Banyan.sample_max_ngroups(ones(10,10), 2) == 10
+    @test Banyan.sample_max_ngroups(Base.ones(10), 1) == 1
+    @test Banyan.sample_max_ngroups(Base.ones(10,10), 1) == 1
+    @test Banyan.sample_max_ngroups(Base.ones(10,10), 2) == 1
 
+    increasing_array_1d = range(1,100,length=100)
     increasing_array_2d = reshape(range(1,100,length=100), (10,10))
-    @test Banyan.sample_max_ngroups(ones(10,10), 1) == 10
-    @test Banyan.sample_max_ngroups(ones(10,10), 2) == 10
+    @test Banyan.sample_max_ngroups(increasing_array_1d, 1) == 100
+    @test Banyan.sample_max_ngroups(increasing_array_2d, 1) == 10
+    @test Banyan.sample_max_ngroups(increasing_array_2d, 2) == 10
 end
 
 @testset "Sample percentile for arrays" begin
@@ -76,38 +82,4 @@ end
     @test sample_percentile(["a", "b", "c", "d"], 1, orderinghash("b"), orderinghash("d")) == 0.75
     @test sample_percentile(["a", "b", "c", "d"], 1, orderinghash("e"), orderinghash("f")) == 0.0
     @test sample_percentile(["a", "b", "c", "d"], 1, orderinghash("d"), orderinghash("d")) == 0.25
-end
-
-function is_split_divisions_valid(splits, original=nothing)
-    @test length(splits) >= 1
-    for (j, split) in enumerate(splits)
-        @test length(split) >= 1
-        for (i, division) in enumerate(split)
-            @test length(division) == 2
-            if i < length(split)
-                @test division[2] == split[i+1][1]
-            end
-            @test division[1] < division[2]
-        end
-
-        if j < length(splits)
-            @test last[split][2] == first(splits[j+1])[1]
-        end
-    end
-
-    if !isnothing(original)
-        @test first(first(splits))[1] >= first(original)[1]
-        @test last(last(splits))[2] <= last(original)[2]
-    end
-end
-
-@testset "Splitting sampled divisions" begin
-    # TOOD: Test `get_partition_idx_from_divisions`
-
-    df = CSV.read(use_data("iris_in_a_file.csv", "Disk"), DataFrame)
-    original_divisions = sample_divisions(df, :species, 2)
-    @test is_split_divisions_valid(get_divisions(original_divisions, 2), original_divisions)
-    @test is_split_divisions_valid(get_divisions(get_divisions(original_divisions, 2)[1], 5), original_divisions)
-
-    # @test get_partition_idx_from_divisions("" , original_divisions)
 end

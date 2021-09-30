@@ -2,10 +2,10 @@
     df = DataFrames.DataFrame(:x => [1,2,3,4], :y => ["a", "d", "b", "c"])
     @test Banyan.sample_axes(df) == [1]
     @test Banyan.sample_keys(df) == [:x, :y]
-    @test Banyan.sample_minimum(df, :x) == 1
-    @test Banyan.sample_maximum(df, :x) == 4
-    @test Banyan.sample_minimum(df, :y) == orderinghash("a")
-    @test Banyan.sample_maximum(df, :y) == orderinghash("d")
+    @test Banyan.sample_min(df, :x) == 1
+    @test Banyan.sample_max(df, :x) == 4
+    @test Banyan.sample_min(df, :y) == orderinghash("a")
+    @test Banyan.sample_max(df, :y) == orderinghash("d")
 end
 
 @testset "Sample divisions for data frames" begin
@@ -23,10 +23,21 @@ end
     sample_divisions_df1_y = sample_divisions(df1, :y)
     @test length(sample_divisions_df1_y) == 4
     for (i, division) in enumerate(sample_divisions_df1_y)
+        # Each division is a tuple of min/max values representing the range
+        # [min, max); i.e., inclusive of minimum and exclusive of the maximum.
+        # Minimums and maximums are ignored for the first and final partitions.
+        # In other words, the first partition is not lower-bounded and the
+        # final partition is not upper-bounded.
         if i < length(sample_divisions_df1_y)
             @test division[2] == sample_divisions_df1_y[i+1][1]
         end
-        @test division[1] < division[2]
+
+        # The very last range should just be a single "d"
+        if i < length(sample_divisions_df1_y)
+            @test division[1] < division[2]
+        else
+            @test division[1] == division[2]
+        end
     end
 
     # Test df2 and df3
@@ -59,7 +70,7 @@ end
 @testset "Sample # of groups for data frames" begin
     df1 = DataFrames.DataFrame(:x => [1,2,3,4], :y => ["a", "d", "b", "c"])
     df2 = DataFrames.DataFrame(:x => [1,2,3,4,4], :y => ["a", "d", "b", "b", "c"])
-    df2 = DataFrames.DataFrame(:x => [1,2,3,4,5], :y => ["a", "d", "b", "b", "c"])
+    df3 = DataFrames.DataFrame(:x => [1,2,3,4,5], :y => ["a", "d", "b", "b", "c"])
     @test Banyan.sample_max_ngroups(df1, :x) == 4
     @test Banyan.sample_max_ngroups(df1, :y) == 4
     @test Banyan.sample_max_ngroups(df2, :x) == 2
@@ -71,7 +82,7 @@ end
 @testset "Sample percentile for data frames" begin
     df1 = DataFrames.DataFrame(:x => [1,2,3,4], :y => ["a", "d", "b", "c"])
     df2 = DataFrames.DataFrame(:x => [1,2,3,4,4], :y => ["a", "d", "b", "b", "c"])
-    df2 = DataFrames.DataFrame(:x => [1,2,3,4,5], :y => ["a", "d", "b", "b", "c"])
+    # df2 = DataFrames.DataFrame(:x => [1,2,3,4,5], :y => ["a", "d", "b", "b", "c"])
 
     @test sample_percentile(df1, :x, 1, 4) == 1
     @test sample_percentile(df1, :x, 2, 4) == 0.75

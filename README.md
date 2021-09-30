@@ -53,6 +53,15 @@ AWS configuration files) and the Banyan environment variables
 are saved in `banyanconfig.toml` so you don't need to specify it
 every time.
 
+For example, if you have previously specified your Banyan API key, user ID, and AWS credentials, you could:
+
+```
+cd BanyanDataFrames
+BANYAN_CLUSTER_NAME=pumpkincluster0 julia --project=. -e "using Pkg; Pkg.test(test_args=[\"ample\"])
+```
+
+If your AWS credentials are saved under a profile named `banyan-testing`, you could use `AWS_DEFAULT_PROFILE=banyan-testing`.
+
 ## Development
 
 Make sure to use the `] dev ...` command or `Pkg.dev(...)` to ensure that when you

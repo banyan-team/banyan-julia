@@ -202,6 +202,9 @@ function Grouped(
                 end
 
                 # Add constraints
+                # In the future if the element size can be really big (like a multi-dimensional array
+                # that is very wide or data frame with many columns), we may want to have a constraint
+                # where the partition size must be larger than that minimum element size.
                 push!(constraints.constraints, AtMost(max_ngroups, f))
                 push!(constraints.constraints, ScaleBy(f, 1.0))
 
