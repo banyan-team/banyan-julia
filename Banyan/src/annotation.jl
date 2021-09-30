@@ -40,20 +40,46 @@ end
 # Setting up sample properties in beforecompute #
 #################################################
 
+# These functions are necessary because when we construct PT's to assign to
+# futures for annotated code (especially code in BDF.jl), we rely on statistics
+# of the samples of the futures to construct the PTs. But computing statistics
+# is expensive and we only want to compute it for the keys/columns that are
+# actually used for grouping/sorting/etc. So we propagate this through the
+# `:groupingkeys` sample property of different futures (each future has a
+# set of sample properties).
+# 
+# These `keep_*` functions specify how `statistics` and `groupingkeys` sample
+# properties should propagate. These functions are called inside of a
+# `partitioned_using` so that they are called in a forward pass through all the
+# tasks (code regions) detected and also in a backward pass to properly
+# propagate the `groupingkeys` sample property. For example, a groupby may only
+# happen in the very last task indicating that a particular column can be in
+# the `groupingkeys` (the column used for the groupby) but we need to specify
+# that that column could have been used for grouping the data throughout (if
+# all tasks are amenable like that).
+# 
+# Of course, columns can be dropped or
+# renamed and so that makes things a bit challenging in properly propagating
+# information about sample properties and that's why we have a lot of these
+# keep_* functions.
+
 function partitioned_using(handler::Function)
     global curr_delayed_task
     curr_delayed_task.partitioned_using_func = handler
 end
 
-# TODO: Switch key names from strings to symbols if performance is an issue
-
 function keep_all_sample_keys(participants::AbstractFuture...; drifted = false)
+    # This can be use on an input and output that share the same keys that they
+    # can be grouped by.
+
     # Take the union of discovered grouping keys. Grouping keys are discovered
     # through calls to `keep_keys` in functions where we know that we need
     # to allow grouping by certain keys such as sorting and join functions.
     groupingkeys = union([sample(p, :groupingkeys) for p in participants]...)
-    if !drifted
-        statistics = merge([sample(p, :statistics) for p in participants]...)
+    statistics = if !drifted
+        merge([sample(p, :statistics) for p in participants]...)
+    else
+        nothing
     end
 
     # Only allow keys that are actually in the keys of the participants
@@ -99,7 +125,7 @@ function keep_sample_keys_named(
         (participant, Symbol.(to_vector(key_names))) for
         (participant, key_names) in participants
     ]
-    nkeys = length(last(first(participants)))
+    nkeys = length(first(participants)[2])
     for i = 1:nkeys
         # Copy over allowed grouping keys
         for (p, keys) in participants
@@ -436,10 +462,10 @@ macro partitioned(ex...)
         #     end
         # end
 
-        # Apply all delayed source and destination assignment
-        for splatted_future in splatted_futures
-            apply_sourced_or_destined_funcs(splatted_future)
-        end
+        # If any sample computation fails, before we rethrow
+        # the error (so that it is displayed in a notebook or crashes a
+        # script/Lambda function that is running the job) we ensure that
+        # we haven't recorded a faulty task or messed up the state in any way.
 
         # Fill in task with code and value names pulled using the macror
         unsplatted_variable_names = [$(variable_names...)]
@@ -493,17 +519,11 @@ macro partitioned(ex...)
         # evaluation
         for fut in splatted_futures
             if any((fut.value_id == m.value_id for m in values(task.mutation)))
-                fut.stale = true
-                fut.mutated = true
                 task.effects[fut.value_id] = "MUT"
             else
                 task.effects[fut.value_id] = "CONST"
             end
         end
-
-        # Record request to record task in backend's dependency graph and reset
-        record_request(RecordTaskRequest(task))
-        finish_task()
 
         # TODO: When mutating a value, ensure that the old future has a sample
         # of the old value and the new future of the new
@@ -532,7 +552,39 @@ macro partitioned(ex...)
         # Stacktrace:
         #   [1] merge(a::NamedTuple{(:dims,), Tuple{Colon}}, itr::Int32)
         #     @ Base ./namedtuple.jl:281      
-        $(esc(code))
+        try
+            $(esc(code))
+        catch
+            # I
+            finish_task()
+            $(reassigning_futures...)
+            rethrow()
+        end
+
+        # NOTE: We only update futures' state, record requests, update samples,
+        # apply mutation _IF_ the sample computation succeeds. Regardless of
+        # whether it succeeds, we make sure to clear the task (so that future
+        # usage in the REPL or notebook can proceed, generating new tasks) and
+        # reassign all variables.
+
+        # Update mutated futures
+        for fut in splatted_futures
+            if any((fut.value_id == m.value_id for m in values(task.mutation)))
+                fut.stale = true
+                fut.mutated = true
+            end
+        end
+
+        # Apply all delayed source and destination assignment. This will
+        # perform any expensive sample collection that may require for example
+        # an expensive scan of S3. This will record `RecordLocationRequest`s.
+        for splatted_future in splatted_futures
+            apply_sourced_or_destined_funcs(splatted_future)
+        end
+
+        # Record request to record task in backend's dependency graph and reset
+        record_request(RecordTaskRequest(task))
+        finish_task()
 
         # Move results from variables back into the samples. Also, update the
         # memory usage accordingly.
@@ -552,6 +604,7 @@ macro partitioned(ex...)
         # end
         # end
 
+        # This basically undoes `$(assigning_samples...)`.
         $(reassigning_futures...)
 
         # Make a call to `apply_mutation` to handle calls to `mut` like

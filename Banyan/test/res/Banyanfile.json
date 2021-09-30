@@ -1,5 +1,5 @@
 {
-    "include": ["file://../../res/Banyanfile.json"],
+    "include": ["file://../../res/BanyanfileDebug.json"],
     "require": {
         "cluster": {"packages": ["Distributions"]}
     },

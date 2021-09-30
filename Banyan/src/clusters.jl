@@ -557,11 +557,12 @@ function get_clusters(; kwargs...)
     )
 end
 
-function get_cluster_s3_bucket_name(cluster_name; kwargs...)
+function get_cluster_s3_bucket_name(cluster_name=get_cluster_name(); kwargs...)
     configure(; kwargs...)
     cluster = get_cluster(cluster_name)
     return s3_bucket_arn_to_name(cluster.s3_bucket_arn)
 end
 
-get_cluster(name::String, kwargs...) = get_clusters(; kwargs...)[name]
-get_cluster() = get_cluster(get_cluster_name())
+get_cluster(name::String=get_cluster_name(), kwargs...) = get_clusters(; kwargs...)[name]
+
+get_running_clusters(args...; kwargs...) = filter(entry -> entry[2].status == :running, get_clusters(args...; kwargs...))

@@ -196,7 +196,7 @@ function setup_stress_tests(bucket_name)
             # Loop over missing files and upload to s3
             for s3_path in dst_s3_paths_missing
                 cp(
-                    get_local_path_tripdata(s3_path),
+                    Path(get_local_path_tripdata(s3_path)),
                     s3_path,
                     config = Banyan.get_aws_config(),
                 )

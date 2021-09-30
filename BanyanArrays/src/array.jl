@@ -74,63 +74,68 @@ Banyan.sample_keys(A::U) where U <: Base.AbstractArray{T,N} where {T,N} = sample
 # `sample_divisions`, `sample_percentile`, and `sample_max_ngroups` should
 # work with the `orderinghash` of values in the data they are used on
 
-# NOTE: This is duplicated between pt_lib.jl and the client library
-orderinghash(x::Any) = x # This lets us handle numbers and dates
-orderinghash(s::String) = Integer.(codepoint.(collect(first(s, 32) * repeat(" ", 32-length(s)))))
-orderinghash(A::U) where U <: Base.AbstractArray = orderinghash(first(A))
-
 function Banyan.sample_divisions(A::U, key) where U <: Base.AbstractArray{T,N} where {T,N}
-    max_ngroups = sample_max_ngroups(df, key)
-    ngroups = min(max_ngroups, Banyan.get_job().sample_rate, 512)
-    data = sort(mapslices(first, transpose(A), dims=key))
+    max_ngroups = sample_max_ngroups(A, key)
+    ngroups = min(max_ngroups, 512)
+    data = sort(reshape(mapslices(orderinghash, A, dims=filter(d->d != key, 1:ndims(A))), size(A, key)))
     datalength = length(data)
     grouplength = div(datalength, ngroups)
     [
         # Each group has elements that are >= start and < end
         (
-            orderinghash(data[(i-1)*grouplength + 1]),
-            orderinghash(data[i == ngroups ? datalength : i*grouplength + 1])
+            data[(i-1)*grouplength + 1],
+            data[i == ngroups ? datalength : i*grouplength + 1]
         )
         for i in 1:ngroups
     ]
 end
 
 function Banyan.sample_percentile(A::U, key, minvalue, maxvalue) where U <: Base.AbstractArray{T,N} where {T,N}
-    minvalue, maxvalue = orderinghash(minvalue), orderinghash(maxvalue)
-    divisions = sample_divisions(A, key)
-    percentile = 0
-    divpercentile = 1/length(divisions)
-    inminmax = false
+    count(mapslices(orderinghash |> oh->oh >= minvalue && oh <= maxvalue, A, dims=filter(d->d != key, 1:ndims(A)))) / size(A, key)
 
-    # Iterate through divisions to compute percentile
-    for (i, (divminvalue, divmaxvalue)) in enumerate(divisions)
-        # Check if we are between the minvalue and maxvalue
-        if (i == 1 || minvalue >= divminvalue) && (i == length(divisions) || minvalue < divmaxvalue)
-            inminmax = true
-        end
+    # TODO: Determine whether we need to assume a more coarse-grained percentile using the divisions
+    # from `sample_divisions` and computing the percent of divisions that overlap with the range
 
-        # Add to percentile
-        if inminmax
-            percentile += divpercentile
-        end
+    # # minvalue, maxvalue = orderinghash(minvalue), orderinghash(maxvalue)
+    # divisions = sample_divisions(A, key)
+    # percentile = 0
+    # divpercentile = 1/length(divisions)
+    # inminmax = false
 
-        # Check if we are no longer between the minvalue and maxvalue
-        if (i == 1 || maxvalue >= divminvalue) && (i == length(divisions) || maxvalue < divmaxvalue)
-            inminmax = false
-        end
-    end
+    # # Iterate through divisions to compute percentile
+    # for (i, (divminvalue, divmaxvalue)) in enumerate(divisions)
+    #     # Check if we are between the minvalue and maxvalue
+    #     if (i == 1 || minvalue >= divminvalue) && (i == length(divisions) || minvalue < divmaxvalue)
+    #         inminmax = true
+    #     end
 
-    percentile
+    #     # Add to percentile
+    #     if inminmax
+    #         percentile += divpercentile
+    #     end
+
+    #     # Check if we are no longer between the minvalue and maxvalue
+    #     if (i == 1 || maxvalue >= divminvalue) && (i == length(divisions) || maxvalue < divmaxvalue)
+    #         inminmax = false
+    #     end
+    # end
+
+    # percentile
 end
+
+# NOTE: The key used for arrays must be a single dimension - if you are doing
+# something like sorting on multiple dimensions or grouping on multiple
+# dimensions you can just use the first dimension as the key.
 
 Banyan.sample_max_ngroups(A::U, key) where U <: Base.AbstractArray{T,N} where {T,N} =
     begin
-        data = sort(mapslices(orderinghash, transpose(A), dims=key))
+        data = sort(reshape(mapslices(orderinghash, A, dims=filter(d->d != key, 1:ndims(A))), size(A, key)))
         currgroupsize = 1
         maxgroupsize = 0
         prev = nothing
+        prev_is_nothing = true # in case `prev` _can_ be nothing
         for curr in data
-            if curr == prev
+            if !prev_is_nothing && curr == prev
                 currgroupsize += 1
             else
                 maxgroupsize = max(maxgroupsize, currgroupsize)
@@ -138,12 +143,13 @@ Banyan.sample_max_ngroups(A::U, key) where U <: Base.AbstractArray{T,N} where {T
             end
             # TODO: Maybe use deepcopy here if eltype might be nested
             prev = copy(curr)
+            prev_is_nothing = false
         end
         maxgroupsize = max(maxgroupsize, currgroupsize)
-        div(size(df, key), maxgroupsize)
+        div(size(A, key), maxgroupsize)
     end
-Banyan.sample_min(A::U, key) where U <: Base.AbstractArray{T,N} where {T,N} = minimum(mapslices(first, transpose(A), dims=key))
-Banyan.sample_max(A::U, key) where U <: Base.AbstractArray{T,N} where {T,N} = maximum(mapslices(first, transpose(A), dims=key))
+Banyan.sample_min(A::U, key) where U <: Base.AbstractArray{T,N} where {T,N} = minimum(mapslices(orderinghash, A, dims=filter(d->d != key, 1:ndims(A))))
+Banyan.sample_max(A::U, key) where U <: Base.AbstractArray{T,N} where {T,N} = maximum(mapslices(orderinghash, A, dims=filter(d->d != key, 1:ndims(A))))
 
 # Array creation
 

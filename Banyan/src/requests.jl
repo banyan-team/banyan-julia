@@ -50,6 +50,8 @@ function partitioned_computation(fut::AbstractFuture; destination, new_source=no
 
     if fut.mutated || (destination.dst_name == "Client" && fut.stale)
         # TODO: Check to ensure that `fut` is annotated
+        # This creates an empty final task that ensures that the future
+        # will be scheduled to get sent to its destination.
         destined(fut, destination)
         mutated(fut)
         @partitioned fut begin end
@@ -301,9 +303,7 @@ function configure_scheduling(;kwargs...)
     global report_schedule
     global encourage_parallelism
     global encourage_parallelism_with_batches
-    if get(kwargs, :report_schedule, false) || haskey(kwargs, :name)
-        report_schedule = kwargs[:report_schedule]
-    end
+    report_schedule = get(kwargs, :report_schedule, false) || haskey(kwargs, :name)
     if get(kwargs, :encourage_parallelism, false) || get(kwargs, :name, "") == "parallelism encouraged"
         encourage_parallelism = kwargs[:encourage_parallelism]
     end

@@ -97,59 +97,66 @@ end
 Banyan.sample_axes(df::DataFrames.DataFrame) = [1]
 Banyan.sample_keys(df::DataFrames.DataFrame) = propertynames(df)
 
-# NOTE: This is duplicated between pt_lib.jl and the client library
-orderinghash(x::Any) = x # This lets us handle numbers and dates
-orderinghash(s::String) = Integer.(codepoint.(collect(first(s, 32) * repeat(" ", 32-length(s)))))
-
 # TODO: Make these sample_* functions handle empty data frames
 
 function Banyan.sample_divisions(df::DataFrames.DataFrame, key)
     max_ngroups = sample_max_ngroups(df, key)
-    ngroups = min(max_ngroups, Banyan.get_job().sample_rate, 512)
-    data = sort(df[!, key])
+    ngroups = min(max_ngroups, 512)
+    data = sort(orderinghash.(df[!, key]))
     datalength = length(data)
     grouplength = div(datalength, ngroups)
     [
         # Each group has elements that are >= start and < end
         (
-            orderinghash(data[(i-1)*grouplength + 1]),
-            orderinghash(data[i == ngroups ? datalength : i*grouplength + 1])
+            data[(i-1)*grouplength + 1],
+            data[i == ngroups ? datalength : i*grouplength + 1]
         )
         for i in 1:ngroups
     ]
 end
 
 function Banyan.sample_percentile(A::DataFrames.DataFrame, key, minvalue, maxvalue)
-    minvalue, maxvalue = orderinghash(minvalue), orderinghash(maxvalue)
-    divisions = sample_divisions(A, key)
-    percentile = 0
-    divpercentile = 1/length(divisions)
-    inminmax = false
+    # NOTE: This may cause some problems because the way that data is ultimately split may
+    # not allow a really fine division of groups. So in the case of some filtering, the rate
+    # of filtering may be 90% but if there are only like 3 groups then maybe it ends up being like
+    # 50% and that doesn't get scheduled properly. We can try to catch stuff like maybe by using
+    # only 70% of total memory in scheduling or more pointedly by changing this function to
+    # call sample_divisions with a reasonable number of divisions and then counting how many
+    # divisions the range actually belongs to.
 
-    # Iterate through divisions to compute percentile
-    for (i, (divminvalue, divmaxvalue)) in enumerate(divisions)
-        # Check if we are between the minvalue and maxvalue
-        if (i == 1 || minvalue >= divminvalue) && (i == length(divisions) || minvalue < divmaxvalue)
-            inminmax = true
-        end
+    count(map(orderinghash |> oh->oh >= minvalue && oh <= maxvalue, df[!, key])) / size(A, key)
 
-        # Add to percentile
-        if inminmax
-            percentile += divpercentile
-        end
+    # # minvalue and maxvalue should already be order-preserved hashes
+    # # minvalue, maxvalue = orderinghash(minvalue), orderinghash(maxvalue)
+    # divisions = sample_divisions(A, key)
+    # percentile = 0
+    # divpercentile = 1/length(divisions)
+    # inminmax = false
 
-        # Check if we are no longer between the minvalue and maxvalue
-        if (i == 1 || maxvalue >= divminvalue) && (i == length(divisions) || maxvalue < divmaxvalue)
-            inminmax = false
-        end
-    end
+    # # Iterate through divisions to compute percentile
+    # for (i, (divminvalue, divmaxvalue)) in enumerate(divisions)
+    #     # Check if we are between the minvalue and maxvalue
+    #     if (i == 1 || minvalue >= divminvalue) && (i == length(divisions) || minvalue < divmaxvalue)
+    #         inminmax = true
+    #     end
 
-    percentile
+    #     # Add to percentile
+    #     if inminmax
+    #         percentile += divpercentile
+    #     end
+
+    #     # Check if we are no longer between the minvalue and maxvalue
+    #     if (i == 1 || maxvalue >= divminvalue) && (i == length(divisions) || maxvalue < divmaxvalue)
+    #         inminmax = false
+    #     end
+    # end
+
+    # percentile
 end
 
 Banyan.sample_max_ngroups(df::DataFrames.DataFrame, key) = div(nrow(df), maximum(combine(groupby(df, key), nrow).nrow))
-Banyan.sample_min(df::DataFrames.DataFrame, key) = minimum(df[!, key])
-Banyan.sample_max(df::DataFrames.DataFrame, key) = maximum(df[!, key])
+Banyan.sample_min(df::DataFrames.DataFrame, key) = minimum(orderinghash.(df[!, key]))
+Banyan.sample_max(df::DataFrames.DataFrame, key) = maximum(orderinghash.(df[!, key]))
 
 # DataFrame properties
 

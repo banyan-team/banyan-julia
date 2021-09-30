@@ -3,7 +3,7 @@
     "require": {
         "language": "jl",
         "cluster": {
-            "files": ["file://utils.jl"],
+            "files": ["file://../src/utils_pt_lib.jl"],
             "scripts": ["file://build_hdf5_jl.sh"],
             "packages": ["DataFrames@1.1.1", "CSV", "Parquet", "Arrow", "Distributions", "Missings"],
             "pt_lib_info": "file://pt_lib_info.json",

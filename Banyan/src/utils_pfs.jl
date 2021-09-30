@@ -1,4 +1,5 @@
 using Base: Integer, AbstractVecOrTuple
+using MPI, HDF5, DataFrames
 
 ####################
 # Helper functions #
@@ -86,6 +87,8 @@ function merge_on_executor(obj...; key = nothing)
     elseif isa_array(first_obj)
         # @show obj
         cat(obj...; dims = key)
+    elseif isa_gdf(first_obj)
+        nothing
     else
         # error("Expected either AbstractDataFrame or AbstractArray for concatenation")
         # TODO: Handle grouped dataframe better
@@ -130,6 +133,12 @@ end
 
 isoverlapping(a::AbstractRange, b::AbstractRange) = a.start ≤ b.stop && b.start ≤ a.stop
 
+######################################################
+# Helper functions for serialization/deserialization #
+######################################################
+
+to_jl_value(jl) = Dict("is_banyan_value" => true, "contents" => to_jl_value_contents(jl))
+
 # NOTE: This function is shared between the client library and the PT library
 to_jl_value_contents(jl) = begin
     # Handle functions defined in a module
@@ -164,11 +173,17 @@ from_jl_value_contents(jl_value_contents) = begin
     end
 end
 
-# NOTE: This is duplicated between pt_lib.jl and the client library
+
+##########################################
+# Ordering hash for computing  divisions #
+##########################################
+
+# NOTE: `orderinghash` must either return a number or a vector of
+# equally-sized numbers
+# NOTE: This is an "order-preserving hash function" (google that for more info)
 orderinghash(x::Any) = x # This lets us handle numbers and dates
-orderinghash(s::String) =
-    Integer.(codepoint.(collect(first(s, 32) * repeat(" ", 32 - length(s)))))
-orderinghash(A::U) where U <: Base.AbstractArray = orderinghash(first(A))
+orderinghash(s::String) = Integer.(codeunits(first(s, 32) * repeat(" ", 32-length(s))))
+orderinghash(A::AbstractArray) = orderinghash(first(A))
 
 to_vector(v::Vector) = v
 to_vector(v) = [v]
@@ -191,10 +206,6 @@ function get_divisions(divisions, npartitions)
         # ndivisions_per_partition = div(ndivisions, npartitions)
         [
             begin
-                # islastpartition = partition_idx == npartitions
-                # firstdivisioni = ((partition_idx-1) * ndivisions_per_partition) + 1
-                # lastdivisioni = islastpartition ? ndivisions : partition_idx * ndivisions_per_partition
-                # divisions[firstdivisioni:lastdivisioni]
                 divisions[split_len(ndivisions, partition_idx, npartitions)]
             end for partition_idx = 1:npartitions
         ]
@@ -252,12 +263,17 @@ function get_divisions(divisions, npartitions)
                     for j = 1:ndivisionsplits
                         # Update the start and end of the division
                         # islastsplit = j == ndivisionsplits
-                        splitdivisions[j][1][i] = j == 1 ? dbegin : start
+                        splitdivisions[j][1][i] = j == 1 ? dbegin : copy(start)
                         start += cld(dend - dbegin, ndivisionsplits)
                         start = min(start, dend)
-                        splitdivisions[j][2][i] = j == ndivisionsplits ? dend : start
+                        splitdivisions[j][2][i] = j == ndivisionsplits ? dend : copy(start)
                         # splitdivisions[j][1][i] = dbegin + (dpersplit * (j-1))
                         # splitdivisions[j][2][i] = islastsplit ? dend : dbegin + dpersplit * j
+
+                        # Ensure that the remaining indices are matching between the start and end.
+                        if j < ndivisionsplits
+                            splitdivisions[j][2][i+1:end] = splitdivisions[j][1][i+1:end]
+                        end
                     end
 
                     # Stop if we have found a difference we can

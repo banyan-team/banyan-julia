@@ -7,9 +7,7 @@
 using Serialization
 using Base64
 
-using MPI
-
-include("utils.jl")
+using MPI, DataFrames, FilePathsBase, HDF5, CSV, Parquet, Arrow
 
 ###################################
 # Splitting and merging functions #

@@ -1,8 +1,17 @@
 using ReTest
+using Banyan, BanyanArrays
+using FilePathsBase, AWSS3, HDF5
 
 global jobs_for_testing = Dict()
 
-function use_job_for_testing(;
+function destroy_all_jobs_for_testing()
+    global jobs_for_testing
+    for job_id in values(jobs_for_testing)
+        destroy_job(job_id)
+    end
+end
+
+function use_job_for_testing(f::Function;
     sample_rate = 2,
     scheduling_config_name = "default scheduling",
 )
@@ -16,38 +25,85 @@ function use_job_for_testing(;
 
     # Set the job and create a new one if needed
     global jobs_for_testing
-    set_job_id(
+    set_job(
         if haskey(jobs_for_testing, job_config_hash)
             jobs_for_testing[job_config_hash]
         else
             create_job(
                 cluster_name = ENV["BANYAN_CLUSTER_NAME"],
                 nworkers = 2,
-                banyanfile_path = "file://res/Banyanfile.json",
+                banyanfile_path = "file://res/BanyanfileDebug.json",
                 sample_rate = sample_rate,
                 return_logs = true,
             )
         end,
     )
 
+    # If selected job has already failed, this will throw an error.
+    get_job()
+
     configure_scheduling(name = scheduling_config_name)
+
+    try
+        f()
+    catch
+        # We will destroy the job if any error occurs. This is because we can't
+        # properly intercept errors that happen in tests. If an error occurs,
+        # the whole test suite exits and we don't have an opportunity to delete
+        # stray jobs. This ensures that jobs are destroyed. In later tests sets,
+        # `get_job()` is called which ensures that the job hasn't yet been
+        # destroyed or failed.
+        destroy_all_jobs_for_testing()
+        rethrow()
+    end
 end
 
+global data_for_testing = false
+
+function use_data(data_src="S3")
+    global data_for_testing
+
+    if !data_for_testing && data_src == "S3"
+        original = h5open(
+            download(
+                "https://support.hdfgroup.org/ftp/HDF5/examples/files/exbyapi/h5ex_d_fillval.h5",
+            ),
+        )
+        with_downloaded_path_for_reading(
+            joinpath(
+                S3Path(get_cluster_s3_bucket_name(), config = Banyan.get_aws_config()),
+                "fillval.h5",
+            ),
+            for_writing = true,
+        ) do f
+            new = h5open(string(f), "w")
+            new["DS1"] = repeat(original["DS1"][:, :], 100, 100)
+            close(new)
+        end
+        close(original)
+
+        # rm(get_s3fs_path(joinpath(get_cluster_s3_bucket_name(), "fillval_copy.h5")), force=true)
+        rm(
+            joinpath(
+                S3Path(get_cluster_s3_bucket_name(), config = Banyan.get_aws_config()),
+                "fillval_copy.h5",
+            ),
+            force = true,
+        )
+        # TODO: Maybe fsync here so that the directory gets properly updated
+    end
+
+    data_for_testing = true
+end
+
+include("sample_computation.jl")
 include("mapreduce.jl")
-# include("hdf5.jl")
-# include("bs.jl")
+include("hdf5.jl")
+include("bs.jl")
 
 try
-    if isempty(ARGS)
-        runtests()
-    elseif length(ARGS) == 1
-        runtests(Regex(first(ARGS)))
-    else
-        error("Expected no more than a single pattern to match test set names on")
-    end
+    runtests(Regex.(ARGS)...)
 finally
     # Destroy jobs to clean up
-    for job_id in values(jobs_for_testing)
-        destroy_job(job_id)
-    end
+    destroy_all_jobs_for_testing()
 end
