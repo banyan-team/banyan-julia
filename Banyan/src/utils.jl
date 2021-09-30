@@ -1,7 +1,7 @@
 using TimeZones
-# TODO: optimize to build only if timeZones is used
-TimeZones.build()
 using Base: AbstractVecOrTuple
+
+timezones_built = false
 
 ##############
 # CONVERSION #
@@ -52,6 +52,11 @@ end
 
 # converts give time as String to local timezone and returns DateTime
 function parse_time(time)
+    global timezones_built
+    if !timezones_built
+        TimeZones.build()
+        timezones_built = true
+    end
     DateTime(astimezone(ZonedDateTime(time * "0000", "yyyy-mm-dd-HH:MM:SSzzzz"), localzone()))
 end
 
