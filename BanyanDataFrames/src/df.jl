@@ -60,7 +60,7 @@ read_arrow(p; kwargs...) = read_csv(p; kwargs...)
 
 # TODO: For writing functions, if a file is specified, enforce Replicated
 
-function write_csv(df, path; kwargs...)
+function write_csv(df, path; invalidate_location=true, invalidate_sample=true, kwargs...)
     # destined(df, Remote(path, delete_from_cache=true))
     # mutated(df)
     # partitioned_with() do
@@ -75,7 +75,7 @@ function write_csv(df, path; kwargs...)
     end
     partitioned_computation(
         df,
-        destination=Remote(path; merge(Dict(:invalidate_location=>true, :invalidate_sample=>true), kwargs)...),
+        destination=Remote(path; invalidate_location=invalidate_location, invalidate_sample=invalidate_sample, kwargs...),
         new_source=_->Remote(path)
     )
 end

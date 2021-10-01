@@ -167,7 +167,7 @@ function read_hdf5(path; kwargs...)
     Array{A_loc.eltype,A_loc.ndims}(A, Future(A_loc.size))
 end
 
-function write_hdf5(A, path; kwargs...)
+function write_hdf5(A, path; invalidate_location=true, invalidate_sample=true, kwargs...)
     # # A_loc = Remote(pathname, mount)
     # destined(A, Remote(path, delete_from_cache=true))
     # mutated(A)
@@ -189,7 +189,7 @@ function write_hdf5(A, path; kwargs...)
     pt(A, Blocked(A) | Replicated())
     partitioned_computation(
         A,
-        destination=Remote(path; merge(Dict(:invalidate_location=>true, :invalidate_sample=>true), kwargs)...),
+        destination=Remote(path; invalidate_location=invalidate_location, invalidate_sample=invalidate_sample, kwargs...),
         new_source=_->Remote(path)
     )
 end
