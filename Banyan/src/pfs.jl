@@ -38,7 +38,7 @@ function format_bytes(bytes, decimals = 2)
     k = 1024
     dm = decimals < 0 ? 0 : decimals
     sizes = ["Bytes", "KB", "MB", "GB", "TB", "PB", "EB", "ZB", "YB"]
-    i = convert(Int, floor(log(bytes) / log(k)))
+    i = Base.convert(Int, floor(log(bytes) / log(k)))
     return string(round((bytes / ^(k, i)), digits = dm)) * " " * sizes[i+1]
 end
 
