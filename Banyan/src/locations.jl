@@ -365,8 +365,10 @@ function Remote(p; shuffled=false, similar_files=false, location_invalid = false
         rm(locationpath, force=true, recursive=true)
     end
 
-    # Store sample in cache
-    if !invalidate_sample
+    # Store sample in cache. We don't store null samples because they are
+    # either samples for locations that don't exist yet (write-only) or are
+    # really cheap to collect the sample.
+    if !invalidate_sample && !isnothing(remote_sample.value)
         mkpath(samplespath)
         serialize(samplepath, remote_sample)
     else
