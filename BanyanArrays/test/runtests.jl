@@ -12,7 +12,8 @@ function destroy_all_jobs_for_testing()
     end
 end
 
-function use_job_for_testing(f::Function;
+function use_job_for_testing(
+    f::Function;
     sample_rate = 2,
     max_exact_sample_length = 50,
     with_s3fs = nothing,
@@ -74,7 +75,7 @@ end
 
 global data_for_testing = false
 
-function use_data(data_src="S3")
+function use_data(data_src = "S3")
     global data_for_testing
 
     if !data_for_testing && data_src == "S3"

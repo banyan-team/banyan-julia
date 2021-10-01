@@ -12,7 +12,8 @@ function destroy_all_jobs_for_testing()
     end
 end
 
-function use_job_for_testing(f::Function;
+function use_job_for_testing(
+    f::Function;
     sample_rate = 2,
     max_exact_sample_length = 50,
     with_s3fs = nothing,
@@ -101,7 +102,7 @@ function use_data(file_extension, remote_kind, single_file)
             (file_extension_is_hdf5 ? "fillval" : "iris") * ".$file_extension"
         testing_dataset_local_path =
             joinpath(homedir(), ".banyan", "testing_datasets", testing_dataset_local_name)
-            
+
         # Download if not already download
         if !isfile(testing_dataset_local_path)
             # Download to local ~/.banyan/testing_datasets
