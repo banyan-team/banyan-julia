@@ -901,7 +901,7 @@ function get_remote_table_location(remotepath, remote_location=nothing, remote_s
     # Load metadata for writing
     # NOTE: `remotepath` should end with `.parquet` or `.csv` if Parquet
     # or CSV dataset is desired to be created
-    loc_for_writing, metadata_for_writing = ("Remote", Dict("path" => remotepath))
+    loc_for_writing, metadata_for_writing = ("Remote", Dict("path" => remotepath, "files" => [], "nrows" => 0, "nbytes" => 0))
 
     # TODO: Cache sample on disk
 
