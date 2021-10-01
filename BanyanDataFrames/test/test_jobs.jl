@@ -3,7 +3,7 @@ using Statistics
 IRIS_DOWNLOAD_PATH = "https://gist.githubusercontent.com/curran/a08a1080b88344b0c8a7/raw/0e7a9b0a5d22642a06d3d5b9bcbad9890c8ee534/iris.csv"
 
 
-@testset "Create job using remote Github with $pt_lib_info pt_lib_info" for pt_lib_info in 
+@testset "Create job using remote Github with $pf_dispatch_table pf_dispatch_table" for pf_dispatch_table in 
     # files = ["https://raw.githubusercontent.com/banyan-team/banyan-julia/v0.1.3/Banyan/res/pt_lib.jl"]
     # pt_lib_info = ""
     # for pt_lib_info in [
@@ -16,10 +16,10 @@ IRIS_DOWNLOAD_PATH = "https://gist.githubusercontent.com/curran/a08a1080b88344b0
     ["default", "http path"]  #,
     # pt_lib in ["default", "http path"]
 
-    if pt_lib_info == "default"
-        pt_lib_info = ""
-    elseif pt_lib_info == "http path"
-        pt_lib_info = "https://raw.githubusercontent.com/banyan-team/banyan-julia/v0.1.3/Banyan/res/pt_lib_info.json"
+    if pf_dispatch_table == "default"
+        pf_dispatch_table = ""
+    elseif pf_dispatch_table == "http path"
+        pf_dispatch_table = "https://raw.githubusercontent.com/banyan-team/banyan-julia/v0.1.3/Banyan/res/pt_lib_info.json"
     end
     files = [IRIS_DOWNLOAD_PATH]
     # if pt_lib == "http path"
@@ -31,9 +31,9 @@ IRIS_DOWNLOAD_PATH = "https://gist.githubusercontent.com/curran/a08a1080b88344b0
         cluster_name = ENV["BANYAN_CLUSTER_NAME"],
         nworkers = 2,
         files = files,  # vcat([IRIS_DOWNLOAD_PATH], files),
-        pt_lib_info = pt_lib_info,
+        pf_dispatch_table = pf_dispatch_table,
         url = "https://github.com/banyan-team/banyan-julia.git",
-        branch = "v0.1.3",
+        branch = "remove_banyanfile",  #"v0.1.3",
         directory = "banyan-julia/BanyanDataFrames/test",
         dev_paths = [
             "banyan-julia/Banyan",
@@ -49,16 +49,11 @@ IRIS_DOWNLOAD_PATH = "https://gist.githubusercontent.com/curran/a08a1080b88344b0
 
     # Describe jobs
     curr_jobs = get_jobs(ENV["BANYAN_CLUSTER_NAME"], status="running")
-<<<<<<< HEAD
     # @test length(curr_jobs) == 1
-=======
-    @test length(curr_jobs) == 1
->>>>>>> Remove Banyanfiles and update tests
     @test haskey(curr_jobs, job_id)
     @test curr_jobs[job_id]["status"] == "running"
 
     # Perform computation 1
-<<<<<<< HEAD
     # bucket_name = get_cluster_s3_bucket_name(ENV["BANYAN_CLUSTER_NAME"])
     # df = read_csv("s3://$(bucket_name)/iris.csv")
     # gdf = groupby(df, :species)
@@ -66,20 +61,11 @@ IRIS_DOWNLOAD_PATH = "https://gist.githubusercontent.com/curran/a08a1080b88344b0
     # res = collect(pl_means)
     # @test res[:, :petal_length_mean] == [1.464, 4.26, 5.552]
     # @test res[:, :species] == ["setosa", "versicolor", "virginica"]
-    size = 64_000_000
+    size = 64_000
     x = BanyanArrays.fill(4.0, size)
     y = map(i -> i^2, x)
     res = collect(y)
     @test all(res .== 16.0)
-=======
-    bucket_name = get_cluster_s3_bucket_name(ENV["BANYAN_CLUSTER_NAME"])
-    df = read_csv("s3://$(bucket_name)/iris.csv")
-    gdf = groupby(df, :species)
-    pl_means = combine(gdf, :petal_length => mean)
-    res = collect(pl_means)
-    @test res[:, :petal_length_mean] == [1.464, 4.26, 5.552]
-    @test res[:, :species] == ["setosa", "versicolor", "virginica"]
->>>>>>> Remove Banyanfiles and update tests
 
     # Destroy job
     destroy_job(job_id)

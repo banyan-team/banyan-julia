@@ -1,7 +1,7 @@
 using BanyanDataFrames
+using BanyanArrays
 using Banyan
 using ReTest
-using Banyan, BanyanDataFrames
 using FilePathsBase, AWSS3, DataFrames, CSV, Parquet, Arrow
 
 global jobs_for_testing = Dict()

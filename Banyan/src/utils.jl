@@ -250,25 +250,27 @@ function get_aws_config()
     # Get AWS configuration
     if isnothing(aws_config_in_usage)
         # Get region according to ENV, then credentials, then config files
-        profile = get(ENV, "AWS_DEFAULT_PROFILE", get(ENV, "AWS_DEFAULT_PROFILE", "banyan_nothing"))
-        env_region = get(ENV, "AWS_DEFAULT_REGION", "")
-        credentialsfile = read(Inifile(), joinpath(homedir(), ".aws", "credentials"))
-        configfile = read(Inifile(), joinpath(homedir(), ".aws", "config"))
-        credentials_region = _get_ini_value(credentialsfile, profile, "region", default_value="")
-        config_region = _get_ini_value(configfile, profile, "region", default_value="")
+        profile = get(ENV, "AWS_DEFAULT_PROFILE", get(ENV, "AWS_DEFAULT_PROFILE", "default"))
+        region = get(ENV, "AWS_DEFAULT_REGION", "")
+        if region == ""
+            try
+                configfile = read(Inifile(), joinpath(homedir(), ".aws", "config"))
+                region = _get_ini_value(configfile, profile, "region", default_value="")
+            catch
+            end
+        end
+        if region == ""
+            try
+                credentialsfile = read(Inifile(), joinpath(homedir(), ".aws", "credentials"))
+                region = _get_ini_value(credentialsfile, profile, "region", default_value="")
+            catch
+            end
+        end
 
-        # Choose the region that is not default
-        region = env_region
-        region = isempty(region) ? credentials_region : region
-        region = isempty(region) ? config_region : region
-
-        #println(region)
-
-        if isempty(region)
+        if region == ""
             throw(ErrorException("Could not discover AWS region to use from looking at AWS_PROFILE, AWS_DEFAULT_PROFILE, AWS_DEFAULT_REGION, HOME/.aws/credentials, and HOME/.aws/config"))
         end
 
-	#println(AWSCredentials())
         aws_config_in_usage = Dict(
             :creds => AWSCredentials(),
             :region => region

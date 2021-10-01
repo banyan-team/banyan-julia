@@ -98,6 +98,12 @@ export Location, LocationSource, LocationDestination, located, sourced, destined
 export Value, Size, Client, Disk, None, Remote
 export clear_locations, clear_samples, invalidate_location, invalidate_sample
 
+# Serialization
+export from_jl_value_contents, to_jl_value_contents
+
+# Queues
+export receive_from_client, send_to_client
+
 # Partition types
 export PartitionType, pt, pc, mutated, @partitioned
 export Any,
@@ -181,6 +187,10 @@ using IterTools
 # into their respective libraries where they can be specialized
 using HDF5, CSV, Parquet, Arrow, DataFrames
 
+# Helpers
+include("id.jl")
+include("queues.jl")
+
 # Banyan.jl is intended both for usage as a client library and also for
 # inclusion in the environment that is used for jobs that run on the cluster.
 # When running on the cluster, partitioning functions define how to split,
@@ -193,11 +203,9 @@ include("utils_pfs.jl")
 include("pfs.jl")
 
 # Jobs
-include("id.jl")
 include("utils.jl")
 include("utils_abstract_types.jl")
 include("utils_s3fs.jl")
-include("queues.jl")
 include("clusters.jl")
 include("jobs.jl")
 

@@ -154,11 +154,6 @@ function create_job(;
     end
     job_configuration["pf_dispatch_table"] = load_json(pf_dispatch_table)
 
-    if pt_lib_info == ""
-        pt_lib_info = "https://raw.githubusercontent.com/banyan-team/banyan-julia/v0.1.3/Banyan/res/pt_lib_info.json"
-    end
-    job_configuration["pt_lib_info"] = load_json(pt_lib_info)
-
     # Create the job
     @debug "Sending request for job creation"
     job_response = send_request_get_response(:create_job, job_configuration)
