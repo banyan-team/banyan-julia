@@ -77,7 +77,7 @@ Banyan.sample_keys(A::U) where U <: Base.AbstractArray{T,N} where {T,N} = sample
 function Banyan.sample_divisions(A::U, key) where U <: Base.AbstractArray{T,N} where {T,N}
     max_ngroups = sample_max_ngroups(A, key)
     ngroups = min(max_ngroups, 512)
-    data = sort(reshape(mapslices(orderinghash, A, dims=filter(d->d != key, 1:ndims(A))), size(A, key)))
+    data = sort([orderinghash(e) for e in eachslice(A, dims=key)])
     datalength = length(data)
     grouplength = div(datalength, ngroups)
     [
@@ -91,7 +91,7 @@ function Banyan.sample_divisions(A::U, key) where U <: Base.AbstractArray{T,N} w
 end
 
 function Banyan.sample_percentile(A::U, key, minvalue, maxvalue) where U <: Base.AbstractArray{T,N} where {T,N}
-    count(mapslices(orderinghash |> oh->oh >= minvalue && oh <= maxvalue, A, dims=filter(d->d != key, 1:ndims(A)))) / size(A, key)
+    count((begin oh = orderinghash(e); oh >= minvalue && oh <= maxvalue end for e in eachslice(A, dims=key))) / size(A, key)
 
     # TODO: Determine whether we need to assume a more coarse-grained percentile using the divisions
     # from `sample_divisions` and computing the percent of divisions that overlap with the range
@@ -129,7 +129,7 @@ end
 
 Banyan.sample_max_ngroups(A::U, key) where U <: Base.AbstractArray{T,N} where {T,N} =
     begin
-        data = sort(reshape(mapslices(orderinghash, A, dims=filter(d->d != key, 1:ndims(A))), size(A, key)))
+        data = sort([orderinghash(e) for e in eachslice(A, dims=key)])
         currgroupsize = 1
         maxgroupsize = 0
         prev = nothing
@@ -148,8 +148,12 @@ Banyan.sample_max_ngroups(A::U, key) where U <: Base.AbstractArray{T,N} where {T
         maxgroupsize = max(maxgroupsize, currgroupsize)
         div(size(A, key), maxgroupsize)
     end
-Banyan.sample_min(A::U, key) where U <: Base.AbstractArray{T,N} where {T,N} = minimum(mapslices(orderinghash, A, dims=filter(d->d != key, 1:ndims(A))))
-Banyan.sample_max(A::U, key) where U <: Base.AbstractArray{T,N} where {T,N} = maximum(mapslices(orderinghash, A, dims=filter(d->d != key, 1:ndims(A))))
+# TODO: Handle issue where mapslices requires dims to be a single dimension;
+# probably need to vary mapslices on the dim itself and then use eachslices,
+# get the orderinghash and then take minimum across that
+# TODO: Change to use eachslice everywhere and ensure we use key not d
+Banyan.sample_min(A::U, key) where U <: Base.AbstractArray{T,N} where {T,N} = minimum((orderinghash(e) for e in eachslice(A, dims=key)))
+Banyan.sample_max(A::U, key) where U <: Base.AbstractArray{T,N} where {T,N} = maximum((orderinghash(e) for e in eachslice(A, dims=key)))
 
 # Array creation
 
@@ -163,7 +167,7 @@ function read_hdf5(path; kwargs...)
     Array{A_loc.eltype,A_loc.ndims}(A, Future(A_loc.size))
 end
 
-function write_hdf5(A, path; kwargs...)
+function write_hdf5(A, path; invalidate_location=true, invalidate_sample=true, kwargs...)
     # # A_loc = Remote(pathname, mount)
     # destined(A, Remote(path, delete_from_cache=true))
     # mutated(A)
@@ -185,7 +189,7 @@ function write_hdf5(A, path; kwargs...)
     pt(A, Blocked(A) | Replicated())
     partitioned_computation(
         A,
-        destination=Remote(path; merge(Dict(:invalidate_location=>true, :invalidate_sample=>true), kwargs)...),
+        destination=Remote(path; invalidate_location=invalidate_location, invalidate_sample=invalidate_sample, kwargs...),
         new_source=_->Remote(path)
     )
 end

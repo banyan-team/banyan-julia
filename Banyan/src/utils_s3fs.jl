@@ -30,7 +30,7 @@ function download_remote_path(remotepath)
         # This will either return an `S3Path` still referring to a remote
         # location or it will return a local S3FS path for reading from.
     elseif startswith(remotepath, "http://") || startswith(remotepath, "https://")
-        download(remotepath, tempname() * splitext(remotepath)[2])
+        Downloads.download(remotepath, tempname() * splitext(remotepath)[2])
     else
         throw(
             ArgumentError(

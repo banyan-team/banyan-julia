@@ -6,8 +6,8 @@
 # - Test shuffled, similar files, default, invalidated location but reused sample or reused location
 # - Verify no error, length of returned sample, location files and their nrows,
 # (eventually) ensure that rows come from the right files
-@testset "$exact_or_inexact sample collected from $(titlecase(file_extension)) $(single_file ? "file" : "directory") on $on $with_or_without_s3fs S3FS  with $optimization reusing $reusing" for exact_or_inexact in
-                                                                                                                                       [
+@testset "$exact_or_inexact sample collected from $(titlecase(file_extension)) $(single_file ? "file" : "directory") on $on $with_or_without_s3fs S3FS with $optimization reusing $reusing" for exact_or_inexact in
+                                                                                                                                                                                                [
         "Exact",
         "Inexact",
     ],
@@ -74,9 +74,9 @@
         # TODO: Fix sample collection in the optimizations/reuse and nbytes
 
         # Verify the sample
-        @show src_name
         sample_nrows =
-            contains("h5", src_name) ? size(remote_location.sample.value, 1) : nrows(remote_location.sample.value)
+            contains(src_name, "h5") ? size(remote_location.sample.value, 1) :
+            nrows(remote_location.sample.value)
         if exact_or_inexact == "Exact"
             @test sample_nrows == src_nrows
         else

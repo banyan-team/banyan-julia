@@ -471,7 +471,7 @@ function getpath(path)
             # to a user, a short-term solution is to use a different
             # URL each time (e.g., add a dummy query to the end of the
             # URL)
-            download(path, joined_path)
+            Downloads.download(path, joined_path)
         end
         joined_path
     elseif startswith(path, "s3://")

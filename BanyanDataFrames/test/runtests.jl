@@ -6,13 +6,17 @@ global jobs_for_testing = Dict()
 
 function destroy_all_jobs_for_testing()
     global jobs_for_testing
-    for job_id in values(jobs_for_testing)
+    for (job_config_hash, job_id) in jobs_for_testing
         destroy_job(job_id)
+        delete!(jobs_for_testing, job_config_hash)
     end
 end
 
-function use_job_for_testing(f::Function;
+function use_job_for_testing(
+    f::Function;
     sample_rate = 2,
+    max_exact_sample_length = 50,
+    with_s3fs = nothing,
     scheduling_config_name = "default scheduling",
 )
     haskey(ENV, "BANYAN_CLUSTER_NAME") || error(
@@ -20,7 +24,9 @@ function use_job_for_testing(f::Function;
     )
 
     # This will be a more complex hash if there are more possible ways of
-    # configuring a job for testing
+    # configuring a job for testing. Different sample rates are typically used
+    # to test different data sizes. Stress tests may need a much greater sample
+    # rate.
     job_config_hash = sample_rate
 
     # Set the job and create a new one if needed
@@ -32,7 +38,7 @@ function use_job_for_testing(f::Function;
             create_job(
                 cluster_name = ENV["BANYAN_CLUSTER_NAME"],
                 nworkers = 2,
-                banyanfile_path = "file://res/BanyanfileDebug.json",
+                banyanfile_path = "file://res/Banyanfile.json",
                 sample_rate = sample_rate,
                 return_logs = true,
             )
@@ -40,7 +46,15 @@ function use_job_for_testing(f::Function;
     )
 
     # If selected job has already failed, this will throw an error.
-    get_job()
+    jobs_for_testing[job_config_hash] = get_job_id()
+
+    # Set the maximum exact sample length
+    ENV["BANYAN_MAX_EXACT_SAMPLE_LENGTH"] = string(max_exact_sample_length)
+
+    # Force usage of S3FS if so desired
+    if !isnothing(with_s3fs)
+        ENV["BANYAN_USE_S3FS"] = with_s3fs ? "1" : "0"
+    end
 
     configure_scheduling(name = scheduling_config_name)
 
@@ -55,6 +69,7 @@ function use_job_for_testing(f::Function;
         # destroyed or failed.
         destroy_all_jobs_for_testing()
         rethrow()
+        # If no errors occur, we will destroy all jobs in the `finally...` block.
     end
 end
 
@@ -89,7 +104,7 @@ function use_data(file_extension, remote_kind, single_file)
             (file_extension_is_hdf5 ? "fillval" : "iris") * ".$file_extension"
         testing_dataset_local_path =
             joinpath(homedir(), ".banyan", "testing_datasets", testing_dataset_local_name)
-            
+
         # Download if not already download
         if !isfile(testing_dataset_local_path)
             # Download to local ~/.banyan/testing_datasets

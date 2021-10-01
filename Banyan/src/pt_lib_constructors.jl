@@ -113,7 +113,8 @@ function Blocked(
             # Create `ScaleBy` constraints
             if b
                 push!(constraints.constraints, ScaleBy(f, 1.0))
-                # TODO: Add an AtMost constraint in the case that input elements are very large
+                # TODO: Add an AtMost constraint in the case that there are very few rows.
+                # That AtMost constraint would only go here in Blocked
             else
                 if !isnothing(filtered_from)
                     filtered_from = to_vector(filtered_from)
@@ -202,6 +203,9 @@ function Grouped(
                 end
 
                 # Add constraints
+                # In the future if the element size can be really big (like a multi-dimensional array
+                # that is very wide or data frame with many columns), we may want to have a constraint
+                # where the partition size must be larger than that minimum element size.
                 push!(constraints.constraints, AtMost(max_ngroups, f))
                 push!(constraints.constraints, ScaleBy(f, 1.0))
 
@@ -221,10 +225,10 @@ function Grouped(
                         fkey = fby[i]
 
                         # Compute the amount to scale memory usage by based on data skew
-                        min_filtered_to = sample(f, :statistics, fkey, :min)
-                        max_filtered_to = sample(f, :statistics, fkey, :max)
+                        min_filtered_to = sample(f, :statistics, key, :min)
+                        max_filtered_to = sample(f, :statistics, key, :max)
                         # divisions_filtered_from = sample(ff, :statistics, key, :divisions)
-                        ff_percentile = sample(ff, :statistics, key, :percentile, min_filtered_to, max_filtered_to)
+                        ff_percentile = sample(ff, :statistics, fkey, :percentile, min_filtered_to, max_filtered_to)
                         (1 / ff_percentile, filtered_from_futures)
                     end
                     push!(constraints.constraints, ScaleBy(f, factor, from))

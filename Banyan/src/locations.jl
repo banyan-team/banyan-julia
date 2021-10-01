@@ -60,6 +60,11 @@ function Base.getproperty(loc::Location, name::Symbol)
     end
 end
 
+function Base.hasproperty(loc::Location, name::Symbol)
+    n = string(name)
+    hasfield(Location, name) || haskey(loc.src_parameters, n) || haskey(loc.dst_parameters, n)
+end
+
 function to_jl(lt::Location)
     if is_debug_on()
         @show sample(lt.sample, :memory_usage)
@@ -288,10 +293,10 @@ Disk() = None() # The scheduler intelligently determines when to split from and 
 # overall data size. This way, two arrays that have the same actual size will
 # be guaranteed to have the same sample size.
 
-BANYAN_MAX_EXACT_SAMPLE_LENGTH = parse(Int, get(ENV, "BANYAN_MAX_EXACT_SAMPLE_LENGTH", "2048"))
+get_max_exact_sample_length() = parse(Int, get(ENV, "BANYAN_MAX_EXACT_SAMPLE_LENGTH", "2048"))
 
 getsamplenrows(totalnrows) =
-    if totalnrows <= BANYAN_MAX_EXACT_SAMPLE_LENGTH
+    if totalnrows <= get_max_exact_sample_length()
         # NOTE: This includes the case where the dataset is empty
         # (totalnrows == 0)
         totalnrows
@@ -357,16 +362,27 @@ function Remote(p; shuffled=false, similar_files=false, location_invalid = false
     remote_location = get_remote_location(p, remote_location, remote_sample, shuffled=shuffled, similar_files=similar_files)
     remote_sample = remote_location.sample
 
-    # Store location in cache
-    if !invalidate_location
+    # Store location in cache. The same logic below applies to having a
+    # `&& hasproperty(remote_location, :nbytes)` which effectively allows us
+    # to reuse the location (computed files and row lengths) but only if the
+    # location was actually already written to. If this is the first time we
+    # are calling `write_parquet` with `invalidate_location=false`, then
+    # the location will not be saved. But on future writes, the first write's
+    # location will be used.
+    if !invalidate_location && hasproperty(remote_location, :nbytes)
         mkpath(locationspath)
         serialize(locationpath, remote_location)
     else
         rm(locationpath, force=true, recursive=true)
     end
 
-    # Store sample in cache
-    if !invalidate_sample
+    # Store sample in cache. We don't store null samples because they are
+    # either samples for locations that don't exist yet (write-only) or are
+    # really cheap to collect the sample. Yes, it is true that generally we
+    # will invalidate the sample on reads but for performance reasons someone
+    # might not. But if they don't invalidate the sample, we only want to reuse
+    # the sample if it was for a location that was actually written to.
+    if !invalidate_sample && !isnothing(remote_sample.value)
         mkpath(samplespath)
         serialize(samplepath, remote_sample)
     else
@@ -480,7 +496,7 @@ function get_remote_hdf5_location(remotepath, hdf5_ending, remote_location=nothi
                     # dset_sample = dset[1:1, remainingcolons...][1:0, remainingcolons...]
                     # If the data is already shuffled or if we just want to
                     # take an exact sample, we don't need to randomly sample here.
-                    if datalength > BANYAN_MAX_EXACT_SAMPLE_LENGTH || shuffled
+                    if datalength > get_max_exact_sample_length() && !shuffled
                          sampleindices = randsubseq(1:datalength, 1 / get_job().sample_rate)
                         # sample = dset[sampleindices, remainingcolons...]
                         if !isempty(sampleindices)
@@ -503,10 +519,10 @@ function get_remote_hdf5_location(remotepath, hdf5_ending, remote_location=nothi
                     if size(dset_sample, 1) < samplelength
                         dset_sample = vcat(
                             dset_sample,
-                            dset[1:(samplelength-size(sample, 1)), remainingcolons...],
+                            dset[1:(samplelength-size(dset_sample, 1)), remainingcolons...],
                         )
                     else
-                        dset = dset[1:samplelength, remainingcolons...]
+                        dset_sample = dset[1:samplelength, remainingcolons...]
                     end
                 end
 
@@ -544,7 +560,7 @@ function get_remote_hdf5_location(remotepath, hdf5_ending, remote_location=nothi
     if isnothing(remote_sample)
         remote_sample = if isnothing(loc_for_reading)
             Sample()
-        elseif totalnrows <= BANYAN_MAX_EXACT_SAMPLE_LENGTH
+        elseif totalnrows <= get_max_exact_sample_length()
             ExactSample(dset_sample, total_memory_usage = nbytes)
         else
             Sample(dset_sample, total_memory_usage = nbytes)
@@ -570,6 +586,10 @@ function get_remote_table_location(remotepath, remote_location=nothing, remote_s
     # given directory (e.g., wildcards)
 
     # If !isnothing(remote_location), we make sure to not update nbytes, totalnrows, and files
+
+    # TODO: Fix issues:
+    # - Reusing remote location where the previous location was just used for writing
+    # - Reusing remote sample where the previous location was just used for writing
 
     nbytes = isnothing(remote_location) ? 0 : remote_location.nbytes
     totalnrows = isnothing(remote_location) ? 0 : remote_location.nrows
@@ -856,7 +876,7 @@ function get_remote_table_location(remotepath, remote_location=nothing, remote_s
             @show samplenrows
         end
         # If we already have enough rows in the exact sample...
-        if totalnrows <= BANYAN_MAX_EXACT_SAMPLE_LENGTH
+        if totalnrows <= get_max_exact_sample_length()
             randomsample = exactsample
         end
         # Regardless, expand the random sample as needed...
@@ -881,7 +901,7 @@ function get_remote_table_location(remotepath, remote_location=nothing, remote_s
     # Load metadata for writing
     # NOTE: `remotepath` should end with `.parquet` or `.csv` if Parquet
     # or CSV dataset is desired to be created
-    loc_for_writing, metadata_for_writing = ("Remote", Dict("path" => remotepath))
+    loc_for_writing, metadata_for_writing = ("Remote", Dict("path" => remotepath, "files" => [], "nrows" => 0, "nbytes" => 0))
 
     # TODO: Cache sample on disk
 
@@ -889,7 +909,7 @@ function get_remote_table_location(remotepath, remote_location=nothing, remote_s
     if isnothing(remote_sample)
         remote_sample = if isnothing(loc_for_reading)
             Sample()
-        elseif totalnrows <= BANYAN_MAX_EXACT_SAMPLE_LENGTH
+        elseif totalnrows <= get_max_exact_sample_length()
             ExactSample(randomsample, total_memory_usage = nbytes)
         else
             Sample(randomsample, total_memory_usage = nbytes)
