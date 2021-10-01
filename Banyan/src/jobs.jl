@@ -63,10 +63,9 @@ function create_job(;
         cluster_name = nothing
     end
 
-    if pt_lib == ""
-        pt_lib = "https://raw.githubusercontent.com/banyan-team/banyan-julia/v0.1.3/Banyan/res/pt_lib.jl"
-        push!(files, "https://raw.githubusercontent.com/banyan-team/banyan-julia/v0.1.3/Banyan/res/utils.jl")
-    end
+    # TODO: Remove this code when @calebwin's PR gets merged in
+    # push!(code_files, "https://raw.githubusercontent.com/banyan-team/banyan-julia/v0.1.3/Banyan/res/pt_lib.jl")
+    # push!(files, "https://raw.githubusercontent.com/banyan-team/banyan-julia/v0.1.3/Banyan/res/pt_lib_utils.jl")
 
     # Configure
     configure(; kwargs...)

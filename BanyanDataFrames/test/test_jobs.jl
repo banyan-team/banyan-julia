@@ -3,7 +3,7 @@ using Statistics
 IRIS_DOWNLOAD_PATH = "https://gist.githubusercontent.com/curran/a08a1080b88344b0c8a7/raw/0e7a9b0a5d22642a06d3d5b9bcbad9890c8ee534/iris.csv"
 
 
-@testset "Create job using remote Github with $pt_lib_info pt_lib_info and $pt_lib pt_lib.jl" for pt_lib_info in 
+@testset "Create job using remote Github with $pt_lib_info pt_lib_info" for pt_lib_info in 
     # files = ["https://raw.githubusercontent.com/banyan-team/banyan-julia/v0.1.3/Banyan/res/pt_lib.jl"]
     # pt_lib_info = ""
     # for pt_lib_info in [
@@ -13,8 +13,8 @@ IRIS_DOWNLOAD_PATH = "https://gist.githubusercontent.com/curran/a08a1080b88344b0
     #     [],
     #     ["https://raw.githubusercontent.com/banyan-team/banyan-julia/v0.1.3/Banyan/res/pt_lib.jl"]
     # ]
-    ["default", "http path"],
-    pt_lib in ["default", "http path"]
+    ["default", "http path"]  #,
+    # pt_lib in ["default", "http path"]
 
     if pt_lib_info == "default"
         pt_lib_info = ""
@@ -22,15 +22,15 @@ IRIS_DOWNLOAD_PATH = "https://gist.githubusercontent.com/curran/a08a1080b88344b0
         pt_lib_info = "https://raw.githubusercontent.com/banyan-team/banyan-julia/v0.1.3/Banyan/res/pt_lib_info.json"
     end
     files = [IRIS_DOWNLOAD_PATH]
-    if pt_lib == "http path"
-        push!(files, "https://raw.githubusercontent.com/banyan-team/banyan-julia/v0.1.3/Banyan/res/pt_lib.jl")
-    end
+    # if pt_lib == "http path"
+    #     push!(files, "https://raw.githubusercontent.com/banyan-team/banyan-julia/v0.1.3/Banyan/res/pt_lib.jl")
+    # end
 
     # Create job
     job_id = create_job(
         cluster_name = ENV["BANYAN_CLUSTER_NAME"],
         nworkers = 2,
-        files = vcat([IRIS_DOWNLOAD_PATH], files),
+        files = files,  # vcat([IRIS_DOWNLOAD_PATH], files),
         pt_lib_info = pt_lib_info,
         url = "https://github.com/banyan-team/banyan-julia.git",
         branch = "v0.1.3",
