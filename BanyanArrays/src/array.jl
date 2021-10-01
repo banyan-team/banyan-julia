@@ -481,7 +481,7 @@ function Base.reduce(op, A::Array{T,N}; dims=:, kwargs...) where {T,N}
             # @show dims # TODO: Figure out why dims is sometimes a function
         end
         res = Base.reduce(op, A; dims=dims, kwargs...)
-        if res isa Array
+        if res isa Base.Array
             res_size = Base.size(res)
         end
     end
