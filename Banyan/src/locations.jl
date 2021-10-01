@@ -60,6 +60,11 @@ function Base.getproperty(loc::Location, name::Symbol)
     end
 end
 
+function Base.hasproperty(loc::Location, name::Symbol)
+    n = string(name)
+    hasfield(Location, name) || haskey(loc.src_parameters, n) || haskey(loc.dst_parameters, n)
+end
+
 function to_jl(lt::Location)
     if is_debug_on()
         @show sample(lt.sample, :memory_usage)
@@ -357,8 +362,14 @@ function Remote(p; shuffled=false, similar_files=false, location_invalid = false
     remote_location = get_remote_location(p, remote_location, remote_sample, shuffled=shuffled, similar_files=similar_files)
     remote_sample = remote_location.sample
 
-    # Store location in cache
-    if !invalidate_location
+    # Store location in cache. The same logic below applies to having a
+    # `&& hasproperty(remote_location, :nbytes)` which effectively allows us
+    # to reuse the location (computed files and row lengths) but only if the
+    # location was actually already written to. If this is the first time we
+    # are calling `write_parquet` with `invalidate_location=false`, then
+    # the location will not be saved. But on future writes, the first write's
+    # location will be used.
+    if !invalidate_location && hasproperty(remote_location, :nbytes)
         mkpath(locationspath)
         serialize(locationpath, remote_location)
     else
@@ -367,7 +378,10 @@ function Remote(p; shuffled=false, similar_files=false, location_invalid = false
 
     # Store sample in cache. We don't store null samples because they are
     # either samples for locations that don't exist yet (write-only) or are
-    # really cheap to collect the sample.
+    # really cheap to collect the sample. Yes, it is true that generally we
+    # will invalidate the sample on reads but for performance reasons someone
+    # might not. But if they don't invalidate the sample, we only want to reuse
+    # the sample if it was for a location that was actually written to.
     if !invalidate_sample && !isnothing(remote_sample.value)
         mkpath(samplespath)
         serialize(samplepath, remote_sample)
