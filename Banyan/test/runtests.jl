@@ -6,8 +6,9 @@ global jobs_for_testing = Dict()
 
 function destroy_all_jobs_for_testing()
     global jobs_for_testing
-    for job_id in values(jobs_for_testing)
+    for (job_config_hash, job_id) in jobs_for_testing
         destroy_job(job_id)
+        delete!(jobs_for_testing, job_config_hash)
     end
 end
 
@@ -44,7 +45,7 @@ function use_job_for_testing(f::Function;
     )
 
     # If selected job has already failed, this will throw an error.
-    get_job()
+    jobs_for_testing[job_config_hash] = get_job_id()
 
     # Set the maximum exact sample length
     ENV["BANYAN_MAX_EXACT_SAMPLE_LENGTH"] = string(max_exact_sample_length)

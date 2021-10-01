@@ -113,7 +113,8 @@ function Blocked(
             # Create `ScaleBy` constraints
             if b
                 push!(constraints.constraints, ScaleBy(f, 1.0))
-                # TODO: Add an AtMost constraint in the case that input elements are very large
+                # TODO: Add an AtMost constraint in the case that there are very few rows.
+                # That AtMost constraint would only go here in Blocked
             else
                 if !isnothing(filtered_from)
                     filtered_from = to_vector(filtered_from)

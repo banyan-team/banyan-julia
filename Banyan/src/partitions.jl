@@ -71,6 +71,12 @@ ScaleBy(arg, factor::Real = 1.0, relative_to...) =
         pt_refs_to_jl([arg; relative_to...])
     )
 
+# Co, Cross, Equal, Sequential, Match, MatchOn, AtMost are PA-level constraints.
+# AtMost, ScaleBy are PT-level constraints.
+# For all constraints, contradictions result in the PA not being used. The
+# exception is ScaleBy constraints where multiple PAs can specify a ScaleBy
+# for the same PT and these are not fused in any way.
+
 # TODO: Make the above constraint constructors produce dictionaries that have
 # fields that make sense and are specialized for each one. This will reduce
 # a significant amount of messy and hard-to-read code here (e.g., what in the

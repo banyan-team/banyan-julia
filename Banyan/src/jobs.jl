@@ -173,12 +173,11 @@ function destroy_job(job_id::JobId = get_job_id(); failed = nothing, force = fal
 
     # configure(; kwargs...)
 
-    @debug "Destroying job with ID $job_id"
+    @info "Destroying job with ID $job_id"
     send_request_get_response(
         :destroy_job,
         Dict{String,Any}("job_id" => job_id, "failed" => failed == true),
     )
-    @info "Destroyed job with ID $job_id"
 
     # Remove from global state
     if !isnothing(current_job_id) && get_job_id() == job_id
@@ -254,7 +253,6 @@ function destroy_all_jobs(cluster_name::String; kwargs...)
     jobs = get_jobs(cluster_name, status = "running")
     for (job_id, job) in jobs
         if job["status"] == "running"
-            @info "Destroying job id $job_id"
             destroy_job(job_id, kwargs...)
         end
     end
