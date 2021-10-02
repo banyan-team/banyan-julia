@@ -166,7 +166,7 @@ function ReadBlock(
     # rows for the batch currently being processed by this worker
     nrows = loc_params["nrows"]
     rowrange = split_len(nrows, batch_idx, nbatches, comm)
-    dfs::Vector{DataFrame} = []
+    dfs::Vector{DataFrames.DataFrame} = []
     rowsscanned = 0
     @show loc_params
     for file in sort(loc_params["files"], by = filedict -> filedict["path"])
@@ -226,7 +226,7 @@ function ReadBlock(
                     footerskip = filerowrange.stop - readrange.stop,
                 )
                 println("Finished reading from $path")
-                push!(dfs, DataFrame(f))
+                push!(dfs, DataFrames.DataFrame(f))
                 # push!(dfs, DataFrame(Arrow.Table(Arrow.tobuffer(f))))
                 println("Pushed data frame")
                 # buf = Arrow.tobuffer(f)
@@ -237,11 +237,11 @@ function ReadBlock(
                 GC.gc(true)
                 format_available_memory()
             elseif endswith(path, ".parquet")
-                f = read_parquet(
+                f = Parquet.read_parquet(
                     path,
                     rows = (readrange.start-filerowrange.start+1):(readrange.stop-filerowrange.start+1),
                 )
-                push!(dfs, DataFrame(f))
+                push!(dfs, DataFrames.DataFrame(f))
                 # push!(dfs, DataFrame(Arrow.Table(Arrow.tobuffer(f))))
             elseif endswith(path, ".arrow")
                 println("Reading from $path on batch $batch_idx")
@@ -257,7 +257,7 @@ function ReadBlock(
                                 rowrange.stop,
                                 rbrowrange.stop,
                             )
-                        df = DataFrame(tbl)
+                        df = DataFrames.DataFrame(tbl)
                         # @show (readrange.start-rbrowrange.start+1):(readrange.stop-rbrowrange.start+1)
                         df = df[
                             (readrange.start-rbrowrange.start+1):(readrange.stop-rbrowrange.start+1),
@@ -288,7 +288,7 @@ function ReadBlock(
     # function requires the schema (for example for grouping) then it must be
     # sure to take that account
     if isempty(dfs)
-        DataFrame()
+        DataFrames.DataFrame()
     else
         vcat(dfs...)
     end
@@ -541,7 +541,7 @@ function Write(
         # of an unsupported HDF5 data type.
         # TODO: Support missing values in the array for locations that use
         # Julia serialized objects
-        part = disallowmissing(part)
+        part = DataFrames.disallowmissing(part)
 
         # if loc_name == "Disk"
         #     # Technically we don't have to do this since when we read we can
@@ -1869,7 +1869,7 @@ function Rebalance(part, src_params, dst_params, comm)
     de = if isa_array(part)
         x -> deserialize(IOBuffer(x))
     else
-        x -> DataFrame(Arrow.Table(x))
+        x -> DataFrames.DataFrame(Arrow.Table(x))
     end
 
     # Construct buffer to send parts to all workers who own in this range
@@ -2028,11 +2028,11 @@ function Shuffle(
 
         gdf = if !isempty(part)
             # Compute the partition to send each row of the dataframe to
-            transform!(part, key => ByRow(partition_idx_getter) => :banyan_shuffling_key)
+            DataFrames.transform!(part, key => ByRow(partition_idx_getter) => :banyan_shuffling_key)
             # @show worker_idx part
 
             # Group the dataframe's rows by what partition to send to
-            gdf = groupby(part, :banyan_shuffling_key, sort = true)
+            gdf = DataFrames.groupby(part, :banyan_shuffling_key, sort = true)
         else
             nothing
         end
@@ -2047,7 +2047,7 @@ function Shuffle(
                 if !isnothing(gdf) && (banyan_shuffling_key = partition_idx,) in keys(gdf)
                     gdf[(banyan_shuffling_key = partition_idx,)]
                 else
-                    DataFrame()
+                    DataFrames.DataFrame()
                 end,
             )
             push!(df_counts, io.size - nbyteswritten)
@@ -2065,14 +2065,14 @@ function Shuffle(
         # Return the concatenated dataframe
         res = vcat(
             [
-                DataFrame(
+                DataFrames.DataFrame(
                     Arrow.Table(IOBuffer(view(recvbuf.data, displ+1:displ+count))),
                     copycols = false,
                 ) for (displ, count) in zip(recvbuf.displs, recvbuf.counts)
             ]...,
         )
         if :banyan_shuffling_key in propertynames(res)
-            select!(res, Not(:banyan_shuffling_key))
+            DataFrames.select!(res, Not(:banyan_shuffling_key))
         end
 
         res

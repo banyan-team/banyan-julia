@@ -5,8 +5,8 @@ using MPI, HDF5, DataFrames
 # Helper functions #
 ####################
 
-isa_df(obj) = (@isdefined(AbstractDataFrame)) && obj isa AbstractDataFrame
-isa_gdf(obj) = (@isdefined(GroupedDataFrame)) && obj isa GroupedDataFrame
+isa_df(obj) = (@isdefined(DataFrames.AbstractDataFrame)) && obj isa DataFrames.AbstractDataFrame
+isa_gdf(obj) = (@isdefined(DataFrames.GroupedDataFrame)) && obj isa DataFrames.GroupedDataFrame
 isa_array(obj) = obj isa AbstractArray || obj isa HDF5.Dataset
 
 get_worker_idx(comm::MPI.Comm) = MPI.Comm_rank(comm) + 1
@@ -101,7 +101,7 @@ function merge_on_executor(kind::Symbol, vbuf::MPI.VBuffer, nchunks::Integer; ke
         begin
             chunk = view(vbuf.data, (vbuf.displs[i]+1):(vbuf.displs[i]+vbuf.counts[i]))
             if kind == :df
-                DataFrame(Arrow.Table(IOBuffer(chunk)))
+                DataFrames.DataFrame(Arrow.Table(IOBuffer(chunk)))
             elseif kind == :bits
                 chunk
             else
@@ -451,7 +451,7 @@ function frombuf(kind, obj)
     elseif kind == :bits
         obj
     elseif kind == :df
-        DataFrame(Arrow.Table(obj), copycols = false)
+        DataFrames.DataFrame(Arrow.Table(obj), copycols = false)
     else
         deserialize(obj)
     end
