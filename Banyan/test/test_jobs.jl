@@ -7,6 +7,8 @@ IRIS_DOWNLOAD_PATH = "https://gist.githubusercontent.com/curran/a08a1080b88344b0
 @testset "Create job using remote BanyanDataFrames Github with $pf_dispatch_table pf_dispatch_table" for pf_dispatch_table in 
     ["default", "http path"]
 
+    Pkg.activate("./")
+
     if pf_dispatch_table == "default"
         pf_dispatch_table = ""
     elseif pf_dispatch_table == "http path"
@@ -54,9 +56,17 @@ IRIS_DOWNLOAD_PATH = "https://gist.githubusercontent.com/curran/a08a1080b88344b0
     @test !haskey(curr_jobs, job_id)
 end
 
-@testset "Create job using local Julia environment"
-    
+@testset "Create job using local Julia environment" begin
+    # Activate an environment
+    Pkg.activate("envs/")
+
+    # Import some packages
+    using Statistics
+    using Distributions
+
+    # Create a job
 end
 
-@testset "Create job using remote Github environment"
-end
+# @testset "Create job using remote Github environment"
+    # Pkg.activate("./")
+# end
