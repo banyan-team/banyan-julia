@@ -198,27 +198,27 @@ function ReadBlock(
                 # # @show path
                 # # @show isfile(path)
                 # f = CSV.File(path)
-                println("Actually reading from $path")
-                @show isfile(path)
-                @show format_bytes(filesize(path))
-                println("Read in directory")
-                f = read(
-                    "/home/ec2-user/s3fs/banyan-cluster-data-pumpkincluster03-231c2ef6/iris.csv",
-                    String,
-                )
-                println("At least we read _something_ in with read")
-                f = CSV.File(
-                    "/home/ec2-user/s3fs/banyan-cluster-data-pumpkincluster03-231c2ef6/iris.csv",
-                )
-                println("At least we read _something_ in with CSV.read")
-                f = CSV.File(path, limit = 1)
-                println("Read the first line of the actual file in with CSV.File")
-                @show length(filerowrange) length(rowrange) length(readrange)
-                @show filerowrange rowrange readrange
-                @show file["nrows"]
-                @show header
-                @show header + readrange.start - filerowrange.start + 1
-                @show filerowrange.stop - readrange.stop
+                # println("Actually reading from $path")
+                # @show isfile(path)
+                # @show format_bytes(filesize(path))
+                # println("Read in directory")
+                # f = read(
+                #     "/home/ec2-user/s3fs/banyan-cluster-data-pumpkincluster03-231c2ef6/iris.csv",
+                #     String,
+                # )
+                # println("At least we read _something_ in with read")
+                # f = CSV.File(
+                #     "/home/ec2-user/s3fs/banyan-cluster-data-pumpkincluster03-231c2ef6/iris.csv",
+                # )
+                # println("At least we read _something_ in with CSV.read")
+                # f = CSV.File(path, limit = 1)
+                # println("Read the first line of the actual file in with CSV.File")
+                # @show length(filerowrange) length(rowrange) length(readrange)
+                # @show filerowrange rowrange readrange
+                # @show file["nrows"]
+                # @show header
+                # @show header + readrange.start - filerowrange.start + 1
+                # @show filerowrange.stop - readrange.stop
                 f = CSV.File(
                     path,
                     header = header,
@@ -2032,7 +2032,7 @@ function Shuffle(
             # @show worker_idx part
 
             # Group the dataframe's rows by what partition to send to
-            gdf = groupby(part, :banyan_shuffling_key, sort = true)
+            gdf = DataFrames.groupby(part, :banyan_shuffling_key, sort = true)
         else
             nothing
         end
