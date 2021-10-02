@@ -392,7 +392,7 @@ function Remote(p; shuffled=false, similar_files=false, location_invalid = false
     remote_location
 end
 
-function get_remote_location(remotepath, remote_location=nothing, remote_sample=nothing; shuffled=false, similar_files=false)::Location
+function get_remote_location(remotepath, remote_location=nothing, remote_sample=nothing; shuffled=false)::Location
     @info "Collecting sample from $remotepath\n\nThis will take some time but the sample will be cached for future use. Note that writing to this location will invalidate the cached sample."
 
     # If both the location and sample are already cached, just return them
@@ -416,13 +416,13 @@ function get_remote_location(remotepath, remote_location=nothing, remote_sample=
     
     # Return either an HDF5 location or a table location
     if isa_hdf5
-        get_remote_hdf5_location(remotepath, hdf5_ending, remote_location, remote_sample; shuffled=shuffled, similar_files=similar_files)
+        get_remote_hdf5_location(remotepath, hdf5_ending, remote_location, remote_sample; shuffled=shuffled)
     else
-        get_remote_table_location(remotepath, remote_location, remote_sample; shuffled=shuffled, similar_files=similar_files)
+        get_remote_table_location(remotepath, remote_location, remote_sample; shuffled=shuffled)
     end
 end
 
-function get_remote_hdf5_location(remotepath, hdf5_ending, remote_location=nothing, remote_sample=nothing; shuffled=false, similar_files=false)::Location
+function get_remote_hdf5_location(remotepath, hdf5_ending, remote_location=nothing, remote_sample=nothing; shuffled=false)::Location
     # Get the actual path by removing the dataset from the path
     remotepath, datasetpath = if hdf5_ending == ""
         remotepath, nothing
@@ -577,33 +577,30 @@ function get_remote_hdf5_location(remotepath, hdf5_ending, remote_location=nothi
     )
 end
 
-function get_remote_table_location(remotepath, remote_location=nothing, remote_sample=nothing; shuffled=false, similar_files=false)::Location
+function get_remote_table_location(remotepath, remote_location=nothing, remote_sample=nothing; shuffled=false)::Location
+    # `remote_location` and `remote_sample` might be non-null indicating that
+    # we need to reuse a location or a sample (but not both since then the
+    # `Remote` constructor would have just returned the location).
+    # 
+    # `shuffled` only applies to sample collection. If we
+    # have to collect a sample, then `shuffled` allows us to only read in the
+    # first few files. Shuffled basically implies that either the data is
+    # shuffled already or the files are similar enough in their file-specific
+    # data distribution that we can just randomly select files and read them in
+    # sequentially until we have enough for the sample.
+
+    # Get the path ready for using for collecting sample or location info or both
     p = download_remote_path(remotepath)
 
-    # TODO: Support reusing an existing remote_location to compute a new remote sample 
-
-    # TODO: Support more cases beyond just single files and all files in
-    # given directory (e.g., wildcards)
-
-    # If !isnothing(remote_location), we make sure to not update nbytes, totalnrows, and files
-
-    # TODO: Fix issues:
-    # - Reusing remote location where the previous location was just used for writing
-    # - Reusing remote sample where the previous location was just used for writing
-
-    nbytes = isnothing(remote_location) ? 0 : remote_location.nbytes
+    # Initialize location parameters with the case that we already have a
+    # location
+    files = isnothing(remote_location) ? [] : remote_location.files
     totalnrows = isnothing(remote_location) ? 0 : remote_location.nrows
+    nbytes = isnothing(remote_location) ? 0 : remote_location.nbytes
 
-    # Read through dataset by row
+    # Determine whether this exists
     p_isdir = isdir(p)
     p_isfile = !p_isdir && isfile(p) # <-- avoid expensive unnecessary S3 API calls
-    # TODO: Support more than just reading/writing single HDF5 files and
-    # reading/writing directories containing CSV/Parquet/Arrow files
-    files = isnothing(remote_location) ? [] : remote_location.files
-    # TODO: Check for presence of cached file here and job configured to use
-    # cache before proceeding
-    exactsample = DataFrame()
-    randomsample = DataFrame()
     files_to_read_from = if p_isdir
         Random.shuffle(readdir(p))
     elseif p_isfile
@@ -611,99 +608,35 @@ function get_remote_table_location(remotepath, remote_location=nothing, remote_s
     else
         []
     end
+
+    # The possibilities:
+    # - No location but has sample
+    # - No sample but has location, shuffled
+    # - No sample, no location, shuffled
+    # - No sample but has location, not shuffled
+    # - No sample, no location, not shuffled
+
+    # A second pass is only needed if there is no sample and the data is
+    # shuffled. On this second pass, we only read in some files.
+
+    # Read in location info if we don't have. We also collect the sample along
+    # the way unless the data is shuffled - then we wait till after we have a
+    # location to read in the location.
+    
+    # Loop through files; stop early if we don't need 
     for (fileidx, filep) in enumerate(files_to_read_from)
+        # Initialize
         filenrows = 0
-        # TODO: Ensure usage of Base.summarysize is reasonable
-        # if endswith(filep, ".csv")
-        #     for chunk in CSV.Chunks(filep)
-        #         chunkdf = chunk |> DataFrames.DataFrame
-        #         # chunknrows = chunk.rows
-        #         chunknrows = nrow(chunkdf)
-        #         filenrows += chunkrows
-        #         totalnrows += chunkrows
 
-        #         # Append to randomsample
-        #         # chunksampleindices = map(rand() < 1 / get_job().sample_rate, 1:chunknrows)
-        #         chunksampleindices = randsubseq(1:chunknrows, 1 / get_job().sample_rate)
-        #         # if any(chunksampleindices)
-        #         if !isempty(chunksampleindices)
-        #             append!(randomsample, @view chunkdf[chunksampleindices, :])
-        #         end
-
-        #         # Append to exactsample
-        #         samplenrows = getsamplenrows(totalnrows)
-        #         if nrow(exactsample) < samplenrows
-        #             append!(exactsample, first(chunkdf, samplenrows - nrow(exactsample)))
-        #         end
-
-        #         nbytes += Base.summarysize(chunkdf)
-        #     end
-        # elseif endswith(filep, ".parquet")
-        #     # TODO: Ensure estimating size using Parquet metadata is reasonable
-
-        #     tbl = read_parquet(filep)
-        #     pqf = tbl.parfile
-        #     # NOTE: We assume that Tables.partitions will return a partition
-        #     # for each row group
-        #     for (i, chunk) in enumerate(Tables.partitions(read_parquet(filep)))
-        #         chunkdf = chunk |> DataFrames.DataFrame
-        #         # chunknrows = pqf.meta.row_groups[i].num_rows
-        #         chunkrows = nrow(chunkdf)
-        #         filenrows += chunkrows
-        #         totalnrows += chunkrows
-
-        #         # Append to randomsample
-        #         # chunksampleindices = map(rand() < 1 / get_job().sample_rate, 1:chunknrows)
-        #         chunksampleindices = randsubseq(1:chunknrows, 1 / get_job().sample_rate)
-        #         # if any(chunksampleindices)
-        #         if !isempty(chunksampleindices)
-        #             append!(randomsample, @view chunkdf[chunksampleindices, :])
-        #         end
-
-        #         # Append to exactsample
-        #         samplenrows = getsamplenrows(totalnrows)
-        #         if nrow(exactsample) < samplenrows
-        #             append!(exactsample, first(chunkdf, samplenrows - nrow(exactsample)))
-        #         end
-
-        #         # nbytes += isnothing(chunkdf) ? pqf.meta.row_groups[i].total_byte_size : Base.summarysize(chunkdf)
-        #         # nbytes = nothing
-        #         nbytes += Base.summarysize(chunkdf)
-        #     end
-        # elseif endswith(filep, ".arrow")
-        #     for (i, chunk) in enumerate(Arrow.Stream(filep))
-        #         chunkdf = chunk |> DataFrames.DataFrame
-        #         chunknrows = nrow(chunkdf)
-        #         filenrows += chunkrows
-        #         totalnrows += chunkrows
-
-        #         # Append to randomsample
-        #         # chunksampleindices = map(rand() < 1 / get_job().sample_rate, 1:chunknrows)
-        #         chunksampleindices = randsubseq(1:chunknrows, 1 / get_job().sample_rate)
-        #         # if any(chunksampleindices)
-        #         if !isempty(chunksampleindices)
-        #             append!(randomsample, @view chunkdf[chunksampleindices, :])
-        #         end
-
-        #         # Append to exactsample
-        #         samplenrows = getsamplenrows(totalnrows)
-        #         if nrow(exactsample) < samplenrows
-        #             append!(exactsample, first(chunkdf, samplenrows - nrow(exactsample)))
-        #         end
-
-        #         # nbytes += isnothing(chunkdf) ? pqf.meta.row_groups[i].total_byte_size : Base.summarysize(chunkdf)
-        #         # nbytes = nothing
-        #         nbytes += Base.summarysize(chunkdf)
-        #     end
-        # else
-        #     error("Expected .csv or .parquet or .arrow for S3FS location")
-        # end
-
-        # Get chunks to sample from
+        # We download the file because either we need to get the location or
+        # we need to collect a sample. If we already have a location and are
         localfilepath = p_isdir ? joinpath(p, filep) : p
         with_downloaded_path_for_reading(localfilepath) do localfilepathp
             # If the data is shuffled, we don't read it it in until we know how
-            # many rows there are.
+            # many rows there are. We only collect a sample now if we don't
+            # already have one and the data isn't shuffled. Because if we
+            # don't have a sample and the data _is_ shuffled, we want to
+            # compute the sample later.
             if isnothing(remote_sample) && !shuffled
                 chunks = if endswith(localfilepathp, ".csv")
                     CSV.Chunks(localfilepathp)
@@ -759,33 +692,12 @@ function get_remote_table_location(remotepath, remote_location=nothing, remote_s
                     if Base.summarysize(exactsample) + nbytes > Sys.free_memory()
                         GC.gc()
                     end
-
-                    # Optimized stopping condition in the case that all the files are similar
-                    num_files_scanned = fileidx - 1
-                    if similar_files && nrow(exactsample) == samplenrows && num_files_scanned >= cld(length(files_to_read_from), get_job().sample_rate)
-                        # If the files are similar and we have looked through
-                        # a percentage of files that is in accordance with the
-                        # sample rate, we can stop. We also make sure we have
-                        # enough of the exact sample in case the random sample
-                        # comes short because of the random selection.
-                        # 
-                        # Note that the condition checking the number of files
-                        # scanned is important because when files are similar
-                        # all we know is that each file has a similar
-                        # distribution of data. For example, each file might
-                        # contain data from years 2000-2020 sorted by year.
-                        # In that case, if the sample rate is 2, we only need
-                        # to look at a random selection of _half_ of the files
-                        # and use data from those files. Right now, we use the
-                        # `exact_sample` computed along those files which will
-                        # return a non-random selection from those half of the
-                        # files and that could be improved by making that
-                        # random in the case of files having inequal number of
-                        # rows.
-                        break
-                    end
                 end
             elseif isnothing(remote_location)
+                # Even if the data is shuffled, we will collect location
+                # information that can subsequently be used in the second
+                # pass to read in files until we have a sample.
+
                 filenrows = if endswith(localfilepathp, ".csv")
                     sum((1 for row in CSV.Rows(localfilepathp)))
                 elseif endswith(localfilepathp, ".parquet")
@@ -816,22 +728,20 @@ function get_remote_table_location(remotepath, remote_location=nothing, remote_s
                 )
             end
         end
-
-        # Optimized stopping condition in the case that all the files are similar
-        num_files_scanned = fileidx
-        if similar_files && nrow(exactsample) == samplenrows && num_files_scanned >= cld(length(files_to_read_from), get_job().sample_rate)
-            break
-        end
     end
 
-    # Optimized sample collection if the data is shuffled
+    # A second (partial) pass over the data if we don't yet have a sample and
+    # the data is shuffled. If we didn't have a sample but the data wasn't
+    # shuffled we would have collected it already in the first pass.
     if isnothing(remote_sample) && shuffled
         # We should now know exactly how many rows there are and how many
         # to sample.
         samplenrows = getsamplenrows(totalnrows)
 
         # So we can iterate through the files (reverse in case some caching helps
-        # us)
+        # us). We append to `exactsample` but that's okay because that will
+        # just be immediately copied over into `randomsample` right after when
+        # we adjust the sample to have `samplenrows`.
         for filep in reverse(files_to_read_from)
             localfilepath = p_isdir ? joinpath(p, filep) : p
             with_downloaded_path_for_reading(localfilepath) do localfilepathp
@@ -867,6 +777,17 @@ function get_remote_table_location(remotepath, remote_location=nothing, remote_s
                 break
             end
         end
+
+        # After iterating, we have our sample. Now, if we don't have a
+        # location, we would have computed it in the `elseif` branch in
+        # the above first pass. But we wouldn't have computed the estimated
+        # memory usage there because we weren't fully reading the data into
+        # memory and so our estimate of memory usage would be inaccurate.
+        # But now we have a sample sitting in memory and we can multiply it by
+        # `totalnrows / samplenrows` to get an estimated `nbytes`.
+        if isnothing(remote_location)
+            nbytes = Base.summarysize(exactsample) * totalnrows / samplenrows
+        end
     end
 
     # Adjust sample to have samplenrows
@@ -889,8 +810,6 @@ function get_remote_table_location(remotepath, remote_location=nothing, remote_s
         end
     end
 
-    # TODO: Build up sample and return
-
     # Load metadata for reading
     loc_for_reading, metadata_for_reading = if !isempty(files) || p_isdir # empty directory can still be read from
         ("Remote", Dict("path" => remotepath, "files" => files, "nrows" => totalnrows, "nbytes" => nbytes))
@@ -902,8 +821,6 @@ function get_remote_table_location(remotepath, remote_location=nothing, remote_s
     # NOTE: `remotepath` should end with `.parquet` or `.csv` if Parquet
     # or CSV dataset is desired to be created
     loc_for_writing, metadata_for_writing = ("Remote", Dict("path" => remotepath, "files" => [], "nrows" => 0, "nbytes" => 0))
-
-    # TODO: Cache sample on disk
 
     # Get remote sample
     if isnothing(remote_sample)
