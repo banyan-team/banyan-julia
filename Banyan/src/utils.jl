@@ -320,7 +320,7 @@ method_to_string(method) = begin
     elseif method == :describe_clusters
         "describe-clusters"
     elseif method == :create_job
-        "create-job2"
+        "create-job"
     elseif method == :destroy_job
         "destroy-job"
     elseif method == :describe_jobs
