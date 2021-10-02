@@ -3,6 +3,7 @@ using BanyanArrays
 using Banyan
 using ReTest
 using FilePathsBase, AWSS3, DataFrames, CSV, Parquet, Arrow
+using LibGit2
 
 global jobs_for_testing = Dict()
 
@@ -14,6 +15,13 @@ function destroy_all_jobs_for_testing()
     end
 end
 
+function get_branch_name()
+    prepo = LibGit2.GitRepo(realpath(joinpath(@__DIR__, "../..")))
+    phead = LibGit2.head(prepo)
+    branchname = LibGit2.shortname(phead)
+    branchname
+end
+
 function use_job_for_testing(
     f::Function;
     sample_rate = 2,
@@ -23,9 +31,6 @@ function use_job_for_testing(
 )
     haskey(ENV, "BANYAN_CLUSTER_NAME") || error(
         "Please specify the Banyan cluster to use for testing with the BANYAN_CLUSTER_NAME environment variable",
-    )
-    haskey(ENV, "BANYAN_JULIA_BRANCH") || error(
-        "Please specify the Banyan cluster to use for testing with the BANYAN_JULIA_BRANCH environment variable",
     )
 
     # This will be a more complex hash if there are more possible ways of
@@ -46,7 +51,7 @@ function use_job_for_testing(
                 sample_rate = sample_rate,
                 print_logs = true,
                 url = "https://github.com/banyan-team/banyan-julia.git",
-                branch = ENV["BANYAN_JULIA_BRANCH"],
+                branch = get(ENV, "BANYAN_JULIA_BRANCH", get_branch_name()),
                 directory = "banyan-julia/BanyanDataFrames/test",
                 dev_paths = [
                     "banyan-julia/Banyan",
