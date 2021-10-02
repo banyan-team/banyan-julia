@@ -1,6 +1,7 @@
 using ReTest
 using Banyan, BanyanArrays
 using FilePathsBase, AWSS3, HDF5
+using LibGit2
 
 global jobs_for_testing = Dict()
 

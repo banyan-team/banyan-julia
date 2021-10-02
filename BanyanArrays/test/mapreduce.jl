@@ -1,5 +1,5 @@
 
-@testset "Filling with $scheduling_config" for scheduling_config in [
+@testset "Filling with $scheduling_config for map-reduce" for scheduling_config in [
     "default scheduling",
     "parallelism encouraged",
     "parallelism and batches encouraged",
@@ -19,7 +19,7 @@
     end
 end
 
-@testset "Multiple evaluations apart with $scheduling_config" for scheduling_config in [
+@testset "Multiple evaluations apart with $scheduling_config for map-reduce" for scheduling_config in [
     "default scheduling",
     "parallelism encouraged",
     "parallelism and batches encouraged",
@@ -38,7 +38,7 @@ end
     end
 end
 
-@testset "Multiple evaluations together with $scheduling_config" for scheduling_config in [
+@testset "Multiple evaluations together with $scheduling_config for map-reduce" for scheduling_config in [
     "default scheduling",
     "parallelism encouraged",
     "parallelism and batches encouraged",
@@ -59,7 +59,7 @@ end
     end
 end
 
-@testset "Simple computing with $scheduling_config" for scheduling_config in [
+@testset "Simple computing with $scheduling_config for map-reduce" for scheduling_config in [
     "default scheduling",
     "parallelism encouraged",
     "parallelism and batches encouraged",
@@ -86,7 +86,7 @@ end
     end
 end
 
-@testset "Computing with $scheduling_config" for scheduling_config in [
+@testset "Computing with $scheduling_config for map-reduce" for scheduling_config in [
     "default scheduling",
     "parallelism encouraged",
     "parallelism and batches encouraged",
@@ -115,7 +115,7 @@ end
     end
 end
 
-@testset "Re-computing with $scheduling_config" for scheduling_config in [
+@testset "Re-computing with $scheduling_config for map-reduce" for scheduling_config in [
     "default scheduling",
     "parallelism encouraged",
     "parallelism and batches encouraged",
@@ -139,7 +139,7 @@ end
     end
 end
 
-@testset "Map with multiple values with $scheduling_config" for scheduling_config in [
+@testset "Map with multiple values with $scheduling_config for map-reduce" for scheduling_config in [
     "default scheduling",
     "parallelism encouraged",
     "parallelism and batches encouraged",
@@ -154,7 +154,7 @@ end
     end
 end
 
-@testset "Complex dependency graphs with $scheduling_config" for scheduling_config in [
+@testset "Complex dependency graphs with $scheduling_config for map-reduce" for scheduling_config in [
     "default scheduling",
     "parallelism encouraged",
     "parallelism and batches encouraged",
@@ -184,7 +184,7 @@ end
     end
 end
 
-@testset "Multiple arrays with $scheduling_config" for scheduling_config in [
+@testset "Multiple arrays with $scheduling_config for map-reduce" for scheduling_config in [
     "default scheduling",
     "parallelism encouraged",
     "parallelism and batches encouraged",
@@ -202,7 +202,7 @@ end
     end
 end
 
-@testset "2D arrays with $scheduling_config" for scheduling_config in [
+@testset "2D arrays with $scheduling_config for map-reduce" for scheduling_config in [
     "default scheduling",
     "parallelism encouraged",
     "parallelism and batches encouraged",
