@@ -51,6 +51,8 @@ function Base.getproperty(loc::Location, name::Symbol)
     end
 
     n = string(name)
+    # `n` might exist in both the source parameters _AND_ the destination
+    # parameters but we prioritize the source.
     if haskey(loc.src_parameters, n)
         loc.src_parameters[n]
     elseif haskey(loc.dst_parameters, n)
@@ -318,7 +320,7 @@ clear_samples() = rm(joinpath(homedir(), ".banyan", "samples"), force=true, recu
 invalidate_location(p) = rm(joinpath(homedir(), ".banyan", "locations", p |> hash |> string), force=true, recursive=true)
 invalidate_sample(p) = rm(joinpath(homedir(), ".banyan", "samples", p |> hash |> string), force=true, recursive=true)
 
-function Remote(p; shuffled=false, similar_files=false, location_invalid = false, sample_invalid = false, invalidate_location = false, invalidate_sample = false)
+function Remote(p; shuffled=false, location_invalid = false, sample_invalid = false, invalidate_location = false, invalidate_sample = false)
     # In the context of remote locations, the location refers to just the non-sample part of it; i.e., the
     # info about what files are in the dataset and how many rows they have.
 
@@ -359,17 +361,17 @@ function Remote(p; shuffled=false, similar_files=false, location_invalid = false
     else
         nothing
     end
-    remote_location = get_remote_location(p, remote_location, remote_sample, shuffled=shuffled, similar_files=similar_files)
+    remote_location = get_remote_location(p, remote_location, remote_sample, shuffled=shuffled)
     remote_sample = remote_location.sample
 
     # Store location in cache. The same logic below applies to having a
-    # `&& hasproperty(remote_location, :nbytes)` which effectively allows us
+    # `&& isempty(remote_location.files)` which effectively allows us
     # to reuse the location (computed files and row lengths) but only if the
     # location was actually already written to. If this is the first time we
     # are calling `write_parquet` with `invalidate_location=false`, then
     # the location will not be saved. But on future writes, the first write's
     # location will be used.
-    if !invalidate_location && hasproperty(remote_location, :nbytes)
+    if !invalidate_location && remote_location.nbytes > 0
         mkpath(locationspath)
         serialize(locationpath, remote_location)
     else
@@ -543,6 +545,7 @@ function get_remote_hdf5_location(remotepath, hdf5_ending, remote_location=nothi
                 "size" => datasize,
                 "ndims" => datandims,
                 "eltype" => dataeltype,
+                "nbytes" => 0
             ),
         )
     else
@@ -554,7 +557,7 @@ function get_remote_hdf5_location(remotepath, hdf5_ending, remote_location=nothi
 
     # Load metadata for writing to HDF5 file
     loc_for_writing, metadata_for_writing =
-        ("Remote", Dict("path" => remotepath, "subpath" => datasetpath))
+        ("Remote", Dict("path" => remotepath, "subpath" => datasetpath, "nbytes" => 0))
 
     # Get the remote sample
     if isnothing(remote_sample)
@@ -616,6 +619,11 @@ function get_remote_table_location(remotepath, remote_location=nothing, remote_s
     # - No sample but has location, not shuffled
     # - No sample, no location, not shuffled
 
+    # Initialize sample
+    exactsample = DataFrame()
+    randomsample = DataFrame()
+    already_warned_about_too_large_sample = false
+
     # A second pass is only needed if there is no sample and the data is
     # shuffled. On this second pass, we only read in some files.
 
@@ -673,23 +681,16 @@ function get_remote_table_location(remotepath, remote_location=nothing, remote_s
                         append!(exactsample, first(chunkdf, samplenrows - nrow(exactsample)))
                     end
 
-                    # nbytes += isnothing(chunkdf) ? pqf.meta.row_groups[i].total_byte_size : Base.summarysize(chunkdf)
-                    # nbytes = nothing
-                    if isnothing(remote_location)
-                        nbytes += Base.summarysize(chunkdf)
-                    end
-
-                    @show nbytes
-                    @show Int64(Sys.free_memory())
-                    @show Int64(Sys.total_memory())
-
+                    # Warn about sample being too large
                     # TODO: Maybe call GC.gc() here if we get an error when sampling really large datasets
+                    memory_used_in_sampling = total_memory_usage(chunk) + total_memory_usage(chunkdf) + total_memory_usage(exactsample) + total_memory_usage(randomsample)
                     chunkdf = nothing
                     chunk = nothing
-                    if Base.summarysize(exactsample) > cld(Sys.free_memory(), 2)
-                        @warn "Sample is too large; try creating a job with a greater `sample_rate` than the number of workers (default is 2)"
-                    end
-                    if Base.summarysize(exactsample) + nbytes > Sys.free_memory()
+                    if memory_used_in_sampling > cld(Sys.free_memory(), 10)
+                        if !already_warned_about_too_large_sample
+                            @warn "Sample is too large; try creating a job with a greater `sample_rate` than the number of workers (default is 2)"
+                            already_warned_about_too_large_sample = true
+                        end
                         GC.gc()
                     end
                 end
@@ -703,7 +704,7 @@ function get_remote_table_location(remotepath, remote_location=nothing, remote_s
                 elseif endswith(localfilepathp, ".parquet")
                     nrows(Parquet.File(localfilepathp))
                 elseif endswith(localfilepathp, ".arrow")
-                    rowcount(Arrow.Table(localfilepathp))
+                    Tables.rowcount(Arrow.Table(localfilepathp))
                 else
                     error("Expected .csv or .parquet or .arrow")
                 end
@@ -739,9 +740,7 @@ function get_remote_table_location(remotepath, remote_location=nothing, remote_s
         samplenrows = getsamplenrows(totalnrows)
 
         # So we can iterate through the files (reverse in case some caching helps
-        # us). We append to `exactsample` but that's okay because that will
-        # just be immediately copied over into `randomsample` right after when
-        # we adjust the sample to have `samplenrows`.
+        # us). We append to `randomsample` directly.
         for filep in reverse(files_to_read_from)
             localfilepath = p_isdir ? joinpath(p, filep) : p
             with_downloaded_path_for_reading(localfilepath) do localfilepathp
@@ -761,32 +760,27 @@ function get_remote_table_location(remotepath, remote_location=nothing, remote_s
                     chunkdf = chunk |> DataFrames.DataFrame
 
                     # Append to exactsample
-                    if nrow(exactsample) < samplenrows
-                        append!(exactsample, first(chunkdf, samplenrows - nrow(exactsample)))
+                    if nrow(randomsample) < samplenrows
+                        append!(randomsample, first(chunkdf, samplenrows - nrow(randomsample)))
                     end
 
                     # Stop as soon as we get our sample
-                    if nrow(exactsample) == samplenrows
+                    if nrow(randomsample) == samplenrows
                         break
                     end
                 end
             end
 
             # Stop as soon as we get our sample
-            if nrow(exactsample) == samplenrows
+            if nrow(randomsample) == samplenrows
                 break
             end
         end
 
-        # After iterating, we have our sample. Now, if we don't have a
-        # location, we would have computed it in the `elseif` branch in
-        # the above first pass. But we wouldn't have computed the estimated
-        # memory usage there because we weren't fully reading the data into
-        # memory and so our estimate of memory usage would be inaccurate.
-        # But now we have a sample sitting in memory and we can multiply it by
-        # `totalnrows / samplenrows` to get an estimated `nbytes`.
-        if isnothing(remote_location)
-            nbytes = Base.summarysize(exactsample) * totalnrows / samplenrows
+        # In this case, the random sample would also be the exact sample if an
+        # exact sample is ever required.
+        if totalnrows <= get_max_exact_sample_length()
+            exactsample = randomsample
         end
     end
 
@@ -810,6 +804,21 @@ function get_remote_table_location(remotepath, remote_location=nothing, remote_s
         end
     end
 
+    # Re-compute the number of bytes. Even if we are reusing a location, we go
+    # ahead and re-compute the sample. Someone may have written data with
+    # `invalidate_location=false` but `shuffled=true` (perhaps the only thing
+    # they changed was adding a column and somehow they ensured that the same
+    # data got written to the same files) and so we want to estimate the total
+    # memory usage using a newly collected sample but the same `totalnrow` we
+    # already know from the reused location.
+    remote_sample_value = isnothing(remote_sample) ? randomsample : remote_sample.value
+    remote_sample_rate = totalnrows / nrow(remote_sample_value)
+    nbytes = ceil(total_memory_usage(remote_sample_value) * remote_sample_rate)
+
+    @show isnothing(remote_location)
+    @show isnothing(remote_sample)
+    @show nbytes
+
     # Load metadata for reading
     loc_for_reading, metadata_for_reading = if !isempty(files) || p_isdir # empty directory can still be read from
         ("Remote", Dict("path" => remotepath, "files" => files, "nrows" => totalnrows, "nbytes" => nbytes))
@@ -831,7 +840,18 @@ function get_remote_table_location(remotepath, remote_location=nothing, remote_s
         else
             Sample(randomsample, total_memory_usage = nbytes)
         end
+    else
+        # Adjust sample properties if this is a reused sample
+        setsample!(remote_sample, :memory_usage, ceil(nbytes / remote_sample_rate))
+        setsample!(remote_sample, :rate, remote_sample_rate)
     end
+
+    # In the process of collecting this sample, we have called functions in
+    # `utils_s3fs.jl` for reading from remote locations. These functions save
+    # files in /tmp and so we need to cleanup (delete) these files.
+    # TODO: Surround this function by a try-catch so that if this fails, we
+    # will cleanup anyway.
+    cleanup_tmp()
 
     # Construct location with metadata
     Location(

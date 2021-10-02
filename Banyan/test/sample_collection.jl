@@ -44,8 +44,8 @@
         end
         remote_location = Remote(
             src_name,
-            location_invalid = (reusing == "nothing" || reusing == "location"),
-            sample_invalid = (reusing == "nothing" || reusing == "sample"),
+            location_invalid = (reusing == "nothing" || reusing == "sample"),
+            sample_invalid = (reusing == "nothing" || reusing == "location"),
             shuffled = with_or_without_shuffled == "with",
         )
 
@@ -75,7 +75,7 @@
         # Verify the sample
         sample_nrows =
             contains(src_name, "h5") ? size(remote_location.sample.value, 1) :
-            nrows(remote_location.sample.value)
+            nrow(remote_location.sample.value)
         if exact_or_inexact == "Exact"
             @test sample_nrows == src_nrows
         else

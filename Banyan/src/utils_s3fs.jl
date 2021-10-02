@@ -16,7 +16,14 @@ end
 # MOUNTED S3 FILESYSTEM #
 #########################
 
+tmp_paths = []
+
+# You should first call `download_remote_path` to get a remote path, then
+# call `with_downloaded_path_for_reading` for the local path to read from.
+
 function download_remote_path(remotepath)
+    global tmp_paths
+
     # This returns an AbstractPath that can be manipulated using any of the
     # `Base.Filesystem` methods. To actually use it for reading, you should
     # first pass the returned `AbstractPath` through
@@ -30,7 +37,9 @@ function download_remote_path(remotepath)
         # This will either return an `S3Path` still referring to a remote
         # location or it will return a local S3FS path for reading from.
     elseif startswith(remotepath, "http://") || startswith(remotepath, "https://")
-        Downloads.download(remotepath, tempname() * splitext(remotepath)[2])
+        tmp_path = tempname() * splitext(remotepath)[2]
+        push!(tmp_paths, tmp_path)
+        Downloads.download(remotepath, tmp_path)
     else
         throw(
             ArgumentError(
@@ -106,11 +115,14 @@ function download_remote_s3_path(path)
 end
 
 function with_downloaded_path_for_reading(func::Function, downloaded_path; for_writing=false)
+    global tmp_paths
+
     # There are 3 cases here: `downloaded_path` is an S3Path or a local S3FS
     # path or an http:// file that has been downloaded to tempdir() (i.e., /tmp).
 
     temp_downloaded_path = if downloaded_path isa S3Path
         temp_downloaded_path = Path(tempname() * splitext(downloaded_path)[2])
+        push!(tmp_paths, temp_downloaded_path)
         if !for_writing
             cp(downloaded_path, temp_downloaded_path)
         end
@@ -123,8 +135,11 @@ function with_downloaded_path_for_reading(func::Function, downloaded_path; for_w
         func(downloaded_path)
         downloaded_path
     end
+end
 
-    if dirname(temp_downloaded_path) == tempdir()
-        rm(temp_downloaded_path, recursive=true)
+function cleanup_tmp()
+    global tmp_paths
+    for tmp_path in tmp_paths
+        rm(tmp_path, recursive=true, force=true)
     end
 end
