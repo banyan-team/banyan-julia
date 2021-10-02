@@ -40,7 +40,7 @@ get_cluster_name() = get_job().cluster_name
 function create_job(;
     cluster_name::String = nothing,
     nworkers::Integer = 2,
-    return_logs::Bool = false,
+    print_logs::Bool = false,
     store_logs_in_s3::Bool = true,
     sample_rate::Integer = nworkers,
     job_name = nothing,
@@ -63,10 +63,6 @@ function create_job(;
         cluster_name = nothing
     end
 
-    # TODO: Remove this code when @calebwin's PR gets merged in
-    # push!(code_files, "https://raw.githubusercontent.com/banyan-team/banyan-julia/v0.1.3/Banyan/res/pt_lib.jl")
-    # push!(files, "https://raw.githubusercontent.com/banyan-team/banyan-julia/v0.1.3/Banyan/res/pt_lib_utils.jl")
-
     # Configure
     configure(; kwargs...)
 
@@ -86,7 +82,7 @@ function create_job(;
     job_configuration = Dict{String,Any}(
         "cluster_name" => cluster_name,
         "num_workers" => nworkers,
-    	"return_logs" => return_logs,
+    	"return_logs" => print_logs,
 	    "store_logs_in_s3" => store_logs_in_s3,
         "julia_version" => julia_version
     )
@@ -145,25 +141,18 @@ function create_job(;
             s3_put(get_aws_config(), s3_bucket_name, basename(f), load_file(f))
         end
     end
-    # TODO: Optimize so that we only upload(and download onto cluster) the files if the filename doesn't already exist
+    # TODO: Optimize so that we only upload (and download onto cluster) the files if the filename doesn't already exist
     job_configuration["files"] = [basename(f) for f in files]
     job_configuration["code_files"] = [basename(f) for f in code_files]
 
     if pf_dispatch_table == ""
-        pf_dispatch_table = "https://raw.githubusercontent.com/banyan-team/banyan-julia/v0.1.3/Banyan/res/pt_lib_info.json"
+        pf_dispatch_table = "https://raw.githubusercontent.com/banyan-team/banyan-julia/v0.1.3/Banyan/res/pf_dispatch_table.json"
     end
     job_configuration["pf_dispatch_table"] = load_json(pf_dispatch_table)
 
     # Create the job
     @debug "Sending request for job creation"
     job_response = send_request_get_response(:create_job, job_configuration)
-    # if !job_response["ready_for_jobs"]
-    #     # Try again
-    #     job_response = send_request_get_response(:create_job, job_configuration)
-    # end
-    # if !job_response["ready_for_jobs"]
-    #     error("Please update the cluster with a pt_lib_info.json and pt_lib.jl")
-    # end
     job_id = job_response["job_id"]
     @debug "Creating job $job_id"
     @info "Started creating job with ID $job_id on cluster named \"$cluster_name\""
@@ -184,17 +173,6 @@ end
 function destroy_job(job_id::JobId = get_job_id(); failed = nothing, force = false, kwargs...)
     global jobs
     global current_job_id
-
-    # TODO: Set current_status of job if failed=true
-
-    # Set failed flag
-    # failed = failed == true || !haskey(jobs, job_id) && get_job(job_id).current_status == "failed"
-    # if failed && haskey(jobs, job_id)
-    #     job = get_job(job_id)
-    #     job.current_status = "failed"
-    # end
-
-    # configure(; kwargs...)
 
     @info "Destroying job with ID $job_id"
     send_request_get_response(
@@ -219,9 +197,7 @@ function get_jobs(cluster_name = nothing; status = nothing, kwargs...)
     if !isnothing(status)
         filters["status"] = status
     end
-    
-    
-    response = Dict("last_eval_key" => 50394, "jobs" => [])
+
     finished = false
     indiv_response = send_request_get_response(:describe_jobs, Dict{String,Any}("filters"=>filters))
     response = indiv_response
@@ -243,8 +219,6 @@ function get_jobs(cluster_name = nothing; status = nothing, kwargs...)
             end
         end
     end
-    # response =
-    #     send_request_get_response(:describe_jobs, Dict{String,Any}("filters"=>filters))
     
     for (id, j) in response["jobs"]
         if response["jobs"][id]["ended"] == ""

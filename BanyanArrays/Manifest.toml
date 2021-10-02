@@ -43,10 +43,10 @@ version = "1.2.0"
 uuid = "56f22d72-fd6d-98f1-02f0-08ddc0907c33"
 
 [[Banyan]]
-deps = ["AWS", "AWSCore", "AWSS3", "AWSSQS", "Arrow", "Base64", "CSV", "DataFrames", "Downloads", "FileIO", "FilePathsBase", "HDF5", "HTTP", "IniFile", "IterTools", "JSON", "MPI", "Parquet", "Random", "Serialization", "TOML", "TimeZones"]
+deps = ["AWS", "AWSCore", "AWSS3", "AWSSQS", "Arrow", "Base64", "CSV", "DataFrames", "Downloads", "FileIO", "FilePathsBase", "HDF5", "HTTP", "IniFile", "IterTools", "JSON", "MPI", "Parquet", "Pkg", "Random", "SHA", "Serialization", "TOML", "TimeZones"]
 path = "../Banyan"
 uuid = "706d138b-e922-45b9-a636-baf8ae0d5317"
-version = "0.1.1"
+version = "0.1.3"
 
 [[Base64]]
 uuid = "2a0f44e3-6c83-55bd-87e4-b1978d98bd5f"

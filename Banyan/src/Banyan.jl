@@ -11,47 +11,6 @@ using FilePathsBase: joinpath, isempty
 using Base: notnothing, env_project_file
 global BANYAN_API_ENDPOINT
 
-# TODO: Remove this
-# export create_job,
-#     destroy_job,
-#     JobRequest,
-#     set_cluster_id,
-#     set_job_request,
-#     get_job_id,
-#     evaluate,
-#     record_request,
-#     send_request_get_response
-# export Future
-# export PartitionAnnotation,
-#      PartitionType,
-#      PartitioningConstraint,
-#      PartitioningConstraints,
-#      Partitions
-# export LocationType
-# export DelayedTask
-
-# export @pa, @pp, @lt, @src, @dst
-# export pa_noconstraints
-# export Div, Block, Stencil
-# export HDF5, Value, Client
-# export Cross
-# # export Const, Mut
-
-# include("id.jl")
-# include("utils.jl")
-# include("jobs.jl")
-# include("locations.jl")
-# include("futures.jl")
-# include("partitions.jl")
-# include("queues.jl")
-# include("tasks.jl")
-# include("pa_constructors.jl")
-# include("pt_constructors.jl")
-# include("lt_constructors.jl")
-# include("constraint_constructors.jl")
-# include("macros.jl")
-# include("evaluation.jl")
-
 # Account management
 export configure
 
@@ -229,10 +188,10 @@ include("job.jl")
 
 function __init__()
     # The user must provide the following for authentication:
-    # - Username
+    # - User ID
     # - API key
     # - AWS credentials
-    # - SSH key pair (used in cluster creation)
+    # - SSH key pair (used in cluster creation, not for auth)
 
     global BANYAN_API_ENDPOINT
     BANYAN_API_ENDPOINT = "https://hcohsbhhzf.execute-api.us-west-2.amazonaws.com/dev/"

@@ -22,6 +22,9 @@ function use_job_for_testing(
     haskey(ENV, "BANYAN_CLUSTER_NAME") || error(
         "Please specify the Banyan cluster to use for testing with the BANYAN_CLUSTER_NAME environment variable",
     )
+    haskey(ENV, "BANYAN_JULIA_BRANCH") || error(
+        "Please specify the Banyan cluster to use for testing with the BANYAN_JULIA_BRANCH environment variable",
+    )
 
     # This will be a more complex hash if there are more possible ways of
     # configuring a job for testing. Different sample rates are typically used
@@ -38,11 +41,16 @@ function use_job_for_testing(
             create_job(
                 cluster_name = ENV["BANYAN_CLUSTER_NAME"],
                 nworkers = 2,
-                banyanfile_path = "file://res/Banyanfile.json",
                 sample_rate = sample_rate,
-                return_logs = true,
+                print_logs = true,
+                url = "https://github.com/banyan-team/banyan-julia.git",
+                branch = ENV["BANYAN_JULIA_BRANCH"],
+                directory = "banyan-julia/Banyan/test",
+                dev_paths = [
+                    "banyan-julia/Banyan",
+                ],
             )
-        end,
+        end
     )
 
     # If selected job has already failed, this will throw an error.
