@@ -5,8 +5,8 @@ using MPI, HDF5, DataFrames
 # Helper functions #
 ####################
 
-isa_df(obj) = (@isdefined(DataFrames.AbstractDataFrame)) && obj isa DataFrames.AbstractDataFrame
-isa_gdf(obj) = (@isdefined(DataFrames.GroupedDataFrame)) && obj isa DataFrames.GroupedDataFrame
+isa_df(obj) = (@isdefined(DataFrames) && @isdefined(AbstractDataFrame)) && obj isa DataFrames.AbstractDataFrame
+isa_gdf(obj) = (@isdefined(DataFrames) && @isdefined(GroupedDataFrame)) && obj isa DataFrames.GroupedDataFrame
 isa_array(obj) = obj isa AbstractArray || obj isa HDF5.Dataset
 
 get_worker_idx(comm::MPI.Comm) = MPI.Comm_rank(comm) + 1
