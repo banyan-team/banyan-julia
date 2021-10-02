@@ -230,8 +230,11 @@ end
 
 function cleanup_tests(bucket_name=get_cluster_s3_bucket_name())
     # Delete all temporary test files that are prepended with "test-tmp__"
-    for obj in s3_list_objects(bucket_name, path_prefix = "test-tmp_")
-        s3_delete(bucket_name, obj)
+    @show bucket_name
+    for p in readdir(S3Path("s3://$bucket_name"))
+        if contains(string(p), "test-tmp_")
+            rm(p)
+        end
     end
 end
 
