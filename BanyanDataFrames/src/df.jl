@@ -325,8 +325,8 @@ function DataFrames.dropmissing(df::DataFrame, args...; kwargs...)
     # partition(res_nrows, Reducing(reducer=+))
 
     @partitioned df res res_nrows args kwargs begin
-        res = dropmissing(df, args...; kwargs...)
-        res_nrows = nrow(res)
+        res = DataFrames.dropmissing(df, args...; kwargs...)
+        res_nrows = DataFrames.nrow(res)
     end
 
     res
@@ -353,9 +353,9 @@ function Base.filter(f, df::DataFrame; kwargs...)
 
     @partitioned df res res_nrows f kwargs begin
         # @show df
-        res = filter(f, df; kwargs...)
+        res = DataFrames.filter(f, df; kwargs...)
         # @show res
-        res_nrows = nrow(res)
+        res_nrows = DataFrames.nrow(res)
         # @show res_nrows
     end
 
@@ -387,7 +387,7 @@ function Missings.allowmissing(df::DataFrame)::DataFrame
         pt(df, res, Replicated())
     end
 
-    @partitioned df res begin res = allowmissing(df) end
+    @partitioned df res begin res = DataFrames.allowmissing(df) end
 
     DataFrame(res, copy(df.nrows))
 end
@@ -413,7 +413,7 @@ function Missings.disallowmissing(df::DataFrame)::DataFrame
         pt(df, res, Replicated())
     end
 
-    @partitioned df res begin res = disallowmissing(df) end
+    @partitioned df res begin res = DataFrames.disallowmissing(df) end
 
     DataFrame(res, copy(df.nrows))
 end
@@ -439,7 +439,7 @@ function Base.deepcopy(df::DataFrame)::DataFrame
         pt(df, res, Replicated())
     end
 
-    @partitioned df res begin res = deepcopy(df) end
+    @partitioned df res begin res = DataFrames.deepcopy(df) end
 
     DataFrame(res, copy(df.nrows))
 end
@@ -465,7 +465,7 @@ function Base.copy(df::DataFrame)::DataFrame
         pt(df, res, Replicated())
     end
 
-    @partitioned df res begin res = copy(df) end
+    @partitioned df res begin res = DataFrames.copy(df) end
 
     DataFrame(res, copy(df.nrows))
 
@@ -1166,7 +1166,7 @@ function DataFrames.rename(df::DataFrame, args...; kwargs...)
     end
 
     @partitioned df res args kwargs begin
-        res = rename(df, args...; kwargs...)
+        res = DataFrames.rename(df, args...; kwargs...)
     end
 
     DataFrame(res, copy(df.nrows))
@@ -1324,7 +1324,7 @@ function Base.sort(df::DataFrame, cols=:; kwargs...)
     # mutated(res)
 
     @partitioned df res cols kwargs begin
-        res = sort(df, cols; kwargs...)
+        res = DataFrames.sort(df, cols; kwargs...)
     end
 
     # statistics = sample(df, :keystatistics, by)
@@ -1417,7 +1417,7 @@ function DataFrames.innerjoin(dfs::DataFrame...; on, kwargs...)
     end
 
     @partitioned dfs on kwargs res res_nrows begin
-        res = innerjoin(dfs...; on=on, kwargs...)
+        res = DataFrames.innerjoin(dfs...; on=on, kwargs...)
         res_nrows = nrow(res)
     end
 
@@ -1493,8 +1493,8 @@ function DataFrames.unique(df::DataFrame, cols=:; kwargs...)
     end
 
     @partitioned df res res_nrows cols kwargs begin
-        res = unique(df, cols; kwargs...)
-        res_nrows = nrow(res)
+        res = DataFrames.unique(df, cols; kwargs...)
+        res_nrows = DataFrames.nrow(res)
     end
 
     res
@@ -1558,7 +1558,7 @@ function DataFrames.nonunique(df::DataFrame, cols=:; kwargs...)
     end
 
     @partitioned df df_nrows res res_size cols kwargs begin
-        res = nonunique(df, cols; kwargs...)
+        res = DataFrames.nonunique(df, cols; kwargs...)
         # @show "nonunique" res
         res_size = Tuple(df_nrows)
     end
