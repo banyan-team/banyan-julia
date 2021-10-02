@@ -56,8 +56,8 @@ function DataFrames.groupby(df::DataFrame, cols; kwargs...)::GroupedDataFrame
     end
 
     @partitioned df gdf gdf_length cols kwargs begin
-        gdf = groupby(df, cols; kwargs...)
-        gdf_length = length(gdf)
+        gdf = DataFrames.groupby(df, cols; kwargs...)
+        gdf_length = DataFrames.length(gdf)
     end
 
     # allowedgroupingkeys = names(sample(df), compute(cols))
@@ -185,10 +185,10 @@ function DataFrames.select(gdf::GroupedDataFrame, args...; kwargs...)
     # mutated(res)
 
     @partitioned gdf gdf_parent groupcols groupkwargs args kwargs res begin
-        if !(gdf isa GroupedDataFrame) || gdf.parent != gdf_parent
-            gdf = groupby(gdf_parent, groupcols; groupkwargs...)
+        if !(gdf isa DataFrames.GroupedDataFrame) || gdf.parent != gdf_parent
+            gdf = DataFrames.groupby(gdf_parent, groupcols; groupkwargs...)
         end
-        res = select(gdf, args...; kwargs...)
+        res = DataFrames.select(gdf, args...; kwargs...)
     end
 
     DataFrame(res, copy(gdf_parent.nrows))
@@ -229,10 +229,10 @@ function DataFrames.transform(gdf::GroupedDataFrame, args...; kwargs...)
     end
 
     @partitioned gdf gdf_parent groupcols groupkwargs args kwargs res begin
-        if !(gdf isa GroupedDataFrame) || gdf.parent != gdf_parent
-            gdf = groupby(gdf_parent, groupcols; groupkwargs...)
+        if !(gdf isa DataFrames.GroupedDataFrame) || gdf.parent != gdf_parent
+            gdf = DataFrames.groupby(gdf_parent, groupcols; groupkwargs...)
         end
-        res = transform(gdf, args...; kwargs...)
+        res = DataFrames.transform(gdf, args...; kwargs...)
     end
 
     DataFrame(res, copy(gdf_parent.nrows))
@@ -278,14 +278,14 @@ function DataFrames.combine(gdf::GroupedDataFrame, args...; kwargs...)
 
     @partitioned gdf gdf_parent groupcols groupkwargs args kwargs res res_nrows begin
         println("here!")
-        if !(gdf isa GroupedDataFrame) || gdf.parent != gdf_parent
+        if !(gdf isa DataFrames.GroupedDataFrame) || gdf.parent != gdf_parent
             println("right inside here")
-            gdf = groupby(gdf_parent, groupcols; groupkwargs...)
+            gdf = DataFrames.groupby(gdf_parent, groupcols; groupkwargs...)
         end
         println("here2!")
-        res = combine(gdf, args...; kwargs...)
+        res = DataFrames.combine(gdf, args...; kwargs...)
         println("here3!")
-        res_nrows = nrow(res)
+        res_nrows = DataFrames.nrow(res)
         println("here4!")
     end
 
@@ -331,12 +331,12 @@ function DataFrames.subset(gdf::GroupedDataFrame, args...; kwargs...)
     end
 
     @partitioned gdf gdf_parent groupcols groupkwargs args kwargs res res_nrows begin
-        if !(gdf isa GroupedDataFrame) || gdf.parent != gdf_parent
-            gdf = groupby(gdf_parent, groupcols; groupkwargs...)
+        if !(gdf isa DataFrames.GroupedDataFrame) || gdf.parent != gdf_parent
+            gdf = DataFrames.groupby(gdf_parent, groupcols; groupkwargs...)
         end
-        res = subset(gdf, args...; kwargs...)
+        res = DataFrames.subset(gdf, args...; kwargs...)
         println("In subset with length(gdf)=$(length(gdf)) and nrow(gdf_parent)=$(nrow(gdf_parent)) and nrow(res)=$(nrow(res))")
-        res_nrows = nrow(res)
+        res_nrows = DataFrames.nrow(res)
     end
 
     res

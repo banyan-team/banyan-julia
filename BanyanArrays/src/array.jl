@@ -519,7 +519,7 @@ function Base.sortslices(A::Array{T,N}, dims; kwargs...) where {T,N}
     end
 
     @partitioned A dims kwargs res begin
-        res = sortslices(A, dims=dims, kwargs...)
+        res = Base.sortslices(A, dims=dims, kwargs...)
     end
 
     Array{T,N}(res, deepcopy(A.size))
