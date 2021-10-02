@@ -53,11 +53,14 @@ AWS configuration files) and the Banyan environment variables
 are saved in `banyanconfig.toml` so you don't need to specify it
 every time.
 
+You must also specify the branch you would like to test with the `BANYAN_JULIA_BRANCH`
+environment variables.
+
 For example, if you have previously specified your Banyan API key, user ID, and AWS credentials, you could:
 
 ```
 cd BanyanDataFrames
-BANYAN_CLUSTER_NAME=pumpkincluster0 julia --project=. -e "using Pkg; Pkg.test(test_args=[\"ample\"])
+BANYAN_CLUSTER_NAME=pumpkincluster0 BANYAN_JULIA_BRANCH=v0.1.3 julia --project=. -e "using Pkg; Pkg.test(test_args=[\"ample\"])
 ```
 
 If your AWS credentials are saved under a profile named `banyan-testing`, you could use `AWS_DEFAULT_PROFILE=banyan-testing`.
