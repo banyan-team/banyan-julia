@@ -1869,7 +1869,7 @@ function Rebalance(part, src_params, dst_params, comm)
     de = if isa_array(part)
         x -> deserialize(IOBuffer(x))
     else
-        x -> DataFrames.DataFrame(Arrow.Table(x))
+        x -> DataFrames.DataFrame(Arrow.Table(IOBuffer(x)))
     end
 
     # Construct buffer to send parts to all workers who own in this range
