@@ -27,4 +27,5 @@ docs/site/
 **/test_res*
 *.arrow
 *.csv
+!*iris.csv
 *.parquet
