@@ -59,7 +59,8 @@ function use_job_for_testing(
                     "banyan-julia/BanyanArrays",
                     "banyan-julia/BanyanDataFrames"
                 ],
-                force_pull = true
+                force_pull = true,
+                store_logs_on_cluster=get(ENV, BANYAN_STORE_LOGS_ON_CLUSTER, "0") == "1"
             )
         end,
     )

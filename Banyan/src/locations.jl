@@ -577,6 +577,23 @@ function get_remote_hdf5_location(remotepath, hdf5_ending, remote_location=nothi
     )
 end
 
+get_csv_chunks(localfilepathp) = 
+    try
+        CSV.Chunks(localfilepathp)
+    catch e
+        # An ArgumentError may get thrown if the file cannot be
+        # read in with the multi-threaded chunked iterator for
+        # some reason. See
+        # https://github.com/JuliaData/CSV.jl/blob/main/src/context.jl#L583-L641
+        # for possible reasons for `ctx.threaded` in CSV.jl
+        # code to be false.
+        if isa(e, ArgumentError)
+            [CSV.File(localfilepathp)]
+        else
+            throw(e)
+        end
+    end
+
 function get_remote_table_location(remotepath, remote_location=nothing, remote_sample=nothing; shuffled=false, similar_files=false)::Location
     p = download_remote_path(remotepath)
 
@@ -706,7 +723,7 @@ function get_remote_table_location(remotepath, remote_location=nothing, remote_s
             # many rows there are.
             if isnothing(remote_sample) && !shuffled
                 chunks = if endswith(localfilepathp, ".csv")
-                    CSV.Chunks(localfilepathp)
+                    get_csv_chunks(localfilepathp)
                 elseif endswith(localfilepathp, ".parquet")
                     Tables.partitions(read_parquet(localfilepathp))
                 elseif endswith(localfilepathp, ".arrow")
@@ -836,7 +853,7 @@ function get_remote_table_location(remotepath, remote_location=nothing, remote_s
             localfilepath = p_isdir ? joinpath(p, filep) : p
             with_downloaded_path_for_reading(localfilepath) do localfilepathp
                 chunks = if endswith(localfilepathp, ".csv")
-                    CSV.Chunks(localfilepathp)
+                    get_csv_chunks(localfilepathp)
                 elseif endswith(localfilepathp, ".parquet")
                     Tables.partitions(read_parquet(localfilepathp))
                 elseif endswith(localfilepathp, ".arrow")
