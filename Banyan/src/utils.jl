@@ -56,6 +56,8 @@ end
 function parse_time(time)
     global timezones_built
     if !timezones_built
+        # TODO: Add a try-catch here and then if building fails, @warn that we
+        # can't convert to local timezone and simply return
         TimeZones.build()
         timezones_built = true
     end
