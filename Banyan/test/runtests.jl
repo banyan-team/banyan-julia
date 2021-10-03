@@ -53,6 +53,7 @@ function use_job_for_testing(
                 dev_paths = [
                     "banyan-julia/Banyan",
                 ],
+                force_reclone=true
             )
         end
     )

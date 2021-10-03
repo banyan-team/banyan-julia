@@ -230,10 +230,10 @@ end
 
 function cleanup_tests(bucket_name=get_cluster_s3_bucket_name())
     # Delete all temporary test files that are prepended with "test-tmp__"
-    @show bucket_name
-    for p in readdir(S3Path("s3://$bucket_name"))
+    for p in readdir(S3Path("s3://$bucket_name", config = Banyan.get_aws_config()))
         if contains(string(p), "test-tmp_")
-            rm(p)
+            s3_path = S3Path("s3://$bucket_name/$p", config = Banyan.get_aws_config())
+            rm(S3Path("s3://$bucket_name/$p", config = Banyan.get_aws_config()), recursive=true)
         end
     end
 end

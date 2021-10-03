@@ -59,6 +59,7 @@ function use_job_for_testing(
                     "banyan-julia/BanyanArrays",
                     "banyan-julia/BanyanDataFrames"
                 ],
+                force_reclone=true
             )
         end,
     )

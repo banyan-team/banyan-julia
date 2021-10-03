@@ -305,10 +305,11 @@ function configure_scheduling(;kwargs...)
     global encourage_parallelism_with_batches
     report_schedule = get(kwargs, :report_schedule, false) || haskey(kwargs, :name)
     if get(kwargs, :encourage_parallelism, false) || get(kwargs, :name, "") == "parallelism encouraged"
-        encourage_parallelism = kwargs[:encourage_parallelism]
+        encourage_parallelism = true
     end
     if haskey(kwargs, :encourage_parallelism_with_batches) || get(kwargs, :name, "") == "parallelism and batches encouraged"
-        encourage_parallelism_with_batches = kwargs[:encourage_parallelism_with_batches]
+        encourage_parallelism = true
+        encourage_parallelism_with_batches = true
     end
 end
 
