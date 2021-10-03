@@ -55,6 +55,7 @@ function use_job_for_testing(
                     "banyan-julia/Banyan",
                     "banyan-julia/BanyanArrays"
                 ],
+                force_pull = true
             )
         end,
     )

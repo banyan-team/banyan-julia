@@ -53,6 +53,7 @@ function create_job(;
     directory = nothing,
     dev_paths = [],
     force_reclone = false,
+    force_pull = false,
     kwargs...,
 )
     global jobs
@@ -128,6 +129,7 @@ function create_job(;
         end
         environment_info["dev_paths"] = dev_paths
         environment_info["force_reclone"] = force_reclone
+        environment_info["force_pull"] = force_pull
         environment_info["environment_hash"] = get_hash(
             url * directory * (if isnothing(branch) "" else branch end)
         )
