@@ -42,6 +42,7 @@ function create_job(;
     nworkers::Integer = 2,
     print_logs::Bool = false,
     store_logs_in_s3::Bool = true,
+    store_logs_on_cluster::Bool = false,
     sample_rate::Integer = nworkers,
     job_name = nothing,
     files = [],
@@ -85,6 +86,7 @@ function create_job(;
         "num_workers" => nworkers,
     	"return_logs" => print_logs,
 	    "store_logs_in_s3" => store_logs_in_s3,
+        "store_logs_on_cluster" => store_logs_on_cluster,
         "julia_version" => julia_version
     )
     if !isnothing(job_name)
