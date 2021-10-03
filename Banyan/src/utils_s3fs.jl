@@ -61,7 +61,13 @@ function download_remote_s3_path(path)
     # bucket = "banyan-cluster-data-myfirstcluster"
     mount = joinpath(homedir(), ".banyan", "mnt", "s3", bucket)
 
-    if (!failed_to_use_s3fs && !haskey(ENV, "BANYAN_USE_S3FS")) || ENV["BANYAN_USE_S3FS"] == "1"
+    # If specified, do not allow even attempting to use S3FS.
+    if haskey(ENV, "BANYAN_USE_S3FS") && ENV["BANYAN_USE_S3FS"] == "0"
+        failed_to_use_s3fs = true
+    end
+
+    # Don't attempt to use S3FS if we have ever failed to use S3FS.
+    if !failed_to_use_s3fs
         # Ensure path to mount exists
         no_mount = false
         try

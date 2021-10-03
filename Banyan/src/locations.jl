@@ -395,7 +395,11 @@ function Remote(p; shuffled=false, location_invalid = false, sample_invalid = fa
 end
 
 function get_remote_location(remotepath, remote_location=nothing, remote_sample=nothing; shuffled=false)::Location
-    @info "Collecting sample from $remotepath\n\nThis will take some time but the sample will be cached for future use. Note that writing to this location will invalidate the cached sample."
+    if isnothing(remote_sample)
+        @info "Collecting sample from $remotepath\n\nThis will take some time but the sample will be cached for future use. Note that writing to this location will invalidate the cached sample."
+    elseif isnothing(remote_location)
+        @info "Collecting location information about $remotepath. This will take some time."
+    end
 
     # If both the location and sample are already cached, just return them
     if !isnothing(remote_location) && !isnothing(remote_sample)
