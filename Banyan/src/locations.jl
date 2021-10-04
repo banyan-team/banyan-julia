@@ -605,9 +605,19 @@ function get_remote_table_location(remotepath, remote_location=nothing, remote_s
     totalnrows = isnothing(remote_location) ? 0 : remote_location.nrows
     nbytes = isnothing(remote_location) ? 0 : remote_location.nbytes
 
-    # Determine whether this exists
-    p_isdir = isdir(p)
-    p_isfile = !p_isdir && isfile(p) # <-- avoid expensive unnecessary S3 API calls
+    # Determine whether this is a directory
+    p_isfile = isfile(p)
+    newp_if_isdir = endswith(p, "/") ? p : (p * "/")
+    # AWSS3.jl's S3Path will return true for isdir as long as it ends in
+    # a / and will then return empty for readdir. When using S3FS, isdir will
+    # actually return false if it isn't a directory but if you call readdir it
+    # will fail.
+    p_isdir = !p_isfile && isdir(newp_if_isdir)
+    if p_isdir
+        p = newp_if_isdir
+    end
+
+    # Get files to read
     files_to_read_from = if p_isdir
         Random.shuffle(readdir(p))
     elseif p_isfile
@@ -824,6 +834,15 @@ function get_remote_table_location(remotepath, remote_location=nothing, remote_s
     @show nbytes
 
     # Load metadata for reading
+    # If we're not using S3FS, the files might be empty because `readdir`
+    # would just return empty but `p_isdir` might be true because S3Path will
+    # say so for pretty much anything unless it's a file. So we might end up
+    # creating a location source with a path that doesn't exist and an empty
+    # list of files. But that's actually okay because in the backend, we will
+    # check isdir before we ever try to readdir from something. We will check
+    # both isfile and isdir. So for example, we won't read in an HDF5 file if
+    # it is not a file. And we won't call readdir if it isn't isdir and that
+    # works fine in the backend since we use S3FS there.
     loc_for_reading, metadata_for_reading = if !isempty(files) || p_isdir # empty directory can still be read from
         ("Remote", Dict("path" => remotepath, "files" => files, "nrows" => totalnrows, "nbytes" => nbytes))
     else
