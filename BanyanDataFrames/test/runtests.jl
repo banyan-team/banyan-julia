@@ -20,6 +20,7 @@ function get_branch_name()
     prepo = LibGit2.GitRepo(realpath(joinpath(@__DIR__, "../..")))
     phead = LibGit2.head(prepo)
     branchname = LibGit2.shortname(phead)
+    @info "Running tests with banyan-julia repository checked out to branch $branchname"
     branchname
 end
 
