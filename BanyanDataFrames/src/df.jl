@@ -618,6 +618,7 @@ function Base.getindex(df::DataFrame, rows=:, cols=:)
     return_vector = cols isa Symbol || cols isa String || cols isa Integer
     select_columns = !(cols isa Colon)
     filter_rows = !(rows isa Colon)
+    @show sample(df)
     columns = Symbol.(names(sample(df), cols))
     cols = Future(cols)
     # # @show sample(rows)

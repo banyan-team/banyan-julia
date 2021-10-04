@@ -132,14 +132,14 @@ function with_downloaded_path_for_reading(func::Function, downloaded_path; for_w
         if !for_writing
             cp(downloaded_path, temp_downloaded_path)
         end
-        func(temp_downloaded_path)
+        func(string(temp_downloaded_path))
         if for_writing
             cp(temp_downloaded_path, downloaded_path)
         end
-        temp_downloaded_path
+        string(temp_downloaded_path)
     else
-        func(downloaded_path)
-        downloaded_path
+        func(string(downloaded_path))
+        string(downloaded_path)
     end
 end
 

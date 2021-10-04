@@ -407,7 +407,8 @@ function get_remote_location(remotepath, remote_location=nothing, remote_sample=
         return remote_location
     end
 
-    # This is so that we can make sure that any random selection fo rows is deterministic. Might not be needed
+    # This is so that we can make sure that any random selection fo rows is
+    # deterministic. Might not be needed...
     Random.seed!(hash(get_job_id()))
 
     # Detect whether this is an HDF5 file
@@ -624,7 +625,7 @@ function get_remote_table_location(remotepath, remote_location=nothing, remote_s
 
     # Determine whether this is a directory
     p_isfile = isfile(p)
-    newp_if_isdir = endswith(p, "/") ? p : (p * "/")
+    newp_if_isdir = endswith(string(p), "/") ? p : (p * "/")
     # AWSS3.jl's S3Path will return true for isdir as long as it ends in
     # a / and will then return empty for readdir. When using S3FS, isdir will
     # actually return false if it isn't a directory but if you call readdir it

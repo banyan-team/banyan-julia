@@ -1,6 +1,7 @@
 using Banyan
 using ReTest
 using FilePathsBase, AWSS3, DataFrames, CSV, Parquet, Arrow
+using LibGit2
 
 global jobs_for_testing = Dict()
 
@@ -54,7 +55,7 @@ function use_job_for_testing(
                     "banyan-julia/Banyan",
                 ],
                 force_pull=true,
-                store_logs_on_cluster=get(ENV, BANYAN_STORE_LOGS_ON_CLUSTER, "0") == "1"
+                store_logs_on_cluster=get(ENV, "BANYAN_STORE_LOGS_ON_CLUSTER", "0") == "1"
             )
         end
     )
@@ -102,7 +103,7 @@ function use_data(file_extension, remote_kind, single_file)
     url = if file_extension_is_hdf5
         "https://support.hdfgroup.org/ftp/HDF5/examples/files/exbyapi/h5ex_d_fillval.h5"
     elseif file_extension_is_table
-        "https://gist.githubusercontent.com/curran/a08a1080b88344b0c8a7/raw/0e7a9b0a5d22642a06d3d5b9bcbad9890c8ee534/iris.csv"
+        "https://raw.githubusercontent.com/banyan-team/banyan-julia/v0.1.3/BanyanDataFrames/test/res/iris.csv"
     else
         error("Unsupported file extension: $file_extension")
     end

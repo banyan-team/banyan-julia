@@ -1,7 +1,7 @@
 using Pkg
 using Statistics
 
-IRIS_DOWNLOAD_PATH = "https://gist.githubusercontent.com/curran/a08a1080b88344b0c8a7/raw/0e7a9b0a5d22642a06d3d5b9bcbad9890c8ee534/iris.csv"
+IRIS_DOWNLOAD_PATH = "https://raw.githubusercontent.com/banyan-team/banyan-julia/v0.1.3/BanyanDataFrames/test/res/iris.csv"
 
 
 @testset "Create job using remote BanyanDataFrames Github with $pf_dispatch_table pf_dispatch_table" for pf_dispatch_table in 
