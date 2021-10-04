@@ -151,7 +151,7 @@ function use_data(file_extension, remote_kind, single_file)
         )
 
         # Create the file if not already created
-        if !ispath(testing_dataset_s3_path)
+        if single_file ? !ispath(testing_dataset_s3_path) : !ispath(joinpath(testing_dataset_s3_path, "part_0.$file_extension"),)
             # Download if not already download
             if !isfile(testing_dataset_local_path)
                 # Download to local ~/.banyan/testing_datasets
@@ -173,6 +173,7 @@ function use_data(file_extension, remote_kind, single_file)
                 cp(Path(testing_dataset_local_path), testing_dataset_s3_path)
             else
                 for i = 0:9
+
                     cp(
                         Path(testing_dataset_local_path),
                         joinpath(testing_dataset_s3_path, "part_$i.$file_extension"),

@@ -137,6 +137,7 @@ function ReadBlock(
     # this value to disk
     if loc_name == "Disk"
         name = loc_params["path"]
+        # TODO: isdir might not work for S3FS
         if isdir(getpath(name))
             files = []
             nrows = 0

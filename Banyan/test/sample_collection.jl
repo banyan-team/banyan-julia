@@ -6,7 +6,7 @@
 # - Test shuffled, similar files, default, invalidated location but reused sample or reused location
 # - Verify no error, length of returned sample, location files and their nrows,
 # (eventually) ensure that rows come from the right files
-@testset "$exact_or_inexact sample collected from $(titlecase(file_extension)) $(single_file ? "file" : "directory") on $on $with_or_without_s3fs S3FS with $optimization reusing $reusing" for exact_or_inexact in
+@testset "$exact_or_inexact sample collected from $file_extension $(single_file ? "file" : "directory") on $on $with_or_without_s3fs S3FS $with_or_without_shuffled shuffled reusing $reusing" for exact_or_inexact in
                                                                                                                                                                                                 [
         "Exact",
         "Inexact",
@@ -24,7 +24,7 @@
         ("parquet", false, "S3", 150 * 10),
         ("arrow", false, "S3", 150 * 10),
     ],
-    optimization in ["shuffled", "similar files"],
+    with_or_without_shuffled in ["with", "without"],
     reusing in ["nothing", "sample", "location", "sample and location"],
     with_or_without_s3fs in ["with", "without"]
 
@@ -44,10 +44,9 @@
         end
         remote_location = Remote(
             src_name,
-            location_invalid = (reusing == "nothing" || reusing == "location"),
-            sample_invalid = (reusing == "nothing" || reusing == "sample"),
-            shuffled = optimization == "shuffled",
-            similar_files = optimization == "similar files",
+            location_invalid = (reusing == "nothing" || reusing == "sample"),
+            sample_invalid = (reusing == "nothing" || reusing == "location"),
+            shuffled = with_or_without_shuffled == "with",
         )
 
         # Verify the location
@@ -76,7 +75,7 @@
         # Verify the sample
         sample_nrows =
             contains(src_name, "h5") ? size(remote_location.sample.value, 1) :
-            nrows(remote_location.sample.value)
+            nrow(remote_location.sample.value)
         if exact_or_inexact == "Exact"
             @test sample_nrows == src_nrows
         else
