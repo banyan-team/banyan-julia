@@ -816,8 +816,11 @@ function Write(
             if batch_idx == 1
                 # f = h5open(path, "cw", comm, info) do _ end
                 # f = h5open(path, "cw", comm, info)
-                # # @show isfile(path)
-                # # @show HDF5.ishdf5(path)
+                @show "LOOKING HERE"
+                @show path
+                @show isfile(path)
+                @show HDF5.ishdf5(path)
+                @show HDF5.has_parallel()
                 f = h5open(
                     path,
                     "cw",
