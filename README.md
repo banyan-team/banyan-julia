@@ -4,8 +4,8 @@ Banyan Julia is an extension to the Julia programming language for that seamless
 
 Software libraries can be annotated with partition types and subsequent use of the annotated functions automatically runs at scale. Currently, we are developing two annotated libraries:
 
-- BanyanArrays.jl
-- BanyanDataFrames.jl
+- [BanyanArrays.jl](https://www.banyancomputing.com/banyan-arrays-jl-docs)
+- [BanyanDataFrames.jl](https://www.banyancomputing.com/banyan-data-frames-jl-docs)
 
 Eventually, you will be able to use these libraries as drop-in replacements of the standard library Arrays and the DataFrames.jl library. By changing an import statement, you can run your code as is with Banyan scaling to arbitrary data or compute needs.
 
