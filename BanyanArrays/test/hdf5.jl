@@ -3,20 +3,21 @@
     "parallelism encouraged",
     "parallelism and batches encouraged",
 ]
-    use_job_for_testing(scheduling_config_name = scheduling_config)
-    use_data()
+    use_job_for_testing(scheduling_config_name = scheduling_config) do
+        use_data()
 
-    x = read_hdf5(joinpath(get_cluster_s3_bucket_name(), "fillval.h5/DS1"))
+        x = read_hdf5(joinpath(get_cluster_s3_bucket_name(), "fillval.h5/DS1"))
 
-    # Test basic case of reading from remote file
-    x_length_collect = length(x)
-    @test x_length_collect == 600000
-    x_size_collect = size(x)
-    @test x_size_collect == (1000, 600)
-    x_sum_collect = collect(sum(x))
-    @test x_sum_collect == 32100000
-    x_sum_collect = collect(sum(x))
-    @test x_sum_collect == 32100000
+        # Test basic case of reading from remote file
+        x_length_collect = length(x)
+        @test x_length_collect == 600000
+        x_size_collect = size(x)
+        @test x_size_collect == (1000, 600)
+        x_sum_collect = collect(sum(x))
+        @test x_sum_collect == 32100000
+        x_sum_collect = collect(sum(x))
+        @test x_sum_collect == 32100000
+    end
 end
 
 @testset "Reading/writing 2D arrays with HDF5 in $src with $scheduling_config" for scheduling_config in

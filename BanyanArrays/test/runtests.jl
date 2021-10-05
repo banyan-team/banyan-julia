@@ -58,9 +58,8 @@ function use_job_for_testing(
                 force_pull = true,
                 store_logs_on_cluster=get(ENV, "BANYAN_STORE_LOGS_ON_CLUSTER", "0") == "1"
             )
-        end,
+        end
     )
-
     # If selected job has already failed, this will throw an error.
     jobs_for_testing[job_config_hash] = get_job_id()
 
@@ -102,7 +101,7 @@ function use_data(data_src = "S3")
         )
         with_downloaded_path_for_reading(
             joinpath(
-                S3Path(get_cluster_s3_bucket_name(), config = Banyan.get_aws_config()),
+                S3Path("s3://$(get_cluster_s3_bucket_name())", config = Banyan.get_aws_config()),
                 "fillval.h5",
             ),
             for_writing = true,
@@ -116,7 +115,7 @@ function use_data(data_src = "S3")
         # rm(get_s3fs_path(joinpath(get_cluster_s3_bucket_name(), "fillval_copy.h5")), force=true)
         rm(
             joinpath(
-                S3Path(get_cluster_s3_bucket_name(), config = Banyan.get_aws_config()),
+                S3Path("s3://$(get_cluster_s3_bucket_name())", config = Banyan.get_aws_config()),
                 "fillval_copy.h5",
             ),
             force = true,
