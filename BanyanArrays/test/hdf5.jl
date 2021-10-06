@@ -6,7 +6,7 @@
     use_job_for_testing(scheduling_config_name = scheduling_config) do
         use_data()
 
-        x = read_hdf5(joinpath(get_cluster_s3_bucket_name(), "fillval.h5/DS1"))
+        x = read_hdf5(joinpath("s3://", get_cluster_s3_bucket_name(), "fillval.h5/DS1"))
 
         # Test basic case of reading from remote file
         x_length_collect = length(x)
@@ -47,7 +47,7 @@ end
             # h5ex_d_fillval.h5 \
             # s3://banyan-cluster-data-pumpkincluster0-3e15290827c0c584/fillval.h5
             # Then, repeat the dataset by (100, 100)
-            joinpath(get_cluster_s3_bucket_name(), "fillval.h5")
+            joinpath("s3://", get_cluster_s3_bucket_name(), "fillval.h5")
         end
 
         # Perform computation

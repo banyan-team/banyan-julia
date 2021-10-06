@@ -130,11 +130,11 @@ function with_downloaded_path_for_reading(func::Function, downloaded_path; for_w
         temp_downloaded_path = Path(tempname() * splitext(downloaded_path)[2])
         push!(tmp_paths, temp_downloaded_path)
         if !for_writing
-            cp(downloaded_path, temp_downloaded_path)
+            cp(downloaded_path, temp_downloaded_path, force=true)
         end
         func(string(temp_downloaded_path))
         if for_writing
-            cp(temp_downloaded_path, downloaded_path)
+            cp(temp_downloaded_path, downloaded_path, force=true)
         end
         string(temp_downloaded_path)
     else
