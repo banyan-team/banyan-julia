@@ -408,6 +408,8 @@ function Write(
 
     println("Start write")
 
+    @show part
+
     # Get path of directory to write to
     path = loc_params["path"]
     if startswith(path, "http://") || startswith(path, "https://")
@@ -1853,6 +1855,9 @@ end
 ReduceWithKey = Reduce
 
 function Rebalance(part, src_params, dst_params, comm)
+    println("At start of Rebalance")
+    @show part
+
     # Get the range owned by this worker
     dim = isa_array(part) ? dst_params["key"] : 1
     worker_idx, nworkers = get_worker_idx(comm), get_nworkers(comm)
@@ -1942,6 +1947,8 @@ function Rebalance(part, src_params, dst_params, comm)
     )
     # # # println("After rebalancing...")
     # # # @show length(res)
+    println("At end of Rebalance")
+    @show res
     res
 end
 
