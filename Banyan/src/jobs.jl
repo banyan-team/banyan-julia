@@ -55,6 +55,7 @@ function create_job(;
     dev_paths = [],
     force_reclone = false,
     force_pull = false,
+    force_install = false,
     kwargs...,
 )
     global jobs
@@ -132,6 +133,7 @@ function create_job(;
         environment_info["dev_paths"] = dev_paths
         environment_info["force_reclone"] = force_reclone
         environment_info["force_pull"] = force_pull
+        environment_info["force_install"] = force_install
         environment_info["environment_hash"] = get_hash(
             url * directory * (if isnothing(branch) "" else branch end)
         )
@@ -157,6 +159,7 @@ function create_job(;
     # Create the job
     @debug "Sending request for job creation"
     job_response = send_request_get_response(:create_job, job_configuration)
+    sleep(30)
     job_id = job_response["job_id"]
     @debug "Creating job $job_id"
     @info "Started creating job with ID $job_id on cluster named \"$cluster_name\""

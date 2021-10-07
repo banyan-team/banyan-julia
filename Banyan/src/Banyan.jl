@@ -148,6 +148,7 @@ using HDF5, CSV, Parquet, Arrow, DataFrames
 
 # Helpers
 include("id.jl")
+include("utils_queues.jl")
 include("queues.jl")
 
 # Banyan.jl is intended both for usage as a client library and also for

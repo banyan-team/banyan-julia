@@ -2,22 +2,24 @@
 # GET QUEUE URL #
 #################
 
+
+
 function get_scatter_queue(job_id::JobId=get_job_id())
-    return sqs_get_queue(
+    return sqs_get_queue_with_retries(
         get_aws_config(),
         string("banyan_", job_id, "_scatter.fifo"),
     )
 end
 
 function get_gather_queue(job_id::JobId=get_job_id())
-    return sqs_get_queue(
+    return sqs_get_queue_with_retries(
         get_aws_config(),
         string("banyan_", job_id, "_gather.fifo"),
     )
 end
 
 function get_execution_queue(job_id::JobId=get_job_id())
-    return sqs_get_queue(
+    return sqs_get_queue_with_retries(
         get_aws_config(),
         string("banyan_", job_id, "_execution.fifo"),
     )
