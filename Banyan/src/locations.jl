@@ -882,7 +882,10 @@ function get_remote_table_location(remotepath, remote_location=nothing, remote_s
             Sample(randomsample, total_memory_usage = nbytes)
         end
     else
-        # Adjust sample properties if this is a reused sample
+        # Adjust sample properties if this is a reused sample. But we only do
+        # this if we are reading from this location. If we are writing some
+        # value to some location that doesn't exist yet, we don't want to
+        # change the sample or the sample rate.
         setsample!(remote_sample, :memory_usage, ceil(nbytes / remote_sample_rate))
         setsample!(remote_sample, :rate, remote_sample_rate)
     end
