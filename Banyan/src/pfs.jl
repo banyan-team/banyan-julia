@@ -1943,6 +1943,7 @@ function Rebalance(part, src_params, dst_params, comm)
         (displ, count) in zip(recvbuf.displs, recvbuf.counts)
     ]
     @show things_to_concatenate
+    @show dim
     res = cat(
         things_to_concatenate...;
         dims = dim,
