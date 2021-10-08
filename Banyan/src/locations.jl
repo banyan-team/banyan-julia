@@ -42,7 +42,7 @@ LocationSource(name::String, parameters::Dict{String,<:Any}, sample::Sample = Sa
 LocationDestination(
     name::String,
     parameters::Dict{String,<:Any}
-) = Location("None", name, LocationParameters(), parameters, nothing)
+) = Location("None", name, LocationParameters(), parameters)
 
 function Base.getproperty(loc::Location, name::Symbol)
     if hasfield(Location, name)
