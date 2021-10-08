@@ -1944,9 +1944,9 @@ function Rebalance(part, src_params, dst_params, comm)
     ]
     @show things_to_concatenate
     @show dim
-    res = cat(
+    res = merge_on_executor(
         things_to_concatenate...;
-        dims = dim,
+        key = dim,
     )
     # # # println("After rebalancing...")
     # # # @show length(res)

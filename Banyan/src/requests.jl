@@ -279,6 +279,10 @@ function partitioned_computation(fut::AbstractFuture; destination, new_source=no
             if !isnothing(new_source)
                 sourced(fut, new_source)
             else
+                # TODO: Maybe suppress this warning because while it may be
+                # useful for large datasets, it is going to come up for
+                # every aggregateion result value that doesn't have a source
+                # but is being computed with the Client as its location.
                 if destination.src_name == "None"
                     # It is not guaranteed that this data can be used again.
                     # In fact, this data - or rather, this value - can only be
@@ -301,6 +305,11 @@ function partitioned_computation(fut::AbstractFuture; destination, new_source=no
 
     # Reset the annotation for this partitioned computation
     set_task(DelayedTask())
+
+    # NOTE: One potential room for optimization is around the fact that
+    # whenever we compute something we fully merge it. In fully merging it,
+    # we spill it out of memory. Maybe it might be kept in memory and we don't
+    # need to set the new source of something being `collect`ed to `Client`.
 
     fut
 end
@@ -403,7 +412,7 @@ function Base.collect(fut::AbstractFuture)
     # have a sample since we are merging it to the client.
 
     pt(fut, Replicated())
-    partitioned_computation(fut, destination=Client())
+    partitioned_computation(fut, destination=Client(), new_source=Client(fut.value))
 
     fut.value
 end
