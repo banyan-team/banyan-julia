@@ -1680,6 +1680,7 @@ function CopyFrom(
         received = receive_from_client(loc_params["value_id"])
         println("In CopyFrom Client")
         # # @showreceived
+        @show received
         received
     elseif loc_name == "Memory"
         src
