@@ -165,6 +165,7 @@ function ReadBlock(
 
     # Iterate through files and identify which ones correspond to the range of
     # rows for the batch currently being processed by this worker
+    @show loc_params
     nrows = loc_params["nrows"]
     rowrange = split_len(nrows, batch_idx, nbatches, comm)
     dfs::Vector{DataFrames.DataFrame} = []
