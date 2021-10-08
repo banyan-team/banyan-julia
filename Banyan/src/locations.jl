@@ -108,11 +108,7 @@ function sourced(fut, loc::Location)
             isnothing(fut_location) ? "None" : fut_location.dst_name,
             loc.src_parameters,
             isnothing(fut_location) ? Dict{String,Any}() : fut_location.dst_parameters,
-            (
-                isnothing(fut_location) ||
-                sample(loc.sample, :memory_usage) >
-                sample(fut_location.sample, :memory_usage)
-            ) ? loc.sample : fut_location.sample,
+            loc.sample,
         ),
     )
 end
@@ -131,11 +127,7 @@ function destined(fut, loc::Location)
             loc.dst_name,
             isnothing(fut_location) ? Dict{String,Any}() : fut_location.src_parameters,
             loc.dst_parameters,
-            (
-                isnothing(fut_location) ||
-                sample(loc.sample, :memory_usage) >
-                sample(fut_location.sample, :memory_usage)
-            ) ? loc.sample : fut_location.sample,
+            isnothing(fut_location) ? nothing : fut_location.sample,
         ),
     )
 end
@@ -886,6 +878,7 @@ function get_remote_table_location(remotepath, remote_location=nothing, remote_s
         # this if we are reading from this location. If we are writing some
         # value to some location that doesn't exist yet, we don't want to
         # change the sample or the sample rate.
+        # TODO: Don't set the sample or sample properties if we are merely trying to overwrite something.
         setsample!(remote_sample, :memory_usage, ceil(nbytes / remote_sample_rate))
         setsample!(remote_sample, :rate, remote_sample_rate)
     end
