@@ -279,6 +279,17 @@ function partitioned_computation(fut::AbstractFuture; destination, new_source=no
             if !isnothing(new_source)
                 sourced(fut, new_source)
             else
+                if destination.src_name == "None"
+                    # It is not guaranteed that this data can be used again.
+                    # In fact, this data - or rather, this value - can only be
+                    # used again if it is in memory. But because it is up to
+                    # the schedule to determine whether it is possible for the
+                    # data to fit in memory, we can't be sure that it will be
+                    # in memory. So this data should have first been written to
+                    # disk with `write_to_disk` and then only written to this
+                    # unreadable location.
+                    @warn "Value with ID $(fut.value_id) has been written to a location that cannot be used as a source and it is not on disk. Please do not attempt to use this value again. If you wish to use it again, please write it to disk with `write_to_disk` before writing it to a location."
+                end
                 sourced(fut, destination)
             end
         end

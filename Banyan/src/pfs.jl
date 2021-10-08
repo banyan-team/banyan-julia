@@ -1938,11 +1938,14 @@ function Rebalance(part, src_params, dst_params, comm)
     MPI.Alltoallv!(sendbuf, recvbuf, comm)
 
     # Return the concatenated array
+    things_to_concatenate = [
+        de(view(recvbuf.data, displ+1:displ+count)) for
+        (displ, count) in zip(recvbuf.displs, recvbuf.counts)
+    ]
+    @show things_to_concatenate
+    @show res
     res = cat(
-        [
-            de(view(recvbuf.data, displ+1:displ+count)) for
-            (displ, count) in zip(recvbuf.displs, recvbuf.counts)
-        ]...;
+        things_to_concatenate...;
         dims = dim,
     )
     # # # println("After rebalancing...")

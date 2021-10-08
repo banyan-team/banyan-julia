@@ -32,6 +32,8 @@
                     sub = filter(row -> row.sepal_width == 3.3, df)
                     sub2 = filter(row -> endswith(row.species, "8"), sub)
                     write_file(sub_save_path, sub)
+                    invalidate_location(sub2)
+                    invalidate_sample(sub2)
                     write_file(sub2_save_path, sub2)
                 else
                     sub = read_file(sub_save_path)
