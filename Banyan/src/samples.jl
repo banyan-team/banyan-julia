@@ -36,9 +36,12 @@ end
 
 ExactSample(value::Any = nothing; kwargs...) = Sample(value; sample_rate=1, kwargs...)
 
+# sample* functions always return a concrete value or a dict with properties.
+# To get a `Sample`, access the property.
+
 # TODO: Lazily compute samples by storing sample computation in a DAG if its
 # getting too expensive
-sample(fut::AbstractFuture) = sample(get_location(fut).sample)
+sample(fut::AbstractFuture) = sample(get_location(fut))
 sample(sample::Sample) = sample.value
 
 sample(fut::AbstractFuture, propertykeys...) = sample(get_location(fut).sample, propertykeys...)

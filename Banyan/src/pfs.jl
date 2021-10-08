@@ -1677,7 +1677,10 @@ function CopyFrom(
         println("At end of CopyFrom")
         res
     elseif loc_name == "Client" && get_partition_idx(batch_idx, nbatches, comm) == 1
-        receive_from_client(loc_params["value_id"])
+        received = receive_from_client(loc_params["value_id"])
+        println("In CopyFrom Client")
+        @show received
+        received
     elseif loc_name == "Memory"
         src
     end

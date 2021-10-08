@@ -40,12 +40,20 @@
                     sub2 = read_file(sub2_save_path)
                 end
 
+                @show i
+                @show sample(sub2)
+
                 # Collect results
                 sub_nrow = nrow(sub)
                 sub2_nrow = nrow(sub2)
+                @show sample(sub2)
                 sepal_length_sub_sum = round(collect(reduce(+, sub[:, :sepal_length])))
                 sepal_length_sub2_sum = round(collect((reduce(+, sub2[:, :sepal_length]))))
+                @show sample(sub2)
+                @show sample(df)
                 @show collect(sub2)
+                @show collect(sub2)
+                @show sample(sub2)
                 @show collect(sub2[:, [:species]])
                 sub2_species = Set(collect(sub2[:, [:species]])[:, :species])
 

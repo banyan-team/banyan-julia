@@ -66,6 +66,9 @@ function Base.hasproperty(loc::Location, name::Symbol)
     hasfield(Location, name) || haskey(loc.src_parameters, n) || haskey(loc.dst_parameters, n)
 end
 
+# Accessing the sample of a location
+sample(loc::Location) = sample(loc.sample)
+
 function to_jl(lt::Location)
     if is_debug_on()
         @show sample(lt.sample, :memory_usage)
@@ -100,6 +103,9 @@ function sourced(fut, loc::Location)
 
     fut::Future = convert(Future, fut)
     fut_location = get_location(fut)
+    # Every future must have a location unless this is the future constructor
+    # that's calling this and setting the source location without the
+    # desination being set yet.
     located(
         fut,
         Location(
@@ -107,7 +113,19 @@ function sourced(fut, loc::Location)
             isnothing(fut_location) ? "None" : fut_location.dst_name,
             loc.src_parameters,
             isnothing(fut_location) ? Dict{String,Any}() : fut_location.dst_parameters,
-            loc.sample,
+            if !isnothing(loc.sample.value)
+                # If this location is like some remote location, then we need
+                # a sample from it.
+                loc.sample
+            elseif !isnothing(fut_location)
+                # Maybe we are just declaring that this future is sourced from
+                # disk on the cluster. In that case, just use the existing
+                # location if there is one.
+                fut_location.sample
+            else
+                # Otherwise just make a fresh new sample.
+                Sample()
+            end,
         ),
     )
 end
@@ -126,7 +144,7 @@ function destined(fut, loc::Location)
             loc.dst_name,
             isnothing(fut_location) ? Dict{String,Any}() : fut_location.src_parameters,
             loc.dst_parameters,
-            isnothing(fut_location) ? nothing : fut_location.sample,
+            isnothing(fut_location) ? Sample() : fut_location.sample,
         ),
     )
 end
