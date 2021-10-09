@@ -191,7 +191,14 @@ function partitioned_computation(fut::AbstractFuture; destination, new_source=no
             # because of a `mutated(old, new)`
             if req isa DestroyRequest && !any(req.value_id in values(t.mutation) for t in tasks)
                 # If this value was to be downloaded to or uploaded from the
-                # client side, delete the reference to its data
+                # client side, delete the reference to its data. We do the
+                # `GC.gc()` before this and store `futures_on_client` in a
+                # `WeakKeyDict` just so that we can ensure that we can actually
+                # garbage-collect a value if it's done and only keep it around if
+                # a later call to `collect` it may happen and in that call to
+                # `collect` we will be using `partitioned_computation` to
+                # communicate with the executor and fill in the value for that
+                # future as needed and then return `the_future.value`.
                 if req.value_id in keys(job.futures_on_client)
                     delete!(job.futures_on_client, req.value_id)
                 end
@@ -231,6 +238,7 @@ function partitioned_computation(fut::AbstractFuture; destination, new_source=no
                 # Send scatter
                 value_id = message["value_id"]
                 f = job.futures_on_client[value_id]
+                @info "Received scatter request for value with ID $value_id and value $(f.value) with location $(get_location(f))"
                 send_message(
                     scatter_queue,
                     JSON.json(
@@ -247,10 +255,13 @@ function partitioned_computation(fut::AbstractFuture; destination, new_source=no
                 @debug "Received gather request"
                 # Receive gather
                 value_id = message["value_id"]
+                @info "Received gather request for $value_id"
+                @show value_id in keys(job.futures_on_client)
                 if value_id in keys(job.futures_on_client)
                     value = from_jl_value_contents(message["contents"])
                     f::Future = job.futures_on_client[value_id]
                     f.value = value
+                    @info "Received $(f.value)"
                     # TODO: Update stale/mutated here to avoid costly
                     # call to `send_evaluation`
                     @debug value
@@ -272,13 +283,31 @@ function partitioned_computation(fut::AbstractFuture; destination, new_source=no
         end
 
         # This is where we update the location source.
+        @show sample(fut)
         if is_merged_to_disk
             sourced(fut, Disk())
         else
             # TODO: If not still merged to disk, we need to lazily set the location source to something else
             if !isnothing(new_source)
                 sourced(fut, new_source)
+                @show new_source
+                @show sample(fut)
             else
+                # TODO: Maybe suppress this warning because while it may be
+                # useful for large datasets, it is going to come up for
+                # every aggregateion result value that doesn't have a source
+                # but is being computed with the Client as its location.
+                if destination.src_name == "None"
+                    # It is not guaranteed that this data can be used again.
+                    # In fact, this data - or rather, this value - can only be
+                    # used again if it is in memory. But because it is up to
+                    # the schedule to determine whether it is possible for the
+                    # data to fit in memory, we can't be sure that it will be
+                    # in memory. So this data should have first been written to
+                    # disk with `write_to_disk` and then only written to this
+                    # unreadable location.
+                    @warn "Value with ID $(fut.value_id) has been written to a location that cannot be used as a source and it is not on disk. Please do not attempt to use this value again. If you wish to use it again, please write it to disk with `write_to_disk` before writing it to a location."
+                end
                 sourced(fut, destination)
             end
         end
@@ -286,10 +315,16 @@ function partitioned_computation(fut::AbstractFuture; destination, new_source=no
         # Reset the location destination to its default. This is where we
         # update the location destination.
         destined(fut, None())
+        @show sample(fut)
     end
 
     # Reset the annotation for this partitioned computation
     set_task(DelayedTask())
+
+    # NOTE: One potential room for optimization is around the fact that
+    # whenever we compute something we fully merge it. In fully merging it,
+    # we spill it out of memory. Maybe it might be kept in memory and we don't
+    # need to set the new source of something being `collect`ed to `Client`.
 
     fut
 end
@@ -393,6 +428,11 @@ function Base.collect(fut::AbstractFuture)
 
     pt(fut, Replicated())
     partitioned_computation(fut, destination=Client())
+
+    # NOTE: We can't use `new_source=fut->Client(fut.value)` because
+    # we need to immediately change the location. The location will then be
+    # used to scatter the correct thing.
+    sourced(fut, Client(fut.value))
 
     fut.value
 end

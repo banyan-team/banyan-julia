@@ -41,9 +41,8 @@ LocationSource(name::String, parameters::Dict{String,<:Any}, sample::Sample = Sa
 
 LocationDestination(
     name::String,
-    parameters::Dict{String,<:Any},
-    sample::Sample = Sample(),
-) = Location("None", name, LocationParameters(), parameters, sample)
+    parameters::Dict{String,<:Any}
+) = Location("None", name, LocationParameters(), parameters)
 
 function Base.getproperty(loc::Location, name::Symbol)
     if hasfield(Location, name)
@@ -66,6 +65,9 @@ function Base.hasproperty(loc::Location, name::Symbol)
     n = string(name)
     hasfield(Location, name) || haskey(loc.src_parameters, n) || haskey(loc.dst_parameters, n)
 end
+
+# Accessing the sample of a location
+sample(loc::Location) = sample(loc.sample)
 
 function to_jl(lt::Location)
     if is_debug_on()
@@ -101,6 +103,9 @@ function sourced(fut, loc::Location)
 
     fut::Future = convert(Future, fut)
     fut_location = get_location(fut)
+    # Every future must have a location unless this is the future constructor
+    # that's calling this and setting the source location without the
+    # desination being set yet.
     located(
         fut,
         Location(
@@ -108,11 +113,19 @@ function sourced(fut, loc::Location)
             isnothing(fut_location) ? "None" : fut_location.dst_name,
             loc.src_parameters,
             isnothing(fut_location) ? Dict{String,Any}() : fut_location.dst_parameters,
-            (
-                isnothing(fut_location) ||
-                sample(loc.sample, :memory_usage) >
-                sample(fut_location.sample, :memory_usage)
-            ) ? loc.sample : fut_location.sample,
+            if !isnothing(loc.sample.value)
+                # If this location is like some remote location, then we need
+                # a sample from it.
+                loc.sample
+            elseif !isnothing(fut_location)
+                # Maybe we are just declaring that this future is sourced from
+                # disk on the cluster. In that case, just use the existing
+                # location if there is one.
+                fut_location.sample
+            else
+                # Otherwise just make a fresh new sample.
+                Sample()
+            end,
         ),
     )
 end
@@ -131,11 +144,7 @@ function destined(fut, loc::Location)
             loc.dst_name,
             isnothing(fut_location) ? Dict{String,Any}() : fut_location.src_parameters,
             loc.dst_parameters,
-            (
-                isnothing(fut_location) ||
-                sample(loc.sample, :memory_usage) >
-                sample(fut_location.sample, :memory_usage)
-            ) ? loc.sample : fut_location.sample,
+            isnothing(fut_location) ? Sample() : fut_location.sample,
         ),
     )
 end
@@ -315,12 +324,12 @@ getsamplenrows(totalnrows) =
 # Banyan is not aware of mutates the location. Locations should be
 # eventually stored and updated in S3 on each write.
 
-clear_locations() = rm(joinpath(homedir(), ".banyan", "locations"), force=true, recursive=true)
+clear_sources() = rm(joinpath(homedir(), ".banyan", "sources"), force=true, recursive=true)
 clear_samples() = rm(joinpath(homedir(), ".banyan", "samples"), force=true, recursive=true)
-invalidate_location(p) = rm(joinpath(homedir(), ".banyan", "locations", p |> hash |> string), force=true, recursive=true)
+invalidate_source(p) = rm(joinpath(homedir(), ".banyan", "sources", p |> hash |> string), force=true, recursive=true)
 invalidate_sample(p) = rm(joinpath(homedir(), ".banyan", "samples", p |> hash |> string), force=true, recursive=true)
 
-function Remote(p; shuffled=false, location_invalid = false, sample_invalid = false, invalidate_location = false, invalidate_sample = false)
+function RemoteSource(p; shuffled=false, source_invalid = false, sample_invalid = false, invalidate_source = false, invalidate_sample = false)
     # In the context of remote locations, the location refers to just the non-sample part of it; i.e., the
     # info about what files are in the dataset and how many rows they have.
 
@@ -343,7 +352,7 @@ function Remote(p; shuffled=false, location_invalid = false, sample_invalid = fa
     # number of rows in each file as well as a sample that can be used on the
     # client side for estimating memory usage and data skew among other things.
     # Get paths with cached locations and samples
-    locationspath = joinpath(homedir(), ".banyan", "locations")
+    locationspath = joinpath(homedir(), ".banyan", "sources")
     samplespath = joinpath(homedir(), ".banyan", "samples")
     locationpath = joinpath(locationspath, p |> hash |> string)
     samplepath = joinpath(samplespath, p |> hash |> string)
@@ -356,24 +365,24 @@ function Remote(p; shuffled=false, location_invalid = false, sample_invalid = fa
     end
 
     # Get cached location if it exists
-    remote_location = if isfile(locationpath) && !location_invalid
+    remote_source = if isfile(locationpath) && !source_invalid
         deserialize(locationpath)
     else
         nothing
     end
-    remote_location = get_remote_location(p, remote_location, remote_sample, shuffled=shuffled)
-    remote_sample = remote_location.sample
+    remote_source = get_remote_source(p, remote_source, remote_sample, shuffled=shuffled)
+    remote_sample = remote_source.sample
 
     # Store location in cache. The same logic below applies to having a
-    # `&& isempty(remote_location.files)` which effectively allows us
+    # `&& isempty(remote_source.files)` which effectively allows us
     # to reuse the location (computed files and row lengths) but only if the
     # location was actually already written to. If this is the first time we
-    # are calling `write_parquet` with `invalidate_location=false`, then
+    # are calling `write_parquet` with `invalidate_source=false`, then
     # the location will not be saved. But on future writes, the first write's
     # location will be used.
-    if !invalidate_location && remote_location.nbytes > 0
+    if !invalidate_source && remote_source.nbytes > 0
         mkpath(locationspath)
-        serialize(locationpath, remote_location)
+        serialize(locationpath, remote_source)
     else
         rm(locationpath, force=true, recursive=true)
     end
@@ -391,20 +400,31 @@ function Remote(p; shuffled=false, location_invalid = false, sample_invalid = fa
         rm(samplepath, force=true, recursive=true)
     end
 
-    remote_location
+    remote_source
 end
 
-function get_remote_location(remotepath, remote_location=nothing, remote_sample=nothing; shuffled=false)::Location
+function RemoteDestination(p; invalidate_source = true, invalidate_sample = true)
+    if invalidate_source
+        rm(joinpath(homedir(), ".banyan", "sources", p |> hash |> string), force=true, recursive=true)
+    end
+    if invalidate_sample
+        rm(joinpath(homedir(), ".banyan", "samples", p |> hash |> string), force=true, recursive=true)
+    end
+
+    get_remote_destination(p)
+end
+
+function get_remote_source(remotepath, remote_source=nothing, remote_sample=nothing; shuffled=false)::Location
     if isnothing(remote_sample)
-        @info "Collecting sample from $remotepath\n\nThis will take some time but the sample will be cached for future use. Note that writing to this location will invalidate the cached sample."
-    elseif isnothing(remote_location)
+        @info "Collecting sample from $remotepath. This will take some time but the sample will be cached for future use. Note that writing to this location may invalidate the cached sample."
+    elseif isnothing(remote_source)
         @info "Collecting location information about $remotepath. This will take some time."
     end
 
     # If both the location and sample are already cached, just return them
-    if !isnothing(remote_location) && !isnothing(remote_sample)
-        remote_location.sample = remote_sample
-        return remote_location
+    if !isnothing(remote_source) && !isnothing(remote_sample)
+        remote_source.sample = remote_sample
+        return remote_source
     end
 
     # This is so that we can make sure that any random selection fo rows is
@@ -423,13 +443,32 @@ function get_remote_location(remotepath, remote_location=nothing, remote_sample=
     
     # Return either an HDF5 location or a table location
     if isa_hdf5
-        get_remote_hdf5_location(remotepath, hdf5_ending, remote_location, remote_sample; shuffled=shuffled)
+        get_remote_hdf5_source(remotepath, hdf5_ending, remote_source, remote_sample; shuffled=shuffled)
     else
-        get_remote_table_location(remotepath, remote_location, remote_sample; shuffled=shuffled)
+        get_remote_table_source(remotepath, remote_source, remote_sample; shuffled=shuffled)
     end
 end
 
-function get_remote_hdf5_location(remotepath, hdf5_ending, remote_location=nothing, remote_sample=nothing; shuffled=false)::Location
+function get_remote_destination(remotepath)::Location
+    # Detect whether this is an HDF5 file
+    hdf5_ending = if occursin(".h5", remotepath)
+        ".h5"
+    elseif occursin(".hdf5", remotepath)
+        ".hdf5"
+    else
+        ""
+    end
+    isa_hdf5 = hdf5_ending != ""
+
+    # Return either an HDF5 location or a table location
+    if isa_hdf5
+        get_remote_hdf5_destination(remotepath)
+    else
+        get_remote_table_destination(remotepath)
+    end
+end
+
+function get_remote_hdf5_source(remotepath, hdf5_ending, remote_source=nothing, remote_sample=nothing; shuffled=false)::Location
     # Get the actual path by removing the dataset from the path
     remotepath, datasetpath = if hdf5_ending == ""
         remotepath, nothing
@@ -560,10 +599,6 @@ function get_remote_hdf5_location(remotepath, hdf5_ending, remote_location=nothi
         @show metadata_for_reading
     end
 
-    # Load metadata for writing to HDF5 file
-    loc_for_writing, metadata_for_writing =
-        ("Remote", Dict("path" => remotepath, "subpath" => datasetpath, "nbytes" => 0))
-
     # Get the remote sample
     if isnothing(remote_sample)
         remote_sample = if isnothing(loc_for_reading)
@@ -576,12 +611,21 @@ function get_remote_hdf5_location(remotepath, hdf5_ending, remote_location=nothi
     end
 
     # Construct location with metadata
-    return Location(
+    LocationSource(
         loc_for_reading,
-        loc_for_writing,
         metadata_for_reading,
-        metadata_for_writing,
         remote_sample,
+    )
+end
+
+function get_remote_hdf5_destination(remotepath)
+    # Load metadata for writing to HDF5 file
+    loc_for_writing, metadata_for_writing =
+        ("Remote", Dict("path" => remotepath, "subpath" => datasetpath, "nbytes" => 0))
+
+    LocationDestination(
+        loc_for_writing,
+        metadata_for_writing
     )
 end
 
@@ -602,8 +646,8 @@ get_csv_chunks(localfilepathp) =
         end
     end
 
-function get_remote_table_location(remotepath, remote_location=nothing, remote_sample=nothing; shuffled=false)::Location
-    # `remote_location` and `remote_sample` might be non-null indicating that
+function get_remote_table_source(remotepath, remote_source=nothing, remote_sample=nothing; shuffled=false)::Location
+    # `remote_source` and `remote_sample` might be non-null indicating that
     # we need to reuse a location or a sample (but not both since then the
     # `Remote` constructor would have just returned the location).
     # 
@@ -619,9 +663,9 @@ function get_remote_table_location(remotepath, remote_location=nothing, remote_s
 
     # Initialize location parameters with the case that we already have a
     # location
-    files = isnothing(remote_location) ? [] : remote_location.files
-    totalnrows = isnothing(remote_location) ? 0 : remote_location.nrows
-    nbytes = isnothing(remote_location) ? 0 : remote_location.nbytes
+    files = isnothing(remote_source) ? [] : remote_source.files
+    totalnrows = isnothing(remote_source) ? 0 : remote_source.nrows
+    nbytes = isnothing(remote_source) ? 0 : remote_source.nbytes
 
     # Determine whether this is a directory
     p_isfile = isfile(p)
@@ -694,7 +738,7 @@ function get_remote_table_location(remotepath, remote_location=nothing, remote_s
                     chunkdf = chunk |> DataFrames.DataFrame
                     chunknrows = nrow(chunkdf)
                     filenrows += chunknrows
-                    if isnothing(remote_location)
+                    if isnothing(remote_source)
                         totalnrows += chunknrows
                     end
 
@@ -726,7 +770,7 @@ function get_remote_table_location(remotepath, remote_location=nothing, remote_s
                         GC.gc()
                     end
                 end
-            elseif isnothing(remote_location)
+            elseif isnothing(remote_source)
                 # Even if the data is shuffled, we will collect location
                 # information that can subsequently be used in the second
                 # pass to read in files until we have a sample.
@@ -751,7 +795,7 @@ function get_remote_table_location(remotepath, remote_location=nothing, remote_s
             end
 
             # Add to list of file metadata
-            if isnothing(remote_location)
+            if isnothing(remote_source)
                 push!(
                     files,
                     Dict(
@@ -838,16 +882,16 @@ function get_remote_table_location(remotepath, remote_location=nothing, remote_s
 
     # Re-compute the number of bytes. Even if we are reusing a location, we go
     # ahead and re-compute the sample. Someone may have written data with
-    # `invalidate_location=false` but `shuffled=true` (perhaps the only thing
+    # `invalidate_source=false` but `shuffled=true` (perhaps the only thing
     # they changed was adding a column and somehow they ensured that the same
     # data got written to the same files) and so we want to estimate the total
     # memory usage using a newly collected sample but the same `totalnrow` we
     # already know from the reused location.
     remote_sample_value = isnothing(remote_sample) ? randomsample : remote_sample.value
-    remote_sample_rate = totalnrows / nrow(remote_sample_value)
+    remote_sample_rate = totalnrows > 0 ? totalnrows / nrow(remote_sample_value) : 1.0
     nbytes = ceil(total_memory_usage(remote_sample_value) * remote_sample_rate)
 
-    @show isnothing(remote_location)
+    @show isnothing(remote_source)
     @show isnothing(remote_sample)
     @show nbytes
 
@@ -867,11 +911,6 @@ function get_remote_table_location(remotepath, remote_location=nothing, remote_s
         ("None", Dict{String,Any}())
     end
 
-    # Load metadata for writing
-    # NOTE: `remotepath` should end with `.parquet` or `.csv` if Parquet
-    # or CSV dataset is desired to be created
-    loc_for_writing, metadata_for_writing = ("Remote", Dict("path" => remotepath, "files" => [], "nrows" => 0, "nbytes" => 0))
-
     # Get remote sample
     if isnothing(remote_sample)
         remote_sample = if isnothing(loc_for_reading)
@@ -886,6 +925,7 @@ function get_remote_table_location(remotepath, remote_location=nothing, remote_s
         # this if we are reading from this location. If we are writing some
         # value to some location that doesn't exist yet, we don't want to
         # change the sample or the sample rate.
+        # TODO: Don't set the sample or sample properties if we are merely trying to overwrite something.
         setsample!(remote_sample, :memory_usage, ceil(nbytes / remote_sample_rate))
         setsample!(remote_sample, :rate, remote_sample_rate)
     end
@@ -898,11 +938,18 @@ function get_remote_table_location(remotepath, remote_location=nothing, remote_s
     cleanup_tmp()
 
     # Construct location with metadata
-    Location(
+    LocationSource(
         loc_for_reading,
-        loc_for_writing,
         metadata_for_reading,
-        metadata_for_writing,
         remote_sample,
     )
+end
+
+function get_remote_table_destination(remotepath)
+    # Load metadata for writing
+    # NOTE: `remotepath` should end with `.parquet` or `.csv` if Parquet
+    # or CSV dataset is desired to be created
+    loc_for_writing, metadata_for_writing = ("Remote", Dict("path" => remotepath, "files" => [], "nrows" => 0, "nbytes" => 0))
+
+    LocationDestination(loc_for_writing, metadata_for_writing)
 end

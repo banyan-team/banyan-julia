@@ -54,8 +54,8 @@ export sample_memory_usage,
 
 # Locations
 export Location, LocationSource, LocationDestination, located, sourced, destined
-export Value, Size, Client, Disk, None, Remote
-export clear_locations, clear_samples, invalidate_location, invalidate_sample
+export Value, Size, Client, Disk, None, RemoteSource, RemoteDestination
+export clear_sources, clear_samples, invalidate_source, invalidate_sample
 
 # Serialization
 export from_jl_value_contents, to_jl_value_contents
