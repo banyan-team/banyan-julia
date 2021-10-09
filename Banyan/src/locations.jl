@@ -414,6 +414,32 @@ function RemoteDestination(p; invalidate_source = true, invalidate_sample = true
     get_remote_destination(p)
 end
 
+function extract_dataset_path(remotepath)
+    # Detect whether this is an HDF5 file
+    hdf5_ending = if occursin(".h5", remotepath)
+        ".h5"
+    elseif occursin(".hdf5", remotepath)
+        ".hdf5"
+    else
+        ""
+    end
+    isa_hdf5 = hdf5_ending != ""
+
+    # Get the actual path by removing the dataset from the path
+    remotepath, datasetpath = if hdf5_ending == ""
+        remotepath, nothing
+    else
+        remotepath, datasetpath = split(remotepath, hdf5_ending)
+        remotepath *= hdf5_ending # Add back the file extension
+        datasetpath = datasetpath[2:end] # Chop off the /
+        # NOTE: It's critical that we convert `datasetpath` from a SubString
+        # to a String because then the `haspath` on an `HDF5.File` will fail
+        remotepath, String(datasetpath)
+    end
+
+    remotepath, datasetpath, isa_hdf5
+end
+
 function get_remote_source(remotepath, remote_source=nothing, remote_sample=nothing; shuffled=false)::Location
     if isnothing(remote_sample)
         @info "Collecting sample from $remotepath. This will take some time but the sample will be cached for future use. Note that writing to this location may invalidate the cached sample."
@@ -431,56 +457,30 @@ function get_remote_source(remotepath, remote_source=nothing, remote_sample=noth
     # deterministic. Might not be needed...
     Random.seed!(hash(get_job_id()))
 
-    # Detect whether this is an HDF5 file
-    hdf5_ending = if occursin(".h5", remotepath)
-        ".h5"
-    elseif occursin(".hdf5", remotepath)
-        ".hdf5"
-    else
-        ""
-    end
-    isa_hdf5 = hdf5_ending != ""
+    # Handle HDF5 paths (which include the dataset in the path)
+    remotepath, datasetpath, isa_hdf5 = extract_dataset_path(remotepath)
     
     # Return either an HDF5 location or a table location
     if isa_hdf5
-        get_remote_hdf5_source(remotepath, hdf5_ending, remote_source, remote_sample; shuffled=shuffled)
+        get_remote_hdf5_source(remotepath, datasetpath, remote_source, remote_sample; shuffled=shuffled)
     else
         get_remote_table_source(remotepath, remote_source, remote_sample; shuffled=shuffled)
     end
 end
 
 function get_remote_destination(remotepath)::Location
-    # Detect whether this is an HDF5 file
-    hdf5_ending = if occursin(".h5", remotepath)
-        ".h5"
-    elseif occursin(".hdf5", remotepath)
-        ".hdf5"
-    else
-        ""
-    end
-    isa_hdf5 = hdf5_ending != ""
+    # Handle HDF5 paths (which include the dataset in the path)
+    remotepath, datasetpath, isa_hdf5 = extract_dataset_path(remotepath)
 
     # Return either an HDF5 location or a table location
     if isa_hdf5
-        get_remote_hdf5_destination(remotepath)
+        get_remote_hdf5_destination(remotepath, datasetpath)
     else
         get_remote_table_destination(remotepath)
     end
 end
 
-function get_remote_hdf5_source(remotepath, hdf5_ending, remote_source=nothing, remote_sample=nothing; shuffled=false)::Location
-    # Get the actual path by removing the dataset from the path
-    remotepath, datasetpath = if hdf5_ending == ""
-        remotepath, nothing
-    else
-        remotepath, datasetpath = split(remotepath, hdf5_ending)
-        remotepath *= hdf5_ending # Add back the file extension
-        datasetpath = datasetpath[2:end] # Chop off the /
-        # NOTE: It's critical that we convert `datasetpath` from a SubString
-        # to a String because then the `haspath` on an `HDF5.File` will fail
-        remotepath, String(datasetpath)
-    end
-
+function get_remote_hdf5_source(remotepath, datasetpath, remote_source=nothing, remote_sample=nothing; shuffled=false)::Location
     # TODO: Cache stuff
     p = download_remote_path(remotepath)
 
@@ -618,7 +618,7 @@ function get_remote_hdf5_source(remotepath, hdf5_ending, remote_source=nothing, 
     )
 end
 
-function get_remote_hdf5_destination(remotepath)
+function get_remote_hdf5_destination(remotepath, datasetpath)
     # Load metadata for writing to HDF5 file
     loc_for_writing, metadata_for_writing =
         ("Remote", Dict("path" => remotepath, "subpath" => datasetpath, "nbytes" => 0))
