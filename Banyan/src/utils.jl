@@ -418,17 +418,6 @@ end
 # FILES #
 #########
 
-function getnormpath(banyanfile_path, p)
-    if startswith(p, "file://")
-        prefix, suffix = split(banyanfile_path, "://")
-        banyanfile_location_path = dirname(suffix)
-        @debug banyanfile_location_path
-        prefix * "://" * normpath(banyanfile_location_path, last(split(p, "://")))
-    else
-        p
-    end
-end
-
 function load_json(path::String)
     if startswith(path, "file://")
         if !isfile(path[8:end])

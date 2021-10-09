@@ -316,6 +316,7 @@ function ReadGroup(
     rev = params["rev"] # Passed in ReadBlock
     nworkers = get_nworkers(comm)
     npartitions = nworkers * nbatches
+    @show divisions
     partition_divisions = get_divisions(divisions, npartitions)
 
     # TODO: Do some reversing here instead of only doing it later in Shuffle
