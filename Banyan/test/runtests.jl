@@ -191,7 +191,8 @@ end
 
 include("sample_collection.jl")
 include("sample_computation.jl")
-include("test_jobs.jl")
+include("clusters.jl")
+include("jobs.jl")
 
 try
     runtests(Regex.(ARGS)...)
