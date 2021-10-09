@@ -57,7 +57,7 @@ function Base.getproperty(loc::Location, name::Symbol)
     elseif haskey(loc.dst_parameters, n)
         loc.dst_parameters[n]
     else
-        error("$name not found in location parameters")
+        error("$name not found among location source $(loc.src_name) with parameters $(loc.src_parameters) and destination $(loc.dst_name) with parameters $(loc.dst_parameters)")
     end
 end
 
@@ -370,6 +370,9 @@ function RemoteSource(p; shuffled=false, source_invalid = false, sample_invalid 
     else
         nothing
     end
+    @show remote_source
+    @show remote_sample
+    @show p
     remote_source = get_remote_source(p, remote_source, remote_sample, shuffled=shuffled)
     remote_sample = remote_source.sample
 
@@ -380,7 +383,7 @@ function RemoteSource(p; shuffled=false, source_invalid = false, sample_invalid 
     # are calling `write_parquet` with `invalidate_source=false`, then
     # the location will not be saved. But on future writes, the first write's
     # location will be used.
-    if !invalidate_source && remote_source.nbytes > 0
+    if !invalidate_source && remote_source.src_name == "Remote" && remote_source.nbytes > 0
         mkpath(locationspath)
         serialize(locationpath, remote_source)
     else
