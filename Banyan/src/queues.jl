@@ -84,7 +84,6 @@ function receive_from_client(value_id)
     )
     # Receive response from client
     m = JSON.parse(get_next_message(get_scatter_queue()))
-    @show m
     v = from_jl_value_contents(m["contents"])
     v
 end

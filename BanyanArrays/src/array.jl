@@ -159,6 +159,7 @@ Banyan.sample_max(A::U, key) where U <: Base.AbstractArray{T,N} where {T,N} = ma
 
 function read_hdf5(path; kwargs...)
     A_loc = RemoteSource(path; kwargs...)
+    A_loc.src_name == "Remote" || error("$path does not exist")
     if is_debug_on()
         # @show A_loc.src_parameters
         # @show A_loc.size

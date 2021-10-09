@@ -80,7 +80,7 @@ function ReadBlock(
     # # # # @showHDF5.ishdf5(loc_params["path"])
     println("Reading a block with $path from $loc_name with batch_idx=$batch_idx")
     if (loc_name == "Disk" && HDF5.ishdf5(path)) ||
-       (loc_name == "Remote" && (occursin(".h5", path) || occursin(".hdf5", path)))
+       (loc_name == "Remote" && (occursin(".h5", loc_params["path"]) || occursin(".hdf5", loc_params["path"])))
         f = h5open(path, "r")
         # # # @showkeys(f)
         dset = loc_name == "Disk" ? f["part"] : f[loc_params["subpath"]]
@@ -191,7 +191,7 @@ function ReadBlock(
                     filerowrange.stop,
                 )
             header = 1
-            if endswith(path, ".csv")
+            if endswith(file["path"], ".csv")
                 # # # @showisdir("/home/ec2-user/s3fs/")
                 # # # @showisdir("/home/ec2-user/s3fs/banyan-cluster-data-pumpkincluster02-f47c1c35/")
                 # # # @showisfile("/home/ec2-user/s3fs/banyan-cluster-data-pumpkincluster02-f47c1c35/iris_large.csv")
@@ -238,14 +238,14 @@ function ReadBlock(
                 f = nothing
                 GC.gc(true)
                 format_available_memory()
-            elseif endswith(path, ".parquet")
+            elseif endswith(file["path"], ".parquet")
                 f = Parquet.read_parquet(
                     path,
                     rows = (readrange.start-filerowrange.start+1):(readrange.stop-filerowrange.start+1),
                 )
                 push!(dfs, DataFrames.DataFrame(f))
                 # push!(dfs, DataFrame(Arrow.Table(Arrow.tobuffer(f))))
-            elseif endswith(path, ".arrow")
+            elseif endswith(file["path"], ".arrow")
                 println("Reading from $path on batch $batch_idx")
                 rbrowrange = filerowrange.start:(filerowrange.start-1)
                 for tbl in Arrow.Stream(path)
@@ -1677,8 +1677,9 @@ function CopyFrom(
         res = ReadBlock(src, params, 1, 1, MPI.COMM_SELF, loc_name, loc_params)
         println("At end of CopyFrom")
         res
-    elseif loc_name == "Client" && get_partition_idx(batch_idx, nbatches, comm) == 1
-        received = receive_from_client(loc_params["value_id"])
+    elseif loc_name == "Client"
+        received = get_worker_idx(comm) == 1 ? receive_from_client(loc_params["value_id"]) : nothing
+        received = MPI.bcast(received, 0, comm)
         println("In CopyFrom Client")
         # # @showreceived
         @show received
