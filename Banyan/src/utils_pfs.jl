@@ -464,7 +464,7 @@ function getpath(path)
         # TODO: Add option for Internet locations as to whether or not to
         # cache on disk
         hashed_path = string(hash(path))
-        joined_path = "efs/banyan_dataset_" * hashed_path
+        joined_path = "efs/banyan_dataset_" * hashed_path * "." * last(split(path, "."))
         if !isfile(joined_path)
             # NOTE: Even though we are storing in /tmp, this is
             # effectively caching the download. If this is undesirable
