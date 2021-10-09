@@ -1677,8 +1677,9 @@ function CopyFrom(
         res = ReadBlock(src, params, 1, 1, MPI.COMM_SELF, loc_name, loc_params)
         println("At end of CopyFrom")
         res
-    elseif loc_name == "Client" && get_partition_idx(batch_idx, nbatches, comm) == 1
-        received = receive_from_client(loc_params["value_id"])
+    elseif loc_name == "Client"
+        received = get_worker_idx(comm) == 1 ? receive_from_client(loc_params["value_id"]) : nothing
+        received = MPI.bcast(received, 0, comm)
         println("In CopyFrom Client")
         # # @showreceived
         @show received
