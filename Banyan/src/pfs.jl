@@ -191,7 +191,7 @@ function ReadBlock(
                     filerowrange.stop,
                 )
             header = 1
-            if endswith(path, ".csv")
+            if endswith(file["path"], ".csv")
                 # # # @showisdir("/home/ec2-user/s3fs/")
                 # # # @showisdir("/home/ec2-user/s3fs/banyan-cluster-data-pumpkincluster02-f47c1c35/")
                 # # # @showisfile("/home/ec2-user/s3fs/banyan-cluster-data-pumpkincluster02-f47c1c35/iris_large.csv")
@@ -238,14 +238,14 @@ function ReadBlock(
                 f = nothing
                 GC.gc(true)
                 format_available_memory()
-            elseif endswith(path, ".parquet")
+            elseif endswith(file["path"], ".parquet")
                 f = Parquet.read_parquet(
                     path,
                     rows = (readrange.start-filerowrange.start+1):(readrange.stop-filerowrange.start+1),
                 )
                 push!(dfs, DataFrames.DataFrame(f))
                 # push!(dfs, DataFrame(Arrow.Table(Arrow.tobuffer(f))))
-            elseif endswith(path, ".arrow")
+            elseif endswith(file["path"], ".arrow")
                 println("Reading from $path on batch $batch_idx")
                 rbrowrange = filerowrange.start:(filerowrange.start-1)
                 for tbl in Arrow.Stream(path)
