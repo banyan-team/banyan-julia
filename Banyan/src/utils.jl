@@ -475,7 +475,7 @@ function get_loaded_packages()
     modules = map(
         m -> string(m),
         filter(
-            m -> Main.eval(m) isa Module && !(m in [:Main, :Base, :Core]),
+            m -> Main.eval(m) isa Module && !(m in [:Main, :Base, :Core, :InteractiveUtils, :IJulia]),
             names(Main, imported=true)
         )
     )
