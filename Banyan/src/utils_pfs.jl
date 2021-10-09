@@ -182,7 +182,7 @@ end
 # equally-sized numbers
 # NOTE: This is an "order-preserving hash function" (google that for more info)
 orderinghash(x::Any) = x # This lets us handle numbers and dates
-orderinghash(s::String) = Integer.(codeunits(first(s, 32) * repeat(" ", 32-length(s))))
+orderinghash(s::AbstractString) = Integer.(codeunits(first(s, 32) * repeat(" ", 32-length(s))))
 orderinghash(A::AbstractArray) = orderinghash(first(A))
 
 to_vector(v::Vector) = v
