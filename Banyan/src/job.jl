@@ -4,6 +4,8 @@ mutable struct Job
     sample_rate::Int32
     locations::Dict{ValueId,Location}
     pending_requests::Vector{Request}
+    # This is a `WeakKeyDict` so that futures can be GC-ed as long as all
+    # references elsewhere are gone.
     futures_on_client::WeakKeyDict{ValueId,Future}
     cluster_name::String
     current_status::String

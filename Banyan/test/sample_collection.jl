@@ -40,32 +40,32 @@
 
         # Construct location
         if reusing != "nothing"
-            Remote(src_name, location_invalid = true, sample_invalid = true)
+            Remote(src_name, source_invalid = true, sample_invalid = true)
         end
-        remote_location = Remote(
+        remote_source = Remote(
             src_name,
-            location_invalid = (reusing == "nothing" || reusing == "sample"),
+            source_invalid = (reusing == "nothing" || reusing == "sample"),
             sample_invalid = (reusing == "nothing" || reusing == "location"),
             shuffled = with_or_without_shuffled == "with",
         )
 
         # Verify the location
         if contains(src_name, "h5")
-            @test remote_location.ndims == 2
-            @test !contains(remote_location.path, "DS1")
-            @test remote_location.subpath == "DS1"
-            @test remote_location.size[1] == src_nrows
+            @test remote_source.ndims == 2
+            @test !contains(remote_source.path, "DS1")
+            @test remote_source.subpath == "DS1"
+            @test remote_source.size[1] == src_nrows
         else
-            @test remote_location.nbytes > 0
-            @test remote_location.nrows == src_nrows
+            @test remote_source.nbytes > 0
+            @test remote_source.nrows == src_nrows
 
             if contains(src_name, "dir")
-                @test length(remote_location.files) == 10
-                for f in remote_location.files
+                @test length(remote_source.files) == 10
+                for f in remote_source.files
                     @test f["nrows"] == 150
                 end
             else
-                @test length(remote_location.files) == 1
+                @test length(remote_source.files) == 1
             end
         end
 
@@ -74,8 +74,8 @@
 
         # Verify the sample
         sample_nrows =
-            contains(src_name, "h5") ? size(remote_location.sample.value, 1) :
-            nrow(remote_location.sample.value)
+            contains(src_name, "h5") ? size(remote_source.sample.value, 1) :
+            nrow(remote_source.sample.value)
         if exact_or_inexact == "Exact"
             @test sample_nrows == src_nrows
         else
