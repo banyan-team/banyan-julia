@@ -80,7 +80,7 @@ function ReadBlock(
     # # # @show HDF5.ishdf5(loc_params["path"])
     println("Reading a block with $path from $loc_name with batch_idx=$batch_idx")
     if (loc_name == "Disk" && HDF5.ishdf5(path)) ||
-       (loc_name == "Remote" && (occursin(".h5", path) || occursin(".hdf5", path)))
+       (loc_name == "Remote" && (occursin(".h5", loc_params["path"]) || occursin(".hdf5", loc_params["path"])))
         f = h5open(path, "r")
         # # @show keys(f)
         dset = loc_name == "Disk" ? f["part"] : f[loc_params["subpath"]]
