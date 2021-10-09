@@ -2,6 +2,9 @@
 # Futures #
 ###########
 
+# Every future does have a location assigned to it: both a source and a
+# location.
+
 """
     Future()
     Future(value::Any)
@@ -102,6 +105,5 @@ end
 # convert(::Type{Future}, value::Any) = Future(value)
 convert(::Type{Future}, fut::Future) = fut
 
-get_location(fut::AbstractFuture) = get(get_job().locations, convert(Future, fut).value_id, nothing)
 get_location(value_id::ValueId) = get(get_job().locations, value_id, nothing)
-get_future(value_id::ValueId) = get_job().futures_on_client[value_id]
+get_location(fut::AbstractFuture) = get_location(convert(Future, fut).value_id)

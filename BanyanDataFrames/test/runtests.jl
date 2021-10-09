@@ -1,6 +1,10 @@
+using BanyanDataFrames
+using BanyanArrays
+using Banyan
 using ReTest
-using Banyan, BanyanDataFrames
 using FilePathsBase, AWSS3, DataFrames, CSV, Parquet, Arrow
+using LibGit2
+using Random
 
 global jobs_for_testing = Dict()
 
@@ -10,6 +14,14 @@ function destroy_all_jobs_for_testing()
         destroy_job(job_id)
         delete!(jobs_for_testing, job_config_hash)
     end
+end
+
+function get_branch_name()
+    prepo = LibGit2.GitRepo(realpath(joinpath(@__DIR__, "../..")))
+    phead = LibGit2.head(prepo)
+    branchname = LibGit2.shortname(phead)
+    @info "Running tests with banyan-julia repository checked out to branch $branchname"
+    branchname
 end
 
 function use_job_for_testing(
@@ -38,9 +50,18 @@ function use_job_for_testing(
             create_job(
                 cluster_name = ENV["BANYAN_CLUSTER_NAME"],
                 nworkers = 2,
-                banyanfile_path = "file://res/Banyanfile.json",
                 sample_rate = sample_rate,
-                return_logs = true,
+                print_logs = true,
+                url = "https://github.com/banyan-team/banyan-julia.git",
+                branch = get(ENV, "BANYAN_JULIA_BRANCH", get_branch_name()),
+                directory = "banyan-julia/BanyanDataFrames/test",
+                dev_paths = [
+                    "banyan-julia/Banyan",
+                    "banyan-julia/BanyanArrays",
+                    "banyan-julia/BanyanDataFrames"
+                ],
+                force_pull = true,
+                store_logs_on_cluster=get(ENV, "BANYAN_STORE_LOGS_ON_CLUSTER", "0") == "1"
             )
         end,
     )
@@ -74,6 +95,8 @@ function use_job_for_testing(
 end
 
 include("utils_data.jl")
+include("groupby_filter_indexing.jl")
+include("test_jobs.jl")
 
 function use_data(file_extension, remote_kind, single_file)
     # TODO: Handle case where file_extension == "hdf5" and single_file=false
@@ -90,7 +113,7 @@ function use_data(file_extension, remote_kind, single_file)
     url = if file_extension_is_hdf5
         "https://support.hdfgroup.org/ftp/HDF5/examples/files/exbyapi/h5ex_d_fillval.h5"
     elseif file_extension_is_table
-        "https://gist.githubusercontent.com/curran/a08a1080b88344b0c8a7/raw/0e7a9b0a5d22642a06d3d5b9bcbad9890c8ee534/iris.csv"
+        "https://raw.githubusercontent.com/banyan-team/banyan-julia/v0.1.3/BanyanDataFrames/test/res/iris.csv"
     else
         error("Unsupported file extension: $file_extension")
     end

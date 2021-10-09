@@ -46,7 +46,7 @@ function setup_basic_tests(bucket_name)
     ]
     if !isempty(to_be_downloaded)
         @info "Downloading $to_be_downloaded"
-        iris_download_path = "https://gist.githubusercontent.com/curran/a08a1080b88344b0c8a7/raw/0e7a9b0a5d22642a06d3d5b9bcbad9890c8ee534/iris.csv"
+        iris_download_path = "https://raw.githubusercontent.com/banyan-team/banyan-julia/v0.1.3/BanyanDataFrames/test/res/iris.csv"
         iris_species_info_download_path = "https://raw.githubusercontent.com/banyan-team/banyan-julia/v0.1.3/BanyanDataFrames/test/res/iris_species_info.csv"
         iris_local_path = download(iris_download_path)
         iris_species_info_local_path = download(iris_species_info_download_path)

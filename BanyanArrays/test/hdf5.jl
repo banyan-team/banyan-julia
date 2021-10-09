@@ -3,20 +3,21 @@
     "parallelism encouraged",
     "parallelism and batches encouraged",
 ]
-    use_job_for_testing(scheduling_config_name = scheduling_config)
-    use_data()
+    use_job_for_testing(scheduling_config_name = scheduling_config) do
+        use_data()
 
-    x = read_hdf5(joinpath(get_cluster_s3_bucket_name(), "fillval.h5/DS1"))
+        x = read_hdf5(joinpath("s3://", get_cluster_s3_bucket_name(), "fillval.h5/DS1"))
 
-    # Test basic case of reading from remote file
-    x_length_collect = length(x)
-    @test x_length_collect == 600000
-    x_size_collect = size(x)
-    @test x_size_collect == (1000, 600)
-    x_sum_collect = collect(sum(x))
-    @test x_sum_collect == 32100000
-    x_sum_collect = collect(sum(x))
-    @test x_sum_collect == 32100000
+        # Test basic case of reading from remote file
+        x_length_collect = length(x)
+        @test x_length_collect == 600000
+        x_size_collect = size(x)
+        @test x_size_collect == (1000, 600)
+        x_sum_collect = collect(sum(x))
+        @test x_sum_collect == 32100000
+        x_sum_collect = collect(sum(x))
+        @test x_sum_collect == 32100000
+    end
 end
 
 @testset "Reading/writing 2D arrays with HDF5 in $src with $scheduling_config" for scheduling_config in
@@ -35,7 +36,7 @@ end
         # TODO: Make this more general by creating S3 bucket and uploading
         # file from test/res for testing
         # TODO: Use version of `pt_lib_info.json` with replication actually removed
-        path = if "Internet"
+        path = if src == "Internet"
             # TODO: Test Internet
             # "https://github.com/banyan-team/banyan-julia/blob/v0.1.1/BanyanArrays/test/res/fillval.h5?raw=true",
             "https://github.com/banyan-team/banyan-julia/raw/v0.1.1/BanyanArrays/test/res/fillval.h5"
@@ -46,7 +47,7 @@ end
             # h5ex_d_fillval.h5 \
             # s3://banyan-cluster-data-pumpkincluster0-3e15290827c0c584/fillval.h5
             # Then, repeat the dataset by (100, 100)
-            joinpath(get_cluster_s3_bucket_name(), "fillval.h5")
+            joinpath("s3://", get_cluster_s3_bucket_name(), "fillval.h5")
         end
 
         # Perform computation

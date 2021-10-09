@@ -158,7 +158,8 @@ Banyan.sample_max(A::U, key) where U <: Base.AbstractArray{T,N} where {T,N} = ma
 # Array creation
 
 function read_hdf5(path; kwargs...)
-    A_loc = Remote(path; kwargs...)
+    A_loc = RemoteSource(path; kwargs...)
+    A_loc.src_name == "Remote" || error("$path does not exist")
     if is_debug_on()
         # @show A_loc.src_parameters
         # @show A_loc.size
@@ -167,7 +168,7 @@ function read_hdf5(path; kwargs...)
     Array{A_loc.eltype,A_loc.ndims}(A, Future(A_loc.size))
 end
 
-function write_hdf5(A, path; invalidate_location=true, invalidate_sample=true, kwargs...)
+function write_hdf5(A, path; invalidate_source=true, invalidate_sample=true, kwargs...)
     # # A_loc = Remote(pathname, mount)
     # destined(A, Remote(path, delete_from_cache=true))
     # mutated(A)
@@ -189,8 +190,8 @@ function write_hdf5(A, path; invalidate_location=true, invalidate_sample=true, k
     pt(A, Blocked(A) | Replicated())
     partitioned_computation(
         A,
-        destination=Remote(path; invalidate_location=invalidate_location, invalidate_sample=invalidate_sample, kwargs...),
-        new_source=_->Remote(path)
+        destination=RemoteDestination(path; invalidate_source=invalidate_source, invalidate_sample=invalidate_sample, kwargs...),
+        new_source=_->RemoteSource(path)
     )
 end
 
@@ -481,7 +482,7 @@ function Base.reduce(op, A::Array{T,N}; dims=:, kwargs...) where {T,N}
             # @show dims # TODO: Figure out why dims is sometimes a function
         end
         res = Base.reduce(op, A; dims=dims, kwargs...)
-        if res isa Array
+        if res isa Base.Array
             res_size = Base.size(res)
         end
     end

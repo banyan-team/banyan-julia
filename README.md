@@ -4,8 +4,8 @@ Banyan Julia is an extension to the Julia programming language for that seamless
 
 Software libraries can be annotated with partition types and subsequent use of the annotated functions automatically runs at scale. Currently, we are developing two annotated libraries:
 
-- BanyanArrays.jl
-- BanyanDataFrames.jl
+- [BanyanArrays.jl](https://www.banyancomputing.com/banyan-arrays-jl-docs)
+- [BanyanDataFrames.jl](https://www.banyancomputing.com/banyan-data-frames-jl-docs)
 
 Eventually, you will be able to use these libraries as drop-in replacements of the standard library Arrays and the DataFrames.jl library. By changing an import statement, you can run your code as is with Banyan scaling to arbitrary data or compute needs.
 
@@ -53,11 +53,14 @@ AWS configuration files) and the Banyan environment variables
 are saved in `banyanconfig.toml` so you don't need to specify it
 every time.
 
+You must also specify the branch you would like to test with the `BANYAN_JULIA_BRANCH`
+environment variables.
+
 For example, if you have previously specified your Banyan API key, user ID, and AWS credentials, you could:
 
 ```
 cd BanyanDataFrames
-BANYAN_CLUSTER_NAME=pumpkincluster0 julia --project=. -e "using Pkg; Pkg.test(test_args=[\"ample\"])
+BANYAN_CLUSTER_NAME=pumpkincluster0 BANYAN_JULIA_BRANCH=v0.1.3 julia --project=. -e "using Pkg; Pkg.test(test_args=[\"ample\"])
 ```
 
 If your AWS credentials are saved under a profile named `banyan-testing`, you could use `AWS_DEFAULT_PROFILE=banyan-testing`.

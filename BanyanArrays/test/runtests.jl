@@ -1,6 +1,7 @@
 using ReTest
 using Banyan, BanyanArrays
 using FilePathsBase, AWSS3, HDF5
+using LibGit2
 
 global jobs_for_testing = Dict()
 
@@ -10,6 +11,13 @@ function destroy_all_jobs_for_testing()
         destroy_job(job_id)
         delete!(jobs_for_testing, job_config_hash)
     end
+end
+
+function get_branch_name()
+    prepo = LibGit2.GitRepo(realpath(joinpath(@__DIR__, "../..")))
+    phead = LibGit2.head(prepo)
+    branchname = LibGit2.shortname(phead)
+    branchname
 end
 
 function use_job_for_testing(
@@ -38,13 +46,21 @@ function use_job_for_testing(
             create_job(
                 cluster_name = ENV["BANYAN_CLUSTER_NAME"],
                 nworkers = 2,
-                banyanfile_path = "file://res/Banyanfile.json",
                 sample_rate = sample_rate,
-                return_logs = true,
+                print_logs = true,
+                url = "https://github.com/banyan-team/banyan-julia.git",
+                branch = get(ENV, "BANYAN_JULIA_BRANCH", get_branch_name()),
+                directory = "banyan-julia/BanyanArrays/test",
+                dev_paths = [
+                    "banyan-julia/Banyan",
+                    "banyan-julia/BanyanArrays"
+                ],
+                force_pull = true,
+                force_install = get(ENV, "BANYAN_FORCE_INSTALL", "0") == "1",
+                store_logs_on_cluster=get(ENV, "BANYAN_STORE_LOGS_ON_CLUSTER", "0") == "1"
             )
-        end,
+        end
     )
-
     # If selected job has already failed, this will throw an error.
     jobs_for_testing[job_config_hash] = get_job_id()
 
@@ -86,7 +102,7 @@ function use_data(data_src = "S3")
         )
         with_downloaded_path_for_reading(
             joinpath(
-                S3Path(get_cluster_s3_bucket_name(), config = Banyan.get_aws_config()),
+                S3Path("s3://$(get_cluster_s3_bucket_name())", config = Banyan.get_aws_config()),
                 "fillval.h5",
             ),
             for_writing = true,
@@ -100,7 +116,7 @@ function use_data(data_src = "S3")
         # rm(get_s3fs_path(joinpath(get_cluster_s3_bucket_name(), "fillval_copy.h5")), force=true)
         rm(
             joinpath(
-                S3Path(get_cluster_s3_bucket_name(), config = Banyan.get_aws_config()),
+                S3Path("s3://$(get_cluster_s3_bucket_name())", config = Banyan.get_aws_config()),
                 "fillval_copy.h5",
             ),
             force = true,
@@ -114,7 +130,7 @@ end
 include("sample_computation.jl")
 include("mapreduce.jl")
 include("hdf5.jl")
-include("bs.jl")
+include("black_scholes.jl")
 
 try
     runtests(Regex.(ARGS)...)

@@ -11,47 +11,6 @@ using FilePathsBase: joinpath, isempty
 using Base: notnothing, env_project_file
 global BANYAN_API_ENDPOINT
 
-# TODO: Remove this
-# export create_job,
-#     destroy_job,
-#     JobRequest,
-#     set_cluster_id,
-#     set_job_request,
-#     get_job_id,
-#     evaluate,
-#     record_request,
-#     send_request_get_response
-# export Future
-# export PartitionAnnotation,
-#      PartitionType,
-#      PartitioningConstraint,
-#      PartitioningConstraints,
-#      Partitions
-# export LocationType
-# export DelayedTask
-
-# export @pa, @pp, @lt, @src, @dst
-# export pa_noconstraints
-# export Div, Block, Stencil
-# export HDF5, Value, Client
-# export Cross
-# # export Const, Mut
-
-# include("id.jl")
-# include("utils.jl")
-# include("jobs.jl")
-# include("locations.jl")
-# include("futures.jl")
-# include("partitions.jl")
-# include("queues.jl")
-# include("tasks.jl")
-# include("pa_constructors.jl")
-# include("pt_constructors.jl")
-# include("lt_constructors.jl")
-# include("constraint_constructors.jl")
-# include("macros.jl")
-# include("evaluation.jl")
-
 # Account management
 export configure
 
@@ -95,8 +54,14 @@ export sample_memory_usage,
 
 # Locations
 export Location, LocationSource, LocationDestination, located, sourced, destined
-export Value, Size, Client, Disk, None, Remote
-export clear_locations, clear_samples, invalidate_location, invalidate_sample
+export Value, Size, Client, Disk, None, RemoteSource, RemoteDestination
+export clear_sources, clear_samples, invalidate_source, invalidate_sample
+
+# Serialization
+export from_jl_value_contents, to_jl_value_contents
+
+# Queues
+export receive_from_client, send_to_client
 
 # Partition types
 export PartitionType, pt, pc, mutated, @partitioned
@@ -181,6 +146,11 @@ using IterTools
 # into their respective libraries where they can be specialized
 using HDF5, CSV, Parquet, Arrow, DataFrames
 
+# Helpers
+include("id.jl")
+include("utils_queues.jl")
+include("queues.jl")
+
 # Banyan.jl is intended both for usage as a client library and also for
 # inclusion in the environment that is used for jobs that run on the cluster.
 # When running on the cluster, partitioning functions define how to split,
@@ -193,11 +163,9 @@ include("utils_pfs.jl")
 include("pfs.jl")
 
 # Jobs
-include("id.jl")
 include("utils.jl")
 include("utils_abstract_types.jl")
 include("utils_s3fs.jl")
-include("queues.jl")
 include("clusters.jl")
 include("jobs.jl")
 
@@ -221,10 +189,10 @@ include("job.jl")
 
 function __init__()
     # The user must provide the following for authentication:
-    # - Username
+    # - User ID
     # - API key
     # - AWS credentials
-    # - SSH key pair (used in cluster creation)
+    # - SSH key pair (used in cluster creation, not for auth)
 
     global BANYAN_API_ENDPOINT
     BANYAN_API_ENDPOINT = "https://hcohsbhhzf.execute-api.us-west-2.amazonaws.com/dev/"

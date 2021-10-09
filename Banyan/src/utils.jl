@@ -1,3 +1,5 @@
+using Pkg
+using SHA
 using TimeZones
 using Base: AbstractVecOrTuple
 
@@ -54,6 +56,8 @@ end
 function parse_time(time)
     global timezones_built
     if !timezones_built
+        # TODO: Add a try-catch here and then if building fails, @warn that we
+        # can't convert to local timezone and simply return
         TimeZones.build()
         timezones_built = true
     end
@@ -232,25 +236,27 @@ function get_aws_config()
     # Get AWS configuration
     if isnothing(aws_config_in_usage)
         # Get region according to ENV, then credentials, then config files
-        profile = get(ENV, "AWS_DEFAULT_PROFILE", get(ENV, "AWS_DEFAULT_PROFILE", "banyan_nothing"))
-        env_region = get(ENV, "AWS_DEFAULT_REGION", "")
-        credentialsfile = read(Inifile(), joinpath(homedir(), ".aws", "credentials"))
-        configfile = read(Inifile(), joinpath(homedir(), ".aws", "config"))
-        credentials_region = _get_ini_value(credentialsfile, profile, "region", default_value="")
-        config_region = _get_ini_value(configfile, profile, "region", default_value="")
+        profile = get(ENV, "AWS_DEFAULT_PROFILE", get(ENV, "AWS_DEFAULT_PROFILE", "default"))
+        region = get(ENV, "AWS_DEFAULT_REGION", "")
+        if region == ""
+            try
+                configfile = read(Inifile(), joinpath(homedir(), ".aws", "config"))
+                region = _get_ini_value(configfile, profile, "region", default_value="")
+            catch
+            end
+        end
+        if region == ""
+            try
+                credentialsfile = read(Inifile(), joinpath(homedir(), ".aws", "credentials"))
+                region = _get_ini_value(credentialsfile, profile, "region", default_value="")
+            catch
+            end
+        end
 
-        # Choose the region that is not default
-        region = env_region
-        region = isempty(region) ? credentials_region : region
-        region = isempty(region) ? config_region : region
-
-        #println(region)
-
-        if isempty(region)
+        if region == ""
             throw(ErrorException("Could not discover AWS region to use from looking at AWS_PROFILE, AWS_DEFAULT_PROFILE, AWS_DEFAULT_REGION, HOME/.aws/credentials, and HOME/.aws/config"))
         end
 
-	#println(AWSCredentials())
         aws_config_in_usage = Dict(
             :creds => AWSCredentials(),
             :region => region
@@ -347,7 +353,9 @@ function send_request_get_response(method, content::Dict)
     if resp.status == 403
         throw(ErrorException("Please use a valid user ID and API key. Sign into the dashboard to retrieve these credentials."))
     elseif resp.status == 500 || resp.status == 504
-        throw(ErrorException(string(data)))
+        throw(ErrorException(data))
+    elseif resp.status == 502
+        throw(ErrorException("Sorry there has been an error. Please contact support"))
     end
     return data
 
@@ -405,3 +413,70 @@ function send_request_get_response_using_http(method, content::Dict)
         end
     end
 end
+
+#########
+# FILES #
+#########
+
+function load_json(path::String)
+    if startswith(path, "file://")
+        if !isfile(path[8:end])
+            error("File $path does not exist")
+        end
+        JSON.parsefile(path[8:end])
+    elseif startswith(path, "s3://")
+        error("S3 path not currently supported")
+        # JSON.parsefile(S3Path(path, config=get_aws_config()))
+    elseif startswith(path, "http://") || startswith(path, "https://")
+	    JSON.parse(String(HTTP.get(path).body))
+    else
+        error("Path $path must start with \"file://\", \"s3://\", or \"http(s)://\"")
+    end
+end
+
+# Loads file into String and returns
+function load_file(path::String)
+    if startswith(path, "file://")
+        if !isfile(path[8:end])
+            error("File $path does not exist")
+        end
+        String(read(open(path[8:end])))
+    elseif startswith(path, "s3://")
+        error("S3 path not currently supported")
+        String(read(S3Path(path)))
+    elseif startswith(path, "http://") || startswith(path, "https://")
+        String(HTTP.get(path).body)
+    else
+        error("Path $path must start with \"file://\", \"s3://\", or \"http(s)://\"")
+    end
+end
+
+
+####################################
+# JULIA VERSION/PACKAGE MANAGEMENT #
+####################################
+
+function get_julia_version()
+    return string(VERSION)
+end
+
+function get_loaded_packages()
+    modules = map(
+        m -> string(m),
+        filter(
+            m -> Main.eval(m) isa Module && !(m in [:Main, :Base, :Core, :InteractiveUtils, :IJulia]),
+            names(Main, imported=true)
+        )
+    )
+end
+
+# Returns the directory in which the Project.toml file is located
+function get_julia_environment_dir()
+    return replace(Pkg.project().path, "Project.toml" => "")
+end
+
+# Returns SHA 256 of a string
+function get_hash(s)
+    return bytes2hex(sha256(s))
+end
+

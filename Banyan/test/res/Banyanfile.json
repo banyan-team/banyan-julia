@@ -1,7 +1,0 @@
-{
-    "include": ["file://../../res/BanyanfileDebug.json"],
-    "require": {
-        "cluster": {"packages": ["Distributions"]}
-    },
-    "job": {"code": ["using Distributions"]}
-}

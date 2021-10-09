@@ -50,7 +50,8 @@ Banyan.convert(::Type{Future}, df::DataFrame) = df.data
 # end
 
 function read_csv(path::String; kwargs...)
-    df_loc = Remote(path; kwargs...)
+    df_loc = RemoteSource(path; kwargs...)
+    df_loc.src_name == "Remote" || error("$path does not exist")
     df_nrows = Future(df_loc.nrows)
     DataFrame(Future(source=df_loc), df_nrows)
 end
@@ -60,7 +61,7 @@ read_arrow(p; kwargs...) = read_csv(p; kwargs...)
 
 # TODO: For writing functions, if a file is specified, enforce Replicated
 
-function write_csv(df, path; invalidate_location=true, invalidate_sample=true, kwargs...)
+function write_csv(df, path; invalidate_source=true, invalidate_sample=true, kwargs...)
     # destined(df, Remote(path, delete_from_cache=true))
     # mutated(df)
     # partitioned_with() do
@@ -75,8 +76,8 @@ function write_csv(df, path; invalidate_location=true, invalidate_sample=true, k
     end
     partitioned_computation(
         df,
-        destination=Remote(path; invalidate_location=invalidate_location, invalidate_sample=invalidate_sample, kwargs...),
-        new_source=_->Remote(path)
+        destination=RemoteDestination(path; invalidate_source=invalidate_source, invalidate_sample=invalidate_sample, kwargs...),
+        new_source=_->RemoteSource(path)
     )
 end
 
@@ -618,6 +619,7 @@ function Base.getindex(df::DataFrame, rows=:, cols=:)
     return_vector = cols isa Symbol || cols isa String || cols isa Integer
     select_columns = !(cols isa Colon)
     filter_rows = !(rows isa Colon)
+    @show sample(df)
     columns = Symbol.(names(sample(df), cols))
     cols = Future(cols)
     # # @show sample(rows)
