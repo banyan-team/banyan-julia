@@ -40,7 +40,7 @@ function DataFrames.groupby(df::DataFrame, cols; kwargs...)::GroupedDataFrame
 
     groupingkeys = names(sample(df), collect(cols))
 
-    partitioned_using_modules(DataFrames)
+    partitioned_using_modules("DataFrames")
     partitioned_using() do
         keep_sample_rate(gdf, df)
     end
@@ -127,7 +127,7 @@ function DataFrames.select(gdf::GroupedDataFrame, args...; kwargs...)
 
     groupingkeys = names(sample(gdf_parent), collect(groupcols))
 
-    partitioned_using_modules(DataFrames)
+    partitioned_using_modules("DataFrames")
     partitioned_using() do
         keep_sample_keys(if get(collect(kwargs), :keepkeys, true) groupingkeys else [] end, res, gdf_parent, drifted=true)
         keep_sample_rate(res, gdf_parent)
@@ -211,7 +211,7 @@ function DataFrames.transform(gdf::GroupedDataFrame, args...; kwargs...)
     # TODO: Put groupingkeys in GroupedDataFrame
     groupingkeys = names(sample(gdf_parent), collect(groupcols))
 
-    partitioned_using_modules(DataFrames)
+    partitioned_using_modules("DataFrames")
     partitioned_using() do
         keep_sample_keys(
             get(collect(kwargs), :keepkeys, true) ? groupingkeys : [], res, gdf_parent,
@@ -260,7 +260,7 @@ function DataFrames.combine(gdf::GroupedDataFrame, args...; kwargs...)
     @show sample(gdf_parent)
     @show groupingkeys
 
-    partitioned_using_modules(DataFrames)
+    partitioned_using_modules("DataFrames")
     partitioned_using() do
         keep_sample_keys(
             get(collect(kwargs), :keepkeys, true) ? groupingkeys : [], res, gdf_parent,
@@ -319,7 +319,7 @@ function DataFrames.subset(gdf::GroupedDataFrame, args...; kwargs...)
     # TODO: Put groupingkeys in GroupedDataFrame
     groupingkeys = names(sample(gdf_parent), collect(groupcols))
 
-    partitioned_using_modules(DataFrames)
+    partitioned_using_modules("DataFrames")
     partitioned_using() do
         keep_sample_keys(
             get(collect(kwargs), :keepkeys, true) ? groupingkeys : [], res, gdf_parent,
