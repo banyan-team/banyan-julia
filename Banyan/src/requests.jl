@@ -348,7 +348,7 @@ function configure_scheduling(;kwargs...)
     end
 end
 
-function send_evaluation(value_id::ValueId, job_id::JobId)
+function send_evaluation(value_id::ValueId, job_id::JobId, module_packages)
     global encourage_parallelism
     global encourage_parallelism_with_batches
 
@@ -370,7 +370,8 @@ function send_evaluation(value_id::ValueId, job_id::JobId)
                 "encourage_parallelism_with_batches" => encourage_parallelism_with_batches
             ),
             "num_bang_values_issued" => get_num_bang_values_issued(),
-            "packages" => get_loaded_packages()
+            "main_packages" => get_loaded_packages(),
+            "module_packages" => module_packages,
         ),
     )
 
