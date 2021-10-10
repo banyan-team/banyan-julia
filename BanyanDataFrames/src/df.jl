@@ -309,7 +309,7 @@ function DataFrames.dropmissing(df::DataFrame, args...; kwargs...)
     #     end
     # end
 
-    partitioned_using_modules(DataFrames)
+    partitioned_using_modules("DataFrames")
     partitioned_using() do
         # We need to maintain these sample properties and hold constraints on
         # memory usage so that we can properly handle data skew
@@ -342,7 +342,7 @@ function Base.filter(f, df::DataFrame; kwargs...)
     res = DataFrame(Future(), res_nrows)
     kwargs = Future(kwargs)
 
-    partitioned_using_modules(DataFrames)
+    partitioned_using_modules("DataFrames")
     partitioned_using() do
         keep_all_sample_keys(res, df, drifted=true)
         keep_sample_rate(res, df)
@@ -372,7 +372,7 @@ end
 function Missings.allowmissing(df::DataFrame)::DataFrame
     res = Future()
 
-    partitioned_using_modules(DataFrames)
+    partitioned_using_modules("DataFrames")
     partitioned_using() do
         keep_all_sample_keys(res, df)
         keep_sample_rate(res, df)
@@ -399,7 +399,7 @@ end
 function Missings.disallowmissing(df::DataFrame)::DataFrame
     res = Future()
 
-    partitioned_using_modules(DataFrames)
+    partitioned_using_modules("DataFrames")
     partitioned_using() do
         keep_all_sample_keys(res, df)
         keep_sample_rate(res, df)
@@ -426,7 +426,7 @@ end
 function Base.deepcopy(df::DataFrame)::DataFrame
     res = Future()
 
-    partitioned_using_modules(DataFrames)
+    partitioned_using_modules("DataFrames")
     partitioned_using() do
         keep_all_sample_keys(res, df)
         keep_sample_rate(res, df)
@@ -453,7 +453,7 @@ end
 function Base.copy(df::DataFrame)::DataFrame
     res = Future()
 
-    partitioned_using_modules(DataFrames)
+    partitioned_using_modules("DataFrames")
     partitioned_using() do
         keep_all_sample_keys(res, df)
         keep_sample_rate(res, df)
@@ -647,7 +647,7 @@ function Base.getindex(df::DataFrame, rows=:, cols=:)
             DataFrame(Future(), res_size)
         end
 
-    partitioned_using_modules(DataFrames)
+    partitioned_using_modules("DataFrames")
     partitioned_using() do
         keep_all_sample_keys(res, df, drifted=filter_rows)
         keep_sample_rate(res, df)
@@ -983,7 +983,7 @@ function Base.setindex!(df::DataFrame, v::Union{BanyanArrays.Vector, BanyanArray
     # cols = Future(Symbol.(names(sample(df), cols)))
     cols = Future(cols)
 
-    partitioned_using_modules(DataFrames)
+    partitioned_using_modules("DataFrames")
     partitioned_using() do
         keep_all_sample_keys(res, df)
         keep_sample_rate(res, df)
@@ -1153,7 +1153,7 @@ function DataFrames.rename(df::DataFrame, args...; kwargs...)
     args = Future(args)
     kwargs = Future(kwargs)
 
-    partitioned_using_modules(DataFrames)
+    partitioned_using_modules("DataFrames")
     partitioned_using() do
         keep_all_sample_keys_renamed(res, df)
         keep_sample_rate(res, df)
@@ -1318,7 +1318,7 @@ function Base.sort(df::DataFrame, cols=:; kwargs...)
 
     # TODO: Change to_vector(x) to [x;]
 
-    partitioned_using_modules(DataFrames)
+    partitioned_using_modules("DataFrames")
     partitioned_using() do
         keep_sample_keys(sortingkey, res, df)
         keep_sample_rate(res, df)
@@ -1364,7 +1364,7 @@ function DataFrames.innerjoin(dfs::DataFrame...; on, kwargs...)
     on = Future(on)
     kwargs = Future(kwargs)
 
-    partitioned_using_modules(DataFrames)
+    partitioned_using_modules("DataFrames")
     partitioned_using() do
         # NOTE: `to_vector` is necessary here (`[on...]` won't cut it) because
         # we allow for a vector of pairs
@@ -1494,7 +1494,7 @@ function DataFrames.unique(df::DataFrame, cols=:; kwargs...)
     cols = Future(cols)
     kwargs = Future(kwargs)
 
-    partitioned_using_modules(DataFrames)
+    partitioned_using_modules("DataFrames")
     partitioned_using() do
         keep_sample_keys(columns, res, df, drifted=true)
         keep_sample_rate(res, df)
@@ -1559,7 +1559,7 @@ function DataFrames.nonunique(df::DataFrame, cols=:; kwargs...)
     cols = Future(cols)
     kwargs = Future(kwargs)
 
-    partitioned_using_modules(DataFrames)
+    partitioned_using_modules("DataFrames")
     partitioned_using() do
         keep_sample_rate(res, df)
     end
