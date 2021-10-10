@@ -92,7 +92,8 @@ export partitioned_using,
     keep_all_sample_keys_renamed,
     keep_sample_keys_named,
     keep_sample_keys,
-    keep_sample_rate
+    keep_sample_rate,
+    partitioned_using_modules
 
 # Debugging
 export is_debug_on,

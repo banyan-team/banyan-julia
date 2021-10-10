@@ -354,6 +354,9 @@ function send_evaluation(value_id::ValueId, job_id::JobId)
 
     @debug "Sending evaluation request"
 
+    # Get list of the modules used in the code regions here
+    used_modules = union(vcat([req.task.used_modules for req in get_job().pending_requests if req isa RecordTaskRequest]...))
+
     # Submit evaluation request
     println("Submitting evaluation request")
     @show value_id
