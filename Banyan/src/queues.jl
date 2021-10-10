@@ -60,12 +60,12 @@ function receive_next_message(queue_name)
         # jobs[job_id].current_status = "failed"
         # set_job(nothing) # future usage of this job should immediately fail
         # delete!(jobs, job_id)
-        destroy_job(failed=true) # This will reset the `current_job_id` and delete from `jobs`
         # TODO: Document why the 12 here is necessary
         # if is_debug_on()
             println(content[12:end])
         # end
         if endswith(content, "MESSAGE_END")
+            destroy_job(failed=true) # This will reset the `current_job_id` and delete from `jobs`
             error("Job failed; see preceding output")
         end
         response = Dict{String,Any}("kind" => "JOB_FAILURE")
