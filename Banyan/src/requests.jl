@@ -348,14 +348,15 @@ function configure_scheduling(;kwargs...)
     end
 end
 
-function send_evaluation(value_id::ValueId, job_id::JobId, module_packages)
+function send_evaluation(value_id::ValueId, job_id::JobId)
     global encourage_parallelism
     global encourage_parallelism_with_batches
 
     @debug "Sending evaluation request"
 
     # Get list of the modules used in the code regions here
-    used_modules = union(vcat([req.task.used_modules for req in get_job().pending_requests if req isa RecordTaskRequest]...))
+    used_packages = union(vcat([str(req.task.used_modules) for req in get_job().pending_requests if req isa RecordTaskRequest]...))
+    println("HERE IS A MODULE: ", used_packages)
 
     # Submit evaluation request
     println("Submitting evaluation request")
@@ -374,7 +375,7 @@ function send_evaluation(value_id::ValueId, job_id::JobId, module_packages)
             ),
             "num_bang_values_issued" => get_num_bang_values_issued(),
             "main_packages" => get_loaded_packages(),
-            "module_packages" => module_packages,
+            "used_packages" => used_packages,
         ),
     )
 
