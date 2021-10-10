@@ -327,6 +327,11 @@ end
 
 invert(mutation::Dict{Future,Future}) = Dict(new => old for (old, new) in mutation)
 
+function partitioned_using_modules(m...)
+    global curr_delayed_task
+    union!(curr_delayed_task.used_modules, m)
+end
+
 macro partitioned(ex...)
     res = quote end
 
