@@ -78,7 +78,7 @@ function ReadBlock(
     # # # # @showpath
     # # # # @showisfile(loc_params["path"])
     # # # # @showHDF5.ishdf5(loc_params["path"])
-    println("Reading a block with $path from $loc_name with batch_idx=$batch_idx")
+    # println("Reading a block with $path from $loc_name with batch_idx=$batch_idx")
     if (loc_name == "Disk" && HDF5.ishdf5(path)) ||
        (loc_name == "Remote" && (occursin(".h5", loc_params["path"]) || occursin(".hdf5", loc_params["path"])))
         f = h5open(path, "r")
@@ -111,7 +111,7 @@ function ReadBlock(
         # # @showdset
         return dset
     end
-    println("Still in reading a block")
+    # println("Still in reading a block")
 
     # # @showloc_name
     # # @showpath
@@ -129,7 +129,7 @@ function ReadBlock(
         # # @showres
         return res
     end
-    println("Still _still_ in reading a block")
+    # println("Still _still_ in reading a block")
 
     # Handle multi-file tabular datasets
 
@@ -161,7 +161,7 @@ function ReadBlock(
             return nothing
         end
     end
-    println("Still _still_  *still* in reading a block")
+    # println("Still _still_  *still* in reading a block")
 
     # Iterate through files and identify which ones correspond to the range of
     # rows for the batch currently being processed by this worker
@@ -172,7 +172,7 @@ function ReadBlock(
     rowsscanned = 0
     # @showloc_params
     for file in sort(loc_params["files"], by = filedict -> filedict["path"])
-        println("Considering $file")
+        # println("Considering $file")
         newrowsscanned = rowsscanned + file["nrows"]
         filerowrange = (rowsscanned+1):newrowsscanned
         # Check if te file corresponds to the range of rows for the batch
@@ -227,10 +227,10 @@ function ReadBlock(
                     skipto = header + readrange.start - filerowrange.start + 1,
                     footerskip = filerowrange.stop - readrange.stop,
                 )
-                println("Finished reading from $path")
+                # println("Finished reading from $path")
                 push!(dfs, DataFrames.DataFrame(f))
                 # push!(dfs, DataFrame(Arrow.Table(Arrow.tobuffer(f))))
-                println("Pushed data frame")
+                # println("Pushed data frame")
                 # buf = Arrow.tobuffer(f)
                 # println("Converted to buffer")
                 # tbl = Arrow.Table(buf)
@@ -246,7 +246,7 @@ function ReadBlock(
                 push!(dfs, DataFrames.DataFrame(f))
                 # push!(dfs, DataFrame(Arrow.Table(Arrow.tobuffer(f))))
             elseif endswith(file["path"], ".arrow")
-                println("Reading from $path on batch $batch_idx")
+                # println("Reading from $path on batch $batch_idx")
                 rbrowrange = filerowrange.start:(filerowrange.start-1)
                 for tbl in Arrow.Stream(path)
                     rbrowrange = (rbrowrange.stop+1):(rbrowrange.stop+Tables.rowcount(tbl))
@@ -277,7 +277,7 @@ function ReadBlock(
         end
         rowsscanned = newrowsscanned
     end
-    println("Still _still_  *STILL* in reading a block but after having $(length(dfs)) dfs")
+    # println("Still _still_  *STILL* in reading a block but after having $(length(dfs)) dfs")
 
     # # # @showlength(dfs)
 
@@ -322,9 +322,9 @@ function ReadGroup(
     # TODO: Do some reversing here instead of only doing it later in Shuffle
     # to ensure that sorting in reverse order works correctly
 
-    if batch_idx == 1 && get_worker_idx(comm) == 1
-        println("In ReadGroup with divisions=$divisions and partition_divisions=get_divisions(divisions, npartitions)=$partition_divisions")
-    end
+    # if batch_idx == 1 && get_worker_idx(comm) == 1
+    #     println("In ReadGroup with divisions=$divisions and partition_divisions=get_divisions(divisions, npartitions)=$partition_divisions")
+    # end
 
     # Get the divisions that are relevant to this batch by iterating
     # through the divisions in a stride and consolidating the list of divisions
@@ -347,9 +347,9 @@ function ReadGroup(
         end
     end
 
-    if get_worker_idx(comm) == 1
-        println("In ReadGroup on batch $batch_idx with curr_partition_divisions=$curr_partition_divisions for shuffling")
-    end
+    # if get_worker_idx(comm) == 1
+    #     println("In ReadGroup on batch $batch_idx with curr_partition_divisions=$curr_partition_divisions for shuffling")
+    # end
 
     # Read in each batch and shuffle it to get the data for this partition
     parts = []
@@ -388,9 +388,9 @@ function ReadGroup(
         (partition_divisions[partition_idx], partition_idx > 1, partition_idx < npartitions)
 
     # # # @showres
-    if isa_df(res)
-        println("Output of ReadGroup has length $(nrow(res))")
-    end
+    # if isa_df(res)
+    #     println("Output of ReadGroup has length $(nrow(res))")
+    # end
     res
 end
 
@@ -408,7 +408,7 @@ function Write(
     GC.gc()
     # end
 
-    println("Start write")
+    # println("Start write")
 
     # @showpart
 
@@ -431,11 +431,11 @@ function Write(
     worker_idx = get_worker_idx(comm)
     # println("Writing worker_idx=$worker_idx, batch_idx=$batch_idx/$nbatches with available memory: $(format_available_memory())")
     idx = get_partition_idx(batch_idx, nbatches, comm)
-    println("In Write on worker $worker_idx on batch $batch_idx")
+    # println("In Write on worker $worker_idx on batch $batch_idx")
     # # @showisa_df(part)
     # # @showpart
     if isa_df(part)
-        println("Writing data frame with $nbatches batches on batch $batch_idx")
+        # println("Writing data frame with $nbatches batches on batch $batch_idx")
         actualpath = deepcopy(path)
         if nbatches > 1
             # Add _tmp to the end of the path
@@ -465,9 +465,9 @@ function Write(
         # place we are reading from. And so we want to make sure we finish
         # reading before we write the last batch
         if batch_idx == nbatches
-            println("Before first barrier in write")
+            # println("Before first barrier in write")
             MPI.Barrier(comm)
-            println("After first barrier in write")
+            # println("After first barrier in write")
         end
 
         if worker_idx == 1
@@ -488,9 +488,9 @@ function Write(
                 mkpath(path)
             end
         end
-        println("Before second barrier in write")
+        # println("Before second barrier in write")
         MPI.Barrier(comm)
-        println("After second barrier in write")
+        # println("After second barrier in write")
 
         nrows = size(part, 1)
         sortableidx = sortablestring(idx, get_npartitions(nbatches, comm))
@@ -503,10 +503,10 @@ function Write(
                 CSV.write(partfilepath, part)
             else
                 partfilepath = joinpath(path, "part$sortableidx" * "_nrows=$nrows.arrow")
-                println("Going to write to $partfilepath")
+                # println("Going to write to $partfilepath")
                 Arrow.write(partfilepath, part)
             end
-            println("Wrote to $partfilepath")
+            # println("Wrote to $partfilepath")
         end
         MPI.Barrier(comm)
         if nbatches > 1 && batch_idx == nbatches
@@ -515,7 +515,7 @@ function Write(
                 rm(actualpath, force = true, recursive = true)
                 mkpath(actualpath)
             end
-            println("Created $actualpath")
+            # println("Created $actualpath")
             MPI.Barrier(comm)
             # # # @showpath tmpdir get_nworkers(comm) nbatches
             for batch_i = 1:nbatches
@@ -525,7 +525,7 @@ function Write(
                     tmpsrc = joinpath(path, tmpdir[tmpdir_idx])
                     actualdst = joinpath(actualpath, tmpdir[tmpdir_idx])
                     cp(tmpsrc, actualdst)
-                    println("Copied $tmpsrc to $actualdst")
+                    # println("Copied $tmpsrc to $actualdst")
                 end
             end
             MPI.Barrier(comm)
@@ -534,9 +534,9 @@ function Write(
                 rm(path, force = true, recursive = true)
             end
             MPI.Barrier(comm)
-            println("Removed temporary $path")
+            # println("Removed temporary $path")
         end
-        println("Finished writing data frame")
+        # println("Finished writing data frame")
         src
         # TODO: Delete all other part* files for this value if others exist
     elseif isa_array(part) && hasmethod(HDF5.datatype, (eltype(part),))
@@ -1602,7 +1602,7 @@ function Merge(
             push!(partial_merges, objectid(src))
         end
         push!(src, part)
-        println("In Merge")
+        # println("In Merge")
         # # # @showsrc part
         if batch_idx == 1 || batch_idx == nbatches
             # println("At start of merging worker_idx=$worker_idx, batch_idx=$batch_idx/$nbatches with available memory: $(format_available_memory()) and used: $(format_bytes(Base.summarysize(src)))")
@@ -1612,7 +1612,7 @@ function Merge(
             delete!(partial_merges, objectid(src))
             # # # @showworker_idx batch_idx src
 
-            println("On last batch of merging on worker $worker_idx")
+            # println("On last batch of merging on worker $worker_idx")
             # # @showsrc
 
             # TODO: Test that this merges correctly
@@ -1647,7 +1647,7 @@ function CopyFrom(
     loc_params,
 )
     # # # @showloc_name
-    println("In CopyFrom with loc_name=$loc_name and loc_params=$loc_params")
+    # println("In CopyFrom with loc_name=$loc_name and loc_params=$loc_params")
     # @showloc_params
     if loc_name == "Value"
         loc_params["value"]
@@ -1670,18 +1670,18 @@ function CopyFrom(
         # # # println("In CopyFrom")
         # # # # @showlength(res)
         # # # @showres
-        println("At end of CopyFrom")
+        # println("At end of CopyFrom")
         res
     elseif loc_name == "Remote"
         params = Dict{String,Any}(params)
         params["key"] = 1
         res = ReadBlock(src, params, 1, 1, MPI.COMM_SELF, loc_name, loc_params)
-        println("At end of CopyFrom")
+        # println("At end of CopyFrom")
         res
     elseif loc_name == "Client"
         received = get_worker_idx(comm) == 1 ? receive_from_client(loc_params["value_id"]) : nothing
         received = MPI.bcast(received, 0, comm)
-        println("In CopyFrom Client")
+        # println("In CopyFrom Client")
         # # @showreceived
         @show received
         received
@@ -1700,9 +1700,9 @@ function CopyTo(
     loc_name,
     loc_params,
 )
-    println(
-        "In CopyTo with loc_name=$loc_name and loc_params=$loc_params and worker_idx=$(get_worker_idx(comm)) and batch_idx=$batch_idx",
-    )
+    # println(
+    #     "In CopyTo with loc_name=$loc_name and loc_params=$loc_params and worker_idx=$(get_worker_idx(comm)) and batch_idx=$batch_idx",
+    # )
     # # # println("In CopyTo")
     # # # @showget_partition_idx(batch_idx, nbatches, comm)
     # # # @showget_npartitions(nbatches, comm)
@@ -1751,10 +1751,10 @@ function CopyTo(
             if get_partition_idx(batch_idx, nbatches, comm) == 1
                 send_to_client(loc_params["value_id"], part)
             end
-            println("Before barrier in sending to client")
+            # println("Before barrier in sending to client")
             # TODO: Remove this barrier if not needed to ensure correctness
             MPI.Barrier(comm)
-            println("After barrier in sending to client")
+            # println("After barrier in sending to client")
         else
             error("Unexpected location")
         end
@@ -1862,7 +1862,7 @@ end
 ReduceWithKey = Reduce
 
 function Rebalance(part, src_params, dst_params, comm)
-    println("At start of Rebalance")
+    # println("At start of Rebalance")
     # @showpart
 
     # Get the range owned by this worker
@@ -1957,7 +1957,7 @@ function Rebalance(part, src_params, dst_params, comm)
     )
     # # # println("After rebalancing...")
     # # # # @showlength(res)
-    println("At end of Rebalance")
+    # println("At end of Rebalance")
     # @showres
     res
 end
@@ -1971,9 +1971,9 @@ function Distribute(part, src_params, dst_params, comm)
 end
 
 function Consolidate(part, src_params, dst_params, comm)
-    if isnothing(part)
-        println("Input to Consolidate is nothing")
-    end
+    # if isnothing(part)
+    #     println("Input to Consolidate is nothing")
+    # end
     kind, sendbuf = tobuf(part)
     recvvbuf = buftovbuf(sendbuf, comm)
     # TODO: Maybe sometimes use gatherv if all sendbuf's are known to be equally sized
@@ -1993,9 +1993,9 @@ function Consolidate(part, src_params, dst_params, comm)
         get_nworkers(comm);
         key = (isa_array(part) ? src_params["key"] : 1),
     )
-    if isnothing(part)
-        println("Output of Consolidate is nothing")
-    end
+    # if isnothing(part)
+    #     println("Output of Consolidate is nothing")
+    # end
     part
 end
 
@@ -2021,7 +2021,7 @@ function Shuffle(
         reverse!(divisions_by_worker)
     end
 
-    println("In Shuffle on worker_idx=$worker_idx with boundedlower=$boundedlower and boundedupper=$boundedupper")
+    # println("In Shuffle on worker_idx=$worker_idx with boundedlower=$boundedlower and boundedupper=$boundedupper")
 
     # Perform shuffle
     # # @showdivisions
