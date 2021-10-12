@@ -50,22 +50,26 @@ function receive_next_message(queue_name)
     content = get_next_message(queue_name)
     if startswith(content, "EVALUATION_END")
         @debug "Received evaluation end"
-        println(content[15:end])
-        response = Dict{String,Any}("kind" => "EVALUATION_END")
-        response["end"] = (endswith(content, "MESSAGE_END"))
-        # TODO: Maybe truncate by chopping off the MESSAGE_END
+        response = Dict{String,Any}(
+            "kind" => "EVALUATION_END",
+            "end" => endswith(content, "MESSAGE_END")
+        )
+        # Print out logs that were outputed by job on cluster. Will be empty if
+        # `print_logs=false` for the job. Remove "EVALUATION_END" at start and
+        #  chop off "MESSAGE_END" at the end
+        tail = endswith(content, "MESSAGE_END") ? 11 : 0
+        println(chop(content, head=14, tail=tail))
         response
     elseif startswith(content, "JOB_FAILURE")
         @debug "Job failed"
-        # jobs[job_id].current_status = "failed"
-        # set_job(nothing) # future usage of this job should immediately fail
-        # delete!(jobs, job_id)
-        destroy_job(failed=true) # This will reset the `current_job_id` and delete from `jobs`
-        # TODO: Document why the 12 here is necessary
-        # if is_debug_on()
-            println(content[12:end])
-        # end
+        # Print job logs. Will be empty if `print_logs=false` for the job. Remove
+        # "JOB_FAILURE" and "JOB_END" from the message content. Note that logs
+        # are streamed in multiple parts, due to SQS message limits.
+        tail = endswith(content, "MESSAGE_END") ? 11 : 0
+        println(chop(content, head=11, tail=tail))
+        # Destroy job when last part of log is received.
         if endswith(content, "MESSAGE_END")
+            destroy_job(failed=true) # This will reset the `current_job_id` and delete from `jobs`
             error("Job failed; see preceding output")
         end
         response = Dict{String,Any}("kind" => "JOB_FAILURE")
