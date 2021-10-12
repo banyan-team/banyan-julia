@@ -353,6 +353,10 @@ function send_request_get_response(method, content::Dict)
     if resp.status == 403
         throw(ErrorException("Please use a valid user ID and API key. Sign into the dashboard to retrieve these credentials."))
     elseif resp.status == 500 || resp.status == 504
+        # HTTP request timed out, for example
+        if isa(data, Dict) && haskey(data, "message")
+            data = data["message"]
+        end
         throw(ErrorException(data))
     elseif resp.status == 502
         throw(ErrorException("Sorry there has been an error. Please contact support"))
