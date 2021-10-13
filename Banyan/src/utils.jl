@@ -102,20 +102,24 @@ end
 global banyan_config = nothing
 global aws_config_in_usage = nothing
 
-function load_config()
+function load_config(banyanconfig_path=nothing)
     global banyan_config
 
-    banyanconfig_path = joinpath(homedir(), ".banyan", "banyanconfig.toml")
+    if banyanconfig_path == nothing
+        banyanconfig_path = joinpath(homedir(), ".banyan", "banyanconfig.toml")
+    end
     if isfile(banyanconfig_path)
         banyan_config = TOML.parsefile(banyanconfig_path)
     end
 end
 
-function write_config()
+function write_config(banyanconfig_path=nothing)
     global banyan_config
 
     # Write to banyanconfig.toml
-    banyanconfig_path = joinpath(homedir(), ".banyan", "banyanconfig.toml")
+    if banyanconfig_path == nothing
+        banyanconfig_path = joinpath(homedir(), ".banyan", "banyanconfig.toml")
+    end
     mkpath(joinpath(homedir(), ".banyan"))
     f = open(banyanconfig_path, "w")
     @show banyan_config
@@ -141,9 +145,6 @@ function configure(; kwargs...)
     #   2) environment variables
     #   3) `$HOME/.banyan/banyanconfig.toml`
 
-    load_config()
-    global banyan_config
-
     # Load arguments
     kwargs = Dict(kwargs)
     user_id = if_in_or(:user_id, kwargs)
@@ -151,6 +152,11 @@ function configure(; kwargs...)
     ec2_key_pair_name = if_in_or(:ec2_key_pair_name, kwargs)
     require_ec2_key_pair_name =
         if_in_or(:require_ec2_key_pair_name, kwargs, false)
+    banyanconfig_path = if_in_or(:banyanconfig_path, kwargs)
+
+    # Load config
+    load_config(banyanconfig_path)
+    global banyan_config
 
     # Check environment variables
     if isnothing(user_id) && haskey(ENV, "BANYAN_USER_ID")
@@ -224,7 +230,7 @@ function configure(; kwargs...)
 
     # Update config file if it was modified
     if is_modified
-        write_config()
+        write_config(banyanconfig_path)
     end
 
     return banyan_config

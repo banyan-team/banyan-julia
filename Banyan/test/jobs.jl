@@ -1,4 +1,5 @@
 @testset "Get jobs" begin
+    Pkg.activate("./")
     cluster_name = ENV["BANYAN_CLUSTER_NAME"]
 
     job_id = create_job()
@@ -6,91 +7,86 @@
     destroy_job(job_id)
     jobs = get_jobs(cluster_name)
 
-    @test all(j -> j["status"] == "running", running_jobs)
-    @test any(j -> j["job_id"] == job_id, running_jobs)
-    @test any(j -> j["job_id"] == job_id && j["status"] == "completed", jobs)
+    @test all(j -> j[2]["status"] == "running", running_jobs)
+    @test any(j -> j[1] == job_id, running_jobs)
+    @test any(j -> (j[1] == job_id && j[2]["status"] == "completed"), jobs)
 end
 
-@testset "Create jobs" for store_logs_in_s3 in [true, false]
+@testset "Create jobs where store_logs_in_s3=$store_logs_in_s3" for 
+        store_logs_in_s3 in [true, false]
+    Pkg.activate("./")
     cluster_name = ENV["BANYAN_CLUSTER_NAME"]
 
     job_id = create_job(
         cluster_name=cluster_name,
         store_logs_in_s3=store_logs_in_s3
     )
+    destroy_job(job_id)
+    sleep(10)
 
+    log_file = "banyan-log-for-job-$job_id"
+    println("s3://$(get_cluster_s3_bucket_name(cluster_name))/$(log_file)")
+    @test store_logs_in_s3 == isfile(
+        S3Path("s3://$(get_cluster_s3_bucket_name(cluster_name))/$(log_file)",
+        config=Banyan.get_aws_config())
+    )
 end
 
+@testset "Create jobs using $env_type environment" for env_type in ["local", "remote"]
+    cluster_name = ENV["BANYAN_CLUSTER_NAME"]
 
-# using Pkg
-# using Statistics
+    if env_type == "remote"
+        Pkg.activate("./")
 
-# IRIS_DOWNLOAD_PATH = "https://raw.githubusercontent.com/banyan-team/banyan-julia/v0.1.3/BanyanDataFrames/test/res/iris.csv"
+        # Create job
+        job_id = create_job(
+            cluster_name = cluster_name,
+            nworkers = 2,
+            pf_dispatch_table = "https://raw.githubusercontent.com/banyan-team/banyan-julia/v0.1.3/Banyan/res/pf_dispatch_table.json",
+            url = "https://github.com/banyan-team/banyan-julia.git",
+            branch = "v0.1.3",
+            directory = "banyan-julia/BanyanDataFrames/test",
+            dev_paths = [
+                "banyan-julia/Banyan",
+                "banyan-julia/BanyanDataFrames",
+            ],
+            force_reclone = true,
+            force_pull = true,
+            force_install = true,
+        )
 
+        # Destroy job
+        destroy_job(job_id)
 
-# @testset "Create job using remote BanyanDataFrames Github with $pf_dispatch_table pf_dispatch_table" for pf_dispatch_table in 
-#     ["default", "http path"]
+    elseif env_type == "envs"
+        # Activate environment
+        Pkg.activate("envs/DataAnalysisProject/")
 
-#     Pkg.activate("./")
+        # Import packages
+        using Distributions
+        using Statistics
 
-#     if pf_dispatch_table == "default"
-#         pf_dispatch_table = ""
-#     elseif pf_dispatch_table == "http path"
-#         pf_dispatch_table = "https://raw.githubusercontent.com/banyan-team/banyan-julia/v0.1.3/Banyan/res/pt_lib_info.json"
-#     end
-#     files = [IRIS_DOWNLOAD_PATH]
+        # Test environment detection
+        env_dir = get_julia_environment_dir()
+        loaded_packages = get_loaded_packages()
 
-#     # Create job
-#     job_id = create_job(
-#         cluster_name = ENV["BANYAN_CLUSTER_NAME"],
-#         nworkers = 2,
-#         files = files,
-#         pf_dispatch_table = pf_dispatch_table,
-#         url = "https://github.com/banyan-team/banyan-julia.git",
-#         branch = "remove_banyanfile",  # TODO: Change to "v0.1.3",
-#         directory = "banyan-julia/BanyanDataFrames/test",
-#         dev_paths = [
-#             "banyan-julia/Banyan",
-#             "banyan-julia/BanyanDataFrames",
-#         ],
-#         force_reclone = true
-#     )
-#     @test get_job_id() == job_id
-#     @test get_job().cluster_name == ENV["BANYAN_CLUSTER_NAME"]
-#     @test get_job().nworkers == 2
-#     @test get_cluster_name() == ENV["BANYAN_CLUSTER_NAME"]
+        @test abspath(env_dir) == abspath("envs/DataAnalysisProject/")
+        @test "Distributions" in loaded_packages && "Statistics" in loaded_packages
 
-#     # Describe jobs
-#     curr_jobs = get_jobs(ENV["BANYAN_CLUSTER_NAME"], status="running")
-#     @test haskey(curr_jobs, job_id)
-#     @test curr_jobs[job_id]["status"] == "running"
+        # Create job
+        job_id = create_job(
+            cluster_name=cluster_name,
+            print_logs=false,
+            store_logs_in_s3=false,
+            store_logs_on_cluster=false,
+            job_name="testjob2",
+            files=["data/iris.csv"],
+            code_files=["envs/DataAnalysisProject/analysis.jl"],
+            force_update_files=true,
+        )
 
-#     # Perform computation 1
-#     bucket_name = get_cluster_s3_bucket_name(ENV["BANYAN_CLUSTER_NAME"])
-#     df = read_csv("s3://$(bucket_name)/iris.csv")
-#     gdf = groupby(df, :species)
-#     pl_means = combine(gdf, :petal_length => mean)
-#     res = collect(pl_means)
-#     @test res[:, :petal_length_mean] == [1.464, 4.26, 5.552]
-#     @test res[:, :species] == ["setosa", "versicolor", "virginica"]
+        # Destroy job
+        destroy_job(job_id)
+    end
 
-#     # Destroy job
-#     destroy_job(job_id)
-#     curr_jobs = get_jobs(ENV["BANYAN_CLUSTER_NAME"], status="running")
-#     @test !haskey(curr_jobs, job_id)
-# end
-
-# @testset "Create job using local Julia environment" begin
-#     # Activate an environment
-#     Pkg.activate("envs/")
-
-#     # Import some packages
-#     using Statistics
-#     using Distributions
-
-#     # Create a job
-# end
-
-# # @testset "Create job using remote Github environment"
-#     # Pkg.activate("./")
-# # end
+end
