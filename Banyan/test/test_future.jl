@@ -45,21 +45,21 @@ function test_get_future_from_value_id()
 end
 
 
-@testset "Test constructing futures" begin
-    job = Banyan.create_job(
-        username = get(ENV, "BANYAN_USERNAME", nothing),
-	user_id = get(ENV, "BANYAN_USER_ID", nothing),
-	api_key = get(ENV, "BANYAN_API_KEY", nothing),
-	cluster_name = get(ENV, "BANYAN_CLUSTER_NAME", nothing),
-	nworkers = 2,
-	banyanfile_path = "file://res/Banyanfile.json",
-    )
-    run("construct future") do
-        with_job(job=job) do j
-            test_construct_empty_future()
-            test_construct_future_from_value()
-            test_construct_future_from_future()
-            test_get_future_from_value_id()
-        end
-    end
-end
+# @testset "Test constructing futures" begin
+#     job = Banyan.create_job(
+#         username = get(ENV, "BANYAN_USERNAME", nothing),
+# 	user_id = get(ENV, "BANYAN_USER_ID", nothing),
+# 	api_key = get(ENV, "BANYAN_API_KEY", nothing),
+# 	cluster_name = get(ENV, "BANYAN_CLUSTER_NAME", nothing),
+# 	nworkers = 2,
+# 	banyanfile_path = "file://res/Banyanfile.json",
+#     )
+#     run("construct future") do
+#         with_job(job=job) do j
+#             test_construct_empty_future()
+#             test_construct_future_from_value()
+#             test_construct_future_from_future()
+#             test_get_future_from_value_id()
+#         end
+#     end
+# end
