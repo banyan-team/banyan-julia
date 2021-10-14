@@ -1,3 +1,5 @@
+using Random
+
 @testset "Get clusters" begin
     cluster_name = ENV["BANYAN_CLUSTER_NAME"]
 
@@ -21,6 +23,18 @@ end
     while get_cluster_status(cluster_name) == :updating
         sleep(5)
     end
+end
+
+@testset "Benchmark create_cluster with $instance_type instance type" for instance_type in [
+    "t3.xlarge"  #, "t3.2xlarge", "c5.2xlarge", "m4.4xlarge", "m4.10xlarge"
+]
+    cluster_name = "cluster_$(Random.randstring(['a':'z'; '0':'9'], 12))"
+    @elapsed create_cluster(
+        name=cluster_name,
+        instance_type=instance_type
+    )
+
+    delete_cluster(cluster_name)
 end
 
 

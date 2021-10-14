@@ -24,7 +24,8 @@ export Cluster,
     get_cluster,
     get_cluster_status,
     get_cluster_s3_bucket_name,
-    assert_cluster_is_ready
+    assert_cluster_is_ready,
+    wait_for_cluster
 
 # Job management
 export Job,
