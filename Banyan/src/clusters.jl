@@ -2,7 +2,7 @@
 function create_cluster(;
     name::Union{String,Nothing} = nothing,
     instance_type::Union{String,Nothing} = "m4.4xlarge",
-    max_num_nodes::Union{Int,Nothing} = 8,
+    max_num_workers::Union{Int,Nothing} = 8,
     initial_num_workers::Union{Int,Nothing} = 0,
     min_num_workers::Union{Int,Nothing} = 0,
     iam_policy_arn::Union{String,Nothing} = nothing,
@@ -57,7 +57,7 @@ function create_cluster(;
     cluster_config = Dict(
         "cluster_name" => name,
         "instance_type" => instance_type,
-        "num_nodes" => max_num_nodes,
+        "max_num_workers" => max_num_workers,
         "initial_num_workers" => initial_num_workers,
         "min_num_workers" => min_num_workers,
         "aws_region" => get_aws_config_region(),
@@ -177,3 +177,13 @@ get_cluster(name::String=get_cluster_name(), kwargs...) = get_clusters(; kwargs.
 get_cluster_status(name::String=get_cluster_name(), kwargs...) = get_clusters(; kwargs...)[name].status
 
 get_running_clusters(args...; kwargs...) = filter(entry -> entry[2].status == :running, get_clusters(args...; kwargs...))
+
+function wait_for_cluster(name::String=get_cluster_name(), kwargs...)
+    t = 5
+    while get_cluster_status(name; kwargs...) != :running
+        sleep(t)
+        if t < 80
+            t *= 2
+        end
+    end
+end
