@@ -742,6 +742,8 @@ duplicated_constraints_for_batching(pc::PartitioningConstraints, pa::PartitionAn
 function duplicate_for_batching!(pa::PartitionAnnotation)
     # Duplicate PT stacks
     for (v, pt_stack) in pa.partitions.pt_stacks
+        println("$(length(pt_stack.pts)) PTs before for v=$(v) in duplicate_for_batching!")
+
         # Copy over the PT stack
         second_half = deepcopy(pt_stack.pts)
 
@@ -765,6 +767,7 @@ function duplicate_for_batching!(pa::PartitionAnnotation)
     # Add constraints for second half being Sequential and Match-ing the first
     # half
     for (v, pt_stack) in pa.partitions.pt_stacks
+        println("$(length(pt_stack.pts)) PTs after for v=$(v) in duplicate_for_batching!")
         for i = 1:div(length(pt_stack.pts), 2)
             dupi = i + div(length(pt_stack.pts), 2)
 
