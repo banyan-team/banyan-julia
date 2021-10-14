@@ -150,8 +150,6 @@ function configure(; kwargs...)
     user_id = if_in_or(:user_id, kwargs)
     api_key = if_in_or(:api_key, kwargs)
     ec2_key_pair_name = if_in_or(:ec2_key_pair_name, kwargs)
-    require_ec2_key_pair_name =
-        if_in_or(:require_ec2_key_pair_name, kwargs, false)
     banyanconfig_path = if_in_or(:banyanconfig_path, kwargs)
 
     # Load config
@@ -213,10 +211,6 @@ function configure(; kwargs...)
     )
         banyan_config["aws"]["ec2_key_pair_name"] = ec2_key_pair_name
         is_modified = true
-    end
-    if require_ec2_key_pair_name &&
-       !(haskey(banyan_config["aws"], "ec2_key_pair_name"))
-        error("Name of an EC2 key pair required but not provided; visit here to create a key pair: https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ec2-key-pairs.html#having-ec2-create-your-key-pair")
     end
 
     # # aws.region

@@ -6,6 +6,8 @@ function create_cluster(;
     iam_policy_arn::Union{String,Nothing} = nothing,
     s3_bucket_arn::Union{String,Nothing} = nothing,
     s3_bucket_name::Union{String,Nothing} = nothing,
+    scaledown_time = 25,
+    ec2_key_pair_name = nothing,
     vpc_id = nothing,
     subnet_id = nothing,
     kwargs...,
@@ -33,7 +35,7 @@ function create_cluster(;
     # Construct arguments
 
     # Configure using parameters
-    c = configure(; require_ec2_key_pair_name = true, kwargs...)
+    c = configure(; kwargs...)
 
     if isnothing(s3_bucket_arn) && isnothing(s3_bucket_name)
         s3_bucket_arn =
@@ -54,11 +56,16 @@ function create_cluster(;
         "cluster_name" => name,
         "instance_type" => instance_type,
         "num_nodes" => max_num_nodes,
-        "ec2_key_pair" => c["aws"]["ec2_key_pair_name"],
         "aws_region" => get_aws_config_region(),
         "s3_read_write_resource" => s3_bucket_arn,
+        "scaledown_time" => scaledown_time,
         "recreate" => false,
     )
+    if !isnothing(ec2_key_pair_name)
+        cluster_config["ec2_key_pair"] = ec2_key_pair_name
+    else haskey(c["aws", "ec2_key_pair_name"])
+        cluster_config["ec2_key_pair"] = c["aws"]["ec2_key_pair_name"]
+    end
     if !isnothing(iam_policy_arn)
         cluster_config["additional_policy"] = iam_policy_arn
     end
