@@ -229,6 +229,7 @@ function ReadBlock(
                 @show ispath(path)
                 @show typeof(path)
                 @show isdir("/home/ec2-user/s3fs")
+                @show isdir("/home/ec2-user/s3fs/banyan-cluster-data-testcluster01-1e760506")
                 f = CSV.File(
                     path,
                     header = header,
