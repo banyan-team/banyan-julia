@@ -22,6 +22,7 @@ export Cluster,
     get_clusters,
     get_running_clusters,
     get_cluster,
+    get_cluster_status,
     get_cluster_s3_bucket_name,
     assert_cluster_is_ready
 

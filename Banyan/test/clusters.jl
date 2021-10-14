@@ -1,8 +1,29 @@
-# # TODO: Migrate to using ReTest
+@testset "Get clusters" begin
+    cluster_name = ENV["BANYAN_CLUSTER_NAME"]
 
-# using AWSCore, AWSS3, HTTP
+    clusters = get_clusters()
+    get_cluster_s3_bucket_name(cluster_name)
+    running_clusters = get_running_clusters()
 
-# include("../src/clusters.jl")
+    @test haskey(clusters, cluster_name)
+    @test all(c -> c[2].status == :running, running_clusters)
+
+end
+
+@testset "Update clusters" begin
+    cluster_name = ENV["BANYAN_CLUSTER_NAME"]
+
+    update_cluster(cluster_name)
+    cluster_status = get_cluster_status(cluster_name)
+
+    @test cluster_status == :updating
+    
+    while get_cluster_status(cluster_name) == :updating
+        sleep(5)
+    end
+end
+
+
 
 
 # # Test `clusters.jl:load_json`

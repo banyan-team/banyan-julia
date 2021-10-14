@@ -92,6 +92,15 @@ function delete_cluster(name::String; kwargs...)
     )
 end
 
+function update_cluster(name::String; kwargs...)
+    configure(; kwargs...)
+    @debug "Updating cluster"
+    send_request_get_response(
+        :update_cluster,
+        Dict{String, Any}("cluster_name" => name)
+    )
+end
+
 function assert_cluster_is_ready(name::String; kwargs...)
     @info "Setting cluster status to running"
 
@@ -153,5 +162,7 @@ function get_cluster_s3_bucket_name(cluster_name=get_cluster_name(); kwargs...)
 end
 
 get_cluster(name::String=get_cluster_name(), kwargs...) = get_clusters(; kwargs...)[name]
+
+get_cluster_status(name::String=get_cluster_name(), kwargs...) = get_clusters(; kwargs...)[name].status
 
 get_running_clusters(args...; kwargs...) = filter(entry -> entry[2].status == :running, get_clusters(args...; kwargs...))
