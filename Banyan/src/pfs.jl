@@ -27,7 +27,7 @@ ReturnNull(
     loc_name,
     loc_params,
 ) = begin
-    GC.gc()
+    # GC.gc()
     worker_idx = get_worker_idx(comm)
     # println("At start of returning null worker_idx=$worker_idx, batch_idx=$batch_idx/$nbatches with available memory: $(format_available_memory())")
     nothing
@@ -236,7 +236,7 @@ function ReadBlock(
                 # tbl = Arrow.Table(buf)
                 # println("Converted to buffer and to table")
                 f = nothing
-                GC.gc(true)
+                # GC.gc(true)
                 format_available_memory()
             elseif endswith(file["path"], ".parquet")
                 f = Parquet.read_parquet(
@@ -405,7 +405,7 @@ function Write(
     loc_params,
 )
     # if batch_idx > 1
-    GC.gc()
+    # GC.gc()
     # end
 
     # println("Start write")
@@ -1576,7 +1576,7 @@ function Merge(
     global partial_merges
 
     if batch_idx == 1 || batch_idx == nbatches
-        GC.gc()
+        # GC.gc()
     end
 
     # # # println("In Merge where batch_idx==$batch_idx")

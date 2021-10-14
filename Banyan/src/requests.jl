@@ -228,7 +228,7 @@ function partitioned_computation(fut::AbstractFuture; destination, new_source=no
         # print("LISTENING ON: ", gather_queue)
         @debug "Waiting on running job $job_id"
         println("Waiting on running job $job_id and computing value with ID " * fut.value_id)
-        while true
+        t = @elapsed begin while true
             # TODO: Use to_jl_value and from_jl_value to support Client
             message = receive_next_message(gather_queue)
             @show message
@@ -272,6 +272,10 @@ function partitioned_computation(fut::AbstractFuture; destination, new_source=no
                     break
                 end
             end
+        end
+        end
+        open("timer_log.txt", "a") do f
+            write(f, "COMPUTATION $(string(t))\n")
         end
 
         # Update `mutated` and `stale` for the future that is being evaluated
@@ -362,7 +366,7 @@ function send_evaluation(value_id::ValueId, job_id::JobId)
     println("Submitting evaluation request")
     @show value_id
     @show [to_jl(req) for req in get_job().pending_requests]
-    response = send_request_get_response(
+    t = @elapsed begin response = send_request_get_response(
         :evaluate,
         Dict{String,Any}(
             "value_id" => value_id,
@@ -378,6 +382,10 @@ function send_evaluation(value_id::ValueId, job_id::JobId)
             "used_packages" => used_packages,
         ),
     )
+    end
+    open("timer_log.txt", "a") do f
+        write(f, "EVALUATE $(string(t))\n")
+    end
 
     @show response
 

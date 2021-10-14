@@ -47,7 +47,7 @@ function use_job_for_testing(
                 cluster_name = ENV["BANYAN_CLUSTER_NAME"],
                 nworkers = 2,
                 sample_rate = sample_rate,
-                print_logs = true,
+                print_logs = get(ENV, "BANYAN_PRINT_LOGS", "1") == "1",
                 url = "https://github.com/banyan-team/banyan-julia.git",
                 branch = get(ENV, "BANYAN_JULIA_BRANCH", get_branch_name()),
                 directory = "banyan-julia/BanyanArrays/test",

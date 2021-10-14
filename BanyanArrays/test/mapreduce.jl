@@ -4,6 +4,9 @@
     "parallelism encouraged",
     "parallelism and batches encouraged",
 ]
+    open("timer_log.txt", "a") do f
+        write(f, "In Test 1 $scheduling_config\n")
+    end
     use_job_for_testing(scheduling_config_name = scheduling_config) do
 
         println(typeof(Base.fill(1.0, 2048)))
@@ -24,6 +27,9 @@ end
     "parallelism encouraged",
     "parallelism and batches encouraged",
 ]
+    open("timer_log.txt", "a") do f
+        write(f, "In Test 2 $scheduling_config\n")
+    end
     use_job_for_testing(scheduling_config_name = scheduling_config) do
 
         x = BanyanArrays.fill(10.0, 2048)
@@ -43,6 +49,9 @@ end
     "parallelism encouraged",
     "parallelism and batches encouraged",
 ]
+    open("timer_log.txt", "a") do f
+        write(f, "In Test 3 $scheduling_config\n")
+    end
     use_job_for_testing(scheduling_config_name = scheduling_config) do
 
         x = BanyanArrays.fill(10.0, 2048)
@@ -64,6 +73,9 @@ end
     "parallelism encouraged",
     "parallelism and batches encouraged",
 ]
+    open("timer_log.txt", "a") do f
+        write(f, "In Test 4 $scheduling_config\n")
+    end
     use_job_for_testing(scheduling_config_name = scheduling_config) do
 
         for _ = 1:8
@@ -91,6 +103,9 @@ end
     "parallelism encouraged",
     "parallelism and batches encouraged",
 ]
+    open("timer_log.txt", "a") do f
+        write(f, "In Test 5 $scheduling_config\n")
+    end
     use_job_for_testing(scheduling_config_name = scheduling_config) do
 
         # NOTE: This also tests simple writing to and reading from local disk
@@ -120,6 +135,9 @@ end
     "parallelism encouraged",
     "parallelism and batches encouraged",
 ]
+    open("timer_log.txt", "a") do f
+        write(f, "In Test 6 $scheduling_config\n")
+    end
     use_job_for_testing(scheduling_config_name = scheduling_config) do
 
         x = BanyanArrays.fill(10.0, 2048)
@@ -144,6 +162,9 @@ end
     "parallelism encouraged",
     "parallelism and batches encouraged",
 ]
+    open("timer_log.txt", "a") do f
+        write(f, "In Test 7 $scheduling_config\n")
+    end
     use_job_for_testing(scheduling_config_name = scheduling_config) do
 
         a = BanyanArrays.fill(10.0, 2048)
@@ -159,6 +180,9 @@ end
     "parallelism encouraged",
     "parallelism and batches encouraged",
 ]
+    open("timer_log.txt", "a") do f
+        write(f, "In Test 8 $scheduling_config\n")
+    end
     use_job_for_testing(scheduling_config_name = scheduling_config) do
 
         # Here we test more complex dependency graphs where some values are destroyed
@@ -189,6 +213,9 @@ end
     "parallelism encouraged",
     "parallelism and batches encouraged",
 ]
+    open("timer_log.txt", "a") do f
+        write(f, "In Test 9 $scheduling_config\n")
+    end
     use_job_for_testing(scheduling_config_name = scheduling_config) do
 
         x1 = BanyanArrays.fill(10.0, 2048)
@@ -207,6 +234,9 @@ end
     "parallelism encouraged",
     "parallelism and batches encouraged",
 ]
+    open("timer_log.txt", "a") do f
+        write(f, "In Test 10 $scheduling_config\n")
+    end
     use_job_for_testing(scheduling_config_name = scheduling_config) do
 
         x1 = BanyanArrays.fill(1.0, (2048, 2048))
@@ -220,6 +250,21 @@ end
         @test res_maximum_collect == 3.0
     end
 end
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 # TODO: Re-enable this test once we ensure that we can write out small
 # enough datasets without unnecessary batching
@@ -258,3 +303,5 @@ end
 # end
 
 # TODO: Test HDF5 from URL and from S3
+
+
