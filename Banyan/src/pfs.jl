@@ -228,6 +228,7 @@ function ReadBlock(
                 @show isfile(path)
                 @show ispath(path)
                 @show typeof(path)
+                @show isdir("/home/ec2-user/s3fs")
                 f = CSV.File(
                     path,
                     header = header,
