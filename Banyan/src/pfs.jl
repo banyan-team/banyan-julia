@@ -225,6 +225,9 @@ function ReadBlock(
                 @show header
                 @show header + readrange.start - filerowrange.start + 1
                 @show filerowrange.stop - readrange.stop
+                @show isfile(path)
+                @show ispath(path)
+                @show typeof(path)
                 f = CSV.File(
                     path,
                     header = header,
