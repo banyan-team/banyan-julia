@@ -12,7 +12,9 @@ mutable struct Future <: AbstractFuture
             try
                 record_request(DestroyRequest(fut.value_id))
             catch e
-                @warn "Failed to destroy value $(fut.value_id) because job has stopped: $e"
+                # `record_request` will fail if there isn't any job to add the
+                # request to. So we just continue silently.
+                # @warn "Failed to destroy value $(fut.value_id) because job has stopped: $e"
             end
         end
 

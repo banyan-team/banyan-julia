@@ -354,6 +354,10 @@ function send_evaluation(value_id::ValueId, job_id::JobId)
 
     @debug "Sending evaluation request"
 
+    # Get list of the modules used in the code regions here
+    used_packages = union(vcat([req.task.used_modules for req in get_job().pending_requests if req isa RecordTaskRequest]...))
+    println("HERE IS A MODULE: ", used_packages)
+
     # Submit evaluation request
     println("Submitting evaluation request")
     @show value_id
@@ -370,7 +374,8 @@ function send_evaluation(value_id::ValueId, job_id::JobId)
                 "encourage_parallelism_with_batches" => encourage_parallelism_with_batches
             ),
             "num_bang_values_issued" => get_num_bang_values_issued(),
-            "packages" => get_loaded_packages()
+            "main_packages" => get_loaded_packages(),
+            "used_packages" => used_packages,
         ),
     )
 

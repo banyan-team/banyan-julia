@@ -327,6 +327,11 @@ end
 
 invert(mutation::Dict{Future,Future}) = Dict(new => old for (old, new) in mutation)
 
+function partitioned_using_modules(m...)
+    global curr_delayed_task
+    union!(curr_delayed_task.used_modules, m)
+end
+
 macro partitioned(ex...)
     res = quote end
 
@@ -700,6 +705,10 @@ duplicated_constraints_for_batching(pc::PartitioningConstraints, pa::PartitionAn
                         PartitioningConstraintOverGroup(c.type, duplicate_args(c.args, pa)),
                     ]
                 elseif c.type == "CROSS" || startswith(c.type, "AT_MOST=")
+                    # Note that with Cross constraints, the order of the
+                    # arguments matters. But actually that doesnt matter.
+                    # The scheduler will automaticcally ensure that the order
+                    # of PTs in a PT stack is obeyed.
                     # ||
                     # c.type == "MATCH" || startswith(c.type, "MATCH_ON")
                     [
