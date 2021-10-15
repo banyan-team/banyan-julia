@@ -26,15 +26,26 @@ end
 end
 
 @testset "Benchmark create_cluster with $instance_type instance type" for instance_type in [
-    "t3.xlarge"  #, "t3.2xlarge", "c5.2xlarge", "m4.4xlarge", "m4.10xlarge"
+    "t3.xlarge", "t3.2xlarge", "c5.2xlarge", "m4.4xlarge", "m4.10xlarge"
 ]
-    cluster_name = "cluster_$(Random.randstring(['a':'z'; '0':'9'], 12))"
-    @elapsed create_cluster(
-        name=cluster_name,
-        instance_type=instance_type
-    )
-
+    cluster_name = "cluster-$(Random.randstring(['a':'z'; '0':'9'], 6))"
+    @show cluster_name
+    t = @elapsed begin
+        c = create_cluster(
+            name=cluster_name,
+            instance_type=instance_type,
+            max_num_workers=16
+        )
+    end
     delete_cluster(cluster_name)
+
+    # Save results to file
+    open("create_cluster_times.txt", "a") do f
+        write(f, "$(instance_type)\t$(string(t))")
+    end
+
+    # Verify that cluster was spun up
+    @test c.status == :running
 end
 
 

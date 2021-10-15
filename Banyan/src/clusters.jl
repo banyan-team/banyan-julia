@@ -12,6 +12,7 @@ function create_cluster(;
     ec2_key_pair_name = nothing,
     vpc_id = nothing,
     subnet_id = nothing,
+    nowait=false,
     kwargs...,
 )
     clusters = get_clusters(; kwargs...)
@@ -67,7 +68,7 @@ function create_cluster(;
     )
     if !isnothing(ec2_key_pair_name)
         cluster_config["ec2_key_pair"] = ec2_key_pair_name
-    else haskey(c["aws", "ec2_key_pair_name"])
+    elseif haskey(c["aws"], "ec2_key_pair_name")
         cluster_config["ec2_key_pair"] = c["aws"]["ec2_key_pair_name"]
     end
     if !isnothing(iam_policy_arn)
@@ -85,7 +86,11 @@ function create_cluster(;
     # Send request to create cluster
     send_request_get_response(:create_cluster, cluster_config)
 
-    return Cluster(name, :creating, 0, s3_bucket_arn)
+    if !nowait
+        wait_for_cluster(name)
+    end
+
+    return Cluster(name, get_cluster_status(name), 0, s3_bucket_arn)
 end
 
 function destroy_cluster(name::String; kwargs...)
@@ -180,10 +185,25 @@ get_running_clusters(args...; kwargs...) = filter(entry -> entry[2].status == :r
 
 function wait_for_cluster(name::String=get_cluster_name(), kwargs...)
     t = 5
-    while get_cluster_status(name; kwargs...) != :running
+    cluster_status = get_cluster_status(name; kwargs...)
+    while (cluster_status == :creating || cluster_status == :updating)
+        if cluster_status == :creating
+            @info "Cluster $(name) is getting set up"
+        else
+            @info "Cluster $(name) is updating"
+        end
         sleep(t)
         if t < 80
             t *= 2
         end
+        cluster_status = get_cluster_status(name; kwargs...)
+    end
+    if cluster_status == :running
+        @info "Cluster $(name) is running and ready for jobs"
+    elseif cluster_status == :terminated
+        @info "Cluster $(name) no longer exists"
+    elseif cluster_status!= :creating && cluster_status != :updating
+        @info "Cluster $(name) set up has failed"
+        delete_cluster(name)
     end
 end
