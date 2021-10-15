@@ -118,15 +118,15 @@ function get_partition_idx_from_divisions(
     boundedlower = false,
     boundedupper = false,
 )
-    # If there are no divisions, we simply put everything on the first
-    # partition.
-    if isempty(divisions)
-        return 1
-    end
-
     # The given divisions may be returned from `get_divisions`
     oh = orderinghash(val)
     for (i, div) in enumerate(divisions)
+        # Now _this_ is a plausible cause. `get_divisions` can return a bunch
+        # of empty arrays and in that case we should just skip that division.
+        if isempty(div)
+            continue
+        end
+
         isfirstdivision = i == 1
         islastdivision = i == length(divisions)
         if ((!boundedlower && isfirstdivision) || oh >= first(div)[1]) &&
