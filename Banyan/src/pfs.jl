@@ -27,7 +27,7 @@ ReturnNull(
     loc_name,
     loc_params,
 ) = begin
-    # GC.gc()
+    @elapsed GC.gc()
     worker_idx = get_worker_idx(comm)
     # println("At start of returning null worker_idx=$worker_idx, batch_idx=$batch_idx/$nbatches with available memory: $(format_available_memory())")
     nothing
@@ -165,7 +165,7 @@ function ReadBlock(
 
     # Iterate through files and identify which ones correspond to the range of
     # rows for the batch currently being processed by this worker
-    @show loc_params
+    # @show loc_params
     nrows = loc_params["nrows"]
     rowrange = split_len(nrows, batch_idx, nbatches, comm)
     dfs::Vector{DataFrames.DataFrame} = []
@@ -221,16 +221,16 @@ function ReadBlock(
                 # # @showheader
                 # # @showheader + readrange.start - filerowrange.start + 1
                 # # @showfilerowrange.stop - readrange.stop
-                @show path
-                @show header
-                @show header + readrange.start - filerowrange.start + 1
-                @show filerowrange.stop - readrange.stop
-                @show isfile(path)
-                @show ispath(path)
-                @show typeof(path)
-                @show isdir("/home/ec2-user/s3fs")
-                @show isdir("/home/ec2-user/s3fs/banyan-cluster-data-testcluster01-1e760506")
-                @show isfile("/home/ec2-user/s3fs/banyan-cluster-data-testcluster01-1e760506/iris_large.csv")
+                # @show path
+                # @show header
+                # @show header + readrange.start - filerowrange.start + 1
+                # @show filerowrange.stop - readrange.stop
+                # @show isfile(path)
+                # @show ispath(path)
+                # @show typeof(path)
+                # @show isdir("/home/ec2-user/s3fs")
+                # @show isdir("/home/ec2-user/s3fs/banyan-cluster-data-testcluster01-1e760506")
+                # @show isfile("/home/ec2-user/s3fs/banyan-cluster-data-testcluster01-1e760506/iris_large.csv")
                 f = CSV.File(
                     path,
                     header = header,
@@ -246,7 +246,7 @@ function ReadBlock(
                 # tbl = Arrow.Table(buf)
                 # println("Converted to buffer and to table")
                 f = nothing
-                # GC.gc(true)
+                @elapsed GC.gc(true)
                 format_available_memory()
             elseif endswith(file["path"], ".parquet")
                 f = Parquet.read_parquet(
@@ -326,15 +326,15 @@ function ReadGroup(
     rev = params["rev"] # Passed in ReadBlock
     nworkers = get_nworkers(comm)
     npartitions = nworkers * nbatches
-    @show divisions
+    # @show divisions
     partition_divisions = get_divisions(divisions, npartitions)
 
     # TODO: Do some reversing here instead of only doing it later in Shuffle
     # to ensure that sorting in reverse order works correctly
 
-    # if batch_idx == 1 && get_worker_idx(comm) == 1
-    #     println("In ReadGroup with divisions=$divisions and partition_divisions=get_divisions(divisions, npartitions)=$partition_divisions")
-    # end
+    if batch_idx == 1 && get_worker_idx(comm) == 1
+        # println("In ReadGroup with divisions=$divisions and partition_divisions=get_divisions(divisions, npartitions)=$partition_divisions")
+    end
 
     # Get the divisions that are relevant to this batch by iterating
     # through the divisions in a stride and consolidating the list of divisions
@@ -357,9 +357,9 @@ function ReadGroup(
         end
     end
 
-    # if get_worker_idx(comm) == 1
-    #     println("In ReadGroup on batch $batch_idx with curr_partition_divisions=$curr_partition_divisions for shuffling")
-    # end
+    if get_worker_idx(comm) == 1
+        # println("In ReadGroup on batch $batch_idx with curr_partition_divisions=$curr_partition_divisions for shuffling")
+    end
 
     # Read in each batch and shuffle it to get the data for this partition
     parts = []
@@ -398,9 +398,9 @@ function ReadGroup(
         (partition_divisions[partition_idx], partition_idx > 1, partition_idx < npartitions)
 
     # # # @showres
-    # if isa_df(res)
-    #     println("Output of ReadGroup has length $(nrow(res))")
-    # end
+    if isa_df(res)
+        # println("Output of ReadGroup has length $(nrow(res))")
+    end
     res
 end
 
@@ -415,7 +415,7 @@ function Write(
     loc_params,
 )
     # if batch_idx > 1
-    # GC.gc()
+    @elapsed GC.gc()
     # end
 
     # println("Start write")
@@ -1586,7 +1586,7 @@ function Merge(
     global partial_merges
 
     if batch_idx == 1 || batch_idx == nbatches
-        # GC.gc()
+        @elapsed GC.gc()
     end
 
     # # # println("In Merge where batch_idx==$batch_idx")
@@ -1693,7 +1693,7 @@ function CopyFrom(
         received = MPI.bcast(received, 0, comm)
         # println("In CopyFrom Client")
         # # @showreceived
-        @show received
+        # @show received
         received
     elseif loc_name == "Memory"
         src
@@ -1981,9 +1981,9 @@ function Distribute(part, src_params, dst_params, comm)
 end
 
 function Consolidate(part, src_params, dst_params, comm)
-    # if isnothing(part)
-    #     println("Input to Consolidate is nothing")
-    # end
+    if isnothing(part)
+        # println("Input to Consolidate is nothing")
+    end
     kind, sendbuf = tobuf(part)
     recvvbuf = buftovbuf(sendbuf, comm)
     # TODO: Maybe sometimes use gatherv if all sendbuf's are known to be equally sized
@@ -2003,9 +2003,9 @@ function Consolidate(part, src_params, dst_params, comm)
         get_nworkers(comm);
         key = (isa_array(part) ? src_params["key"] : 1),
     )
-    # if isnothing(part)
-    #     println("Output of Consolidate is nothing")
-    # end
+    if isnothing(part)
+        # println("Output of Consolidate is nothing")
+    end
     part
 end
 
