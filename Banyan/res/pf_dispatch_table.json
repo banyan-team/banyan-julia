@@ -2,7 +2,7 @@
     "splits": {
         "ReturnNull": {
             "location_names": ["None"],
-            "partition_memory_usage": "all"
+            "partition_memory_usage": "none"
         },
         "ReadBlock": {
             "expected": ["key"],

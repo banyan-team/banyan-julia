@@ -705,6 +705,10 @@ duplicated_constraints_for_batching(pc::PartitioningConstraints, pa::PartitionAn
                         PartitioningConstraintOverGroup(c.type, duplicate_args(c.args, pa)),
                     ]
                 elseif c.type == "CROSS" || startswith(c.type, "AT_MOST=")
+                    # Note that with Cross constraints, the order of the
+                    # arguments matters. But actually that doesnt matter.
+                    # The scheduler will automaticcally ensure that the order
+                    # of PTs in a PT stack is obeyed.
                     # ||
                     # c.type == "MATCH" || startswith(c.type, "MATCH_ON")
                     [
@@ -738,6 +742,8 @@ duplicated_constraints_for_batching(pc::PartitioningConstraints, pa::PartitionAn
 function duplicate_for_batching!(pa::PartitionAnnotation)
     # Duplicate PT stacks
     for (v, pt_stack) in pa.partitions.pt_stacks
+        println("$(length(pt_stack.pts)) PTs before for v=$(v) in duplicate_for_batching!")
+
         # Copy over the PT stack
         second_half = deepcopy(pt_stack.pts)
 
@@ -761,6 +767,7 @@ function duplicate_for_batching!(pa::PartitionAnnotation)
     # Add constraints for second half being Sequential and Match-ing the first
     # half
     for (v, pt_stack) in pa.partitions.pt_stacks
+        println("$(length(pt_stack.pts)) PTs after for v=$(v) in duplicate_for_batching!")
         for i = 1:div(length(pt_stack.pts), 2)
             dupi = i + div(length(pt_stack.pts), 2)
 

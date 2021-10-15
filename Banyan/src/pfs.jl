@@ -221,6 +221,16 @@ function ReadBlock(
                 # # @showheader
                 # # @showheader + readrange.start - filerowrange.start + 1
                 # # @showfilerowrange.stop - readrange.stop
+                @show path
+                @show header
+                @show header + readrange.start - filerowrange.start + 1
+                @show filerowrange.stop - readrange.stop
+                @show isfile(path)
+                @show ispath(path)
+                @show typeof(path)
+                @show isdir("/home/ec2-user/s3fs")
+                @show isdir("/home/ec2-user/s3fs/banyan-cluster-data-testcluster01-1e760506")
+                @show isfile("/home/ec2-user/s3fs/banyan-cluster-data-testcluster01-1e760506/iris_large.csv")
                 f = CSV.File(
                     path,
                     header = header,

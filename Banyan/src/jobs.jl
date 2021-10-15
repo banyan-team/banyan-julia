@@ -38,24 +38,24 @@ end
 get_cluster_name() = get_job().cluster_name
 
 function create_job(;
-    cluster_name::String = nothing,
-    nworkers::Integer = 2,
-    print_logs::Bool = false,
-    store_logs_in_s3::Bool = true,
-    store_logs_on_cluster::Bool = false,
-    sample_rate::Integer = nworkers,
-    job_name = nothing,
-    files = [],
-    code_files = [],
-    force_update_files = false,
-    pf_dispatch_table = "",
-    url = nothing,
-    branch = nothing,
-    directory = nothing,
-    dev_paths = [],
-    force_reclone = false,
-    force_pull = false,
-    force_install = false,
+    cluster_name::Union{String,Nothing} = nothing,
+    nworkers::Union{Integer,Nothing} = 2,
+    print_logs::Union{Bool,Nothing} = false,
+    store_logs_in_s3::Union{Bool,Nothing} = true,
+    store_logs_on_cluster::Union{Bool,Nothing} = false,
+    sample_rate::Union{Integer,Nothing} = nworkers,
+    job_name::Union{String,Nothing} = nothing,
+    files::Union{Vector,Nothing} = [],
+    code_files::Union{Vector,Nothing} = [],
+    force_update_files::Union{Bool,Nothing} = false,
+    pf_dispatch_table::Union{String,Nothing} = "",
+    url::Union{String,Nothing} = nothing,
+    branch::Union{String,Nothing} = nothing,
+    directory::Union{String,Nothing} = nothing,
+    dev_paths::Union{Vector,Nothing} = [],
+    force_reclone::Union{Bool,Nothing} = false,
+    force_pull::Union{Bool,Nothing} = false,
+    force_install::Union{Bool,Nothing} = false,
     kwargs...,
 )
     global jobs
@@ -71,11 +71,12 @@ function create_job(;
 
     # Construct parameters for creating job
     cluster_name = if isnothing(cluster_name)
-        clusters = list_clusters()
-        if length(clusters) == 0
+        running_clusters = get_running_clusters()
+        println(running_clusters)
+        if length(running_clusters) == 0
             error("Failed to create job: you don't have any clusters created")
         end
-        first(keys(clusters))
+        first(keys(running_clusters))
     else
         cluster_name
     end
@@ -188,6 +189,11 @@ function destroy_job(job_id::JobId = get_job_id(); failed = nothing, force = fal
     )
 
     # Remove from global state
+    # TODO: Maybe `job_id`must always has be in `jobs`. In that case, we should
+    # not be needing this `if` statement here.
+    if failed == true && haskey(jobs, job_id)
+        jobs[job_id].current_status = "failed"
+    end
     if !isnothing(current_job_id) && get_job_id() == job_id
         set_job(nothing)
     end
