@@ -350,6 +350,7 @@ function ReadGroup(
             #     (worker_division_idx - 1) * nbatches + batch_division_idx
             partition_division_idx =
                 get_partition_idx(batch_division_idx, nbatches, worker_division_idx)
+            @show worker_division_idx batch_division_idx partition_division_idx batch_idx
             if batch_division_idx == batch_idx
                 p_divisions = partition_divisions[partition_division_idx]
                 push!(
