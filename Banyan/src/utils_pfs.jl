@@ -118,6 +118,12 @@ function get_partition_idx_from_divisions(
     boundedlower = false,
     boundedupper = false,
 )
+    # If there are no divisions, we simply put everything on the first
+    # partition.
+    if length(divisions) == 1
+        return 1
+    end
+
     # The given divisions may be returned from `get_divisions`
     oh = orderinghash(val)
     for (i, div) in enumerate(divisions)
@@ -128,6 +134,9 @@ function get_partition_idx_from_divisions(
             return i
         end
     end
+
+    # We return -1 so we can fail fast because we really should never end up in
+    # this case where no division works for this value.
     -1
 end
 
@@ -197,7 +206,11 @@ function get_divisions(divisions, npartitions)
     # multiple divisions.
 
     ndivisions = length(divisions)
-    if ndivisions >= npartitions
+    if ndivisions == 0
+        # If there are no divisions (maybe this dataset or this partition of a
+        # dataset is empty), we simply return empty set.
+        [[] for _ in 1:npartitions]
+    elseif ndivisions >= npartitions
         # If there are more divisions than partitions, we can distribute them
         # easily. Each partition gets 0 or more divisions.
         # TODO: Ensure usage of div here and in sampling (in PT

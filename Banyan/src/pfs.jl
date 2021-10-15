@@ -352,11 +352,19 @@ function ReadGroup(
                 get_partition_idx(batch_division_idx, nbatches, worker_division_idx)
             @show worker_division_idx batch_division_idx partition_division_idx batch_idx
             if batch_division_idx == batch_idx
+                # Get the divisions for this partition
                 p_divisions = partition_divisions[partition_division_idx]
-                push!(
-                    curr_partition_divisions,
-                    (first(p_divisions)[1], last(p_divisions)[2]),
-                )
+
+                # We can ignore this if there are no divisions for this
+                # partition. If we end up with fewer divisions than the # of
+                # partitions, that's okay since we will anyway call
+                # `get_divisions` on this inside of `Shuffle`.
+                if !isempty(p_divisions)
+                    push!(
+                        curr_partition_divisions,
+                        (first(p_divisions)[1], last(p_divisions)[2]),
+                    )
+                end
             end
         end
     end
