@@ -120,7 +120,7 @@ function get_partition_idx_from_divisions(
 )
     # If there are no divisions, we simply put everything on the first
     # partition.
-    if length(divisions) == 1
+    if isempty(divisions)
         return 1
     end
 
