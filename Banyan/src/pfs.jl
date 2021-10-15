@@ -328,6 +328,7 @@ function ReadGroup(
     npartitions = nworkers * nbatches
     @show divisions
     partition_divisions = get_divisions(divisions, npartitions)
+    @show partition_divisions
 
     # TODO: Do some reversing here instead of only doing it later in Shuffle
     # to ensure that sorting in reverse order works correctly
@@ -341,6 +342,8 @@ function ReadGroup(
     # for each partition. Then, ensure we use boundedlower=true only for the
     # first batch and boundedupper=true for the last batch.
     curr_partition_divisions = []
+    @show nworkers
+    @show nbatches
     for worker_division_idx = 1:nworkers
         for batch_division_idx = 1:nbatches
             # partition_division_idx =
