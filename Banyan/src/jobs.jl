@@ -191,7 +191,7 @@ function destroy_job(job_id::JobId = get_job_id(); failed = nothing, force = fal
     # Remove from global state
     # TODO: Maybe `job_id`must always has be in `jobs`. In that case, we should
     # not be needing this `if` statement here.
-    if failed && haskey(jobs, job_id)
+    if failed == true && haskey(jobs, job_id)
         jobs[job_id].current_status = "failed"
     end
     if !isnothing(current_job_id) && get_job_id() == job_id
