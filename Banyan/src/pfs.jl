@@ -403,11 +403,19 @@ function ReadGroup(
     res = merge_on_executor(parts...; key = key)
     # # # # @showres
 
+    # The first and last partitions (used if this lacks a lower or upper bound)
+    # must have actual division(s) associated with them. If there is no
+    # partition that has divisions, then they will all be skipped and -1 will
+    # be returned. So these indices are only used if there are nonempty
+    # divisions.
+    firstdivisionidx = findfirst(x->!isempty(x), partition_divisions)
+    lastdivisionidx = findlast(x->!isempty(x), partition_divisions)
+
     # Store divisions
     global splitting_divisions
     partition_idx = get_partition_idx(batch_idx, nbatches, comm)
     splitting_divisions[res] =
-        (partition_divisions[partition_idx], partition_idx > 1, partition_idx < npartitions)
+        (partition_divisions[partition_idx], partition_idx > firstdivisionidx, partition_idx < lastdivisionidx)
 
     # # # @showres
     if isa_df(res)
@@ -1572,12 +1580,20 @@ function SplitGroup(
         # # # @showbatch_idx worker_idx src res
     end
 
+    # The first and last partitions (used if this lacks a lower or upper bound)
+    # must have actual division(s) associated with them. If there is no
+    # partition that has divisions, then they will all be skipped and -1 will
+    # be returned. So these indices are only used if there are nonempty
+    # divisions.
+    firstdivisionidx = findfirst(x->!isempty(x), divisions_by_partition)
+    lastdivisionidx = findlast(x->!isempty(x), divisions_by_partition)
+
     # Store divisions
     global splitting_divisions
     splitting_divisions[res] = (
         divisions_by_partition[partition_idx],
-        boundedlower || partition_idx > 1,
-        boundedupper || partition_idx < npartitions,
+        boundedlower || partition_idx > firstdivisionidx,
+        boundedupper || partition_idx < lastdivisionidx,
     )
 
     res
