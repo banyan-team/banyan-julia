@@ -408,14 +408,19 @@ function ReadGroup(
     # partition that has divisions, then they will all be skipped and -1 will
     # be returned. So these indices are only used if there are nonempty
     # divisions.
+    hasdivision = any(x->!isempty(x), partition_divisions)
     firstdivisionidx = findfirst(x->!isempty(x), partition_divisions)
     lastdivisionidx = findlast(x->!isempty(x), partition_divisions)
+
+    # If there are no divisions for any of the partitions, then they are all
+    # bounded. For a partition to be unbounded on one side, there must be a
+    # division(s) for that partition.
 
     # Store divisions
     global splitting_divisions
     partition_idx = get_partition_idx(batch_idx, nbatches, comm)
     splitting_divisions[res] =
-        (partition_divisions[partition_idx], partition_idx > firstdivisionidx, partition_idx < lastdivisionidx)
+        (partition_divisions[partition_idx], !hasdivision || partition_idx > firstdivisionidx, !hasdivision || partition_idx < lastdivisionidx)
 
     # # # @showres
     if isa_df(res)
@@ -1585,6 +1590,7 @@ function SplitGroup(
     # partition that has divisions, then they will all be skipped and -1 will
     # be returned. So these indices are only used if there are nonempty
     # divisions.
+    hasdivision = any(x->!isempty(x), divisions_by_partition)
     firstdivisionidx = findfirst(x->!isempty(x), divisions_by_partition)
     lastdivisionidx = findlast(x->!isempty(x), divisions_by_partition)
 
@@ -1592,8 +1598,8 @@ function SplitGroup(
     global splitting_divisions
     splitting_divisions[res] = (
         divisions_by_partition[partition_idx],
-        boundedlower || partition_idx > firstdivisionidx,
-        boundedupper || partition_idx < lastdivisionidx,
+        !hasdivision || boundedlower || partition_idx > firstdivisionidx,
+        !hasdivision || boundedupper || partition_idx < lastdivisionidx,
     )
 
     res
