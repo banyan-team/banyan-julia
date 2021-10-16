@@ -174,6 +174,8 @@ function create_job(;
     jobs[current_job_id] = Job(cluster_name, current_job_id, nworkers, sample_rate)
     jobs[current_job_id].current_status = "running"
 
+    wait_for_cluster(cluster_name)
+
     @debug "Finished creating job $job_id"
     return job_id
 end
