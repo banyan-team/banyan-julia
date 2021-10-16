@@ -328,7 +328,9 @@ function ReadGroup(
     npartitions = nworkers * nbatches
     @show divisions
     partition_divisions = get_divisions(divisions, npartitions)
-    @show partition_divisions
+
+    println("In ReadGroup")
+    @show divisions partition_divisions
 
     # TODO: Do some reversing here instead of only doing it later in Shuffle
     # to ensure that sorting in reverse order works correctly
@@ -1547,6 +1549,9 @@ function SplitGroup(
     end
     divisions_by_partition = get_divisions(src_divisions, npartitions)
 
+    println("In SplitGroup")
+    @show src_divisions divisions_by_partition
+
     # Get the divisions to apply
     key = params["key"]
     rev = params["rev"]
@@ -1562,6 +1567,9 @@ function SplitGroup(
         boundedlower = boundedlower,
         boundedupper = boundedupper,
     )
+
+    println("In SplitGroup")
+    @show divisions_by_partition
 
     # Apply divisions to get only the elements relevant to this worker
     # # # # @showkey

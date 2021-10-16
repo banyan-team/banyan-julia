@@ -126,6 +126,9 @@ function get_partition_idx_from_divisions(
     firstdivisionidx = findfirst(x->!isempty(x), divisions)
     lastdivisionidx = findlast(x->!isempty(x), divisions)
 
+    println("In get_partition_idx_from_divisions")
+    @show divisions
+
     # The given divisions may be returned from `get_divisions`
     oh = orderinghash(val)
     for (i, div) in enumerate(divisions)
