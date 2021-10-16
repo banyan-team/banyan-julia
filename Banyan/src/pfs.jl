@@ -390,6 +390,9 @@ function ReadGroup(
         end
     end
 
+    @show firstbatchidx lastbatchidx firstdivisionidx lastdivisionidx
+    @show curr_partition_divisions batch_idx
+
     if get_worker_idx(comm) == 1
         println("In ReadGroup on batch $batch_idx with curr_partition_divisions=$curr_partition_divisions for shuffling")
     end
