@@ -122,7 +122,7 @@ function get_partition_idx_from_divisions(
     # we ignore them. And if some of the partitions towards the end didn't have
     # any then the `lastdivisionidx` will be different.
     firstdivisionidx = 0
-    lastdivisionidx = findlast(isempty, divisions)
+    lastdivisionidx = length(divisions)
     for i in 1:length(divisions)
         if isempty(divisions[i])
             firstdivisionidx = i
@@ -148,8 +148,8 @@ function get_partition_idx_from_divisions(
             continue
         end
 
-        isfirstdivision = i == 1
-        islastdivision = i == length(divisions)
+        isfirstdivision = i == firstdivisionidx
+        islastdivision = i == lastdivisionidx
         if ((!boundedlower && isfirstdivision) || oh >= first(div)[1]) &&
            ((!boundedupper && islastdivision) || oh < last(div)[2])
             return i
