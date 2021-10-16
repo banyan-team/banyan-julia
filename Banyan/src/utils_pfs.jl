@@ -118,7 +118,28 @@ function get_partition_idx_from_divisions(
     boundedlower = false,
     boundedupper = false,
 )
+    # Some partitions might not have been assigned any divisions. In that case
+    # we ignore them. And if some of the partitions towards the end didn't have
+    # any then the `lastdivisionidx` will be different.
+    firstdivisionidx = 0
+    lastdivisionidx = findlast(isempty, divisions)
+    for i in 1:length(divisions)
+        if isempty(divisions[i])
+            firstdivisionidx = i
+        else
+            break
+        end
+    end
+    for i in reverse(1:length(divisions))
+        if isempty(divisions[i])
+            lastdivisionidx = i
+        else
+            break
+        end
+    end
+
     # The given divisions may be returned from `get_divisions`
+
     oh = orderinghash(val)
     for (i, div) in enumerate(divisions)
         # Now _this_ is a plausible cause. `get_divisions` can return a bunch
@@ -218,6 +239,7 @@ function get_divisions(divisions, npartitions)
         # instead we use ceiling division
         # ndivisions_per_partition = div(ndivisions, npartitions)
         [
+            # This could be an empty array.
             begin
                 divisions[split_len(ndivisions, partition_idx, npartitions)]
             end for partition_idx = 1:npartitions
