@@ -184,6 +184,7 @@ function partitioned_computation(fut::AbstractFuture; destination, new_source=no
         GC.gc()
     
         # Destroy everything that is to be destroyed in this task
+        println("Sending `DestroyRequest`s in this `evaluate`")
         for req in job.pending_requests
             # Don't destroy stuff where a `DestroyRequest` was produced just
             # because of a `mutated(old, new)`
@@ -204,6 +205,10 @@ function partitioned_computation(fut::AbstractFuture; destination, new_source=no
                 # Remove information about the value's location including the
                 # sample taken from it
                 delete!(job.locations, req.value_id)
+            end
+
+            if req isa DestroyRequest
+                println("Sending `DestroyRequest($(req.value_id))` in this `evaluate`")
             end
         end
     
