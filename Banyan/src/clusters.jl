@@ -15,6 +15,10 @@ function create_cluster(;
     nowait=false,
     kwargs...,
 )
+
+    # Configure using parameters
+    c = configure(; kwargs...)
+    
     clusters = get_clusters(; kwargs...)
     if isnothing(name)
         name = "Cluster " * string(length(clusters) + 1)
@@ -29,7 +33,11 @@ function create_cluster(;
                 :create_cluster,
                 Dict("cluster_name" => name, "recreate" => true),
             )
-            return
+            if !nowait
+                wait_for_cluster(name)
+            end
+            println("About to return")
+            return get_cluster(name)
         else
             error("Cluster with name $name already exists and has status $(string(clusters[name].status))")
         end
@@ -37,8 +45,9 @@ function create_cluster(;
 
     # Construct arguments
 
-    # Configure using parameters
-    c = configure(; kwargs...)
+    println("Following passed to create_cluster")
+    @show s3_bucket_arn
+    @show s3_bucket_name
 
     if isnothing(s3_bucket_arn) && isnothing(s3_bucket_name)
         s3_bucket_arn = "arn:aws:s3:::banyan-cluster-data-$name-$(string(bytes2hex(rand(UInt8, 4))))"
@@ -52,6 +61,10 @@ function create_cluster(;
     if !(s3_bucket_name in s3_list_buckets(get_aws_config()))
         error("Bucket $s3_bucket_name does not exist in connected AWS account")
     end
+
+    println("And after")
+    @show s3_bucket_arn
+    @show s3_bucket_name
 
     # Construct cluster creation
     cluster_config = Dict(
@@ -79,6 +92,8 @@ function create_cluster(;
     if !isnothing(subnet_id)
         cluster_config["subnet_id"] = subnet_id
     end
+
+    println("s3_bucket_arn=$(s3_bucket_arn)")
 
     @info "Creating cluster"
 

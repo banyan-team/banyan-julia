@@ -27,15 +27,15 @@ end
     @test cluster_status == :running
 end
 
-@testset "Create clusters" begin
-end
-
 function bucket_exists(s3_bucket_name)
     ispath(S3Path("s3://$(s3_bucket_name)", config=Banyan.get_aws_config()))
 end
 
+@testset "Create clusters" begin
+end
+
 @testset "Destroy and delete clusters with $s3_bucket S3 bucket" for s3_bucket in [
-        "default", "user-provided"
+        "user-provided"  # "default", 
     ]
     Random.seed!()
     cluster_name = "cluster-$(Random.randstring(['a':'z'; '0':'9'], 6))"
@@ -47,6 +47,8 @@ end
         s3_bucket = Random.randstring(['a':'z'; '0':'9'], 6)
         s3_create_bucket(Banyan.get_aws_config(), s3_bucket)
     end
+
+    println("s3_bucket is ", s3_bucket)
 
     # Create a cluster (at least initiate) and check that S3 bucket exists
     c = create_cluster(
@@ -71,7 +73,7 @@ end
 
     # Re-create cluster and check that S3 bucket exists and is same as before
     while get_cluster_status(cluster_name) != :terminated
-        sleep(30)
+        sleep(15)
     end
     c_r = create_cluster(
         name=cluster_name,
@@ -84,6 +86,11 @@ end
 
     # Delete cluster
     delete_cluster(cluster_name)
+    @show s3_bucket_name
+    @show s3_bucket_name_r
+    @show bucket_exists(s3_bucket_name)
+    @show bucket_exists(s3_bucket_name_r)
+    sleep(30)  # Just to ensure that bucket has been deleted
     s3_bucket_exists = bucket_exists(s3_bucket_name_r)
     @test !s3_bucket_exists
 
