@@ -118,28 +118,15 @@ function get_partition_idx_from_divisions(
     boundedlower = false,
     boundedupper = false,
 )
-    # Some partitions might not have been assigned any divisions. In that case
-    # we ignore them. And if some of the partitions towards the end didn't have
-    # any then the `lastdivisionidx` will be different.
-    firstdivisionidx = 0
-    lastdivisionidx = length(divisions)
-    for i in 1:length(divisions)
-        if isempty(divisions[i])
-            firstdivisionidx = i
-        else
-            break
-        end
-    end
-    for i in reverse(1:length(divisions))
-        if isempty(divisions[i])
-            lastdivisionidx = i
-        else
-            break
-        end
-    end
+    # The first and last partitions (used if this lacks a lower or upper bound)
+    # must have actual division(s) associated with them. If there is no
+    # partition that has divisions, then they will all be skipped and -1 will
+    # be returned. So these indices are only used if there are nonempty
+    # divisions.
+    firstdivisionidx = findfirst(x->!isempty(x), divisions)
+    lastdivisionidx = findlast(x->!isempty(x), divisions)
 
     # The given divisions may be returned from `get_divisions`
-
     oh = orderinghash(val)
     for (i, div) in enumerate(divisions)
         # Now _this_ is a plausible cause. `get_divisions` can return a bunch
@@ -156,8 +143,8 @@ function get_partition_idx_from_divisions(
         end
     end
 
-    # We return -1 so we can fail fast because we really should never end up in
-    # this case where no division works for this value.
+    # We return -1 since this value doesn't belong to any of the partitions
+    # represented by `divisions`.
     -1
 end
 
