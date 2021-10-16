@@ -339,6 +339,17 @@ function ReadGroup(
         println("In ReadGroup with divisions=$divisions and partition_divisions=get_divisions(divisions, npartitions)=$partition_divisions")
     end
 
+    # The first and last partitions (used if this lacks a lower or upper bound)
+    # must have actual division(s) associated with them. If there is no
+    # partition that has divisions, then they will all be skipped and -1 will
+    # be returned. So these indices are only used if there are nonempty
+    # divisions.
+    hasdivision = any(x->!isempty(x), partition_divisions)
+    firstdivisionidx = findfirst(x->!isempty(x), partition_divisions)
+    lastdivisionidx = findlast(x->!isempty(x), partition_divisions)
+    firstbatchidx = nothing
+    lastbatchidx = nothing
+
     # Get the divisions that are relevant to this batch by iterating
     # through the divisions in a stride and consolidating the list of divisions
     # for each partition. Then, ensure we use boundedlower=true only for the
@@ -368,6 +379,14 @@ function ReadGroup(
                     )
                 end
             end
+
+            # Find the batches that have the first and last divisions
+            if partition_division_idx == firstdivisionidx
+                firstbatchidx = batch_division_idx
+            end
+            if partition_division_idx == lastdivisionidx
+                lastbatchidx = batch_division_idx
+            end
         end
     end
 
@@ -391,8 +410,8 @@ function ReadGroup(
                 Dict(),
                 merge(params, Dict("divisions" => curr_partition_divisions)),
                 comm,
-                boundedlower = batch_idx > 1,
-                boundedupper = batch_idx < nbatches,
+                boundedlower = !hasdivision || batch_idx > firstbatchidx,
+                boundedupper = !hasdivision || batch_idx < lastbatchidx,
             ),
         )
     end
@@ -404,15 +423,6 @@ function ReadGroup(
     # # # # @showparts
     res = merge_on_executor(parts...; key = key)
     # # # # @showres
-
-    # The first and last partitions (used if this lacks a lower or upper bound)
-    # must have actual division(s) associated with them. If there is no
-    # partition that has divisions, then they will all be skipped and -1 will
-    # be returned. So these indices are only used if there are nonempty
-    # divisions.
-    hasdivision = any(x->!isempty(x), partition_divisions)
-    firstdivisionidx = findfirst(x->!isempty(x), partition_divisions)
-    lastdivisionidx = findlast(x->!isempty(x), partition_divisions)
 
     # If there are no divisions for any of the partitions, then they are all
     # bounded. For a partition to be unbounded on one side, there must be a
