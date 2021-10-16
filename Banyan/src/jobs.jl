@@ -172,23 +172,24 @@ function create_job(;
         @show sample_rate
     end
     jobs[current_job_id] = Job(cluster_name, current_job_id, nworkers, sample_rate)
-    jobs[current_job_id].current_status = "running"
 
     @debug "Finished creating job $job_id"
     return job_id
 end
 
-function destroy_job(job_id::JobId = get_job_id(); failed = nothing, force = false, kwargs...)
+function destroy_job(job_id::JobId = get_job_id(); failed = false, force = false, kwargs...)
     global jobs
     global current_job_id
 
     @info "Destroying job with ID $job_id"
     send_request_get_response(
         :destroy_job,
-        Dict{String,Any}("job_id" => job_id, "failed" => failed == true),
+        Dict{String,Any}("job_id" => job_id, "failed" => failed),
     )
 
     # Remove from global state
+    # TODO: Maybe `job_id`must always has be in `jobs`. In that case, we should
+    # not be needing this `if` statement here.
     if !isnothing(current_job_id) && get_job_id() == job_id
         set_job(nothing)
     end

@@ -159,12 +159,10 @@ function partitioned_computation(fut::AbstractFuture; destination, new_source=no
 
         # Iterate through tasks for further processing before recording them
         for t in tasks
-            if is_debug_on()
-		        @show t.code
-                @show t.value_names
-                @show t.mutation
-                @show t.effects
-            end
+            @show t.code
+            @show t.value_names
+            @show t.mutation
+            @show t.effects
             # Apply defaults to PAs
             for pa in t.pa_union
                 apply_default_constraints!(pa)
@@ -186,6 +184,7 @@ function partitioned_computation(fut::AbstractFuture; destination, new_source=no
         GC.gc()
     
         # Destroy everything that is to be destroyed in this task
+        println("Sending `DestroyRequest`s in this `evaluate`")
         for req in job.pending_requests
             # Don't destroy stuff where a `DestroyRequest` was produced just
             # because of a `mutated(old, new)`
@@ -207,6 +206,10 @@ function partitioned_computation(fut::AbstractFuture; destination, new_source=no
                 # sample taken from it
                 delete!(job.locations, req.value_id)
             end
+
+            if req isa DestroyRequest
+                println("Sending `DestroyRequest($(req.value_id))` in this `evaluate`")
+            end
         end
     
         # Send evaluation request
@@ -215,7 +218,7 @@ function partitioned_computation(fut::AbstractFuture; destination, new_source=no
             response = send_evaluation(fut.value_id, job_id)
             is_merged_to_disk = response["is_merged_to_disk"]
         catch
-            jobs[job_id].current_status = "failed"
+            destroy_job(failed=true)
             rethrow()
         end
     
@@ -374,8 +377,9 @@ function send_evaluation(value_id::ValueId, job_id::JobId)
                 "encourage_parallelism_with_batches" => encourage_parallelism_with_batches
             ),
             "num_bang_values_issued" => get_num_bang_values_issued(),
-            "main_packages" => get_loaded_packages(),
-            "used_packages" => used_packages,
+            # "main_packages" => get_loaded_packages(),
+            # "used_packages" => used_packages,
+            "packages" => vcat(used_packages, get_loaded_packages())
         ),
     )
 
@@ -385,7 +389,9 @@ function send_evaluation(value_id::ValueId, job_id::JobId)
     set_num_bang_values_issued(response["num_bang_values_issued"])
 
     # Clear global state and return response
+    println("Emptying job of $(get_job().pending_requests) requests")
     empty!(get_job().pending_requests)
+    println("Emptying job to have $(get_job().pending_requests) requests")
     response
 end
 

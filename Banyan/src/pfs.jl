@@ -221,6 +221,16 @@ function ReadBlock(
                 # # @showheader
                 # # @showheader + readrange.start - filerowrange.start + 1
                 # # @showfilerowrange.stop - readrange.stop
+                @show path
+                @show header
+                @show header + readrange.start - filerowrange.start + 1
+                @show filerowrange.stop - readrange.stop
+                @show isfile(path)
+                @show ispath(path)
+                @show typeof(path)
+                @show isdir("/home/ec2-user/s3fs")
+                @show isdir("/home/ec2-user/s3fs/banyan-cluster-data-testcluster01-1e760506")
+                @show isfile("/home/ec2-user/s3fs/banyan-cluster-data-testcluster01-1e760506/iris_large.csv")
                 f = CSV.File(
                     path,
                     header = header,
@@ -319,6 +329,9 @@ function ReadGroup(
     @show divisions
     partition_divisions = get_divisions(divisions, npartitions)
 
+    println("In ReadGroup")
+    @show divisions partition_divisions
+
     # TODO: Do some reversing here instead of only doing it later in Shuffle
     # to ensure that sorting in reverse order works correctly
 
@@ -326,26 +339,59 @@ function ReadGroup(
         println("In ReadGroup with divisions=$divisions and partition_divisions=get_divisions(divisions, npartitions)=$partition_divisions")
     end
 
+    # The first and last partitions (used if this lacks a lower or upper bound)
+    # must have actual division(s) associated with them. If there is no
+    # partition that has divisions, then they will all be skipped and -1 will
+    # be returned. So these indices are only used if there are nonempty
+    # divisions.
+    hasdivision = any(x->!isempty(x), partition_divisions)
+    firstdivisionidx = findfirst(x->!isempty(x), partition_divisions)
+    lastdivisionidx = findlast(x->!isempty(x), partition_divisions)
+    firstbatchidx = nothing
+    lastbatchidx = nothing
+
     # Get the divisions that are relevant to this batch by iterating
     # through the divisions in a stride and consolidating the list of divisions
     # for each partition. Then, ensure we use boundedlower=true only for the
     # first batch and boundedupper=true for the last batch.
     curr_partition_divisions = []
+    @show nworkers
+    @show nbatches
     for worker_division_idx = 1:nworkers
         for batch_division_idx = 1:nbatches
             # partition_division_idx =
             #     (worker_division_idx - 1) * nbatches + batch_division_idx
             partition_division_idx =
                 get_partition_idx(batch_division_idx, nbatches, worker_division_idx)
+            @show worker_division_idx batch_division_idx partition_division_idx batch_idx
             if batch_division_idx == batch_idx
+                # Get the divisions for this partition
                 p_divisions = partition_divisions[partition_division_idx]
-                push!(
-                    curr_partition_divisions,
-                    (first(p_divisions)[1], last(p_divisions)[2]),
-                )
+
+                # We can ignore this if there are no divisions for this
+                # partition. If we end up with fewer divisions than the # of
+                # partitions, that's okay since we will anyway call
+                # `get_divisions` on this inside of `Shuffle`.
+                if !isempty(p_divisions)
+                    push!(
+                        curr_partition_divisions,
+                        (first(p_divisions)[1], last(p_divisions)[2]),
+                    )
+                end
+            end
+
+            # Find the batches that have the first and last divisions
+            if partition_division_idx == firstdivisionidx
+                firstbatchidx = batch_division_idx
+            end
+            if partition_division_idx == lastdivisionidx
+                lastbatchidx = batch_division_idx
             end
         end
     end
+
+    @show firstbatchidx lastbatchidx firstdivisionidx lastdivisionidx
+    @show curr_partition_divisions batch_idx
 
     if get_worker_idx(comm) == 1
         println("In ReadGroup on batch $batch_idx with curr_partition_divisions=$curr_partition_divisions for shuffling")
@@ -367,8 +413,8 @@ function ReadGroup(
                 Dict(),
                 merge(params, Dict("divisions" => curr_partition_divisions)),
                 comm,
-                boundedlower = batch_idx > 1,
-                boundedupper = batch_idx < nbatches,
+                boundedlower = !hasdivision || batch_idx > firstbatchidx,
+                boundedupper = !hasdivision || batch_idx < lastbatchidx,
             ),
         )
     end
@@ -381,11 +427,15 @@ function ReadGroup(
     res = merge_on_executor(parts...; key = key)
     # # # # @showres
 
+    # If there are no divisions for any of the partitions, then they are all
+    # bounded. For a partition to be unbounded on one side, there must be a
+    # division(s) for that partition.
+
     # Store divisions
     global splitting_divisions
     partition_idx = get_partition_idx(batch_idx, nbatches, comm)
     splitting_divisions[res] =
-        (partition_divisions[partition_idx], partition_idx > 1, partition_idx < npartitions)
+        (partition_divisions[partition_idx], !hasdivision || partition_idx > firstdivisionidx, !hasdivision || partition_idx < lastdivisionidx)
 
     # # # @showres
     if isa_df(res)
@@ -1512,6 +1562,9 @@ function SplitGroup(
     end
     divisions_by_partition = get_divisions(src_divisions, npartitions)
 
+    println("In SplitGroup")
+    @show src_divisions divisions_by_partition
+
     # Get the divisions to apply
     key = params["key"]
     rev = params["rev"]
@@ -1527,6 +1580,9 @@ function SplitGroup(
         boundedlower = boundedlower,
         boundedupper = boundedupper,
     )
+
+    println("In SplitGroup")
+    @show divisions_by_partition
 
     # Apply divisions to get only the elements relevant to this worker
     # # # # @showkey
@@ -1550,12 +1606,21 @@ function SplitGroup(
         # # # @showbatch_idx worker_idx src res
     end
 
+    # The first and last partitions (used if this lacks a lower or upper bound)
+    # must have actual division(s) associated with them. If there is no
+    # partition that has divisions, then they will all be skipped and -1 will
+    # be returned. So these indices are only used if there are nonempty
+    # divisions.
+    hasdivision = any(x->!isempty(x), divisions_by_partition)
+    firstdivisionidx = findfirst(x->!isempty(x), divisions_by_partition)
+    lastdivisionidx = findlast(x->!isempty(x), divisions_by_partition)
+
     # Store divisions
     global splitting_divisions
     splitting_divisions[res] = (
         divisions_by_partition[partition_idx],
-        boundedlower || partition_idx > 1,
-        boundedupper || partition_idx < npartitions,
+        !hasdivision || boundedlower || partition_idx > firstdivisionidx,
+        !hasdivision || boundedupper || partition_idx < lastdivisionidx,
     )
 
     res

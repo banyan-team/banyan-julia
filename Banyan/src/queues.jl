@@ -69,6 +69,12 @@ function receive_next_message(queue_name)
         println(chop(content, head=11, tail=tail))
         # Destroy job when last part of log is received.
         if endswith(content, "MESSAGE_END")
+            # We have to destroy the job here because we could be receiving
+            # this message as a result of the executor actually crashing. So a
+            # new job entirely will have to be launched. Fortunately, the
+            # provisioned nodes should stick around for a bit so it should
+            # only be a couple of minutes before the job is back up and
+            # running.
             destroy_job(failed=true) # This will reset the `current_job_id` and delete from `jobs`
             error("Job failed; see preceding output")
         end

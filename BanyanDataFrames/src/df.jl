@@ -155,9 +155,9 @@ function Banyan.sample_percentile(df::DataFrames.DataFrame, key, minvalue, maxva
     # percentile
 end
 
-Banyan.sample_max_ngroups(df::DataFrames.DataFrame, key) = div(nrow(df), maximum(combine(groupby(df[!, [key,]], key), nrow).nrow))
-Banyan.sample_min(df::DataFrames.DataFrame, key) = minimum(map(orderinghash, df[!, key]))
-Banyan.sample_max(df::DataFrames.DataFrame, key) = maximum(map(orderinghash, df[!, key]))
+Banyan.sample_max_ngroups(df::DataFrames.DataFrame, key) = isempty(df) ? 0 : div(nrow(df), maximum(combine(groupby(df[!, [key,]], key), nrow).nrow))
+Banyan.sample_min(df::DataFrames.DataFrame, key) = isempty(df) ? nothing : minimum(map(orderinghash, df[!, key]))
+Banyan.sample_max(df::DataFrames.DataFrame, key) = isempty(df) ? nothing : maximum(map(orderinghash, df[!, key]))
 
 # DataFrame properties
 

@@ -54,6 +54,8 @@ Cross(args...) = PartitioningConstraintOverGroup("CROSS", pt_refs_to_jl(args))
 Equal(args...) = PartitioningConstraintOverGroup("EQUAL", pt_refs_to_jl(args))
 Sequential(args...) =
     PartitioningConstraintOverGroup("SEQUENTIAL", pt_refs_to_jl(args))
+# Note that a Match constraint will result in the same PT-level constraints
+# being applied to all matching PTs
 Match(args...) = PartitioningConstraintOverGroup("MATCH", pt_refs_to_jl(args))
 MatchOn(on, args...) =
     PartitioningConstraintOverGroup(

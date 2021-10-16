@@ -118,16 +118,36 @@ function get_partition_idx_from_divisions(
     boundedlower = false,
     boundedupper = false,
 )
+    # The first and last partitions (used if this lacks a lower or upper bound)
+    # must have actual division(s) associated with them. If there is no
+    # partition that has divisions, then they will all be skipped and -1 will
+    # be returned. So these indices are only used if there are nonempty
+    # divisions.
+    firstdivisionidx = findfirst(x->!isempty(x), divisions)
+    lastdivisionidx = findlast(x->!isempty(x), divisions)
+
+    println("In get_partition_idx_from_divisions")
+    @show divisions
+
     # The given divisions may be returned from `get_divisions`
     oh = orderinghash(val)
     for (i, div) in enumerate(divisions)
-        isfirstdivision = i == 1
-        islastdivision = i == length(divisions)
+        # Now _this_ is a plausible cause. `get_divisions` can return a bunch
+        # of empty arrays and in that case we should just skip that division.
+        if isempty(div)
+            continue
+        end
+
+        isfirstdivision = i == firstdivisionidx
+        islastdivision = i == lastdivisionidx
         if ((!boundedlower && isfirstdivision) || oh >= first(div)[1]) &&
            ((!boundedupper && islastdivision) || oh < last(div)[2])
             return i
         end
     end
+
+    # We return -1 since this value doesn't belong to any of the partitions
+    # represented by `divisions`.
     -1
 end
 
@@ -197,7 +217,11 @@ function get_divisions(divisions, npartitions)
     # multiple divisions.
 
     ndivisions = length(divisions)
-    if ndivisions >= npartitions
+    if ndivisions == 0
+        # If there are no divisions (maybe this dataset or this partition of a
+        # dataset is empty), we simply return empty set.
+        [[] for _ in 1:npartitions]
+    elseif ndivisions >= npartitions
         # If there are more divisions than partitions, we can distribute them
         # easily. Each partition gets 0 or more divisions.
         # TODO: Ensure usage of div here and in sampling (in PT
@@ -205,6 +229,7 @@ function get_divisions(divisions, npartitions)
         # instead we use ceiling division
         # ndivisions_per_partition = div(ndivisions, npartitions)
         [
+            # This could be an empty array.
             begin
                 divisions[split_len(ndivisions, partition_idx, npartitions)]
             end for partition_idx = 1:npartitions
