@@ -23,7 +23,7 @@ function create_cluster(;
     # Check if the configuration for this cluster name already exists
     # If it does, then recreate cluster
     if haskey(clusters, name)
-        if clusters[name][status] == "terminated"
+        if clusters[name].status == :terminated
             @warn "Cluster configuration with name $name already exists. Ignoring new configuration and re-creating cluster."
             send_request_get_response(
                 :create_cluster,
@@ -31,7 +31,7 @@ function create_cluster(;
             )
             return
         else
-            error("Cluster with name $name already exists")
+            error("Cluster with name $name already exists and has status $(string(clusters[name].status))")
         end
     end
 
@@ -41,8 +41,7 @@ function create_cluster(;
     c = configure(; kwargs...)
 
     if isnothing(s3_bucket_arn) && isnothing(s3_bucket_name)
-        s3_bucket_arn =
-            "arn:aws:s3:::banyan-cluster-data-" * name * "-" * bytes2hex(rand(UInt8, 4))
+        s3_bucket_arn = "arn:aws:s3:::banyan-cluster-data-$name-$(string(bytes2hex(rand(UInt8, 4))))"
         s3_bucket_name = last(split(s3_bucket_arn, ":"))
         s3_create_bucket(get_aws_config(), s3_bucket_name)
     elseif isnothing(s3_bucket_arn)
