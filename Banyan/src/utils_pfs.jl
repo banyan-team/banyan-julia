@@ -216,6 +216,8 @@ function get_divisions(divisions, npartitions)
     # containing lists of divisions for each partition. A partition may contain
     # multiple divisions.
 
+    print("In get_divisions splitting divisions=$divisions into npartitions=$npartitions")
+
     ndivisions = length(divisions)
     if ndivisions == 0
         # If there are no divisions (maybe this dataset or this partition of a
