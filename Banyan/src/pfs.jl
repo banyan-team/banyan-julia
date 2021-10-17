@@ -462,6 +462,11 @@ function Write(
 
     # @showpart
 
+    # Get rid of splitting divisions if they were used to split this data into
+    # groups
+    global splitting_divisions
+    delete!(splitting_divisions, part)
+
     # Get path of directory to write to
     path = loc_params["path"]
     if startswith(path, "http://") || startswith(path, "https://")
@@ -1639,6 +1644,7 @@ function Merge(
     # TODO: Ensure we can merge grouped dataframes if computing them
 
     global partial_merges
+    global splitting_divisions
 
     if batch_idx == 1 || batch_idx == nbatches
         GC.gc()
@@ -1675,6 +1681,7 @@ function Merge(
         if batch_idx == nbatches
             # println("At start of merging worker_idx=$worker_idx, batch_idx=$batch_idx/$nbatches with available memory: $(format_available_memory())")
             delete!(partial_merges, objectid(src))
+            delete!(splitting_divisions, part)
             # # # @showworker_idx batch_idx src
 
             println("On last batch of merging on worker $worker_idx")
@@ -2103,7 +2110,7 @@ function Shuffle(
         boundedupper = boundedupper,
     )
     # # # @showtypeof(part)
-    res = if isa_df(part)
+    res = if isa_df(part)   
         # # Ensure that this partition has a schema that is suitable for usage
         # # here. We have to do this for `Shuffle` and `SplitGroup` (which is
         # # used by `DistributeAndShuffle`)
