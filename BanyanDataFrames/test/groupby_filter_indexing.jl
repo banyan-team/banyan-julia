@@ -393,6 +393,75 @@ end
     end
 end
 
+@testset "Filter and groupby with $scheduling_config for edge cases" for scheduling_config in [                                                                                  [
+    "default scheduling",
+    "parallelism encouraged",
+    "parallelism and batches encouraged",
+], filetype in [
+    "csv",
+    "arrow",
+    "arrow"
+    "directory"
+]
+    use_job_for_testing(scheduling_config_name = scheduling_config) do
+        use_empty_data()
+
+        bucket = get_cluster_s3_bucket_name()
+
+        path = ""
+        if filetype == "directory"
+            path = "s3://$(bucket)/iris_large_dir.csv"
+        else
+            path = "s3://$(bucket)/iris_large.$(filetype)"
+        end
+
+        for i = 1:2
+            # Read empty df
+            df = read_file(path)
+
+            # Filter which results in an empty df and in a df with a single entry
+            filtered_empty_save_path = get_save_path(bucket, "filtered_empty", path)
+            filtered_single_save_path = get_save_path(bucket, "filtered_single", path)
+            if i == 1
+                filtered_empty = filter(row -> row.petal_length > 10, df)
+                filtered_single = filter(row -> row.petal_length == 1.4 && row.sepal_length == 4.9 && row.species == "setosa", df)
+                write_file(filtered_empty_save_path, filtered_empty)
+                write_file(filtered_single_save_path, filtered_single)
+            else
+                filtered_empty = read_file(filtered_empty_save_path)
+                filtered_single = read_file(filtered_single_save_path)
+            end
+
+            filtered_empty_size = collect(size(filtered_empty))
+            filtered_single_size = collect(size(filtered_single))
+            filtered_single_sepal_width = collect(filtered_single[:, :sepal_width])
+            filtered_single_petal_width = collect(filtered_single[:, :petal_width])
+
+            @test filtered_empty_size == (0, 5)
+            @test filtered_single_size == (1, 5)
+            @test filtered_single_sepal_width == 3.0
+            @test filtered_single_petal_width == 0.2
+
+            # Compute the negative product of a column
+            filtered_empty_sw_prod = round(collect(reduce(*, filtered_empty[:, :sepal_width]; init=-1)))
+            filtered_single_sw_prod = round(collect(reduce(*, filtered_single[:, :sepal_width]; init=-1)))
+
+            @test filtered_empty_sw_prod == -1
+            @test filtered_single_sw_prod == -3
+
+            # Groupby all columns and subset, resulting in empty df
+            filtered_empty_sub = (groupby(filtered_empty, :species), :petal_length => pl -> pl .>= mean(pl))
+            filtered_single_sub = (groupby(filtered_single, :species), :petal_length => pl -> pl .>= mean(pl))
+            filtered_empty_sub_size = collect(size(filtered_empty_sub))
+            filtered_single_sub_size = collect(size(filtered_single_sub))
+
+            @test filtered_empty_sub_size == (0, 5)
+            @test filtered_single_sub_size == (0, 5)
+        end
+    end
+end
+
+
 @testset "Groupby stress for initial functionality with $scheduling_config" for scheduling_config in
                                                                                 [
     "default scheduling",
@@ -458,61 +527,75 @@ end
     end
 end
 
-@testset "Empty with stress for initial functionality with $scheduling_config" for scheduling_config in
-                                                                                  [
+@testset "Filter and groupby with $scheduling_config for empty $filetype with $headertype" for scheduling_config in [                                                                                  [
     "default scheduling",
     "parallelism encouraged",
     "parallelism and batches encouraged",
+], filetype in [
+    "csv",
+    "arrow",
+    "directory"
+], headertype in [  # Column labels
+    "header",
+    "no header"
 ]
     use_job_for_testing(scheduling_config_name = scheduling_config) do
-        use_stress_data()
+        use_empty_data()
 
         bucket = get_cluster_s3_bucket_name()
 
+        path = ""
+        if filetype == "directory":
+            # Create empty directory
+            path = "s3://$(bucket)/empty_dir"
+            mkpath(S3Path(path))
+            headertype = "no header"
+        else
+            if headertype == "header":
+                path = "s3://$(bucket)/empty_df2.$(filetype)"
+            elseif headetype == "no header":
+                path = "s3://$(bucket)/empty_df.$(filetype)"
+            end
+        end
+        
+
         for i = 1:2
-            for path in [
-                ["s3://$(bucket)/empty_df.csv", "s3://$(bucket)/empty_df2.csv"],
-                ["s3://$(bucket)/empty_df.arrow", "s3://$(bucket)/empty_df2.arrow"],
-            ]
-                df = read_file(path[1])  # (0,0) df
-                df2 = read_file(path[2]) # (0,2) df
+            # Read empty df
+            df = read_file(path)
 
-                @test size(df) == (0, 0)
+            if headertype == "header"
                 @test size(df2) == (0, 2)
+            elseif headertype == "no header":
+                @test size(df) == (0, 0)
+            end
 
-                filtered_save_path = get_save_path(bucket, "filtered", path[1])
-                filtered2_save_path = get_save_path(bucket, "filtered2", path[2])
-                if i == 1
+            # Filter empty df, which should result in empty df
+            filtered_save_path = get_save_path(bucket, "filtered", path)
+            if i == 1
+                if headertype == "header":
+                    filtered = filter([:x, :y] => (x, y) -> x == y, df)
+                elseif headertype == "no header"
                     filtered = filter(row -> row.x == 0, df)
-                    filtered2 = filter([:x, :y] => (x, y) -> x == y, df)
-                    write_file(filtered_save_path, filtered)
-                    write_file(filtered2_save_path, filtered2)
-                else
-                    filtered = read_file(filtered_save_path)
-                    filtered2 = read_file(filtered2_save_path)
                 end
+                write_file(filtered_save_path, filtered)
+            else
+                filtered = read_file(filtered_save_path)
+            end
 
-                filtered_size = size(filtered)
-                filtered_grouped_nrow = size(combine(groupby(filtered, All()), nrow))
-                grouped_length = length(groupby(df, All()))
+            # Groupby all columns and aggregrate to count number of rows
+            filtered_size = collect(size(filtered))
+            filtered_grouped = groupby(filtered, All())
+            filtered_grouped_nrow = collect(size(combine(filtered_grouped, nrow)))
+            filtered_grouped_length = collect(length(groupby(df, All())))
 
-                filtered2_size = size(filtered)
-                filtered2_grouped = groupby(filtered2, [:x, :y])
-                filtered2_grouped_nrow = size(combine(filtered2_grouped, nrow))
-                filtered2_grouped_length = length(filtered2_grouped)
-                x_col = filtered2[:, :x]
-                x_col_double = map(x_val -> x_val * 2, x_col)
-                x_col_double_collect = collect(x_col_double)
-
+            if headertype == "header":
+                @test filtered_size == (0, 2)
+                @test filtered_grouped_nrow == (0, 3)
+                @test filtered_grouped_length == 0
+            elseif headertype == "no header"
                 @test filtered_size == (0, 0)
                 @test filtered_grouped_nrow == (0, 1)
-                @test grouped_length == 0
-
-                @test filtered2_size == (0, 0)
-                @test filtered2_grouped_nrow == (0, 3)
-                @test filtered2_grouped_length == 0
-                @test x_col_double_collect == Any[]
-
+                @test filtered_grouped_length == 0
             end
         end
     end
