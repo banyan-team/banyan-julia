@@ -111,14 +111,17 @@ function Banyan.sample_divisions(df::DataFrames.DataFrame, key)
     data = sort(map(orderinghash, df[!, key]))
     datalength = length(data)
     grouplength = div(datalength, ngroups)
-    [
+    # We use `unique` here because if the divisions have duplicates, this could
+    # result in different partitions getting the same divisions.
+    # TODO: Ensure that `unique` doesn't change the order
+    unique([
         # Each group has elements that are >= start and < end
         (
             data[(i-1)*grouplength + 1],
             data[i == ngroups ? datalength : i*grouplength + 1]
         )
         for i in 1:ngroups
-    ]
+    ])
 end
 
 function Banyan.sample_percentile(df::DataFrames.DataFrame, key, minvalue, maxvalue)

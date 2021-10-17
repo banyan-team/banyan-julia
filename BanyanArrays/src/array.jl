@@ -84,14 +84,17 @@ function Banyan.sample_divisions(A::U, key) where U <: Base.AbstractArray{T,N} w
     data = sort([orderinghash(e) for e in eachslice(A, dims=key)])
     datalength = length(data)
     grouplength = div(datalength, ngroups)
-    [
+    # We use `unique` here because if the divisions have duplicates, this could
+    # result in different partitions getting the same divisions.
+    # TODO: Ensure that `unique` doesn't change the order
+    unique([
         # Each group has elements that are >= start and < end
         (
             data[(i-1)*grouplength + 1],
             data[i == ngroups ? datalength : i*grouplength + 1]
         )
         for i in 1:ngroups
-    ]
+    ])
 end
 
 function Banyan.sample_percentile(A::U, key, minvalue, maxvalue) where U <: Base.AbstractArray{T,N} where {T,N}
