@@ -333,13 +333,26 @@ function get_divisions(divisions, npartitions)
             # break
 
             # Each partition must have a _list_ of divisions so we must have a list
-            # for each partition
+            # for each partition. So `allsplitdivisions` is an array where
+            # each element is either a 1-element array containing a single
+            # division or its empty.
             for splitdivision in splitdivisions
-                push!(allsplitdivisions, [splitdivision])
+                # Check if we have already added this split division before.
+                # The last split division may have been empty but we can 
+                # still check whether there is a last one and if what we're
+                # adding is the same or also empty. If it is the same or also
+                # empty, then we just add an empty divisions list. Otherwsie,
+                # we add in our novel split division.
+                if !isempty(allsplitdivisions) && last(allsplitdivisions) == splitdivision
+                    push!(allsplitdivisions, [])
+                else
+                    push!(allsplitdivisions, [splitdivision])
+                end
             end
 
             # end
         end
+
         allsplitdivisions
     end
 end
