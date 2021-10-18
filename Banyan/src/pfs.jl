@@ -442,7 +442,11 @@ function ReadGroup(
 
     # # # @showres
     if isa_df(res)
-        println("Output of ReadGroup has length $(nrow(res)) with $(unique(res[!, key]))")
+        if key in propertynames(res)
+            println("Output of ReadGroup has length $(nrow(res)) with $(unique(res[!, key]))")
+        else
+            println("Output of ReadGroup has length $(nrow(res)) with no values")
+        end
     end
     res
 end
