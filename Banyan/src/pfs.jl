@@ -373,10 +373,7 @@ function ReadGroup(
                 # partitions, that's okay since we will anyway call
                 # `get_divisions` on this inside of `Shuffle`.
                 if !isempty(p_divisions)
-                    push!(
-                        curr_partition_divisions,
-                        (first(p_divisions)[1], last(p_divisions)[2]),
-                    )
+                    append!(curr_partition_divisions, p_divisions)
                 end
             end
 
