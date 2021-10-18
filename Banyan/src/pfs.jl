@@ -368,13 +368,18 @@ function ReadGroup(
                 # Get the divisions for this partition
                 p_divisions = partition_divisions[partition_division_idx]
 
-                # We can ignore this if there are no divisions for this
-                # partition. If we end up with fewer divisions than the # of
-                # partitions, that's okay since we will anyway call
-                # `get_divisions` on this inside of `Shuffle`.
-                if !isempty(p_divisions)
-                    append!(curr_partition_divisions, p_divisions)
-                end
+                # We've already used `get_divisions` to get a list of min-max
+                # tuples (we call these tuples "divisions") for each partition
+                # that `ReadGroup` produces. But we only want to read in all
+                # the partitions relevant for this batch. But it is important
+                # then that `curr_partition_divisions` has an element for each
+                # worker. That way, when we call `Shuffle`, it will properly
+                # read data onto each worker that is in the appropriate
+                # partition.
+                push!(
+                    curr_partition_divisions,
+                    p_divisions,
+                )
             end
 
             # Find the batches that have the first and last divisions
@@ -408,7 +413,7 @@ function ReadGroup(
             Shuffle(
                 part,
                 Dict(),
-                merge(params, Dict("divisions" => curr_partition_divisions)),
+                merge(params, Dict("divisions_by_worker" => curr_partition_divisions)),
                 comm,
                 boundedlower = !hasdivision || batch_idx != firstbatchidx,
                 boundedupper = !hasdivision || batch_idx != lastbatchidx,
@@ -2083,12 +2088,14 @@ function Shuffle(
     store_splitting_divisions = true
 )
     # Get the divisions to apply
-    divisions = dst_params["divisions"] # list of min-max tuples
     key = dst_params["key"]
     rev = dst_params["rev"]
-    ndivisions = length(divisions)
     worker_idx, nworkers = get_worker_idx(comm), get_nworkers(comm)
-    divisions_by_worker = get_divisions(divisions, nworkers) # list of min-max tuple lists
+    divisions_by_worker = if haskey(dst_params, "divisions_by_worker")
+        dst_params["divisions_by_worker"] # list of min-max tuples
+    else 
+        get_divisions(dst_params["divisions"], nworkers)
+    end # list of min-max tuple lists
     if rev
         reverse!(divisions_by_worker)
     end
