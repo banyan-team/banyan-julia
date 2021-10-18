@@ -142,9 +142,12 @@ function get_partition_idx_from_divisions(
         islastdivision = i == lastdivisionidx
         if ((!boundedlower && isfirstdivision) || oh >= first(div)[1]) &&
            ((!boundedupper && islastdivision) || oh < last(div)[2])
+            println("Returning $i from get_partition_idx_from_divisions")
             return i
         end
     end
+
+    println("Returning -1 from get_partition_idx_from_divisions")
 
     # We return -1 since this value doesn't belong to any of the partitions
     # represented by `divisions`.
