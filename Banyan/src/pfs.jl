@@ -1566,7 +1566,7 @@ function SplitGroup(
     divisions_by_partition = get_divisions(src_divisions, npartitions)
 
     println("In SplitGroup")
-    @show src_divisions divisions_by_partition
+    @show src_divisions divisions_by_partition boundedlower boundedupper
 
     # Get the divisions to apply
     key = params["key"]
