@@ -410,8 +410,8 @@ function ReadGroup(
                 Dict(),
                 merge(params, Dict("divisions" => curr_partition_divisions)),
                 comm,
-                boundedlower = !hasdivision || batch_idx > firstbatchidx,
-                boundedupper = !hasdivision || batch_idx < lastbatchidx,
+                boundedlower = !hasdivision || batch_idx != firstbatchidx,
+                boundedupper = !hasdivision || batch_idx != lastbatchidx,
             ),
         )
     end
@@ -432,7 +432,7 @@ function ReadGroup(
     global splitting_divisions
     partition_idx = get_partition_idx(batch_idx, nbatches, comm)
     splitting_divisions[res] =
-        (partition_divisions[partition_idx], !hasdivision || partition_idx > firstdivisionidx, !hasdivision || partition_idx < lastdivisionidx)
+        (partition_divisions[partition_idx], !hasdivision || partition_idx != firstdivisionidx, !hasdivision || partition_idx != lastdivisionidx)
 
     # # # @showres
     if isa_df(res)
@@ -1621,8 +1621,8 @@ function SplitGroup(
     global splitting_divisions
     splitting_divisions[res] = (
         divisions_by_partition[partition_idx],
-        !hasdivision || boundedlower || partition_idx > firstdivisionidx,
-        !hasdivision || boundedupper || partition_idx < lastdivisionidx,
+        !hasdivision || boundedlower || partition_idx != firstdivisionidx,
+        !hasdivision || boundedupper || partition_idx != lastdivisionidx,
     )
 
     res
@@ -2227,10 +2227,19 @@ function Shuffle(
         throw(ArgumentError("Expected array or dataframe to distribute and shuffle"))
     end
 
+    # The first and last partitions (used if this lacks a lower or upper bound)
+    # must have actual division(s) associated with them. If there is no
+    # partition that has divisions, then they will all be skipped and -1 will
+    # be returned. So these indices are only used if there are nonempty
+    # divisions.
+    hasdivision = any(x->!isempty(x), divisions_by_worker)
+    firstdivisionidx = findfirst(x->!isempty(x), divisions_by_worker)
+    lastdivisionidx = findlast(x->!isempty(x), divisions_by_worker)
+
     # Store divisions
     global splitting_divisions
     splitting_divisions[res] =
-        (divisions_by_worker[worker_idx], worker_idx > 1, worker_idx < nworkers)
+        (divisions_by_worker[worker_idx], !hasdivision || worker_idx != firstdivisionidx, !hasdivision || worker_idx != lastdivisionidx)
 
     res
 end
