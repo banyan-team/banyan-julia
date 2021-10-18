@@ -412,6 +412,7 @@ function ReadGroup(
                 comm,
                 boundedlower = !hasdivision || batch_idx != firstbatchidx,
                 boundedupper = !hasdivision || batch_idx != lastbatchidx,
+                store_splitting_divisions = false
             ),
         )
     end
@@ -2078,6 +2079,7 @@ function Shuffle(
     comm;
     boundedlower = false,
     boundedupper = false,
+    store_splitting_divisions = true
 )
     # Get the divisions to apply
     divisions = dst_params["divisions"] # list of min-max tuples
@@ -2227,19 +2229,21 @@ function Shuffle(
         throw(ArgumentError("Expected array or dataframe to distribute and shuffle"))
     end
 
-    # The first and last partitions (used if this lacks a lower or upper bound)
-    # must have actual division(s) associated with them. If there is no
-    # partition that has divisions, then they will all be skipped and -1 will
-    # be returned. So these indices are only used if there are nonempty
-    # divisions.
-    hasdivision = any(x->!isempty(x), divisions_by_worker)
-    firstdivisionidx = findfirst(x->!isempty(x), divisions_by_worker)
-    lastdivisionidx = findlast(x->!isempty(x), divisions_by_worker)
+    if store_splitting_divisions
+        # The first and last partitions (used if this lacks a lower or upper bound)
+        # must have actual division(s) associated with them. If there is no
+        # partition that has divisions, then they will all be skipped and -1 will
+        # be returned. So these indices are only used if there are nonempty
+        # divisions.
+        hasdivision = any(x->!isempty(x), divisions_by_worker)
+        firstdivisionidx = findfirst(x->!isempty(x), divisions_by_worker)
+        lastdivisionidx = findlast(x->!isempty(x), divisions_by_worker)
 
-    # Store divisions
-    global splitting_divisions
-    splitting_divisions[res] =
-        (divisions_by_worker[worker_idx], !hasdivision || worker_idx != firstdivisionidx, !hasdivision || worker_idx != lastdivisionidx)
+        # Store divisions
+        global splitting_divisions
+        splitting_divisions[res] =
+            (divisions_by_worker[worker_idx], !hasdivision || worker_idx != firstdivisionidx, !hasdivision || worker_idx != lastdivisionidx)
+    end
 
     res
 end
