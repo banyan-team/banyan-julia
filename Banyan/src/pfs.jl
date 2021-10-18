@@ -1559,6 +1559,7 @@ function SplitGroup(
 
     # Get divisions stored with src
     global splitting_divisions
+    println("haskey(splitting_divisions, src)=$(haskey(splitting_divisions, src))")
     src_divisions, boundedlower, boundedupper = get!(splitting_divisions, src) do
         # This case lets us use `SplitGroup` in `DistributeAndShuffle`
         (params["divisions"], false, false)
