@@ -39,7 +39,7 @@ get_cluster_name() = get_job().cluster_name
 
 function create_job(;
     cluster_name::Union{String,Nothing} = nothing,
-    nworkers::Union{Integer,Nothing} = 2,
+    nworkers::Union{Integer,Nothing} = 16,
     print_logs::Union{Bool,Nothing} = false,
     store_logs_in_s3::Union{Bool,Nothing} = true,
     store_logs_on_cluster::Union{Bool,Nothing} = false,

@@ -2,8 +2,8 @@
 function create_cluster(;
     name::Union{String,Nothing} = nothing,
     instance_type::Union{String,Nothing} = "m4.4xlarge",
-    max_num_workers::Union{Int,Nothing} = 8,
-    initial_num_workers::Union{Int,Nothing} = 0,
+    max_num_workers::Union{Int,Nothing} = 2048,
+    initial_num_workers::Union{Int,Nothing} = 16,
     min_num_workers::Union{Int,Nothing} = 0,
     iam_policy_arn::Union{String,Nothing} = nothing,
     s3_bucket_arn::Union{String,Nothing} = nothing,
@@ -211,7 +211,7 @@ function wait_for_cluster(name::String=get_cluster_name(), kwargs...)
     elseif cluster_status == :terminated
         @info "Cluster $(name) no longer exists"
     elseif cluster_status != :creating && cluster_status != :updating
-        @info "Cluster $(name) set up has failed"
+        @info "Cluster $(name) setup has failed"
         # delete_cluster(name)
     end
 end
