@@ -393,14 +393,16 @@ end
     end
 end
 
-@testset "Filter and groupby with $scheduling_config for edge cases on $filetype datasets" for scheduling_config in [
+# Filter from dataset to one row or empty df
+@testset "Filter and groupby with $scheduling_config for simple edge cases for $filetype" for scheduling_config in [
     "default scheduling",
     "parallelism encouraged",
     "parallelism and batches encouraged",
 ], filetype in [
     "csv",
+    "parquet",
     "arrow",
-    "directory",
+    "directory"
 ]
     use_job_for_testing(scheduling_config_name = scheduling_config) do
         use_empty_data()
@@ -457,6 +459,77 @@ end
             @test filtered_empty_sub_size == (0, 5)
             @test filtered_single_sub_size == (0, 5)
         end
+    end
+end
+
+# Complex multi-step filtering to empty dataframes or single-row dataframe
+@testset "Filter and groupby with $scheduling_config for complex edge cases for $filetype" for scheduling_config in [                                                                                  [
+    "default scheduling",
+    "parallelism encouraged",
+    "parallelism and batches encouraged",
+], filetype in [
+    "csv",
+    "parquet",
+    "arrow"
+    "directory"
+]
+    use_job_for_testing(scheduling_config_name = scheduling_config) do
+        use_basic_data()
+
+        bucket = get_cluster_s3_bucket_name()
+
+        path = ""
+        if filetype == "directory"
+            path = "s3://$(bucket)/iris_large_dir.csv"
+        else
+            path = "s3://$(bucket)/iris_large.$(filetype)"
+        end
+
+        # Read empty df
+        df = read_file(path)
+
+        # Filter to single row
+        # Filter to empty
+        # Call collect on single row
+        # Call collect on empty
+        # Filter to empty
+        # Call collect on empty
+        filt1 = filter(row -> row.petal_length == 1.4 && row.sepal_length == 4.9 && row.species == "setosa", df)
+        filt2 = filter([:petal_length, :sepal_length] => (pl, sl) -> pl * sl > 100.0, filt1)
+        df1 = collect(filt1)
+        df2 = collect(filt2)
+        filt3 = filter(row -> row.petal_width == 100, filt2)
+        df3 = collect(filt3)
+
+        @test size(df1) == (1, 5)
+        @test names(df1) == ["sepal_length", "sepal_width", "petal_length", "petal_width", "species"]
+        @test collect(df1[1, :]) == [4.9, 3.0, 1.4, 0.2, "species"]
+
+        @test size(df2) == (0, 5)
+        @test names(df2) == ["sepal_length", "sepal_width", "petal_length", "petal_width", "species"]
+
+        @test size(df3) == (0, 5)
+        @test names(df3) == ["sepal_length", "sepal_width", "petal_length", "petal_width", "species"]
+
+        
+        # Filter to single row
+        # Filter to empty
+        # Filter to empty
+        # Call collect
+        filt01 = filter(row -> row.sepal_length == row.sepal_width + 1.9 && row.species == "species_10", df)
+        filt02 = filter(
+            row -> row.petal_length == row.sepal_length * 2,
+            filter(row -> row.species == "setosa", filt01)
+        )
+        df01 = collect(filt01)
+        df02 = collect(filt02)
+
+        @test size(df01) == (1, 5)
+        @test collect(df01[1, :]) == [4.9, 3.0, 1.4, 0.2, "species_10"]
+
+        @test size(df02) == (0, 5)
+        @test names(df02) == ["sepal_length", "sepal_width", "petal_length", "petal_width", "species"]
+
     end
 end
 
@@ -547,7 +620,9 @@ end
         if filetype == "directory"
             # Create empty directory
             path = "s3://$(bucket)/empty_dir"
-            mkpath(S3Path(path, config = Banyan.get_aws_config()))
+            if !ispath(S3Path(path, config = Banyan.get_aws_config()))
+                mkpath(S3Path(path, config = Banyan.get_aws_config()))
+            end
             headertype = "no header"
         else
             if headertype == "header"
