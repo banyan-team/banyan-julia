@@ -393,6 +393,72 @@ end
     end
 end
 
+
+@testset "Groupby stress for initial functionality with $scheduling_config" for scheduling_config in
+                                                                                [
+    "default scheduling",
+    "parallelism encouraged",
+    "parallelism and batches encouraged",
+]
+    use_job_for_testing(scheduling_config_name = scheduling_config) do
+        use_stress_data()
+
+        bucket = get_cluster_s3_bucket_name()
+
+        for i = 1:2
+            for path in [
+                "s3://$(bucket)/tripdata_large_csv.csv",
+                "s3://$(bucket)/tripdata_large_parquet.parquet",
+                "s3://$(bucket)/tripdata_large_arrow.arrow",
+            ]
+                df = read_file(path)
+                global n_repeats
+                @test nrow(df) == 61577490 * n_repeats
+
+                gdf_subset_save_path = get_save_path(bucket, "gdf_subset", path)
+                if i == 1
+                    gdf = groupby(df, [:passenger_count, :vendor_id])
+                    gdf_subset = subset(gdf, :trip_distance => d -> d .>= round(mean(d)))
+                    @test length(gdf) == 21
+                else
+                    gdf_subset = read_file(gdf_collect_save_path)
+                end
+
+                gdf_nrow = sort(collect(combine(gdf, nrow)))
+                gdf_subset_nrow = nrow(gdf_subset)
+                gdf_tripdistance_sum = round(collect(reduce(+, gdf_subset[:, :trip_distance])))
+
+                @test gdf_nrow == [
+                    1,
+                    1,
+                    1,
+                    2,
+                    3,
+                    3,
+                    4,
+                    25,
+                    142,
+                    15371,
+                    601461,
+                    609517,
+                    1116194,
+                    1258507,
+                    1424146,
+                    1453823,
+                    4133487,
+                    4412096,
+                    4510571,
+                    18330823,
+                    23711312,
+                ]
+                @test gdf_subset_nrow == 16964379
+                @test gdf_tripdistance_sum == 1.09448617e8
+            end
+
+        end
+    end
+end
+
 # Filter from dataset to one row or empty df
 @testset "Filter and groupby with $scheduling_config for simple edge cases for $filetype" for scheduling_config in [
     "default scheduling",
@@ -533,72 +599,7 @@ end
     end
 end
 
-
-@testset "Groupby stress for initial functionality with $scheduling_config" for scheduling_config in
-                                                                                [
-    "default scheduling",
-    "parallelism encouraged",
-    "parallelism and batches encouraged",
-]
-    use_job_for_testing(scheduling_config_name = scheduling_config) do
-        use_stress_data()
-
-        bucket = get_cluster_s3_bucket_name()
-
-        for i = 1:2
-            for path in [
-                "s3://$(bucket)/tripdata_large_csv.csv",
-                "s3://$(bucket)/tripdata_large_parquet.parquet",
-                "s3://$(bucket)/tripdata_large_arrow.arrow",
-            ]
-                df = read_file(path)
-                global n_repeats
-                @test nrow(df) == 61577490 * n_repeats
-
-                gdf_subset_save_path = get_save_path(bucket, "gdf_subset", path)
-                if i == 1
-                    gdf = groupby(df, [:passenger_count, :vendor_id])
-                    gdf_subset = subset(gdf, :trip_distance => d -> d .>= round(mean(d)))
-                    @test length(gdf) == 21
-                else
-                    gdf_subset = read_file(gdf_collect_save_path)
-                end
-
-                gdf_nrow = sort(collect(combine(gdf, nrow)))
-                gdf_subset_nrow = nrow(gdf_subset)
-                gdf_tripdistance_sum = round(collect(reduce(+, gdf_subset[:, :trip_distance])))
-
-                @test gdf_nrow == [
-                    1,
-                    1,
-                    1,
-                    2,
-                    3,
-                    3,
-                    4,
-                    25,
-                    142,
-                    15371,
-                    601461,
-                    609517,
-                    1116194,
-                    1258507,
-                    1424146,
-                    1453823,
-                    4133487,
-                    4412096,
-                    4510571,
-                    18330823,
-                    23711312,
-                ]
-                @test gdf_subset_nrow == 16964379
-                @test gdf_tripdistance_sum == 1.09448617e8
-            end
-
-        end
-    end
-end
-
+# Reading an empty dataset
 @testset "Filter and groupby with $scheduling_config for empty $filetype with $headertype" for scheduling_config in [
     "default scheduling",
     "parallelism encouraged",
