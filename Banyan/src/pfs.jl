@@ -129,7 +129,7 @@ function ReadBlock(
             # straightforward - we just specify the slice.
             dset[[
                 if i == dim
-                    
+                    dimrange
                 else
                     Colon()
                 end for i = 1:ndims(dset)
