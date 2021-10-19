@@ -548,7 +548,9 @@ end
         if filetype == "directory":
             # Create empty directory
             path = "s3://$(bucket)/empty_dir"
-            mkpath(S3Path(path))
+            if !ispath(S3Path(path))
+                mkpath(S3Path(path))
+            end
             headertype = "no header"
         else
             if headertype == "header":
@@ -564,7 +566,7 @@ end
             df = read_file(path)
 
             if headertype == "header"
-                @test size(df2) == (0, 2)
+                @test size(df) == (0, 2)
             elseif headertype == "no header":
                 @test size(df) == (0, 0)
             end
