@@ -589,20 +589,18 @@ function Write(
 
         nrows = size(part, 1)
         sortableidx = sortablestring(idx, get_npartitions(nbatches, comm))
-        if nrows > 0
-            if endswith(path, ".parquet")
-                partfilepath = joinpath(path, "part$sortableidx" * "_nrows=$nrows.parquet")
-                Parquet.write_parquet(partfilepath, part)
-            elseif endswith(path, ".csv")
-                partfilepath = joinpath(path, "part$sortableidx" * "_nrows=$nrows.csv")
-                CSV.write(partfilepath, part)
-            else
-                partfilepath = joinpath(path, "part$sortableidx" * "_nrows=$nrows.arrow")
-                println("Going to write to $partfilepath")
-                Arrow.write(partfilepath, part)
-            end
-            println("Wrote to $partfilepath")
+        if endswith(path, ".parquet")
+            partfilepath = joinpath(path, "part$sortableidx" * "_nrows=$nrows.parquet")
+            Parquet.write_parquet(partfilepath, part)
+        elseif endswith(path, ".csv")
+            partfilepath = joinpath(path, "part$sortableidx" * "_nrows=$nrows.csv")
+            CSV.write(partfilepath, part)
+        else
+            partfilepath = joinpath(path, "part$sortableidx" * "_nrows=$nrows.arrow")
+            println("Going to write to $partfilepath")
+            Arrow.write(partfilepath, part)
         end
+        println("Wrote to $partfilepath")
         MPI.Barrier(comm)
         if nbatches > 1 && batch_idx == nbatches
             tmpdir = readdir(path)
