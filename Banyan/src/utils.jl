@@ -150,8 +150,6 @@ function configure(; kwargs...)
     user_id = if_in_or(:user_id, kwargs)
     api_key = if_in_or(:api_key, kwargs)
     ec2_key_pair_name = if_in_or(:ec2_key_pair_name, kwargs)
-    require_ec2_key_pair_name =
-        if_in_or(:require_ec2_key_pair_name, kwargs, false)
     banyanconfig_path = if_in_or(:banyanconfig_path, kwargs)
 
     # Load config
@@ -213,10 +211,6 @@ function configure(; kwargs...)
     )
         banyan_config["aws"]["ec2_key_pair_name"] = ec2_key_pair_name
         is_modified = true
-    end
-    if require_ec2_key_pair_name &&
-       !(haskey(banyan_config["aws"], "ec2_key_pair_name"))
-        error("Name of an EC2 key pair required but not provided; visit here to create a key pair: https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ec2-key-pairs.html#having-ec2-create-your-key-pair")
     end
 
     # # aws.region
@@ -358,11 +352,13 @@ function send_request_get_response(method, content::Dict)
     )
     if resp.status == 403
         throw(ErrorException("Please use a valid user ID and API key. Sign into the dashboard to retrieve these credentials."))
-    elseif resp.status == 500 || resp.status == 504
+    elseif resp.status == 504
         # HTTP request timed out, for example
         if isa(data, Dict) && haskey(data, "message")
             data = data["message"]
         end
+        @info data
+    elseif resp.status == 500 || resp.status == 504
         throw(ErrorException(data))
     elseif resp.status == 502
         throw(ErrorException("Sorry there has been an error. Please contact support"))

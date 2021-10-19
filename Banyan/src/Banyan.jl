@@ -19,11 +19,14 @@ export Cluster,
     create_cluster,
     update_cluster,
     destroy_cluster,
+    delete_cluster,
     get_clusters,
     get_running_clusters,
     get_cluster,
+    get_cluster_status,
     get_cluster_s3_bucket_name,
-    assert_cluster_is_ready
+    assert_cluster_is_ready,
+    wait_for_cluster
 
 # Job management
 export Job,
