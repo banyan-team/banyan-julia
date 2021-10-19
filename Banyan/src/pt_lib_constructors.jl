@@ -128,13 +128,35 @@ function Blocked(
                         # of the result (100 / 20 = 5).
                         (sample(ff, :memory_usage) / sample(f, :memory_usage), filtered_from)
                     end
-                    push!(constraints.constraints, ScaleBy(f, factor, from))
+
+                    # The factor will be infinite or NaN if either what we are
+                    # filtering from or filtering to has an empty sample. In
+                    # that case, it wouldn't make sense to have a `ScaleBy`
+                    # constraint. A value with an empty sample must either be
+                    # replicated (if it is from an empty dataset) or
+                    # grouped/blocked but not balanced (since if it were
+                    # balanced, we might try to use its divisions - which would
+                    # be empty - for other PTs and think that they to are balanced).
+                    if factor != Inf && factor != NaN
+                        push!(constraints.constraints, ScaleBy(f, factor, from))
+                    end
                 elseif !isnothing(filtered_to)
                     filtered_to = to_vector(filtered_to)
                     factor, to = maximum(filtered_to) do ft
                         (sample(f, :memory_usage) / sample(ft, :memory_usage), filtered_to)
                     end
-                    push!(constraints.constraints, ScaleBy(f, factor, to))
+
+                    # The factor will be infinite or NaN if either what we are
+                    # filtering from or filtering to has an empty sample. In
+                    # that case, it wouldn't make sense to have a `ScaleBy`
+                    # constraint. A value with an empty sample must either be
+                    # replicated (if it is from an empty dataset) or
+                    # grouped/blocked but not balanced (since if it were
+                    # balanced, we might try to use its divisions - which would
+                    # be empty - for other PTs and think that they to are balanced).
+                    if factor != Inf && factor != NaN
+                        push!(constraints.constraints, ScaleBy(f, factor, to))
+                    end
                 elseif !isnothing(scaled_by_same_as)
                     push!(constraints.constraints, ScaleBy(f, 1.0, scaled_by_same_as))
                 end
@@ -206,6 +228,16 @@ function Grouped(
                 # In the future if the element size can be really big (like a multi-dimensional array
                 # that is very wide or data frame with many columns), we may want to have a constraint
                 # where the partition size must be larger than that minimum element size.
+
+                # Note that if the sample is empty, the maximum # of groups
+                # will be zero and so this AtMost constraint will cause the PA
+                # to fail to be used. This is expected. You can't have a PA
+                # where empty data is balanced. If the empty data arises
+                # because of an empty dataset being queried/processed, we
+                # should be using replication. If the empty data arises because
+                # of highly selective filtering, we will filter from some data
+                # that _is_ balanced.
+
                 push!(constraints.constraints, AtMost(max_ngroups, f))
                 push!(constraints.constraints, ScaleBy(f, 1.0))
 
@@ -224,6 +256,25 @@ function Grouped(
                         fby = to_vector(Symbol.(fby))
                         fkey = fby[i]
 
+                        # IF what wea re filtering to is empty, we don't know
+                        # anything about the skew of data being filtered.
+                        # Everything could be in a single partition or evenly
+                        # distributed and the result would be the same. If this
+                        # PT is ever fused with some matching PT that _is_
+                        # balanced and has divisions specified, then that will
+                        # be becasue of some filtering going on in which case a
+                        # `ScaleBy` constraint will be enforced.
+
+                        # Handling empty data:
+                        # If empty data is considered balanced, we should
+                        # replicate everything. Otherwise, there should be some
+                        # other data in the filtering pipeline that is
+                        # balanced.
+                        # - disallow balanced grouping of empty dataset
+                        # - filtering to an empty dataset - no ScaleBy constraint
+                        # - filtering from an empty dataset - no ScaleBy constraint
+                        # - maybe add in a ScaleBy(-1j) to prevent usage of an empty data
+
                         # Compute the amount to scale memory usage by based on data skew
                         min_filtered_to = sample(f, :statistics, key, :min)
                         max_filtered_to = sample(f, :statistics, key, :max)
@@ -231,7 +282,13 @@ function Grouped(
                         ff_percentile = sample(ff, :statistics, fkey, :percentile, min_filtered_to, max_filtered_to)
                         (1 / ff_percentile, filtered_from_futures)
                     end
-                    push!(constraints.constraints, ScaleBy(f, factor, from))
+
+                    # If the sample of what we are filtering into is empty, the
+                    # factor will be infinity. In that case, we shouldn't be
+                    # creating a ScaleBy constraint.
+                    if factor != Inf
+                        push!(constraints.constraints, ScaleBy(f, factor, from))
+                    end
                 elseif !isnothing(filtered_to)
                     filtered_to = to_vector(filtered_to)
                     # TODO: Revisit this and ensure it's okay to just take the
@@ -254,7 +311,13 @@ function Grouped(
                         (1 / f_percentile, filtered_to_futures)
                     end
                     # TODO: Return all filtered_from/filtered_to but with the appropriate factor and without pairs
-                    push!(constraints.constraints, ScaleBy(f, factor, to))
+
+                    # If the sample of what we are filtering into is empty, the
+                    # factor will be infinity. In that case, we shouldn't be
+                    # creating a ScaleBy constraint.
+                    if factor != Inf
+                        push!(constraints.constraints, ScaleBy(f, factor, to))
+                    end
                 elseif !isnothing(scaled_by_same_as)
                     push!(constraints.constraints, ScaleBy(f, 1.0, scaled_by_same_as))
                 end
