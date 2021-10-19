@@ -331,7 +331,9 @@ function ReadBlock(
     # function requires the schema (for example for grouping) then it must be
     # sure to take that account
     if isempty(dfs)
-        DataFrames.DataFrame()
+        # When we construct the location, we store an empty data frame with The
+        # correct schema.
+        from_jl_value_contents(loc_params["emptysample"])
     else
         vcat(dfs...)
     end

@@ -699,8 +699,8 @@ function get_remote_table_source(remotepath, remote_source=nothing, remote_sampl
     # - No sample, no location, not shuffled
 
     # Initialize sample
-    exactsample = DataFrame()
-    randomsample = DataFrame()
+    exactsample = nothing
+    randomsample = nothing
     already_warned_about_too_large_sample = false
 
     # A second pass is only needed if there is no sample and the data is
@@ -743,6 +743,15 @@ function get_remote_table_source(remotepath, remote_source=nothing, remote_sampl
                     filenrows += chunknrows
                     if isnothing(remote_source)
                         totalnrows += chunknrows
+                    end
+
+                    # Use `chunkdf` to initialize the schema of the sampels
+                    # regardless of whethere `chunkdf` has any rows or not.
+                    if isnothing(randomsample)
+                        randomsample = empty(chunkdf)
+                    end
+                    if isnothing(exactsample)
+                        exactsample = empty(chunkdf)
                     end
 
                     # Append to randomsample
@@ -838,6 +847,15 @@ function get_remote_table_source(remotepath, remote_source=nothing, remote_sampl
                     # Read in chunk
                     chunkdf = chunk |> DataFrames.DataFrame
 
+                    # Use `chunkdf` to initialize the schema of the sampels
+                    # regardless of whethere `chunkdf` has any rows or not.
+                    if isnothing(randomsample)
+                        randomsample = empty(chunkdf)
+                    end
+                    if isnothing(exactsample)
+                        exactsample = empty(chunkdf)
+                    end
+
                     # Append to exactsample
                     if nrow(randomsample) < samplenrows
                         append!(randomsample, first(chunkdf, samplenrows - nrow(randomsample)))
@@ -851,7 +869,7 @@ function get_remote_table_source(remotepath, remote_source=nothing, remote_sampl
             end
 
             # Stop as soon as we get our sample
-            if nrow(randomsample) == samplenrows
+            if (!isnothing(randomsample) || samplenrows == 0) && nrow(randomsample) == samplenrows
                 break
             end
         end
@@ -861,6 +879,14 @@ function get_remote_table_source(remotepath, remote_source=nothing, remote_sampl
         if totalnrows <= get_max_exact_sample_length()
             exactsample = randomsample
         end
+    end
+
+    # If there were no files, set the samples to schema-less data frames.
+    if isnothing(randomsample)
+        randomsample = DataFrame()
+    end
+    if isnothing(exactsample)
+        exactsample = DataFrame()
     end
 
     # Adjust sample to have samplenrows
@@ -909,7 +935,7 @@ function get_remote_table_source(remotepath, remote_source=nothing, remote_sampl
     # it is not a file. And we won't call readdir if it isn't isdir and that
     # works fine in the backend since we use S3FS there.
     loc_for_reading, metadata_for_reading = if !isempty(files) || p_isdir # empty directory can still be read from
-        ("Remote", Dict("path" => remotepath, "files" => files, "nrows" => totalnrows, "nbytes" => nbytes))
+        ("Remote", Dict("path" => remotepath, "files" => files, "nrows" => totalnrows, "nbytes" => nbytes, "emptysample" => to_jl_value_contents(empty(randomsample))))
     else
         ("None", Dict{String,Any}())
     end
