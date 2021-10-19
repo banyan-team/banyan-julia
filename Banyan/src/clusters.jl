@@ -90,7 +90,7 @@ function create_cluster(;
         wait_for_cluster(name)
     end
 
-    return Cluster(name, get_cluster_status(name), 0, s3_bucket_arn)
+    return Cluster(name, get_cluster_status(name), "", 0, s3_bucket_arn)
 end
 
 function destroy_cluster(name::String; kwargs...)
@@ -129,6 +129,7 @@ end
 struct Cluster
     name::String
     status::Symbol
+    status_explanation::String
     num_jobs_running::Int32
     s3_bucket_arn::String
 end
@@ -165,6 +166,7 @@ function get_clusters(; kwargs...)
         name => Cluster(
             name,
             parsestatus(c["status"]),
+            haskey(c, "status_explanation") ? c["status_explanation"] : "",
             c["num_jobs"],
             c["s3_read_write_resource"],
         ) for (name, c) in response["clusters"]
@@ -179,9 +181,15 @@ end
 
 get_cluster(name::String=get_cluster_name(), kwargs...) = get_clusters(; kwargs...)[name]
 
-get_cluster_status(name::String=get_cluster_name(), kwargs...) = get_clusters(; kwargs...)[name].status
-
 get_running_clusters(args...; kwargs...) = filter(entry -> entry[2].status == :running, get_clusters(args...; kwargs...))
+
+function get_cluster_status(name::String=get_cluster_name(), kwargs...)
+    c = get_clusters(; kwargs...)[name]
+    if c.status == :failed
+        @info c.status_explanation
+    end
+    c.status
+end
 
 function wait_for_cluster(name::String=get_cluster_name(), kwargs...)
     t = 5
@@ -202,8 +210,8 @@ function wait_for_cluster(name::String=get_cluster_name(), kwargs...)
         @info "Cluster $(name) is running and ready for jobs"
     elseif cluster_status == :terminated
         @info "Cluster $(name) no longer exists"
-    elseif cluster_status!= :creating && cluster_status != :updating
+    elseif cluster_status != :creating && cluster_status != :updating
         @info "Cluster $(name) set up has failed"
-        delete_cluster(name)
+        # delete_cluster(name)
     end
 end
