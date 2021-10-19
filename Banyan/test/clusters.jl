@@ -32,10 +32,22 @@ function bucket_exists(s3_bucket_name)
 end
 
 @testset "Create clusters" begin
+    Random.seed!()
+    cluster_name = "cluster-$(Random.randstring(['a':'z'; '0':'9'], 6))"
+    create_cluster(
+        name=cluster_name,
+        instance_type="t3.xlarge",  # 4 vCPUs
+        max_num_workers=32,
+        initial_num_workers=8,
+        min_num_workers=2,
+        scaledown_time=30,
+    )
+    @test c.status == :running
+    delete_cluster(cluster_name)
 end
 
 @testset "Destroy and delete clusters with $s3_bucket S3 bucket" for s3_bucket in [
-        "user-provided"  # "default", 
+        "default", "user-provided"
     ]
     Random.seed!()
     cluster_name = "cluster-$(Random.randstring(['a':'z'; '0':'9'], 6))"
@@ -47,8 +59,6 @@ end
         s3_bucket = Random.randstring(['a':'z'; '0':'9'], 6)
         s3_create_bucket(Banyan.get_aws_config(), s3_bucket)
     end
-
-    println("s3_bucket is ", s3_bucket)
 
     # Create a cluster (at least initiate) and check that S3 bucket exists
     c = create_cluster(
@@ -86,10 +96,6 @@ end
 
     # Delete cluster
     delete_cluster(cluster_name)
-    @show s3_bucket_name
-    @show s3_bucket_name_r
-    @show bucket_exists(s3_bucket_name)
-    @show bucket_exists(s3_bucket_name_r)
     sleep(30)  # Just to ensure that bucket has been deleted
     s3_bucket_exists = bucket_exists(s3_bucket_name_r)
     @test !s3_bucket_exists
@@ -99,7 +105,7 @@ end
 end
 
 @testset "Benchmark create_cluster with $instance_type instance type" for instance_type in [
-    "t3.xlarge", "t3.2xlarge", "c5.2xlarge", "m4.4xlarge", "m4.10xlarge"
+    "t3.2xlarge"  #, "t3.2xlarge", "c5.2xlarge", "m4.4xlarge", "m4.10xlarge"
 ]
     Random.seed!()
     cluster_name = "cluster-$(Random.randstring(['a':'z'; '0':'9'], 6))"
@@ -108,7 +114,8 @@ end
         c = create_cluster(
             name=cluster_name,
             instance_type=instance_type,
-            max_num_workers=16
+            max_num_workers=32,
+            initial_num_workers=1
         )
     end
     delete_cluster(cluster_name)
