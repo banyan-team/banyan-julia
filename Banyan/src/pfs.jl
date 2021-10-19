@@ -2168,6 +2168,7 @@ function Shuffle(
 
             # Group the dataframe's rows by what partition to send to
             gdf = DataFrames.groupby(part, :banyan_shuffling_key, sort = true)
+            gdf
         else
             nothing
         end
@@ -2182,7 +2183,7 @@ function Shuffle(
                 if !isnothing(gdf) && (banyan_shuffling_key = partition_idx,) in keys(gdf)
                     gdf[(banyan_shuffling_key = partition_idx,)]
                 else
-                    DataFrames.DataFrame()
+                    empty(part)
                 end,
             )
             push!(df_counts, io.size - nbyteswritten)
