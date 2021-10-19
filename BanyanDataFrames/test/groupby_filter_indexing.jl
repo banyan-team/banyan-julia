@@ -393,15 +393,14 @@ end
     end
 end
 
-@testset "Filter and groupby with $scheduling_config for edge cases" for scheduling_config in [                                                                                  [
+@testset "Filter and groupby with $scheduling_config for edge cases on $filetype datasets" for scheduling_config in [
     "default scheduling",
     "parallelism encouraged",
     "parallelism and batches encouraged",
 ], filetype in [
     "csv",
     "arrow",
-    "arrow"
-    "directory"
+    "directory",
 ]
     use_job_for_testing(scheduling_config_name = scheduling_config) do
         use_empty_data()
@@ -527,17 +526,17 @@ end
     end
 end
 
-@testset "Filter and groupby with $scheduling_config for empty $filetype with $headertype" for scheduling_config in [                                                                                  [
+@testset "Filter and groupby with $scheduling_config for empty $filetype with $headertype" for scheduling_config in [
     "default scheduling",
     "parallelism encouraged",
     "parallelism and batches encouraged",
 ], filetype in [
     "csv",
     "arrow",
-    "directory"
-], headertype in [  # Column labels
+    "directory",
+], headertype in [
     "header",
-    "no header"
+    "no header",
 ]
     use_job_for_testing(scheduling_config_name = scheduling_config) do
         use_empty_data()
@@ -545,15 +544,15 @@ end
         bucket = get_cluster_s3_bucket_name()
 
         path = ""
-        if filetype == "directory":
+        if filetype == "directory"
             # Create empty directory
             path = "s3://$(bucket)/empty_dir"
             mkpath(S3Path(path))
             headertype = "no header"
         else
-            if headertype == "header":
+            if headertype == "header"
                 path = "s3://$(bucket)/empty_df2.$(filetype)"
-            elseif headetype == "no header":
+            elseif headetype == "no header"
                 path = "s3://$(bucket)/empty_df.$(filetype)"
             end
         end
@@ -565,14 +564,14 @@ end
 
             if headertype == "header"
                 @test size(df2) == (0, 2)
-            elseif headertype == "no header":
+            elseif headertype == "no header"
                 @test size(df) == (0, 0)
             end
 
             # Filter empty df, which should result in empty df
             filtered_save_path = get_save_path(bucket, "filtered", path)
             if i == 1
-                if headertype == "header":
+                if headertype == "header"
                     filtered = filter([:x, :y] => (x, y) -> x == y, df)
                 elseif headertype == "no header"
                     filtered = filter(row -> row.x == 0, df)
@@ -588,7 +587,7 @@ end
             filtered_grouped_nrow = collect(size(combine(filtered_grouped, nrow)))
             filtered_grouped_length = collect(length(groupby(df, All())))
 
-            if headertype == "header":
+            if headertype == "header"
                 @test filtered_size == (0, 2)
                 @test filtered_grouped_nrow == (0, 3)
                 @test filtered_grouped_length == 0
