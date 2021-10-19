@@ -393,7 +393,79 @@ end
     end
 end
 
-@testset "Filter and groupby with $scheduling_config for edge cases" for scheduling_config in [                                                                                  [
+# Filter from dataset to one row or empty df
+@testset "Filter and groupby with $scheduling_config for simple edge cases" for scheduling_config in [                                                                                  [
+    "default scheduling",
+    "parallelism encouraged",
+    "parallelism and batches encouraged",
+], filetype in [
+    "csv",
+    "arrow",
+    "parquet"
+    "directory"
+]
+    use_job_for_testing(scheduling_config_name = scheduling_config) do
+        use_basic_data()
+
+        bucket = get_cluster_s3_bucket_name()
+
+        path = ""
+        if filetype == "directory"
+            path = "s3://$(bucket)/iris_large_dir.csv"
+        else
+            path = "s3://$(bucket)/iris_large.$(filetype)"
+        end
+
+        # Read empty df
+        df = read_file(path)
+
+        # Filter to single row
+        # Filter to empty
+        # Call collect on single row
+        # Call collect on empty
+        # Filter to empty
+        # Call collect on empty
+        filt1 = filter(row -> row.petal_length == 1.4 && row.sepal_length == 4.9 && row.species == "setosa", df)
+        filt2 = filter([:petal_length, :sepal_length] => (pl, sl) -> pl * sl > 100.0, filt1)
+        df1 = collect(filt1)
+        df2 = collect(filt2)
+        filt3 = filter(row -> row.petal_width == 100, filt2)
+        df3 = collect(filt3)
+
+        @test size(df1) == (1, 5)
+        @test names(df1) == ["sepal_length", "sepal_width", "petal_length", "petal_width", "species"]
+        @test collect(df1[1, :]) == [4.9, 3.0, 1.4, 0.2, "species"]
+
+        @test size(df2) == (0, 5)
+        @test names(df2) == ["sepal_length", "sepal_width", "petal_length", "petal_width", "species"]
+
+        @test size(df3) == (0, 5)
+        @test names(df3) == ["sepal_length", "sepal_width", "petal_length", "petal_width", "species"]
+
+        
+        # Filter to single row
+        # Filter to empty
+        # Filter to empty
+        # Call collect
+        filt01 = filter(row -> row.sepal_length == row.sepal_width + 1.9 && row.species == "species_10", df)
+        filt02 = filter(
+            row -> row.petal_length == row.sepal_length * 2,
+            filter(row -> row.species == "setosa", filt01)
+        )
+        df01 = collect(filt01)
+        df02 = collect(filt02)
+
+        @test size(df01) == (1, 5)
+        @test collect(df01[1, :]) == [4.9, 3.0, 1.4, 0.2, "species_10"]
+
+        @test size(df02) == (0, 5)
+        @test names(df02) == ["sepal_length", "sepal_width", "petal_length", "petal_width", "species"]
+
+    end
+end
+
+# Complex multi-step filtering to empty dataframes or single-row dataframe
+@testset "Filter and groupby with $scheduling_config for complex edge cases" for scheduling_config in [                                                                                  [
     "default scheduling",
     "parallelism encouraged",
     "parallelism and batches encouraged",
@@ -419,44 +491,7 @@ end
             # Read empty df
             df = read_file(path)
 
-            # Filter which results in an empty df and in a df with a single entry
-            filtered_empty_save_path = get_save_path(bucket, "filtered_empty", path)
-            filtered_single_save_path = get_save_path(bucket, "filtered_single", path)
-            if i == 1
-                filtered_empty = filter(row -> row.petal_length > 10, df)
-                filtered_single = filter(row -> row.petal_length == 1.4 && row.sepal_length == 4.9 && row.species == "setosa", df)
-                write_file(filtered_empty_save_path, filtered_empty)
-                write_file(filtered_single_save_path, filtered_single)
-            else
-                filtered_empty = read_file(filtered_empty_save_path)
-                filtered_single = read_file(filtered_single_save_path)
-            end
-
-            filtered_empty_size = collect(size(filtered_empty))
-            filtered_single_size = collect(size(filtered_single))
-            filtered_single_sepal_width = collect(filtered_single[:, :sepal_width])
-            filtered_single_petal_width = collect(filtered_single[:, :petal_width])
-
-            @test filtered_empty_size == (0, 5)
-            @test filtered_single_size == (1, 5)
-            @test filtered_single_sepal_width == 3.0
-            @test filtered_single_petal_width == 0.2
-
-            # Compute the negative product of a column
-            filtered_empty_sw_prod = round(collect(reduce(*, filtered_empty[:, :sepal_width]; init=-1)))
-            filtered_single_sw_prod = round(collect(reduce(*, filtered_single[:, :sepal_width]; init=-1)))
-
-            @test filtered_empty_sw_prod == -1
-            @test filtered_single_sw_prod == -3
-
-            # Groupby all columns and subset, resulting in empty df
-            filtered_empty_sub = (groupby(filtered_empty, :species), :petal_length => pl -> pl .>= mean(pl))
-            filtered_single_sub = (groupby(filtered_single, :species), :petal_length => pl -> pl .>= mean(pl))
-            filtered_empty_sub_size = collect(size(filtered_empty_sub))
-            filtered_single_sub_size = collect(size(filtered_single_sub))
-
-            @test filtered_empty_sub_size == (0, 5)
-            @test filtered_single_sub_size == (0, 5)
+    
         end
     end
 end
