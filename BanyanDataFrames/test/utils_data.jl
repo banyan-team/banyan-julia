@@ -139,7 +139,9 @@ function setup_basic_tests(bucket_name=get_cluster_s3_bucket_name())
             "iris_species_info.arrow",
         )
     end
+end
 
+function setup_empty_tests(bucket_name=get_cluster_s3_bucket_name())
     # Write empty dataframe
     empty_df = DataFrames.DataFrame()
     write_df_to_csv_to_s3(
