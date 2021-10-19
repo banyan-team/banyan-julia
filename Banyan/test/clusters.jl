@@ -105,7 +105,7 @@ end
 end
 
 @testset "Benchmark create_cluster with $instance_type instance type" for instance_type in [
-    "t3.2xlarge"  #, "t3.2xlarge", "c5.2xlarge", "m4.4xlarge", "m4.10xlarge"
+    "t3.xlarge", "t3.2xlarge", "c5.2xlarge", "m4.4xlarge", "m4.10xlarge"
 ]
     Random.seed!()
     cluster_name = "cluster-$(Random.randstring(['a':'z'; '0':'9'], 6))"
@@ -114,7 +114,7 @@ end
         c = create_cluster(
             name=cluster_name,
             instance_type=instance_type,
-            max_num_workers=32,
+            max_num_workers=16,
             initial_num_workers=1
         )
     end
