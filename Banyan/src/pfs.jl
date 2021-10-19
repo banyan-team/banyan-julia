@@ -97,13 +97,44 @@ function ReadBlock(
         #     dset = split_on_executor(dset, params["key"], batch_idx, nbatches, comm)
         # else
         dim = params["key"]
-        dset = dset[[
-            if i == dim
-                split_len(size(dset, dim), batch_idx, nbatches, comm)
+        dimsize = size(dset, dim)
+        dimrange = split_len(dimsize, batch_idx, nbatches, comm)
+        dset = if length(dimrange) == 0
+            # If we want to read in an emoty dataset, it's a little tricky to
+            # do that with HDF5.jl. But this is how we do it:
+            if dimsize == 0
+                dset[[Colon() for _ in 1:ndims(dset)]...]
             else
-                Colon()
-            end for i = 1:ndims(dset)
-        ]...]
+                dset[[
+                    # We first read in the first slice into memory. This is
+                    # because HDF5.jl (unlike h5py) does not support just
+                    # reading in an empty `1:0` slice.
+                    if i == dim
+                        1:1
+                    else
+                        Colon()
+                    end for i = 1:ndims(dset)
+                ]...][[
+                    # Then once that row is in memory we just remove it so
+                    # that we have the appropriate empty slice.
+                    if i == dim
+                        1:0
+                    else
+                        Colon()
+                    end for i = 1:ndims(dset)
+                ]...]
+            end
+        else 
+            # If it's not an empty slice that we want to read, it's pretty
+            # straightforward - we just specify the slice.
+            dset[[
+                if i == dim
+                    
+                else
+                    Colon()
+                end for i = 1:ndims(dset)
+            ]...]
+        end
         close(f)
         # end
         # # # # println("In ReadBlock")
