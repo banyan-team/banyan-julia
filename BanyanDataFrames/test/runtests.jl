@@ -216,6 +216,12 @@ function use_stress_data()
     setup_stress_tests()
 end
 
+function use_empty_data()
+    cleanup_tests()
+    setup_basic_tests()
+    setup_empty_tests()
+end
+
 include("sample_computation.jl")
 include("groupby_filter_indexing.jl")
 
