@@ -449,8 +449,8 @@ end
             # @test filtered_single_sw_prod == -3
 
             # Groupby all columns and subset, resulting in empty df
-            filtered_empty_sub = groupby(filtered_empty, :species), :petal_length => pl -> pl .>= mean(pl)
-            filtered_single_sub = groupby(filtered_single, :species), :petal_length => pl -> pl .>= mean(pl)
+            filtered_empty_sub = subset(groupby(filtered_empty, :species), :petal_length => pl -> pl .>= mean(pl))
+            filtered_single_sub = subset(groupby(filtered_single, :species), :petal_length => pl -> pl .>= mean(pl))
             filtered_empty_sub_size = size(filtered_empty_sub)
             filtered_single_sub_size = size(filtered_single_sub)
 
