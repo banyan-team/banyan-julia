@@ -23,6 +23,12 @@ DataFrames.valuecols(gdf::GroupedDataFrame) = valuecols(sample(gdf))
 # only supporting simple use-cases where you want to aggregate or transform
 # or filter your grouped dataframe.
 
+# NOTE: We don't need to implement any of the sample computation functions
+# (that we implement in `df.jl`) because a `GroupedDataFrame` will never be
+# assigned a `Grouped` PT. The sample computation functions are only used by
+# the `Grouped` PT constructor. And we never want to assign the `Grouped` PT
+# constructor to `GroupedDataFrame`s. `Blocked` will be sufficient.
+
 # GroupedDataFrame creation
 
 function DataFrames.groupby(df::DataFrame, cols; kwargs...)::GroupedDataFrame

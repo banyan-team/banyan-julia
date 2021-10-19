@@ -368,16 +368,18 @@ function ReadGroup(
                 # Get the divisions for this partition
                 p_divisions = partition_divisions[partition_division_idx]
 
-                # We can ignore this if there are no divisions for this
-                # partition. If we end up with fewer divisions than the # of
-                # partitions, that's okay since we will anyway call
-                # `get_divisions` on this inside of `Shuffle`.
-                if !isempty(p_divisions)
-                    push!(
-                        curr_partition_divisions,
-                        (first(p_divisions)[1], last(p_divisions)[2]),
-                    )
-                end
+                # We've already used `get_divisions` to get a list of min-max
+                # tuples (we call these tuples "divisions") for each partition
+                # that `ReadGroup` produces. But we only want to read in all
+                # the partitions relevant for this batch. But it is important
+                # then that `curr_partition_divisions` has an element for each
+                # worker. That way, when we call `Shuffle`, it will properly
+                # read data onto each worker that is in the appropriate
+                # partition.
+                push!(
+                    curr_partition_divisions,
+                    p_divisions,
+                )
             end
 
             # Find the batches that have the first and last divisions
@@ -411,10 +413,11 @@ function ReadGroup(
             Shuffle(
                 part,
                 Dict(),
-                merge(params, Dict("divisions" => curr_partition_divisions)),
+                merge(params, Dict("divisions_by_worker" => curr_partition_divisions)),
                 comm,
-                boundedlower = !hasdivision || batch_idx > firstbatchidx,
-                boundedupper = !hasdivision || batch_idx < lastbatchidx,
+                boundedlower = !hasdivision || batch_idx != firstbatchidx,
+                boundedupper = !hasdivision || batch_idx != lastbatchidx,
+                store_splitting_divisions = false
             ),
         )
     end
@@ -435,11 +438,15 @@ function ReadGroup(
     global splitting_divisions
     partition_idx = get_partition_idx(batch_idx, nbatches, comm)
     splitting_divisions[res] =
-        (partition_divisions[partition_idx], !hasdivision || partition_idx > firstdivisionidx, !hasdivision || partition_idx < lastdivisionidx)
+        (partition_divisions[partition_idx], !hasdivision || partition_idx != firstdivisionidx, !hasdivision || partition_idx != lastdivisionidx)
 
     # # # @showres
     if isa_df(res)
-        println("Output of ReadGroup has length $(nrow(res))")
+        if key in propertynames(res)
+            println("Output of ReadGroup has length $(nrow(res)) with $(unique(res[!, key]))")
+        else
+            println("Output of ReadGroup has length $(nrow(res)) with no values")
+        end
     end
     res
 end
@@ -461,6 +468,11 @@ function Write(
     println("Start write")
 
     # @showpart
+
+    # Get rid of splitting divisions if they were used to split this data into
+    # groups
+    global splitting_divisions
+    delete!(splitting_divisions, part)
 
     # Get path of directory to write to
     path = loc_params["path"]
@@ -1556,6 +1568,7 @@ function SplitGroup(
 
     # Get divisions stored with src
     global splitting_divisions
+    println("haskey(splitting_divisions, src)=$(haskey(splitting_divisions, src))")
     src_divisions, boundedlower, boundedupper = get!(splitting_divisions, src) do
         # This case lets us use `SplitGroup` in `DistributeAndShuffle`
         (params["divisions"], false, false)
@@ -1563,7 +1576,7 @@ function SplitGroup(
     divisions_by_partition = get_divisions(src_divisions, npartitions)
 
     println("In SplitGroup")
-    @show src_divisions divisions_by_partition
+    @show src_divisions divisions_by_partition boundedlower boundedupper
 
     # Get the divisions to apply
     key = params["key"]
@@ -1619,8 +1632,8 @@ function SplitGroup(
     global splitting_divisions
     splitting_divisions[res] = (
         divisions_by_partition[partition_idx],
-        !hasdivision || boundedlower || partition_idx > firstdivisionidx,
-        !hasdivision || boundedupper || partition_idx < lastdivisionidx,
+        !hasdivision || boundedlower || partition_idx != firstdivisionidx,
+        !hasdivision || boundedupper || partition_idx != lastdivisionidx,
     )
 
     res
@@ -1639,6 +1652,7 @@ function Merge(
     # TODO: Ensure we can merge grouped dataframes if computing them
 
     global partial_merges
+    global splitting_divisions
 
     if batch_idx == 1 || batch_idx == nbatches
         GC.gc()
@@ -1675,6 +1689,7 @@ function Merge(
         if batch_idx == nbatches
             # println("At start of merging worker_idx=$worker_idx, batch_idx=$batch_idx/$nbatches with available memory: $(format_available_memory())")
             delete!(partial_merges, objectid(src))
+            delete!(splitting_divisions, part)
             # # # @showworker_idx batch_idx src
 
             println("On last batch of merging on worker $worker_idx")
@@ -2074,14 +2089,17 @@ function Shuffle(
     comm;
     boundedlower = false,
     boundedupper = false,
+    store_splitting_divisions = true
 )
     # Get the divisions to apply
-    divisions = dst_params["divisions"] # list of min-max tuples
     key = dst_params["key"]
     rev = dst_params["rev"]
-    ndivisions = length(divisions)
     worker_idx, nworkers = get_worker_idx(comm), get_nworkers(comm)
-    divisions_by_worker = get_divisions(divisions, nworkers) # list of min-max tuple lists
+    divisions_by_worker = if haskey(dst_params, "divisions_by_worker")
+        dst_params["divisions_by_worker"] # list of min-max tuples
+    else 
+        get_divisions(dst_params["divisions"], nworkers)
+    end # list of min-max tuple lists
     if rev
         reverse!(divisions_by_worker)
     end
@@ -2103,7 +2121,7 @@ function Shuffle(
         boundedupper = boundedupper,
     )
     # # # @showtypeof(part)
-    res = if isa_df(part)
+    res = if isa_df(part)   
         # # Ensure that this partition has a schema that is suitable for usage
         # # here. We have to do this for `Shuffle` and `SplitGroup` (which is
         # # used by `DistributeAndShuffle`)
@@ -2223,10 +2241,21 @@ function Shuffle(
         throw(ArgumentError("Expected array or dataframe to distribute and shuffle"))
     end
 
-    # Store divisions
-    global splitting_divisions
-    splitting_divisions[res] =
-        (divisions_by_worker[worker_idx], worker_idx > 1, worker_idx < nworkers)
+    if store_splitting_divisions
+        # The first and last partitions (used if this lacks a lower or upper bound)
+        # must have actual division(s) associated with them. If there is no
+        # partition that has divisions, then they will all be skipped and -1 will
+        # be returned. So these indices are only used if there are nonempty
+        # divisions.
+        hasdivision = any(x->!isempty(x), divisions_by_worker)
+        firstdivisionidx = findfirst(x->!isempty(x), divisions_by_worker)
+        lastdivisionidx = findlast(x->!isempty(x), divisions_by_worker)
+
+        # Store divisions
+        global splitting_divisions
+        splitting_divisions[res] =
+            (divisions_by_worker[worker_idx], !hasdivision || worker_idx != firstdivisionidx, !hasdivision || worker_idx != lastdivisionidx)
+    end
 
     res
 end

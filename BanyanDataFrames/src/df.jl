@@ -101,22 +101,36 @@ Banyan.sample_keys(df::DataFrames.DataFrame) = propertynames(df)
 # TODO: Make these sample_* functions handle empty data frames
 
 function Banyan.sample_divisions(df::DataFrames.DataFrame, key)
+    # There are no divisions for empty data
+    if isempty(df)
+        return []
+    end
+
     max_ngroups = sample_max_ngroups(df, key)
     ngroups = min(max_ngroups, 512)
     data = sort(map(orderinghash, df[!, key]))
     datalength = length(data)
     grouplength = div(datalength, ngroups)
-    [
+    # We use `unique` here because if the divisions have duplicates, this could
+    # result in different partitions getting the same divisions.
+    # TODO: Ensure that `unique` doesn't change the order
+    unique([
         # Each group has elements that are >= start and < end
         (
             data[(i-1)*grouplength + 1],
             data[i == ngroups ? datalength : i*grouplength + 1]
         )
         for i in 1:ngroups
-    ]
+    ])
 end
 
 function Banyan.sample_percentile(df::DataFrames.DataFrame, key, minvalue, maxvalue)
+    # If the data frame is empty, nothing between `minvalue` and `maxvalue` can
+    # exist in `df`. so the percentile is 0.
+    if isempty(df)
+        return 0
+    end
+
     # NOTE: This may cause some problems because the way that data is ultimately split may
     # not allow a really fine division of groups. So in the case of some filtering, the rate
     # of filtering may be 90% but if there are only like 3 groups then maybe it ends up being like

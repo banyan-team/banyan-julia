@@ -142,9 +142,12 @@ function get_partition_idx_from_divisions(
         islastdivision = i == lastdivisionidx
         if ((!boundedlower && isfirstdivision) || oh >= first(div)[1]) &&
            ((!boundedupper && islastdivision) || oh < last(div)[2])
+            println("Returning $i from get_partition_idx_from_divisions")
             return i
         end
     end
+
+    println("Returning -1 from get_partition_idx_from_divisions")
 
     # We return -1 since this value doesn't belong to any of the partitions
     # represented by `divisions`.
@@ -215,6 +218,8 @@ function get_divisions(divisions, npartitions)
     # produce divisions for. The result is a list of length `npartitions`
     # containing lists of divisions for each partition. A partition may contain
     # multiple divisions.
+
+    print("In get_divisions splitting divisions=$divisions into npartitions=$npartitions")
 
     ndivisions = length(divisions)
     if ndivisions == 0
@@ -331,13 +336,26 @@ function get_divisions(divisions, npartitions)
             # break
 
             # Each partition must have a _list_ of divisions so we must have a list
-            # for each partition
+            # for each partition. So `allsplitdivisions` is an array where
+            # each element is either a 1-element array containing a single
+            # division or its empty.
             for splitdivision in splitdivisions
-                push!(allsplitdivisions, [splitdivision])
+                # Check if we have already added this split division before.
+                # The last split division may have been empty but we can 
+                # still check whether there is a last one and if what we're
+                # adding is the same or also empty. If it is the same or also
+                # empty, then we just add an empty divisions list. Otherwsie,
+                # we add in our novel split division.
+                if !isempty(allsplitdivisions) && last(allsplitdivisions) == splitdivision
+                    push!(allsplitdivisions, [])
+                else
+                    push!(allsplitdivisions, [splitdivision])
+                end
             end
 
             # end
         end
+
         allsplitdivisions
     end
 end

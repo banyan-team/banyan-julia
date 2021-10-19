@@ -75,22 +75,33 @@ Banyan.sample_keys(A::U) where U <: Base.AbstractArray{T,N} where {T,N} = sample
 # work with the `orderinghash` of values in the data they are used on
 
 function Banyan.sample_divisions(A::U, key) where U <: Base.AbstractArray{T,N} where {T,N}
+    if isempty(A)
+        return []
+    end
+
     max_ngroups = sample_max_ngroups(A, key)
     ngroups = min(max_ngroups, 512)
     data = sort([orderinghash(e) for e in eachslice(A, dims=key)])
     datalength = length(data)
     grouplength = div(datalength, ngroups)
-    [
+    # We use `unique` here because if the divisions have duplicates, this could
+    # result in different partitions getting the same divisions.
+    # TODO: Ensure that `unique` doesn't change the order
+    unique([
         # Each group has elements that are >= start and < end
         (
             data[(i-1)*grouplength + 1],
             data[i == ngroups ? datalength : i*grouplength + 1]
         )
         for i in 1:ngroups
-    ]
+    ])
 end
 
 function Banyan.sample_percentile(A::U, key, minvalue, maxvalue) where U <: Base.AbstractArray{T,N} where {T,N}
+    if isempty(A)
+        return 0
+    end
+
     count((begin oh = orderinghash(e); oh >= minvalue && oh <= maxvalue end for e in eachslice(A, dims=key))) / size(A, key)
 
     # TODO: Determine whether we need to assume a more coarse-grained percentile using the divisions
@@ -127,33 +138,36 @@ end
 # something like sorting on multiple dimensions or grouping on multiple
 # dimensions you can just use the first dimension as the key.
 
-Banyan.sample_max_ngroups(A::U, key) where U <: Base.AbstractArray{T,N} where {T,N} =
-    begin
-        data = sort([orderinghash(e) for e in eachslice(A, dims=key)])
-        currgroupsize = 1
-        maxgroupsize = 0
-        prev = nothing
-        prev_is_nothing = true # in case `prev` _can_ be nothing
-        for curr in data
-            if !prev_is_nothing && curr == prev
-                currgroupsize += 1
-            else
-                maxgroupsize = max(maxgroupsize, currgroupsize)
-                currgroupsize = 1
-            end
-            # TODO: Maybe use deepcopy here if eltype might be nested
-            prev = copy(curr)
-            prev_is_nothing = false
-        end
-        maxgroupsize = max(maxgroupsize, currgroupsize)
-        div(size(A, key), maxgroupsize)
+function Banyan.sample_max_ngroups(A::U, key) where U <: Base.AbstractArray{T,N} where {T,N}
+    if isempty(A)
+        return 0
     end
+
+    data = sort([orderinghash(e) for e in eachslice(A, dims=key)])
+    currgroupsize = 1
+    maxgroupsize = 0
+    prev = nothing
+    prev_is_nothing = true # in case `prev` _can_ be nothing
+    for curr in data
+        if !prev_is_nothing && curr == prev
+            currgroupsize += 1
+        else
+            maxgroupsize = max(maxgroupsize, currgroupsize)
+            currgroupsize = 1
+        end
+        # TODO: Maybe use deepcopy here if eltype might be nested
+        prev = copy(curr)
+        prev_is_nothing = false
+    end
+    maxgroupsize = max(maxgroupsize, currgroupsize)
+    div(size(A, key), maxgroupsize)
+end
 # TODO: Handle issue where mapslices requires dims to be a single dimension;
 # probably need to vary mapslices on the dim itself and then use eachslices,
 # get the orderinghash and then take minimum across that
 # TODO: Change to use eachslice everywhere and ensure we use key not d
-Banyan.sample_min(A::U, key) where U <: Base.AbstractArray{T,N} where {T,N} = minimum((orderinghash(e) for e in eachslice(A, dims=key)))
-Banyan.sample_max(A::U, key) where U <: Base.AbstractArray{T,N} where {T,N} = maximum((orderinghash(e) for e in eachslice(A, dims=key)))
+Banyan.sample_min(A::U, key) where U <: Base.AbstractArray{T,N} where {T,N} = isempty(A) ? nothing : minimum((orderinghash(e) for e in eachslice(A, dims=key)))
+Banyan.sample_max(A::U, key) where U <: Base.AbstractArray{T,N} where {T,N} = isempty(A) ? nothing : maximum((orderinghash(e) for e in eachslice(A, dims=key)))
 
 # Array creation
 
