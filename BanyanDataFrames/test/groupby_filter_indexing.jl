@@ -463,7 +463,7 @@ end
 end
 
 # Complex multi-step filtering to empty dataframes or single-row dataframe
-@testset "Filter and groupby with $scheduling_config for complex edge cases for $filetype" for scheduling_config in [                                                                                  [
+@testset "Filter and groupby with $scheduling_config for complex edge cases for $filetype" for scheduling_config in [
     "default scheduling",
     "parallelism encouraged",
     "parallelism and batches encouraged",
