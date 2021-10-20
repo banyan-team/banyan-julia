@@ -590,8 +590,10 @@ function Write(
         nrows = size(part, 1)
         sortableidx = sortablestring(idx, get_npartitions(nbatches, comm))
         if endswith(path, ".parquet")
-            partfilepath = joinpath(path, "part$sortableidx" * "_nrows=$nrows.parquet")
-            Parquet.write_parquet(partfilepath, part)
+            if nrows > 0
+                partfilepath = joinpath(path, "part$sortableidx" * "_nrows=$nrows.parquet")
+                Parquet.write_parquet(partfilepath, part)
+            end
         elseif endswith(path, ".csv")
             partfilepath = joinpath(path, "part$sortableidx" * "_nrows=$nrows.csv")
             CSV.write(partfilepath, part)
