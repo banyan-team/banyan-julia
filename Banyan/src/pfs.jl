@@ -590,6 +590,7 @@ function Write(
         nrows = size(part, 1)
         sortableidx = sortablestring(idx, get_npartitions(nbatches, comm))
         if endswith(path, ".parquet")
+            # Parquet.jl doesn't support writing empty data frames.
             if nrows > 0
                 partfilepath = joinpath(path, "part$sortableidx" * "_nrows=$nrows.parquet")
                 Parquet.write_parquet(partfilepath, part)
