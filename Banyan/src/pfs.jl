@@ -188,7 +188,9 @@ function ReadBlock(
             loc_params["nrows"] = nrows
         else
             # This is the case where no data has been spilled to disk and this
-            # is maybe just an intermediate variable only used for this stage
+            # is maybe just an intermediate variable only used for this stage.
+            # We never spill tabular data to a single file - it's always a
+            # directory of Arrow files.
             return nothing
         end
     end
@@ -331,9 +333,22 @@ function ReadBlock(
     # function requires the schema (for example for grouping) then it must be
     # sure to take that account
     if isempty(dfs)
-        # When we construct the location, we store an empty data frame with The
-        # correct schema.
-        from_jl_value_contents(loc_params["emptysample"])
+        # Note that if we are reading disk-spilled Arrow data, we would have
+        # files for each of the workers that wrote that data. So there should
+        # be files but they might be empty.
+        if loc_name == "Disk"
+            files_sorted_by_nrow = sort(loc_params["files"], by = filedict -> filedict["nrows"])
+            if isempty(files_sorted_by_nrow)
+                # This should not be empty for disk-spilled data
+                DataFrame()
+            else
+                empty(Arrow.Table(getpath(first(files_sorted_by_nrow)["path"])) |> DataFrame)
+            end
+        else
+            # When we construct the location, we store an empty data frame with The
+            # correct schema.
+            from_jl_value_contents(loc_params["emptysample"])
+        end
     else
         vcat(dfs...)
     end
