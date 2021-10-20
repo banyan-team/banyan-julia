@@ -499,30 +499,31 @@ end
                 filtered_single = read_file(filtered_single_save_path)
             end
 
+            # Test sizes
             filtered_empty_size = size(filtered_empty)
             filtered_single_size = size(filtered_single)
-            filtered_single_sepal_width = collect(filtered_single[:, :sepal_width])
-            filtered_single_petal_width = collect(filtered_single[:, :petal_width])
-
             @test filtered_empty_size == (0, 5)
             @test filtered_single_size == (1, 5)
+
+            # Test downloading single row
+            filtered_single_sepal_width = collect(filtered_single[:, :sepal_width])
+            filtered_single_petal_width = collect(filtered_single[:, :petal_width])
             @test filtered_single_sepal_width == [3.0]
             @test filtered_single_petal_width == [0.2]
 
-            # # Compute the negative product of a column
-            # filtered_empty_sw_prod = round(collect(reduce(*, filtered_empty[:, :sepal_width]; init=-1)))
-            # filtered_single_sw_prod = round(collect(reduce(*, filtered_single[:, :sepal_width]; init=-1)))
+            # Only empty Arrow datasets preserve the schema and can be read
+            # back in and used in a groupby-subset that references a column
+            # from the original schema.
+            if i != 2 || filetype == "arrow"
+                # Groupby all columns and subset, resulting in empty df
+                filtered_empty_sub = subset(groupby(filtered_empty, :species), :petal_length => pl -> pl .>= mean(pl))
+                filtered_empty_sub_size = size(filtered_empty_sub)
+                @test filtered_empty_sub_size == (0, 5)
+            end
 
-            # @test filtered_empty_sw_prod == -1
-            # @test filtered_single_sw_prod == -3
-
-            # Groupby all columns and subset, resulting in empty df
-            filtered_empty_sub = subset(groupby(filtered_empty, :species), :petal_length => pl -> pl .>= mean(pl))
+            # Test size after filtering single-row dataset
             filtered_single_sub = subset(groupby(filtered_single, :species), :petal_length => pl -> pl .>= mean(pl))
-            filtered_empty_sub_size = size(filtered_empty_sub)
             filtered_single_sub_size = size(filtered_single_sub)
-
-            @test filtered_empty_sub_size == (0, 5)
             @test filtered_single_sub_size == (0, 5)
         end
     end
@@ -536,7 +537,7 @@ end
 ], filetype in [
     "csv",
     "parquet",
-    "arrow"
+    "arrow",
     "directory"
 ]
     use_job_for_testing(scheduling_config_name = scheduling_config) do
