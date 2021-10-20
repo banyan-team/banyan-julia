@@ -146,10 +146,14 @@ function configure(; kwargs...)
     #   3) `$HOME/.banyan/banyanconfig.toml`
 
     # Load arguments
+    # If an argument is optional (e.g., `ec2_key_pair_name`), we default
+    # to 0 to indicate that the argument was not specified. This is so that
+    # we can differentiate between a user explicitly providing `nothing` as
+    # the value for an arg, versus a default.
     kwargs = Dict(kwargs)
     user_id = if_in_or(:user_id, kwargs)
     api_key = if_in_or(:api_key, kwargs)
-    ec2_key_pair_name = if_in_or(:ec2_key_pair_name, kwargs)
+    ec2_key_pair_name = if_in_or(:ec2_key_pair_name, kwargs, el=0)
     banyanconfig_path = if_in_or(:banyanconfig_path, kwargs)
 
     # Load config
@@ -163,6 +167,10 @@ function configure(; kwargs...)
     if isnothing(api_key) && haskey(ENV, "BANYAN_API_KEY")
         api_key = ENV["BANYAN_API_KEY"]
     end
+    if ec2_key_pair_name == 0 && haskey(ENV, "BANYAN_EC2_KEY_PAIR_NAME")
+        api_key = ENV["BANYAN_EC2_KEY_PAIR_NAME"]
+    end
+
 
     # Check banyanconfig file
     if isnothing(user_id) && haskey(banyan_config, "banyan") && haskey(banyan_config["banyan"], "user_id")
@@ -202,10 +210,12 @@ function configure(; kwargs...)
         is_modified = true
     end
 
-    # Check for changes in potentially required
+    # Check for changes in other args
 
     # aws.ec2_key_pair_name
-    if !isnothing(ec2_key_pair_name) && (
+    if isnothing(ec2_key_pair_name)
+        delete!(banyan_config["aws"], "ec2_key_pair_name")
+    elseif (ec2_key_pair_name != 0) && (
         !(haskey(banyan_config["aws"], "ec2_key_pair_name")) ||
         ec2_key_pair_name != banyan_config["aws"]["ec2_key_pair_name"]
     )

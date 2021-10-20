@@ -9,7 +9,6 @@ function create_cluster(;
     s3_bucket_arn::Union{String,Nothing} = nothing,
     s3_bucket_name::Union{String,Nothing} = nothing,
     scaledown_time = 25,
-    ec2_key_pair_name = nothing,
     vpc_id = nothing,
     subnet_id = nothing,
     nowait=false,
@@ -66,9 +65,7 @@ function create_cluster(;
         "scaledown_time" => scaledown_time,
         "recreate" => false,
     )
-    if !isnothing(ec2_key_pair_name)
-        cluster_config["ec2_key_pair"] = ec2_key_pair_name
-    elseif haskey(c["aws"], "ec2_key_pair_name")
+    if haskey(c["aws"], "ec2_key_pair_name")
         cluster_config["ec2_key_pair"] = c["aws"]["ec2_key_pair_name"]
     end
     if !isnothing(iam_policy_arn)
