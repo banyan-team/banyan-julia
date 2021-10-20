@@ -492,17 +492,18 @@ end
             if i == 1
                 filtered_empty = filter(row -> row.petal_length > 10, df)
                 filtered_single = filter(row -> row.petal_length == 1.4 && row.sepal_length == 4.9 && row.species == "setosa", df)
-                write_file(filtered_empty_save_path, filtered_empty)
-                write_file(filtered_single_save_path, filtered_single)
             else
                 filtered_empty = read_file(filtered_empty_save_path)
                 filtered_single = read_file(filtered_single_save_path)
             end
 
+            has_schema = i != 2 || filetype == "arrow"
+            has_num_cols = i != 2 || filetype != "parquet"
+
             # Test sizes
             filtered_empty_size = size(filtered_empty)
             filtered_single_size = size(filtered_single)
-            @test filtered_empty_size == (0, 5)
+            @test filtered_empty_size == (has_num_cols ? (0, 5) : (0, 0))
             @test filtered_single_size == (1, 5)
 
             # Test downloading single row
@@ -513,8 +514,11 @@ end
 
             # Only empty Arrow datasets preserve the schema and can be read
             # back in and used in a groupby-subset that references a column
-            # from the original schema.
-            if i != 2 || filetype == "arrow"
+            # from the original schema. Even if the computation were replicated
+            # so that no grouping splitting has to be done, we still have to do
+            # a groupby-subset on an empty DataFrame with no schema and
+            # DataFrames.jl doesn't support that.
+            if has_schema
                 # Groupby all columns and subset, resulting in empty df
                 filtered_empty_sub = subset(groupby(filtered_empty, :species), :petal_length => pl -> pl .>= mean(pl))
                 filtered_empty_sub_size = size(filtered_empty_sub)
@@ -524,7 +528,14 @@ end
             # Test size after filtering single-row dataset
             filtered_single_sub = subset(groupby(filtered_single, :species), :petal_length => pl -> pl .>= mean(pl))
             filtered_single_sub_size = size(filtered_single_sub)
-            @test filtered_single_sub_size == (0, 5)
+            @test filtered_single_sub_size == (1, 5)
+
+            # If this is round 1, write it out so that it can be read in round
+            # 2
+            if i == 1
+                write_file(filtered_empty_save_path, filtered_empty)
+                write_file(filtered_single_save_path, filtered_single)
+            end
         end
     end
 end
@@ -570,7 +581,7 @@ end
 
         @test size(df1) == (1, 5)
         @test names(df1) == ["sepal_length", "sepal_width", "petal_length", "petal_width", "species"]
-        @test collect(df1[1, :]) == [4.9, 3.0, 1.4, 0.2, "species"]
+        @test collect(df1[1, :]) == [4.9, 3.0, 1.4, 0.2, "setosa"]
 
         @test size(df2) == (0, 5)
         @test names(df2) == ["sepal_length", "sepal_width", "petal_length", "petal_width", "species"]
@@ -605,13 +616,12 @@ end
     "default scheduling",
     "parallelism encouraged",
     "parallelism and batches encouraged",
-], filetype in [
-    "csv",
-    "arrow",
-    "directory",
-], headertype in [
-    "header",
-    "no header",
+], (filetype, headertype) in [
+    ("csv", "header"),
+    ("csv", "no header"),
+    ("arrow", "header"),
+    ("arrow", "no header"),
+    ("directory", "no header"),
 ]
     use_job_for_testing(scheduling_config_name = scheduling_config) do
         use_empty_data()
@@ -621,15 +631,15 @@ end
         path = ""
         if filetype == "directory"
             # Create empty directory
-            path = "s3://$(bucket)/empty_dir"
-            if !ispath(S3Path(path, config = Banyan.get_aws_config()))
-                mkpath(S3Path(path, config = Banyan.get_aws_config()))
+            path = "s3://$(bucket)/empty_dir.parquet"
+            if !ispath(S3Path(path * "/", config = Banyan.get_aws_config()))
+                mkpath(S3Path(path * "/", config = Banyan.get_aws_config()))
             end
             headertype = "no header"
         else
             if headertype == "header"
                 path = "s3://$(bucket)/empty_df2.$(filetype)"
-            elseif headetype == "no header"
+            elseif headertype == "no header"
                 path = "s3://$(bucket)/empty_df.$(filetype)"
             end
         end
