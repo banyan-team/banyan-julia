@@ -197,6 +197,9 @@ function Grouped(
     else
         by
     end
+    if !(by isa Colon)
+        intersect!(by, sample(f, :keys))
+    end
     by = Symbol.(by)
     by = to_vector(by)
 
@@ -326,5 +329,15 @@ function Grouped(
             push!(pts, PartitionType(parameters, constraints))
         end
     end
+
+    # If there are no PTs, ensure that we at least have one impossible PT. This
+    # PT doesn't need to have divisions and can be unbalanced but the important
+    # thing is that we assign an AtMost-zero constraint which will prevent a PA
+    # containing this from being used. This is important because we can't group
+    # data on keys that don't belong to it.
+    if isempty(pts)
+        push!(pts, PartitionType("key" => nothing, "balanced" => false, f -> AtMost(0, f)))
+    end
+
     Grouped() & pts
 end
