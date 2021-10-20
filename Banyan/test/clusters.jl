@@ -1,136 +1,130 @@
-# # TODO: Migrate to using ReTest
+using Random
 
-# using AWSCore, AWSS3, HTTP
+@testset "Get clusters" begin
+    cluster_name = ENV["BANYAN_CLUSTER_NAME"]
 
-# include("../src/clusters.jl")
+    clusters = get_clusters()
+    get_cluster_s3_bucket_name(cluster_name)
+    running_clusters = get_running_clusters()
 
+    @test haskey(clusters, cluster_name)
+    @test all(c -> c[2].status == :running, running_clusters)
 
-# # Test `clusters.jl:load_json`
-# function test_load_json()
-#     # Test failure if filename is not valid
-#     @test_throws ErrorException Banyan.load_json("res/Banyanfile.json")
+end
 
-#     # Test failure if local file does not exist
-#     @test_throws ErrorException Banyan.load_json("file://res/filedoesnotexist.json")
-#     # Test valid local file can be loaded
-#     banyanfile = Banyan.load_json("file://res/Banyanfile.json")
-#     @test typeof(banyanfile) <: Dict
+@testset "Update clusters" begin
+    cluster_name = ENV["BANYAN_CLUSTER_NAME"]
 
-#     # Test failure if s3 file does not exist
-#     # TODO: Add this
-#     # Test valid s3 file can be loaded
-#     # TODO: Add this
+    update_cluster(cluster_name)
+    cluster_status = get_cluster_status(cluster_name)
 
-#     # Test failure if http(s) file does not exist
-#     @test_throws HTTP.ExceptionRequest.StatusError Banyan.load_json("https://raw.githubusercontent.com/banyan-team/banyan-julia/v0.1.0/Banyan/test/res/filedoesnotexist.json")
-#     # Test valid http(s) file can be loaded
-#     banyanfile = Banyan.load_json("https://raw.githubusercontent.com/banyan-team/banyan-julia/v0.1.0/Banyan/test/res/Banyanfile.json")
-#     @test typeof(banyanfile) <: Dict
-
-# end
-
-
-# # Test `clusters.jl:load_file`
-# function test_load_file()
-#     # Test failure if filename is not valid
-#     @test_throws ErrorException Banyan.load_file("res/code_dep.jl")
-
-#     # Test failure if local file does not exist
-#     @test_throws ErrorException Banyan.load_file("file://res/filedoesnotexist.jl")
-#     # Test valid local json file can be loaded
-#     f = Banyan.load_file("file://res/Banyanfile.json")
-#     @test typeof(f) == String
-#     # Test valid local julia file can be loaded
-#     f = Banyan.load_file("file://res/code_dep.jl")
-#     @test typeof(f) == String
-
-#     # Test failure if s3 file does not exist
-#     # TODO: Add this
-#     # Test valid s3 file can be loaded
-#     # TODO: Add this
-
-#     # Test failure if http(s) file does not exist
-#     @test_throws HTTP.ExceptionRequest.StatusError Banyan.load_file("https://raw.githubusercontent.com/banyan-team/banyan-julia/v0.1.0/Banyan/test/res/filedoesnotexist.json")
-#     # Test valid http(s) file can be loaded
-#     f = Banyan.load_file("https://raw.githubusercontent.com/banyan-team/banyan-julia/v0.1.0/Banyan/test/res/Banyanfile.json")
-#     @test typeof(f) == String
-# end
-
-
-# # Test `clusters.jl:create_cluster` in cases where it should fail
-# function test_create_cluster_failure_cases()
+    @test cluster_status == :updating
     
-# end
+    while cluster_status == :updating
+        sleep(5)
+        cluster_status = get_cluster_status(cluster_name)
+    end
+    @test cluster_status == :running
+end
 
+function bucket_exists(s3_bucket_name)
+    ispath(S3Path("s3://$(s3_bucket_name)", config=Banyan.get_aws_config()))
+end
 
-# # Test `clusters.jl:create_cluster` in cases where it should succeed
-# function test_create_cluster_success_cases()
-# end
+@testset "Create clusters" begin
+    Random.seed!()
+    cluster_name = "cluster-$(Random.randstring(['a':'z'; '0':'9'], 6))"
+    create_cluster(
+        name=cluster_name,
+        instance_type="t3.xlarge",  # 4 vCPUs
+        max_num_workers=32,
+        initial_num_workers=8,
+        min_num_workers=2,
+        scaledown_time=30,
+    )
+    @test c.status == :running
+    delete_cluster(cluster_name)
+end
 
+@testset "Destroy and delete clusters with $s3_bucket S3 bucket" for s3_bucket in [
+        "default", "user-provided"
+    ]
+    Random.seed!()
+    cluster_name = "cluster-$(Random.randstring(['a':'z'; '0':'9'], 6))"
+    @show cluster_name
 
-# # Test `clusters.jl:destroy_cluster`
-# function test_destroy_cluster()
-# end
+    if s3_bucket == "default"
+        s3_bucket = nothing
+    elseif s3_bucket == "user-provided"
+        s3_bucket = Random.randstring(['a':'z'; '0':'9'], 6)
+        s3_create_bucket(Banyan.get_aws_config(), s3_bucket)
+    end
 
+    # Create a cluster (at least initiate) and check that S3 bucket exists
+    c = create_cluster(
+        name=cluster_name,
+        instance_type="t3.large",
+        s3_bucket_name=s3_bucket,
+        nowait=true
+    )
+    sleep(30) # Just to ensure that cluster creation has initiated
+    s3_bucket_name = get_cluster_s3_bucket_name(cluster_name)
+    s3_bucket_exists = bucket_exists(s3_bucket_name)
+    if !isnothing(s3_bucket)
+        @test s3_bucket == s3_bucket_name
+    end
+    @test s3_bucket_exists
 
-# # Test `clusters.jl:get_cluster` and `clusters.jl:get_clusters`
-# function test_get_clusters()
-# end
+    # Destroy cluster and check that S3 bucket still exists
+    destroy_cluster(cluster_name)
+    s3_bucket_exists = bucket_exists(s3_bucket_name)
+    @test s3_bucket_exists
+    sleep(30) # Just to ensure that cluster destruction is complete
 
+    # Re-create cluster and check that S3 bucket exists and is same as before
+    while get_cluster_status(cluster_name) != :terminated
+        sleep(15)
+    end
+    c_r = create_cluster(
+        name=cluster_name,
+        nowait=true
+    )
+    s3_bucket_name_r = get_cluster_s3_bucket_name(cluster_name)
+    s3_bucket_exists = bucket_exists(s3_bucket_name_r)
+    @test s3_bucket_exists
+    @test s3_bucket_name == s3_bucket_name_r
 
-# # Test `clusters.jl:get_jobs_for_cluster`
-# function test_get_jobs_for_cluster()
-# end
+    # Delete cluster
+    delete_cluster(cluster_name)
+    sleep(30)  # Just to ensure that bucket has been deleted
+    s3_bucket_exists = bucket_exists(s3_bucket_name_r)
+    @test !s3_bucket_exists
 
+    # Check that the cluster cannot be created again
+    @test_throws ErrorException create_cluster(name=cluster_name, nowait=true)
+end
 
-# # Test `clusters.jl:assert_cluster_is_ready`
-# function test_assert_cluster_is_ready()
-# end
+@testset "Benchmark create_cluster with $instance_type instance type" for instance_type in [
+    "t3.xlarge", "t3.2xlarge", "c5.2xlarge", "m4.4xlarge", "m4.10xlarge"
+]
+    Random.seed!()
+    cluster_name = "cluster-$(Random.randstring(['a':'z'; '0':'9'], 6))"
+    @show cluster_name
+    t = @elapsed begin
+        c = create_cluster(
+            name=cluster_name,
+            instance_type=instance_type,
+            max_num_workers=16,
+            initial_num_workers=1
+        )
+    end
+    delete_cluster(cluster_name)
 
+    # Save results to file
+    open("create_cluster_times.txt", "a") do f
+        write(f, "$(instance_type)\t$(string(t/60))\n")
+    end
 
-# # Test `clusters.jl:update_cluster`
-# function test_update_cluster()
-# end
-
-
-
-
-# @testset "Test loading files" begin
-#     run("load json") do
-#         test_load_json()
-#     end
-#     run("load file") do
-#         test_load_file()
-#     end
-# end
-
-
-
-
-# @testset "Test creating clusters" begin
-#     run("create cluster") do
-#         test_create_cluster_failure_cases()
-#         test_create_cluster_success_cases()
-#     end
-# end
-
-
-# @testset "Test destroying clusters" begin
-#     run("destroy cluster") do
-#         test_destroy_cluster()
-#     end
-# end
-
-
-# @testset "Test managing clusters" begin
-#     run("get clusters info") do
-#         test_get_clusters()
-#         test_get_jobs_for_cluster()
-#     end
-#     run("set cluster status to ready") do
-#         test_assert_cluster_is_ready()
-#     end
-#     run("update cluster") do
-#         test_update_cluster()
-#     end
-# end
+    # Verify that cluster was spun up
+    @test c.status == :running
+end

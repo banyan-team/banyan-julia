@@ -146,12 +146,14 @@ function configure(; kwargs...)
     #   3) `$HOME/.banyan/banyanconfig.toml`
 
     # Load arguments
+    # If an argument is optional (e.g., `ec2_key_pair_name`), we default
+    # to 0 to indicate that the argument was not specified. This is so that
+    # we can differentiate between a user explicitly providing `nothing` as
+    # the value for an arg, versus a default.
     kwargs = Dict(kwargs)
     user_id = if_in_or(:user_id, kwargs)
     api_key = if_in_or(:api_key, kwargs)
-    ec2_key_pair_name = if_in_or(:ec2_key_pair_name, kwargs)
-    require_ec2_key_pair_name =
-        if_in_or(:require_ec2_key_pair_name, kwargs, false)
+    ec2_key_pair_name = if_in_or(:ec2_key_pair_name, kwargs, 0)
     banyanconfig_path = if_in_or(:banyanconfig_path, kwargs)
 
     # Load config
@@ -165,6 +167,10 @@ function configure(; kwargs...)
     if isnothing(api_key) && haskey(ENV, "BANYAN_API_KEY")
         api_key = ENV["BANYAN_API_KEY"]
     end
+    if ec2_key_pair_name == 0 && haskey(ENV, "BANYAN_EC2_KEY_PAIR_NAME")
+        api_key = ENV["BANYAN_EC2_KEY_PAIR_NAME"]
+    end
+
 
     # Check banyanconfig file
     if isnothing(user_id) && haskey(banyan_config, "banyan") && haskey(banyan_config["banyan"], "user_id")
@@ -204,19 +210,17 @@ function configure(; kwargs...)
         is_modified = true
     end
 
-    # Check for changes in potentially required
+    # Check for changes in other args
 
     # aws.ec2_key_pair_name
-    if !isnothing(ec2_key_pair_name) && (
+    if isnothing(ec2_key_pair_name)
+        delete!(banyan_config["aws"], "ec2_key_pair_name")
+    elseif (ec2_key_pair_name != 0) && (
         !(haskey(banyan_config["aws"], "ec2_key_pair_name")) ||
         ec2_key_pair_name != banyan_config["aws"]["ec2_key_pair_name"]
     )
         banyan_config["aws"]["ec2_key_pair_name"] = ec2_key_pair_name
         is_modified = true
-    end
-    if require_ec2_key_pair_name &&
-       !(haskey(banyan_config["aws"], "ec2_key_pair_name"))
-        error("Name of an EC2 key pair required but not provided; visit here to create a key pair: https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ec2-key-pairs.html#having-ec2-create-your-key-pair")
     end
 
     # # aws.region
@@ -358,11 +362,13 @@ function send_request_get_response(method, content::Dict)
     )
     if resp.status == 403
         throw(ErrorException("Please use a valid user ID and API key. Sign into the dashboard to retrieve these credentials."))
-    elseif resp.status == 500 || resp.status == 504
+    elseif resp.status == 504
         # HTTP request timed out, for example
         if isa(data, Dict) && haskey(data, "message")
             data = data["message"]
         end
+        @info data
+    elseif resp.status == 500 || resp.status == 504
         throw(ErrorException(data))
     elseif resp.status == 502
         throw(ErrorException("Sorry there has been an error. Please contact support"))

@@ -236,7 +236,9 @@ function partitioned_computation(fut::AbstractFuture; destination, new_source=no
             message = receive_next_message(gather_queue)
             @show message
             message_type = message["kind"]
-            if message_type == "SCATTER_REQUEST"
+            if message_type == "JOB_READY"
+                @info "Job $job_id is now running"
+            elseif message_type == "SCATTER_REQUEST"
                 @debug "Received scatter request"
                 # Send scatter
                 value_id = message["value_id"]
