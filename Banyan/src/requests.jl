@@ -338,11 +338,13 @@ end
 report_schedule = false
 encourage_parallelism = false
 encourage_parallelism_with_batches = false
+exaggurate_size = false
 
 function configure_scheduling(;kwargs...)
     global report_schedule
     global encourage_parallelism
     global encourage_parallelism_with_batches
+    global exaggurate_size
     report_schedule = get(kwargs, :report_schedule, false) || haskey(kwargs, :name)
     if get(kwargs, :encourage_parallelism, false) || get(kwargs, :name, "") == "parallelism encouraged"
         encourage_parallelism = true
@@ -351,11 +353,15 @@ function configure_scheduling(;kwargs...)
         encourage_parallelism = true
         encourage_parallelism_with_batches = true
     end
+    if get(kwargs, :exaggurate_size, false) || get(kwargs, :name, "") == "size exaggurated"
+        exaggurate_size = true
+    end
 end
 
 function send_evaluation(value_id::ValueId, job_id::JobId)
     global encourage_parallelism
     global encourage_parallelism_with_batches
+    global exaggurate_size
 
     @debug "Sending evaluation request"
 
@@ -376,7 +382,8 @@ function send_evaluation(value_id::ValueId, job_id::JobId)
             "options" => Dict(
                 "report_schedule" => report_schedule,
                 "encourage_parallelism" => encourage_parallelism,
-                "encourage_parallelism_with_batches" => encourage_parallelism_with_batches
+                "encourage_parallelism_with_batches" => encourage_parallelism_with_batches,
+                "exaggurate_size" => exaggurate_size
             ),
             "num_bang_values_issued" => get_num_bang_values_issued(),
             # "main_packages" => get_loaded_packages(),

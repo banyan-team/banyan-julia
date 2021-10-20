@@ -868,8 +868,13 @@ function get_remote_table_source(remotepath, remote_source=nothing, remote_sampl
                 end
             end
 
-            # Stop as soon as we get our sample
-            if (!isnothing(randomsample) || samplenrows == 0) && nrow(randomsample) == samplenrows
+            # Stop as soon as we get our sample. We have reached our sample if
+            # there were files to build up a sample and we got how many rows
+            # we wanted or the sample should have rows. Because if it should
+            # have no rows, then it already had a chance to get a sample and if
+            # it didn't, it will just have to settle for a schema-less
+            # `DataFrame`.
+            if (!isnothing(randomsample) && nrow(randomsample) == samplenrows) || samplenrows == 0
                 break
             end
         end

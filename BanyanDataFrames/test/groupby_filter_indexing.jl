@@ -462,8 +462,7 @@ end
 # Filter from dataset to one row or empty df
 @testset "Filter and groupby with $scheduling_config for simple edge cases for $filetype" for scheduling_config in [
     "default scheduling",
-    "parallelism encouraged",
-    "parallelism and batches encouraged",
+    "size exaggurated",
 ], filetype in [
     "csv",
     "parquet",
@@ -543,8 +542,7 @@ end
 # Complex multi-step filtering to empty dataframes or single-row dataframe
 @testset "Filter and groupby with $scheduling_config for complex edge cases for $filetype" for scheduling_config in [
     "default scheduling",
-    "parallelism encouraged",
-    "parallelism and batches encouraged",
+    "size exaggurated",
 ], filetype in [
     "csv",
     "parquet",
@@ -614,8 +612,11 @@ end
 # Reading an empty dataset
 @testset "Filter and groupby with $scheduling_config for empty $filetype with $headertype" for scheduling_config in [
     "default scheduling",
-    "parallelism encouraged",
-    "parallelism and batches encouraged",
+    # It doesn't make sense to force parallelism or batching for empty data
+    # because for the case of an empty dataset, we will actually just use
+    # replication because the data size is zero.
+    # "parallelism encouraged",
+    # "parallelism and batches encouraged",
 ], (filetype, headertype) in [
     ("csv", "header"),
     ("csv", "no header"),
