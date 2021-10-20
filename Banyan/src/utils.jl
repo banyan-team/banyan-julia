@@ -153,7 +153,7 @@ function configure(; kwargs...)
     kwargs = Dict(kwargs)
     user_id = if_in_or(:user_id, kwargs)
     api_key = if_in_or(:api_key, kwargs)
-    ec2_key_pair_name = if_in_or(:ec2_key_pair_name, kwargs, el=0)
+    ec2_key_pair_name = if_in_or(:ec2_key_pair_name, kwargs, 0)
     banyanconfig_path = if_in_or(:banyanconfig_path, kwargs)
 
     # Load config

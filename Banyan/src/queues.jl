@@ -48,7 +48,11 @@ function receive_next_message(queue_name)
     global jobs
     job_id = get_job_id()
     content = get_next_message(queue_name)
-    if startswith(content, "EVALUATION_END")
+    if startswith(content, "JOB_READY")
+        response = Dict{String,Any}(
+            "kind" => "JOB_READY"
+        )
+    elseif startswith(content, "EVALUATION_END")
         @debug "Received evaluation end"
         response = Dict{String,Any}(
             "kind" => "EVALUATION_END",
