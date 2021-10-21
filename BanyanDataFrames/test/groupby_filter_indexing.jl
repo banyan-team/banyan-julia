@@ -540,7 +540,7 @@ end
 end
 
 # Complex multi-step filtering to empty dataframes or single-row dataframe
-@testset "Filter and groupby with $scheduling_config for complex edge cases for $filetype" for scheduling_config in [
+@testset "Groupby and $filter_type with $scheduling_config for complex edge cases for $filetype" for scheduling_config in [
     "default scheduling",
     # We just want to test exaggurating the size so that the scheduler tries
     # to apply batched parallelism. It's okay that we aren't testing simple
@@ -554,6 +554,9 @@ end
     "parquet",
     "arrow",
     "directory"
+], filter_type in [
+    "filter",
+    "subset"
 ]
     use_job_for_testing(scheduling_config_name = scheduling_config) do
         use_basic_data()
@@ -570,17 +573,26 @@ end
         # Read empty df
         df = read_file(path)
 
-        # Filter to single row
-        # Filter to empty
+        # Filter/subset to single row
+        # Filter/subset to empty
         # Call collect on single row
         # Call collect on empty
-        # Filter to empty
+        # Filter/subset to empty
         # Call collect on empty
-        filt1 = filter(row -> row.petal_length == 1.4 && row.sepal_length == 4.9 && row.species == "setosa", df)
-        filt2 = filter([:petal_length, :sepal_length] => (pl, sl) -> pl * sl > 100.0, filt1)
+        if filter_type == "filter":
+            filt1 = filter(row -> row.petal_length == 1.4 && row.sepal_length == 4.9 && row.species == "setosa", df)
+            filt2 = filter([:petal_length, :sepal_length] => (pl, sl) -> pl * sl > 100.0, filt1)
+        elseif filter_type == "subset":
+            filt1 = subset(groupby(df, :species), [:petal_length, :sepal_length, :species] => (pl, sl, s) -> ((pl .< mean(pl)) .& (sl .== 4.9) .& (s .== "setosa")))
+            filt2 = subset(groupby(filt1, :species), :sepal_width => sw -> sw .> 100 * mean(sw))
+        end
         df1 = collect(filt1)
         df2 = collect(filt2)
-        filt3 = filter(row -> row.petal_width == 100, filt2)
+        if filter_type == "filter":
+            filt3 = filter(row -> row.petal_width == 100, filt2)
+        elseif filter_type == "subset":
+            filt3 = subset(groupby(filt1, :petal_width), :petal_width => pw -> pw .== 100)
+        end
         df3 = collect(filt3)
 
         @test size(df1) == (1, 5)
@@ -594,15 +606,29 @@ end
         @test names(df3) == ["sepal_length", "sepal_width", "petal_length", "petal_width", "species"]
 
         
-        # Filter to single row
-        # Filter to empty
-        # Filter to empty
+        # Filter/subset to single row
+        # Filter/subset to empty
+        # Filter/subset to empty
         # Call collect
-        filt01 = filter(row -> row.sepal_length == row.sepal_width + 1.9 && row.species == "species_10", df)
-        filt02 = filter(
-            row -> row.petal_length == row.sepal_length * 2,
-            filter(row -> row.species == "setosa", filt01)
-        )
+        if filter_type == "filter":
+            filt01 = filter(row -> row.sepal_length == row.sepal_width + 1.9 && row.species == "species_10", df)
+            filt02 = filter(
+                row -> row.petal_length == row.sepal_length * 2,
+                filter(row -> row.species == "setosa", filt01)
+            
+        elseif filter_type == "subset":
+            filt01 = subset(groupby(df, :species), [:petal_length, :sepal_length, :species] => (pl, sl, s) -> ((pl .< mean(pl)) .& (sl .== 4.9) .& (s .== "species_10")))
+            filt02 = subset(
+                groupby(
+                    subset(
+                        groupby(filt01, :petal_width),
+                        :petal_width => pw -> pw .== 100
+                    ),
+                    :species
+                ),
+                :petal_width => pw -> pw .== 100
+            )
+        end
         df01 = collect(filt01)
         df02 = collect(filt02)
 
