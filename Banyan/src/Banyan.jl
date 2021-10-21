@@ -39,7 +39,8 @@ export Job,
     get_job,
     get_job_id,
     get_cluster_name,
-    get_running_jobs
+    get_running_jobs,
+    wait_for_job
 
 # Futures
 export AbstractFuture, Future, partitioned_computation, write_to_disk, collect

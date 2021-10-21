@@ -50,7 +50,7 @@ end
                 "banyan-julia/Banyan",
                 "banyan-julia/BanyanDataFrames",
             ],
-            force_reclone = true,
+            force_clone = true,
             force_pull = true,
             force_install = true,
         )
