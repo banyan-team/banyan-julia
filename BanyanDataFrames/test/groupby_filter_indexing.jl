@@ -542,6 +542,12 @@ end
 # Complex multi-step filtering to empty dataframes or single-row dataframe
 @testset "Filter and groupby with $scheduling_config for complex edge cases for $filetype" for scheduling_config in [
     "default scheduling",
+    # We just want to test exaggurating the size so that the scheduler tries
+    # to apply batched parallelism. It's okay that we aren't testing simple
+    # parallelism because the same splitting functions are being called and
+    # cast functions may be called when we do default scheduling so we're still
+    # sort of testing that. Basically we just want to test filtering from a
+    # really large dataset to an empty or single-row result.
     "size exaggurated",
 ], filetype in [
     "csv",
