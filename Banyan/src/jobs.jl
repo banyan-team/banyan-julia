@@ -53,9 +53,10 @@ function create_job(;
     branch::Union{String,Nothing} = nothing,
     directory::Union{String,Nothing} = nothing,
     dev_paths::Union{Vector,Nothing} = [],
-    force_reclone::Union{Bool,Nothing} = false,
+    force_clone::Union{Bool,Nothing} = false,
     force_pull::Union{Bool,Nothing} = false,
     force_install::Union{Bool,Nothing} = false,
+    nowait::Bool=false,
     kwargs...,
 )
     global jobs
@@ -132,7 +133,7 @@ function create_job(;
             environment_info["branch"] = branch
         end
         environment_info["dev_paths"] = dev_paths
-        environment_info["force_reclone"] = force_reclone
+        environment_info["force_clone"] = force_clone
         environment_info["force_pull"] = force_pull
         environment_info["force_install"] = force_install
         environment_info["environment_hash"] = get_hash(
@@ -174,6 +175,10 @@ function create_job(;
     jobs[current_job_id] = Job(cluster_name, current_job_id, nworkers, sample_rate)
 
     wait_for_cluster(cluster_name)
+
+    if !nowait
+        wait_for_job(job_id)
+    end
 
     @debug "Finished creating job $job_id"
     return job_id
@@ -266,7 +271,25 @@ function destroy_all_jobs(cluster_name::String; kwargs...)
     end
 end
 
-# destroy_job() = destroy_job(get_job_id())
+function wait_for_job(job_id::JobId=get_job_id())
+    t = 5
+    gather_queue = get_gather_queue(job_id)
+    while true
+        @info "Job $job_id is creating"
+        sleep(t)
+        if t < 80
+            t *= 2
+        end
+        message = receive_next_message(gather_queue)
+        message_type = message["kind"]
+        if message_type == "JOB_READY"
+            @info "Job $job_id is ready for computation"
+            return
+        elseif message_type == "JOB_FAILURE"
+            @error "Job $job_id has failed"
+        end
+    end
+end
 
 function with_job(f::Function; kwargs...)
     # This is not a constructor; this is just a function that ensures that
