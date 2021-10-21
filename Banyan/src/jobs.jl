@@ -53,7 +53,7 @@ function create_job(;
     branch::Union{String,Nothing} = nothing,
     directory::Union{String,Nothing} = nothing,
     dev_paths::Union{Vector,Nothing} = [],
-    force_reclone::Union{Bool,Nothing} = false,
+    force_clone::Union{Bool,Nothing} = false,
     force_pull::Union{Bool,Nothing} = false,
     force_install::Union{Bool,Nothing} = false,
     nowait::Bool=false,
@@ -133,7 +133,7 @@ function create_job(;
             environment_info["branch"] = branch
         end
         environment_info["dev_paths"] = dev_paths
-        environment_info["force_reclone"] = force_reclone
+        environment_info["force_clone"] = force_clone
         environment_info["force_pull"] = force_pull
         environment_info["force_install"] = force_install
         environment_info["environment_hash"] = get_hash(
