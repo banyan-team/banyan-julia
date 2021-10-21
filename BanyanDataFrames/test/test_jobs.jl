@@ -29,7 +29,7 @@ IRIS_DOWNLOAD_PATH = "https://raw.githubusercontent.com/banyan-team/banyan-julia
             "banyan-julia/Banyan",
             "banyan-julia/BanyanDataFrames",
         ],
-        force_reclone = true
+        force_clone = true
     )
     @test get_job_id() == job_id
     @test get_job().cluster_name == ENV["BANYAN_CLUSTER_NAME"]
