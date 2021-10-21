@@ -144,7 +144,7 @@ end
 function setup_empty_tests(bucket_name=get_cluster_s3_bucket_name())
     # Write empty dataframe
     empty_df = DataFrames.DataFrame()
-    if !ispath(S3Path("s3://$bucket_name/empty_df.csv", config = Banyan.get_aws_config())
+    if !ispath(S3Path("s3://$bucket_name/empty_df.csv", config = Banyan.get_aws_config()))
         write_df_to_csv_to_s3(
             empty_df,
             "empty_df.csv",
@@ -153,7 +153,7 @@ function setup_empty_tests(bucket_name=get_cluster_s3_bucket_name())
             "empty_df.csv",
         )
     end
-    if !ispath(S3Path("s3://$bucket_name/empty_df.arrow", config = Banyan.get_aws_config())
+    if !ispath(S3Path("s3://$bucket_name/empty_df.arrow", config = Banyan.get_aws_config()))
         write_df_to_arrow_to_s3(
             empty_df,
             "empty_df.arrow",
@@ -165,7 +165,7 @@ function setup_empty_tests(bucket_name=get_cluster_s3_bucket_name())
 
     # Write empty dataframe with two columns
     empty_df2 = DataFrames.DataFrame(x = [], y = [])
-    if !ispath(S3Path("s3://$bucket_name/empty_df2.csv", config = Banyan.get_aws_config())
+    if !ispath(S3Path("s3://$bucket_name/empty_df2.csv", config = Banyan.get_aws_config()))
         write_df_to_csv_to_s3(
             empty_df2,
             "empty_df2.csv",
@@ -174,7 +174,7 @@ function setup_empty_tests(bucket_name=get_cluster_s3_bucket_name())
             "empty_df2.csv",
         )
     end
-    if !ispath(S3Path("s3://$bucket_name/empty_df2.arrow", config = Banyan.get_aws_config())
+    if !ispath(S3Path("s3://$bucket_name/empty_df2.arrow", config = Banyan.get_aws_config()))
         write_df_to_arrow_to_s3(
             empty_df2,
             "empty_df2.arrow",

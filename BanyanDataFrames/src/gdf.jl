@@ -63,6 +63,7 @@ function DataFrames.groupby(df::DataFrame, cols; kwargs...)::GroupedDataFrame
     end
 
     @partitioned df gdf gdf_length cols kwargs begin
+        println("In groupby with nrow(df)=$(nrow(df))")
         gdf = DataFrames.groupby(df, cols; kwargs...)
         gdf_length = DataFrames.length(gdf)
     end
@@ -283,7 +284,7 @@ function DataFrames.combine(gdf::GroupedDataFrame, args...; kwargs...)
         pt(gdf, Blocked(along=1) & ScaledBySame(as=gdf_parent))
         pt(res_nrows, Reducing(quote + end)) # TODO: Change to + if possible
         # pt(gdf_parent, res, gdf, res_nrows, groupcols, groupkwargs, args, kwargs, Replicated())
-        pt(groupcols, groupkwargs, args, kwargs, Replicated())
+        pt(gdf_parent, res, gdf, res_nrows, groupcols, groupkwargs, args, kwargs, Replicated())
     end
 
     @partitioned gdf gdf_parent groupcols groupkwargs args kwargs res res_nrows begin

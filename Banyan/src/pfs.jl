@@ -97,13 +97,44 @@ function ReadBlock(
         #     dset = split_on_executor(dset, params["key"], batch_idx, nbatches, comm)
         # else
         dim = params["key"]
-        dset = dset[[
-            if i == dim
-                split_len(size(dset, dim), batch_idx, nbatches, comm)
+        dimsize = size(dset, dim)
+        dimrange = split_len(dimsize, batch_idx, nbatches, comm)
+        dset = if length(dimrange) == 0
+            # If we want to read in an emoty dataset, it's a little tricky to
+            # do that with HDF5.jl. But this is how we do it:
+            if dimsize == 0
+                dset[[Colon() for _ in 1:ndims(dset)]...]
             else
-                Colon()
-            end for i = 1:ndims(dset)
-        ]...]
+                dset[[
+                    # We first read in the first slice into memory. This is
+                    # because HDF5.jl (unlike h5py) does not support just
+                    # reading in an empty `1:0` slice.
+                    if i == dim
+                        1:1
+                    else
+                        Colon()
+                    end for i = 1:ndims(dset)
+                ]...][[
+                    # Then once that row is in memory we just remove it so
+                    # that we have the appropriate empty slice.
+                    if i == dim
+                        1:0
+                    else
+                        Colon()
+                    end for i = 1:ndims(dset)
+                ]...]
+            end
+        else 
+            # If it's not an empty slice that we want to read, it's pretty
+            # straightforward - we just specify the slice.
+            dset[[
+                if i == dim
+                    dimrange
+                else
+                    Colon()
+                end for i = 1:ndims(dset)
+            ]...]
+        end
         close(f)
         # end
         # # # # println("In ReadBlock")
@@ -157,7 +188,9 @@ function ReadBlock(
             loc_params["nrows"] = nrows
         else
             # This is the case where no data has been spilled to disk and this
-            # is maybe just an intermediate variable only used for this stage
+            # is maybe just an intermediate variable only used for this stage.
+            # We never spill tabular data to a single file - it's always a
+            # directory of Arrow files.
             return nothing
         end
     end
@@ -300,7 +333,22 @@ function ReadBlock(
     # function requires the schema (for example for grouping) then it must be
     # sure to take that account
     if isempty(dfs)
-        DataFrames.DataFrame()
+        # Note that if we are reading disk-spilled Arrow data, we would have
+        # files for each of the workers that wrote that data. So there should
+        # be files but they might be empty.
+        if loc_name == "Disk"
+            files_sorted_by_nrow = sort(loc_params["files"], by = filedict -> filedict["nrows"])
+            if isempty(files_sorted_by_nrow)
+                # This should not be empty for disk-spilled data
+                DataFrame()
+            else
+                empty(Arrow.Table(getpath(first(files_sorted_by_nrow)["path"])) |> DataFrame)
+            end
+        else
+            # When we construct the location, we store an empty data frame with The
+            # correct schema.
+            from_jl_value_contents(loc_params["emptysample"])
+        end
     else
         vcat(dfs...)
     end
@@ -556,18 +604,21 @@ function Write(
 
         nrows = size(part, 1)
         sortableidx = sortablestring(idx, get_npartitions(nbatches, comm))
-        if nrows > 0
-            if endswith(path, ".parquet")
+        if endswith(path, ".parquet")
+            # Parquet.jl doesn't support writing empty data frames.
+            if nrows > 0
                 partfilepath = joinpath(path, "part$sortableidx" * "_nrows=$nrows.parquet")
                 Parquet.write_parquet(partfilepath, part)
-            elseif endswith(path, ".csv")
-                partfilepath = joinpath(path, "part$sortableidx" * "_nrows=$nrows.csv")
-                CSV.write(partfilepath, part)
-            else
-                partfilepath = joinpath(path, "part$sortableidx" * "_nrows=$nrows.arrow")
-                println("Going to write to $partfilepath")
-                Arrow.write(partfilepath, part)
+                println("Wrote to $partfilepath")
             end
+        elseif endswith(path, ".csv")
+            partfilepath = joinpath(path, "part$sortableidx" * "_nrows=$nrows.csv")
+            CSV.write(partfilepath, part)
+            println("Wrote to $partfilepath")
+        else
+            partfilepath = joinpath(path, "part$sortableidx" * "_nrows=$nrows.arrow")
+            println("Going to write to $partfilepath")
+            Arrow.write(partfilepath, part)
             println("Wrote to $partfilepath")
         end
         MPI.Barrier(comm)
@@ -2137,6 +2188,7 @@ function Shuffle(
 
             # Group the dataframe's rows by what partition to send to
             gdf = DataFrames.groupby(part, :banyan_shuffling_key, sort = true)
+            gdf
         else
             nothing
         end
@@ -2151,7 +2203,7 @@ function Shuffle(
                 if !isnothing(gdf) && (banyan_shuffling_key = partition_idx,) in keys(gdf)
                     gdf[(banyan_shuffling_key = partition_idx,)]
                 else
-                    DataFrames.DataFrame()
+                    empty(part)
                 end,
             )
             push!(df_counts, io.size - nbyteswritten)
