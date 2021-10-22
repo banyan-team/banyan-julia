@@ -212,3 +212,25 @@ function wait_for_cluster(name::String=get_cluster_name(), kwargs...)
         # delete_cluster(name)
     end
 end
+
+function upload_to_s3(src_path, dst_name, cluster_name=get_cluster_name(); kwargs...)
+    configure(; kwargs...)
+    bucket_name = get_cluster_s3_bucket_name(cluster_name)
+    s3_dst_path = S3Path("s3://$bucket_name/$dst_name", config=get_aws_config())
+    if startswith(src_path, "http://") || startswith(src_path, "https://")
+        Base.download(
+            src_path,
+            s3_dst_path
+        )
+    elseif startswith(src_path, "s3://")
+        cp(
+            S3Path(src_path),
+            s3_dst_path
+        )
+    elseif startswith(src_path, "file://")
+        cp(
+            Path(src_path[8:end]),
+            s3_dst_path
+        )
+    end
+end
