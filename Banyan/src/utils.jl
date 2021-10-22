@@ -346,6 +346,16 @@ function request_json(url::AbstractString; kwargs...)
     return resp, JSON.parse(body)
 end
 
+# Sends an HTTP request to the Banyan API and returns the
+# parsed response. Sends the provided content as the body of
+# the message and additionally adds the User ID and API Key,
+# which are required on all requests for authentication. Additionally,
+# a debug flag is sent. An exception is thrown is the HTTP
+# requests returns  a 403, 500, or 504 HTTP error cdode. If the
+# request times out, a warning message is printed out and `nothing`
+# is returned.
+# It is up to the caller to handle the case where the HTTP request
+# times out and `nothing` is returned.
 function send_request_get_response(method, content::Dict)
     # Prepare request
     configuration = load_config()
@@ -361,17 +371,18 @@ function send_request_get_response(method, content::Dict)
 	    url, input=IOBuffer(JSON.json(content)), method="POST", headers=headers
     )
     if resp.status == 403
-        throw(ErrorException("Please use a valid user ID and API key. Sign into the dashboard to retrieve these credentials."))
+        error("Please use a valid user ID and API key. Sign into the dashboard to retrieve these credentials.")
     elseif resp.status == 504
         # HTTP request timed out, for example
         if isa(data, Dict) && haskey(data, "message")
             data = data["message"]
         end
-        @info data
+        @error data
+        return nothing
     elseif resp.status == 500 || resp.status == 504
-        throw(ErrorException(data))
+        error(data)
     elseif resp.status == 502
-        throw(ErrorException("Sorry there has been an error. Please contact support"))
+        error("Sorry there has been an error. Please contact support")
     end
     return data
 
