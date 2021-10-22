@@ -391,6 +391,9 @@ function send_evaluation(value_id::ValueId, job_id::JobId)
             "packages" => vcat(used_packages, get_loaded_packages())
         ),
     )
+    if isnothing(response)
+        throw(ErrorException("The evaluation request has failed. Please contact support"))
+    end
 
     @show response
 

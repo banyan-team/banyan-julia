@@ -137,7 +137,7 @@ function create_job(;
         environment_info["force_pull"] = force_pull
         environment_info["force_install"] = force_install
         environment_info["environment_hash"] = get_hash(
-            url * directory * (if isnothing(branch) "" else branch end)
+            url * (if isnothing(branch) "" else branch end)
         )
     end
     job_configuration["environment_info"] = environment_info
@@ -286,7 +286,7 @@ function wait_for_job(job_id::JobId=get_job_id())
             @info "Job $job_id is ready for computation"
             return
         elseif message_type == "JOB_FAILURE"
-            @error "Job $job_id has failed"
+            error("Job $job_id has failed")
         end
     end
 end
