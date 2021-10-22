@@ -286,7 +286,7 @@ function wait_for_job(job_id::JobId=get_job_id())
             @info "Job $job_id is ready for computation"
             return
         elseif message_type == "JOB_FAILURE"
-            throw(ErrorException("Job $job_id has failed"))
+            error("Job $job_id has failed")
         end
     end
 end
