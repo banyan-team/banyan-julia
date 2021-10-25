@@ -1996,6 +1996,12 @@ function Rebalance(part, src_params, dst_params, comm)
     println("At start of Rebalance")
     # @showpart
 
+    if isnothing(part) || isa_gdf(part)
+        # Grouped data frames can be block-partitioned but we will have to
+        # redo the groupby if we try to do any sort of merging/splitting on it.
+        return nothing
+    end
+
     # Get the range owned by this worker
     dim = isa_array(part) ? dst_params["key"] : 1
     worker_idx, nworkers = get_worker_idx(comm), get_nworkers(comm)
@@ -2102,10 +2108,11 @@ function Distribute(part, src_params, dst_params, comm)
 end
 
 function Consolidate(part, src_params, dst_params, comm)
-    if isnothing(part)
-        println("Input to Consolidate is nothing")
-    else
-        println("Input to Consolidate is not nothing")
+    if isnothing(part) || isa_gdf(part)
+        # If this is a grouped data frame or nothing (the result of merging
+        # a grouped data frame is nothing), we consolidate by simply returning
+        # nothing.
+        return nothing
     end
     kind, sendbuf = tobuf(part)
     recvvbuf = buftovbuf(sendbuf, comm)
@@ -2144,6 +2151,9 @@ function Shuffle(
     boundedupper = false,
     store_splitting_divisions = true
 )
+    # We don't have to worry about grouped data frames since they are always
+    # block-partitioned.
+
     # Get the divisions to apply
     key = dst_params["key"]
     rev = dst_params["rev"]
