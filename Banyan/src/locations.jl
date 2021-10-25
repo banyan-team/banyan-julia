@@ -767,7 +767,7 @@ function get_remote_table_source(remotepath, remote_source=nothing, remote_sampl
                         exactsample = empty(chunkdf)
                     end
                     if isnothing(emptysample)
-                        emptysample = empty(chunk)
+                        emptysample = empty(chunkdf)
                     end
 
                     # Append to randomsample
@@ -872,7 +872,7 @@ function get_remote_table_source(remotepath, remote_source=nothing, remote_sampl
                         exactsample = empty(chunkdf)
                     end
                     if isnothing(emptysample)
-                        emptysample = empty(chunk)
+                        emptysample = empty(chunkdf)
                     end
 
                     # Append to exactsample
