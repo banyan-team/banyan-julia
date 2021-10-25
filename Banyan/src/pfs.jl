@@ -2104,6 +2104,8 @@ end
 function Consolidate(part, src_params, dst_params, comm)
     if isnothing(part)
         println("Input to Consolidate is nothing")
+    else
+        println("Input to Consolidate is not nothing")
     end
     kind, sendbuf = tobuf(part)
     recvvbuf = buftovbuf(sendbuf, comm)
