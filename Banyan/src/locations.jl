@@ -701,6 +701,7 @@ function get_remote_table_source(remotepath, remote_source=nothing, remote_sampl
     # Initialize sample
     exactsample = nothing
     randomsample = nothing
+    emptysample = nothing
     already_warned_about_too_large_sample = false
 
     # A second pass is only needed if there is no sample and the data is
@@ -745,27 +746,42 @@ function get_remote_table_source(remotepath, remote_source=nothing, remote_sampl
                         totalnrows += chunknrows
                     end
 
+                    # Note that we only initialize and/or append to the samples
+                    # if this chunk isn't empty. The chunk could be empty and
+                    # in the case of CSV.jl, the columns would just be missing
+                    # vectors and we wouldn't be able to append to that. So
+                    # instead we wait till we get something that we cam
+                    # actually use as a sample.
+
+                    # Note that one potential issue is that we might
+                    # incorrectly infer schema by assuming that the first
+                    # non-empty partition has the schema of the whole data
+                    # frame.
+
                     # Use `chunkdf` to initialize the schema of the sampels
                     # regardless of whethere `chunkdf` has any rows or not.
-                    if isnothing(randomsample)
+                    if isnothing(randomsample) && !isempty(chunkdf)
                         randomsample = empty(chunkdf)
                     end
-                    if isnothing(exactsample)
+                    if isnothing(exactsample) && !isempty(chunkdf)
                         exactsample = empty(chunkdf)
+                    end
+                    if isnothing(emptysample)
+                        emptysample = empty(chunk)
                     end
 
                     # Append to randomsample
                     # chunksampleindices = map(rand() < 1 / get_job().sample_rate, 1:chunknrows)
                     chunksampleindices = randsubseq(1:chunknrows, 1 / get_job().sample_rate)
                     # if any(chunksampleindices)
-                    if !isempty(chunksampleindices)
+                    if !isempty(chunksampleindices) && !isempty(chunkdf)
                         append!(randomsample, @view chunkdf[chunksampleindices, :])
                     end
 
                     # Append to exactsample
                     samplenrows = getsamplenrows(totalnrows)
                     @show samplenrows
-                    if nrow(exactsample) < samplenrows
+                    if nrow(exactsample) < samplenrows && !isempty(chunkdf)
                         append!(exactsample, first(chunkdf, samplenrows - nrow(exactsample)))
                     end
 
@@ -849,20 +865,23 @@ function get_remote_table_source(remotepath, remote_source=nothing, remote_sampl
 
                     # Use `chunkdf` to initialize the schema of the sampels
                     # regardless of whethere `chunkdf` has any rows or not.
-                    if isnothing(randomsample)
+                    if isnothing(randomsample) && !isempty(chunkdf)
                         randomsample = empty(chunkdf)
                     end
-                    if isnothing(exactsample)
+                    if isnothing(exactsample) && !isempty(chunkdf)
                         exactsample = empty(chunkdf)
+                    end
+                    if isnothing(emptysample)
+                        emptysample = empty(chunk)
                     end
 
                     # Append to exactsample
-                    if nrow(randomsample) < samplenrows
+                    if nrow(randomsample) < samplenrows && !isempty(chunkdf)
                         append!(randomsample, first(chunkdf, samplenrows - nrow(randomsample)))
                     end
 
                     # Stop as soon as we get our sample
-                    if nrow(randomsample) == samplenrows
+                    if (!isnothing(randomsample) && nrow(randomsample) == samplenrows) || samplenrows == 0
                         break
                     end
                 end
@@ -887,11 +906,22 @@ function get_remote_table_source(remotepath, remote_source=nothing, remote_sampl
     end
 
     # If there were no files, set the samples to schema-less data frames.
+    if !isnothing(randomsample)
+        # This is the case where some partition was non-empty and so we can
+        # take that schema-ful sample and take the empty version of that.
+        emptysample = empty(randomsample)
+    elseif isnothing(emptysample)
+        # If there were no partitions, we never would have set `emptysample`
+        # and so we default to an empty schema-less data frame.
+        emptysample = DataFrame()
+    end
+    # Hopefully there were some partitions and `emptysample` is a
+    # schema-ful (having the schema of the first partition) data frame.
     if isnothing(randomsample)
-        randomsample = DataFrame()
+        randomsample = emptysample
     end
     if isnothing(exactsample)
-        exactsample = DataFrame()
+        exactsample = emptysample
     end
 
     # Adjust sample to have samplenrows
