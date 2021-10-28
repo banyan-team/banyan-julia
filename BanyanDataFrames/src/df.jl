@@ -112,7 +112,9 @@ function Banyan.sample_divisions(df::DataFrames.DataFrame, key)
     datalength = length(data)
     grouplength = div(datalength, ngroups)
     # We use `unique` here because if the divisions have duplicates, this could
-    # result in different partitions getting the same divisions.
+    # result in different partitions getting the same divisions. The usage of
+    # `unique` here is more of a safety precaution. The # of divisions we use
+    # is the maximum # of groups.
     # TODO: Ensure that `unique` doesn't change the order
     unique([
         # Each group has elements that are >= start and < end
@@ -687,12 +689,12 @@ function Base.getindex(df::DataFrame, rows=:, cols=:)
                 # unbalanced -> unbalanced
                 pt(df, dfpt_unbalanced, match=(return_blocked ? nothing : res), on=["distribution", "key", "divisions", "rev"])
                 pt(res, return_blocked ? Blocked(res, along=1, balanced=false, filtered_from=df) : respt_unbalanced & Drifted())
-                pt(rows, Blocked(along=1), match=df, on=["balanced", "id"])
+                pt(rows, Blocked(along=1) & ScaledBySame(as=df), match=df, on=["balanced", "id"])
         
                 # balanced -> unbalanced
                 pt(df, dfpt_balanced, match=(return_blocked ? nothing : res), on=["distribution", "key", "divisions", "rev"])
                 pt(res, return_blocked ? Blocked(res, along=1, balanced=false, filtered_from=df) : respt_unbalanced & Drifted())
-                pt(rows, Blocked(along=1), match=df, on=(dfpt_balanced.distribution == "blocked" ? "balanced" : ["balanced", "id"]))
+                pt(rows, Blocked(along=1) & ScaledBySame(as=df), match=df, on=(dfpt_balanced.distribution == "blocked" ? "balanced" : ["balanced", "id"]))
             end
 
             # pts_for_filtering(df, res, Blocked)
@@ -1343,7 +1345,11 @@ function Base.sort(df::DataFrame, cols=:; kwargs...)
         # because these different PTs have different required constraints
         # TODO: Implement reversed in Grouped constructor
         pt(df, Grouped(df, by=sortingkey, rev=isreversed) | Replicated())
-        pt(res, PartitionType(), match=df)
+        # The Match constraint only applies to PT parameters. So we also need
+        # a constraint to ensure that however `df` is grouped (balanced or
+        # unbalanced), `res` is scaled by the same factor to account for
+        # unbalanced distribution.
+        pt(res, ScaledBySame(as=df), match=df)
         pt(df, res, cols, kwargs, Replicated())
     end
 
@@ -1391,6 +1397,10 @@ function DataFrames.innerjoin(dfs::DataFrame...; on, kwargs...)
             res => first(groupingkeys),
             drifted = true,
         )
+        # NOTE: We are adjusting the sample rate accordingly, but we still need
+        # to note that skew can occur in the selectivity of the join.
+        # Therefore, we create ScaleBy constraints just for the
+        # selectivity/skew issue - not for the sample rate.
         keep_sample_rate(res, dfs...)
     end
 
@@ -1580,7 +1590,7 @@ function DataFrames.nonunique(df::DataFrame, cols=:; kwargs...)
 
     partitioned_with() do
         pt(df, Grouped(df, by=columns))
-        pt(res, Blocked(along=1), match=df, on=["balanced", "id"])
+        pt(res, Blocked(along=1) & ScaledBySame(as=df), match=df, on=["balanced", "id"])
         pt(df_nrows, Replicating())
         pt(res_size, PartitionType(), match=df_nrows)
         pt(df, res, df_nrows, res_size, cols, kwargs, Replicated())
