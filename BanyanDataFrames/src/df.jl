@@ -127,7 +127,7 @@ end
 function Banyan.sample_percentile(df::DataFrames.DataFrame, key, minvalue, maxvalue)
     # If the data frame is empty, nothing between `minvalue` and `maxvalue` can
     # exist in `df`. so the percentile is 0.
-    if isempty(df)
+    if isempty(df) || isnothing(minvalue) || isnothing(maxvalue)
         return 0
     end
 
@@ -1371,7 +1371,7 @@ function DataFrames.innerjoin(dfs::DataFrame...; on, kwargs...)
     # are joining on
 
     groupingkeys = first(on isa Base.Vector ? on : [on])
-    groupingkeys = groupingkeys isa Union{Tuple,Pair} ? [groupingkeys...] : Base.fill(groupingkeys, length(dfs))
+    groupingkeys = Symbol.(groupingkeys isa Union{Tuple,Pair} ? [groupingkeys...] : Base.fill(groupingkeys, length(dfs)))
 
     res_nrows = Future()
     res = DataFrame(Future(), res_nrows)

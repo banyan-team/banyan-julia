@@ -44,7 +44,7 @@ function DataFrames.groupby(df::DataFrame, cols; kwargs...)::GroupedDataFrame
     # partition(gdf, Replicated())
     # partition(gdf_length, Replicated())
 
-    groupingkeys = names(sample(df), collect(cols))
+    groupingkeys = Symbol.(names(sample(df), collect(cols)))
 
     partitioned_using_modules("DataFrames")
     partitioned_using() do
@@ -132,7 +132,7 @@ function DataFrames.select(gdf::GroupedDataFrame, args...; kwargs...)
     args = Future(args)
     kwargs = Future(kwargs)
 
-    groupingkeys = names(sample(gdf_parent), collect(groupcols))
+    groupingkeys = Symbol.(names(sample(gdf_parent), collect(groupcols)))
 
     partitioned_using_modules("DataFrames")
     partitioned_using() do
@@ -216,7 +216,7 @@ function DataFrames.transform(gdf::GroupedDataFrame, args...; kwargs...)
     kwargs = Future(kwargs)
 
     # TODO: Put groupingkeys in GroupedDataFrame
-    groupingkeys = names(sample(gdf_parent), collect(groupcols))
+    groupingkeys = Symbol.(names(sample(gdf_parent), collect(groupcols)))
 
     partitioned_using_modules("DataFrames")
     partitioned_using() do
@@ -262,7 +262,7 @@ function DataFrames.combine(gdf::GroupedDataFrame, args...; kwargs...)
     kwargs = Future(kwargs)
 
     # TODO: Put groupingkeys in GroupedDataFrame
-    groupingkeys = names(sample(gdf_parent), collect(groupcols))
+    groupingkeys = Symbol.(names(sample(gdf_parent), collect(groupcols)))
 
     @show sample(gdf_parent)
     @show groupingkeys
@@ -324,7 +324,7 @@ function DataFrames.subset(gdf::GroupedDataFrame, args...; kwargs...)
     kwargs = Future(kwargs)
 
     # TODO: Put groupingkeys in GroupedDataFrame
-    groupingkeys = names(sample(gdf_parent), collect(groupcols))
+    groupingkeys = Symbol.(names(sample(gdf_parent), collect(groupcols)))
 
     partitioned_using_modules("DataFrames")
     partitioned_using() do
