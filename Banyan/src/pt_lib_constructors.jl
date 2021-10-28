@@ -199,7 +199,6 @@ function Grouped(
     end
     @show by
     @show sample(f, :keys)
-    by = Symbol.(by)
     by = to_vector(by)
     if !(by isa Colon)
         intersect!(by, sample(f, :keys))
