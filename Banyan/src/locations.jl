@@ -774,14 +774,14 @@ function get_remote_table_source(remotepath, remote_source=nothing, remote_sampl
                     # chunksampleindices = map(rand() < 1 / get_job().sample_rate, 1:chunknrows)
                     chunksampleindices = randsubseq(1:chunknrows, 1 / get_job().sample_rate)
                     # if any(chunksampleindices)
-                    if !isempty(chunksampleindices) && !isempty(chunkdf)
+                    if !isempty(chunkdf) && !isempty(chunksampleindices)
                         append!(randomsample, @view chunkdf[chunksampleindices, :])
                     end
 
                     # Append to exactsample
                     samplenrows = getsamplenrows(totalnrows)
                     @show samplenrows
-                    if nrow(exactsample) < samplenrows && !isempty(chunkdf)
+                    if !isempty(chunkdf) && nrow(exactsample) < samplenrows
                         append!(exactsample, first(chunkdf, samplenrows - nrow(exactsample)))
                     end
 
@@ -865,10 +865,10 @@ function get_remote_table_source(remotepath, remote_source=nothing, remote_sampl
 
                     # Use `chunkdf` to initialize the schema of the sampels
                     # regardless of whethere `chunkdf` has any rows or not.
-                    if isnothing(randomsample) && !isempty(chunkdf)
+                    if !isempty(chunkdf) && isnothing(randomsample)
                         randomsample = empty(chunkdf)
                     end
-                    if isnothing(exactsample) && !isempty(chunkdf)
+                    if !isempty(chunkdf) && isnothing(exactsample)
                         exactsample = empty(chunkdf)
                     end
                     if isnothing(emptysample)
@@ -876,7 +876,7 @@ function get_remote_table_source(remotepath, remote_source=nothing, remote_sampl
                     end
 
                     # Append to exactsample
-                    if nrow(randomsample) < samplenrows && !isempty(chunkdf)
+                    if !isempty(chunkdf) && nrow(randomsample) < samplenrows
                         append!(randomsample, first(chunkdf, samplenrows - nrow(randomsample)))
                     end
 
