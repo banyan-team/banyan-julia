@@ -583,6 +583,12 @@ function get_remote_hdf5_source(remotepath, datasetpath, remote_source=nothing, 
         end
     end
 
+    # If the sample is a PooledArray or CategoricalArray, convert it to a
+    # simple array so we can correctly compute its memory usage.
+    if !isnothing(dset_sample) && !(dset_sample isa Array)
+        dset_sample = convert(Array, dset_sample)
+    end
+
     loc_for_reading, metadata_for_reading = if dataset_to_read_from_exists
         (
             "Remote",
@@ -944,6 +950,17 @@ function get_remote_table_source(remotepath, remote_source=nothing, remote_sampl
         end
     end
 
+    # If the sample is a PooledArray or CategoricalArray, convert it to a
+    # simple array so we can correctly compute its memory usage.
+    for s in [emptysample, randomsample]
+        for pn in Base.propertynames(s)
+            sc = s[!, pn]
+            if !(sc isa Array)
+                s[!, pn] = convert(Array, sc)
+            end
+        end
+    end
+    
     # Re-compute the number of bytes. Even if we are reusing a location, we go
     # ahead and re-compute the sample. Someone may have written data with
     # `invalidate_source=false` but `shuffled=true` (perhaps the only thing
