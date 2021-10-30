@@ -48,6 +48,7 @@ export AbstractFuture, Future, partitioned_computation, write_to_disk, collect
 # Samples
 export Sample, ExactSample, sample, setsample!
 export sample_memory_usage,
+    total_memory_usage,
     sample_axes,
     sample_keys,
     sample_divisions,
