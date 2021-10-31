@@ -719,3 +719,34 @@ end
         end
     end
 end
+
+@testset "NYC Taxi Stress Test" begin
+    using Statistics
+    use_job_for_testing(scheduling_config_name = "default scheduling", sample_rate=128) do
+        s3_bucket_name = get_cluster_s3_bucket_name()
+        df = read_csv(
+	    "s3://$s3_bucket_name/nyc_tripdata.csv",
+	    sample_invalid=true
+	)
+        # @show sample(df)
+        println("Finished reading df")
+
+        # Filter all trips with distance longer than 1.0. Group by passenger count
+        # and get the average trip distance for each group.
+        long_trips = filter(
+            row -> row.trip_distance > 1.0,
+            df
+        )
+        println("Finished filtering to long_trips")
+        # @show sample(long_trips)
+
+        gdf = groupby(long_trips, :passenger_count)
+        println("Finished groupby by passenger count to gdf")
+        trip_means = combine(gdf, :trip_distance => mean)
+        println("Finished combining by mean to trip_means")
+
+        trip_means = collect(trip_means)
+        println("Finished collecting to trip_means")
+
+    end
+end
