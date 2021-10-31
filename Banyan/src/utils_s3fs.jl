@@ -146,6 +146,11 @@ end
 function cleanup_tmp()
     global tmp_paths
     for tmp_path in tmp_paths
-        rm(tmp_path, recursive=true, force=true)
+        try
+            rm(tmp_path, recursive=true, force=true)
+        catch e
+            @warn "Unable to delete $tmp_path: $e"
+        end
     end
+    empty!(tmp_paths)
 end

@@ -197,11 +197,12 @@ function Grouped(
     else
         by
     end
+    @show by
+    @show sample(f, :keys)
+    by = to_vector(by)
     if !(by isa Colon)
         intersect!(by, sample(f, :keys))
     end
-    by = Symbol.(by)
-    by = to_vector(by)
 
     @show by
     @show sample(f)
@@ -240,7 +241,7 @@ function Grouped(
                 # should be using replication. If the empty data arises because
                 # of highly selective filtering, we will filter from some data
                 # that _is_ balanced.
-
+                @show max_ngroups
                 push!(constraints.constraints, AtMost(max_ngroups, f))
                 push!(constraints.constraints, ScaleBy(f, 1.0))
 
