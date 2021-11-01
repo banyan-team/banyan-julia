@@ -272,23 +272,30 @@ function destroy_all_jobs(cluster_name::String; kwargs...)
     end
 end
 
-function wait_for_job(job_id::JobId=get_job_id())
+function get_job_status(job_id::String=get_job_id(), kwargs...)
+    configure(; kwargs...)
+    filters = Dict("job_id" => job_id)
+    indiv = send_request_get_response(:describe_jobs, Dict{String,Any}("filters"=>filters))
+    response["status"]
+end
+
+function wait_for_job(job_id::JobId=get_job_id(), kwargs...)
     t = 5
-    gather_queue = get_gather_queue(job_id)
-    while true
+    job_status = get_job_status(job_id; kwargs)
+    while job_status == "creating"
         @info "Job $job_id is creating"
         sleep(t)
         if t < 80
             t *= 2
         end
-        message = receive_next_message(gather_queue)
-        message_type = message["kind"]
-        if message_type == "JOB_READY"
-            @info "Job $job_id is ready for computation"
-            return
-        elseif message_type == "JOB_FAILURE"
-            error("Job $job_id has failed")
-        end
+        job_status = get_job_status(job_id; kwargs)
+    end
+    if job_status == "running"
+        @info "Job $job_id is ready for computation"
+    elseif job_status == "completed"
+        @info "Job $job_id has completed and is no longer running"
+    elseif job_status == "failed"
+        error("Job $job_id has failed")
     end
 end
 
