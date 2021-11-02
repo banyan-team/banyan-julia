@@ -386,9 +386,9 @@ function send_evaluation(value_id::ValueId, job_id::JobId)
                 "exaggurate_size" => exaggurate_size
             ),
             "num_bang_values_issued" => get_num_bang_values_issued(),
-            # "main_packages" => get_loaded_packages(),
-            # "used_packages" => used_packages,
-            "packages" => vcat(used_packages, get_loaded_packages())
+            "main_modules" => get_loaded_packages(),
+            "partitioned_using_modules" => used_packages,
+            # "packages" => vcat(used_packages, get_loaded_packages())
         ),
     )
     if isnothing(response)
