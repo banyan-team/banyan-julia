@@ -1714,6 +1714,11 @@ function Merge(
     # TODO: To allow for mutation of a value, we may want to remove this
     # condition
     worker_idx = get_worker_idx(comm)
+    println("At start of Merge for batch_idx=$batch_idx on worker_idx=$worker_idx")
+    @show typeof(src)
+    if src isa Vector
+        @show length(src)
+    end
     # println("Merging worker_idx=$worker_idx, batch_idx=$batch_idx/$nbatches with available memory: $(format_available_memory())")
     if isnothing(src) || objectid(src) in partial_merges
         # We only need to concatenate partitions if the source is nothing.
@@ -1763,6 +1768,12 @@ function Merge(
             end
             # delete!(partial_merges, src)
         end
+    end
+
+    println("At end of Merge for batch_idx=$batch_idx on worker_idx=$worker_idx")
+    @show typeof(src)
+    if src isa Vector
+        @show length(src)
     end
 
     src
