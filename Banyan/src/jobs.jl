@@ -90,7 +90,8 @@ function create_job(;
     	"return_logs" => print_logs,
 	    "store_logs_in_s3" => store_logs_in_s3,
         "store_logs_on_cluster" => store_logs_on_cluster,
-        "julia_version" => julia_version
+        "julia_version" => julia_version,
+        "nowait" => nowait,
     )
     if !isnothing(job_name)
         job_configuration["job_name"] = job_name
