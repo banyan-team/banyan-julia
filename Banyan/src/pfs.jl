@@ -1714,6 +1714,7 @@ function Merge(
     # TODO: To allow for mutation of a value, we may want to remove this
     # condition
     worker_idx = get_worker_idx(comm)
+    println("At start of Merge for batch_idx=$batch_idx on worker_idx=$worker_idx")
     @show typeof(src)
     if src isa Vector
         @show length(src)
@@ -1767,6 +1768,12 @@ function Merge(
             end
             # delete!(partial_merges, src)
         end
+    end
+
+    println("At end of Merge for batch_idx=$batch_idx on worker_idx=$worker_idx")
+    @show typeof(src)
+    if src isa Vector
+        @show length(src)
     end
 
     src
