@@ -272,11 +272,12 @@ function destroy_all_jobs(cluster_name::String; kwargs...)
     end
 end
 
-function get_job_status(job_id::String=get_job_id(), kwargs...)
+function get_job_status(job_id::String=get_job_id(); kwargs...)
     configure(; kwargs...)
     filters = Dict("job_id" => job_id)
-    indiv = send_request_get_response(:describe_jobs, Dict{String,Any}("filters"=>filters))
-    response["status"]
+    response = send_request_get_response(:describe_jobs, Dict{String,Any}("filters"=>filters))
+    println("RESPONSE HERE ", response)
+    response["jobs"][job_id]["status"]
 end
 
 function wait_for_job(job_id::JobId=get_job_id(), kwargs...)

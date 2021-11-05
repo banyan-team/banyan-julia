@@ -38,6 +38,7 @@ export Job,
     get_jobs,
     get_job,
     get_job_id,
+    get_job_status,
     get_cluster_name,
     get_running_jobs,
     wait_for_job
