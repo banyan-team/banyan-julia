@@ -66,7 +66,7 @@ function DataFrames.groupby(df::DataFrame, cols; kwargs...)::GroupedDataFrame
 
     @partitioned df gdf gdf_length cols kwargs begin
         println("In groupby with nrow(df)=$(nrow(df))")
-        gdf = @time DataFrames.groupby(df, cols; kwargs...)
+        gdf = @code_warntype DataFrames.groupby(df, cols; kwargs...)
         gdf_length = DataFrames.length(gdf)
     end
 
@@ -293,10 +293,10 @@ function DataFrames.combine(gdf::GroupedDataFrame, args...; kwargs...)
         println("here!")
         if !(gdf isa DataFrames.GroupedDataFrame) || gdf.parent != gdf_parent
             println("right inside here")
-            gdf = @time DataFrames.groupby(gdf_parent, groupcols; groupkwargs...)
+            gdf = @code_warntype DataFrames.groupby(gdf_parent, groupcols; groupkwargs...)
         end
         println("here2!")
-        res = @time DataFrames.combine(gdf, args...; kwargs...)
+        res = @code_warntype DataFrames.combine(gdf, args...; kwargs...)
         println("here3!")
         res_nrows = DataFrames.nrow(res)
         println("here4!")
@@ -348,7 +348,7 @@ function DataFrames.subset(gdf::GroupedDataFrame, args...; kwargs...)
         if !(gdf isa DataFrames.GroupedDataFrame) || gdf.parent != gdf_parent
             gdf = DataFrames.groupby(gdf_parent, groupcols; groupkwargs...)
         end
-        res = @time DataFrames.subset(gdf, args...; kwargs...)
+        res = @code_warntype DataFrames.subset(gdf, args...; kwargs...)
         println("In subset with length(gdf)=$(length(gdf)) and nrow(gdf_parent)=$(nrow(gdf_parent)) and nrow(res)=$(nrow(res))")
         res_nrows = DataFrames.nrow(res)
     end
