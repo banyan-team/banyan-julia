@@ -372,7 +372,8 @@ function Base.filter(f, df::DataFrame; kwargs...)
 
     @partitioned df res res_nrows f kwargs begin
         # @show df
-        res = @time DataFrames.filter(f, df; kwargs...)
+        Base.code_warntype(DataFrames.filter(f, df; kwargs...))
+        res = DataFrames.filter(f, df; kwargs...)
         # @show res
         res_nrows = DataFrames.nrow(res)
         # @show res_nrows
