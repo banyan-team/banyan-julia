@@ -66,7 +66,7 @@ function DataFrames.groupby(df::DataFrame, cols; kwargs...)::GroupedDataFrame
 
     @partitioned df gdf gdf_length cols kwargs begin
         println("In groupby with nrow(df)=$(nrow(df))")
-        Base.code_warntype(DataFrames.groupby(df, cols; kwargs...)
+        Base.code_warntype(DataFrames.groupby(df, cols; kwargs...))
         gdf = DataFrames.groupby(df, cols; kwargs...)
         gdf_length = DataFrames.length(gdf)
     end
