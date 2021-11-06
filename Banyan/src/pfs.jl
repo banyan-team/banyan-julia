@@ -637,7 +637,7 @@ function Write(
                 if !isnothing(tmpdir_idx)
                     tmpsrc = joinpath(path, tmpdir[tmpdir_idx])
                     actualdst = joinpath(actualpath, tmpdir[tmpdir_idx])
-                    cp(tmpsrc, actualdst)
+                    cp(tmpsrc, actualdst, force=true)
                     println("Copied $tmpsrc to $actualdst")
                 end
             end
