@@ -55,7 +55,8 @@ function use_job_for_testing(
                     "banyan-julia/Banyan",
                     "banyan-julia/BanyanArrays"
                 ],
-                force_pull = true,
+                force_pull = get(ENV, "BANYAN_FORCE_CLONE", "0") == "0",
+                force_clone = get(ENV, "BANYAN_FORCE_CLONE", "0") == "1",
                 force_install = get(ENV, "BANYAN_FORCE_INSTALL", "0") == "1",
                 store_logs_on_cluster=get(ENV, "BANYAN_STORE_LOGS_ON_CLUSTER", "0") == "1"
             )
