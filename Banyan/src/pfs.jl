@@ -27,7 +27,7 @@ ReturnNull(
     loc_name,
     loc_params,
 ) = begin
-    GC.gc()
+    # GC.gc()
     worker_idx = get_worker_idx(comm)
     # println("At start of returning null worker_idx=$worker_idx, batch_idx=$batch_idx/$nbatches with available memory: $(format_available_memory())")
     nothing
