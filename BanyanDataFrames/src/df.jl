@@ -372,7 +372,9 @@ function Base.filter(f, df::DataFrame; kwargs...)
 
     @partitioned df res res_nrows f kwargs begin
         # @show df
-        Base.code_warntype(DataFrames.filter(f, df; kwargs...))
+        # Base.code_warntype(DataFrames.filter(f, df; kwargs...))
+        @show typeof(f)
+        @show typeof(df)
         res = DataFrames.filter(f, df; kwargs...)
         # @show res
         res_nrows = DataFrames.nrow(res)

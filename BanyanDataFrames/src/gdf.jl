@@ -66,7 +66,9 @@ function DataFrames.groupby(df::DataFrame, cols; kwargs...)::GroupedDataFrame
 
     @partitioned df gdf gdf_length cols kwargs begin
         println("In groupby with nrow(df)=$(nrow(df))")
-        Base.code_warntype(DataFrames.groupby(df, cols; kwargs...))
+        # Base.code_warntype(DataFrames.groupby(df, cols; kwargs...))
+        @show typeof df
+        @show typeof cols
         gdf = DataFrames.groupby(df, cols; kwargs...)
         gdf_length = DataFrames.length(gdf)
     end
@@ -294,11 +296,14 @@ function DataFrames.combine(gdf::GroupedDataFrame, args...; kwargs...)
         println("here!")
         if !(gdf isa DataFrames.GroupedDataFrame) || gdf.parent != gdf_parent
             println("right inside here")
-            Base.code_warntype(DataFrames.groupby(gdf_parent, groupcols; groupkwargs...))
+            # Base.code_warntype(DataFrames.groupby(gdf_parent, groupcols; groupkwargs...))
+            @show typeof gdf_parent
+            @show typeof groupcols
             gdf = DataFrames.groupby(gdf_parent, groupcols; groupkwargs...)
         end
         println("here2!")
-        Base.code_warntype(DataFrames.combine(gdf, args...; kwargs...))
+        # Base.code_warntype(DataFrames.combine(gdf, args...; kwargs...))
+        @show typeof(gdf)
         res = DataFrames.combine(gdf, args...; kwargs...)
         println("here3!")
         res_nrows = DataFrames.nrow(res)
@@ -351,7 +356,8 @@ function DataFrames.subset(gdf::GroupedDataFrame, args...; kwargs...)
         if !(gdf isa DataFrames.GroupedDataFrame) || gdf.parent != gdf_parent
             gdf = DataFrames.groupby(gdf_parent, groupcols; groupkwargs...)
         end
-        Base.code_warntype(DataFrames.subset(gdf, args...; kwargs...))
+        # Base.code_warntype(DataFrames.subset(gdf, args...; kwargs...))
+        @show typeof(gdf)
         res = DataFrames.subset(gdf, args...; kwargs...)
         println("In subset with length(gdf)=$(length(gdf)) and nrow(gdf_parent)=$(nrow(gdf_parent)) and nrow(res)=$(nrow(res))")
         res_nrows = DataFrames.nrow(res)
