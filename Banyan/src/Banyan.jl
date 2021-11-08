@@ -39,6 +39,7 @@ export Job,
     get_jobs,
     get_job,
     get_job_id,
+    get_job_status,
     get_cluster_name,
     get_running_jobs,
     wait_for_job
@@ -49,6 +50,7 @@ export AbstractFuture, Future, partitioned_computation, write_to_disk, collect
 # Samples
 export Sample, ExactSample, sample, setsample!
 export sample_memory_usage,
+    total_memory_usage,
     sample_axes,
     sample_keys,
     sample_divisions,

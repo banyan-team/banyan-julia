@@ -579,18 +579,18 @@ end
         # Call collect on empty
         # Filter/subset to empty
         # Call collect on empty
-        if filter_type == "filter":
+        if filter_type == "filter"
             filt1 = filter(row -> row.petal_length == 1.4 && row.sepal_length == 4.9 && row.species == "setosa", df)
             filt2 = filter([:petal_length, :sepal_length] => (pl, sl) -> pl * sl > 100.0, filt1)
-        elseif filter_type == "subset":
+        elseif filter_type == "subset"
             filt1 = subset(groupby(df, :species), [:petal_length, :sepal_length, :species] => (pl, sl, s) -> ((pl .< mean(pl)) .& (sl .== 4.9) .& (s .== "setosa")))
             filt2 = subset(groupby(filt1, :species), :sepal_width => sw -> sw .> 100 * mean(sw))
         end
         df1 = collect(filt1)
         df2 = collect(filt2)
-        if filter_type == "filter":
+        if filter_type == "filter"
             filt3 = filter(row -> row.petal_width == 100, filt2)
-        elseif filter_type == "subset":
+        elseif filter_type == "subset"
             filt3 = subset(groupby(filt1, :petal_width), :petal_width => pw -> pw .== 100)
         end
         df3 = collect(filt3)
@@ -610,13 +610,13 @@ end
         # Filter/subset to empty
         # Filter/subset to empty
         # Call collect
-        if filter_type == "filter":
+        if filter_type == "filter"
             filt01 = filter(row -> row.sepal_length == row.sepal_width + 1.9 && row.species == "species_10", df)
             filt02 = filter(
                 row -> row.petal_length == row.sepal_length * 2,
                 filter(row -> row.species == "setosa", filt01)
-            
-        elseif filter_type == "subset":
+            )
+        elseif filter_type == "subset"
             filt01 = subset(groupby(df, :species), [:petal_length, :sepal_length, :species] => (pl, sl, s) -> ((pl .< mean(pl)) .& (sl .== 4.9) .& (s .== "species_10")))
             filt02 = subset(
                 groupby(
@@ -717,5 +717,36 @@ end
                 @test filtered_grouped_length == 0
             end
         end
+    end
+end
+
+@testset "NYC Taxi Stress Test" begin
+    using Statistics
+    use_job_for_testing(scheduling_config_name = "default scheduling", sample_rate=128) do
+        s3_bucket_name = get_cluster_s3_bucket_name()
+        df = read_csv(
+	    "s3://$s3_bucket_name/nyc_tripdata.csv",
+	    sample_invalid=true
+	)
+        # @show sample(df)
+        println("Finished reading df")
+
+        # Filter all trips with distance longer than 1.0. Group by passenger count
+        # and get the average trip distance for each group.
+        long_trips = filter(
+            row -> row.trip_distance > 1.0,
+            df
+        )
+        println("Finished filtering to long_trips")
+        # @show sample(long_trips)
+
+        gdf = groupby(long_trips, :passenger_count)
+        println("Finished groupby by passenger count to gdf")
+        trip_means = combine(gdf, :trip_distance => mean)
+        println("Finished combining by mean to trip_means")
+
+        trip_means = collect(trip_means)
+        println("Finished collecting to trip_means")
+
     end
 end

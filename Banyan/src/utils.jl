@@ -290,7 +290,7 @@ get_aws_config_region() = get_aws_config()[:region]
 # ENVIRONMENT VARIABLES #
 #########################
 
-is_debug_on() = "JULIA_DEBUG" in keys(ENV)
+is_debug_on() = get(ENV, "JULIA_DEBUG", "") == "Banyan"
 
 macro in_env(key)
     return :(string("BANYAN_", getpid(), "_", $key) in keys(ENV))

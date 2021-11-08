@@ -98,7 +98,7 @@ function Banyan.sample_divisions(A::U, key) where U <: Base.AbstractArray{T,N} w
 end
 
 function Banyan.sample_percentile(A::U, key, minvalue, maxvalue) where U <: Base.AbstractArray{T,N} where {T,N}
-    if isempty(A)
+    if isempty(A) || isnothing(minvalue) || isnothing(maxvalue)
         return 0
     end
 

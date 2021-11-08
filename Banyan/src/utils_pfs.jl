@@ -58,6 +58,12 @@ split_on_executor(
     comm::MPI.Comm,
 ) = begin
     npartitions = get_npartitions(nbatches, comm)
+    if isnothing(src) || isa_gdf(src)
+        # In case we are trying to `Distribute` a grouped data frame,
+        # we can't do that so we will simply return nothing so that the groupby
+        # partitioned computation will redo the groupby.
+        return nothing
+    end
     if npartitions > 1
         split_on_executor(
             src,

@@ -197,11 +197,12 @@ function Grouped(
     else
         by
     end
+    @show by
+    @show sample(f, :keys)
+    by = to_vector(by)
     if !(by isa Colon)
         intersect!(by, sample(f, :keys))
     end
-    by = Symbol.(by)
-    by = to_vector(by)
 
     @show by
     @show sample(f)
@@ -240,7 +241,21 @@ function Grouped(
                 # should be using replication. If the empty data arises because
                 # of highly selective filtering, we will filter from some data
                 # that _is_ balanced.
-
+                @show max_ngroups
+                f_value_id = convert(Banyan.Future, f).value_id
+                @show f_value_id
+                @show Base.summarysize(sample(f))
+                @show Base.summarysize(deepcopy(sample(f)))
+                @show nrow(sample(f))
+                @show sample(f, :rate)
+                @show eltype.(eachcol(sample(f)))
+                @show Base.summarysize(sample(f)[1, :])
+                @show Base.summarysize(sample(f)[:, 1])
+                @show Base.summarysize(sample(f)[:, 2])
+                @show Base.summarysize(sample(f)[2, :])
+                @show typeof(sample(f)[!, 1])
+                @show typeof(sample(f)[!, 2])
+                # CSV.write("val_$(f_value_id)_sample.csv", sample(f))
                 push!(constraints.constraints, AtMost(max_ngroups, f))
                 push!(constraints.constraints, ScaleBy(f, 1.0))
 
