@@ -129,7 +129,7 @@ end
     @test c.status == :running
 end
 
-@testset "Upload to S3 from $src_type" for src_type in [
+@testset "Upload file to S3 from $src_type" for src_type in [
     "local",
     "http",
     "s3"
@@ -150,8 +150,9 @@ end
     end
 
     cluster_name = ENV["BANYAN_CLUSTER_NAME"]
+    upload_to_s3(src_path; dst_name=dst_name, cluster_name=cluster_name)
+
     cluster_s3_bucket = get_cluster_s3_bucket_name(cluster_name)
-    upload_to_s3(src_path, dst_name, cluster_name)
     @test ispath(S3Path("s3://$cluster_s3_bucket/$dst_name"))
 
     # Cleanup
@@ -159,5 +160,27 @@ end
     if src_type == "s3"
         s3_delete(Banyan.get_aws_config(), s3_bucket, dst_name)
         s3_delete_bucket(Banyan.get_aws_config(), s3_bucket)
+    end
+end
+
+@testset "Upload dir to S3 from $src_type" for src_type in [
+    "local",
+]
+    if src_type == "local"
+        src_path = "data"
+    end
+
+    cluster_name = ENV["BANYAN_CLUSTER_NAME"]
+    dst_name = upload_to_s3(src_path; cluster_name=cluster_name)
+
+    cluster_s3_bucket = get_cluster_s3_bucket_name(cluster_name)
+    @test ispath(S3Path("s3://$cluster_s3_bucket/$dst_name"))
+    for f_name in readdir(src_path)
+        @test ispath(S3Path("s3://$cluster_s3_bucket/$dst_name/$f_name"))
+    end
+
+    # Cleanup
+    for f_name in readdir(src_path)
+        s3_delete(Banyan.get_aws_config(), cluster_s3_bucket, "$dst_name/$f_name")
     end
 end
