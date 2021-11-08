@@ -276,8 +276,10 @@ function get_job_status(job_id::String=get_job_id(); kwargs...)
     configure(; kwargs...)
     filters = Dict("job_id" => job_id)
     response = send_request_get_response(:describe_jobs, Dict{String,Any}("filters"=>filters))
-    println("RESPONSE HERE ", response)
-    response["jobs"][job_id]["status"]
+    job_status = response["jobs"][job_id]["status"]
+    if job_status == "failed"
+        @info response["jobs"][job_id]["status_explanation"]
+    end
 end
 
 function wait_for_job(job_id::JobId=get_job_id(), kwargs...)
