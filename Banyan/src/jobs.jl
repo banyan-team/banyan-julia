@@ -73,7 +73,6 @@ function create_job(;
     # Construct parameters for creating job
     cluster_name = if isnothing(cluster_name)
         running_clusters = get_running_clusters()
-        println(running_clusters)
         if length(running_clusters) == 0
             error("Failed to create job: you don't have any clusters created")
         end
@@ -169,10 +168,6 @@ function create_job(;
 
     # Store in global state
     current_job_id = job_id
-    if is_debug_on()
-        @show nworkers
-        @show sample_rate
-    end
     jobs[current_job_id] = Job(cluster_name, current_job_id, nworkers, sample_rate)
 
     wait_for_cluster(cluster_name)
@@ -223,9 +218,6 @@ function get_jobs(cluster_name = nothing; status = nothing, kwargs...)
     else
         curr_last_eval = indiv_response["last_eval"]
         while finished == false
-            if is_debug_on()
-                println(curr_last_eval)
-            end
             indiv_response = send_request_get_response(:describe_jobs, Dict{String,Any}("filters"=>filters, "this_start_key"=>curr_last_eval))
             response["jobs"] = merge!(response["jobs"], indiv_response["jobs"])
             # print(indiv_response["last_eval"])
@@ -280,6 +272,7 @@ function get_job_status(job_id::String=get_job_id(); kwargs...)
     if job_status == "failed"
         @info response["jobs"][job_id]["status_explanation"]
     end
+    job_status
 end
 
 function wait_for_job(job_id::JobId=get_job_id(), kwargs...)
@@ -300,6 +293,7 @@ function wait_for_job(job_id::JobId=get_job_id(), kwargs...)
     elseif job_status == "failed"
         error("Job $job_id has failed")
     end
+    @show job_status
 end
 
 function with_job(f::Function; kwargs...)
