@@ -371,14 +371,8 @@ function Base.filter(f, df::DataFrame; kwargs...)
     end
 
     @partitioned df res res_nrows f kwargs begin
-        # @show df
-        # Base.code_warntype(DataFrames.filter(f, df; kwargs...))
-        @show typeof(f)
-        @show typeof(df)
         res = DataFrames.filter(f, df; kwargs...)
-        # @show res
         res_nrows = DataFrames.nrow(res)
-        # @show res_nrows
     end
 
     res
@@ -644,12 +638,9 @@ function Base.getindex(df::DataFrame, rows=:, cols=:)
     return_vector = cols isa Symbol || cols isa String || cols isa Integer
     select_columns = !(cols isa Colon)
     filter_rows = !(rows isa Colon)
-    @show sample(df)
     columns = Symbol.(names(sample(df), cols))
     cols = Future(cols)
-    # # @show sample(rows)
     rows = rows isa AbstractFuture ? rows : Future(rows)
-    # @show sample(rows)
 
     res_size =
         if filter_rows
@@ -745,16 +736,10 @@ function Base.getindex(df::DataFrame, rows=:, cols=:)
     end
 
     @partitioned df df_nrows res res_size rows cols begin
-        print("In getindex")
         res = df[rows, cols]
-        # @show df
-        # @show rows
-        # @show res
         res_size = rows isa Colon ? df_nrows : size(res)
         res_size = res isa Base.Vector ? res_size : first(res_size)
     end
-
-    # @show sample(res)
 
     res
 
@@ -1601,7 +1586,6 @@ function DataFrames.nonunique(df::DataFrame, cols=:; kwargs...)
 
     @partitioned df df_nrows res res_size cols kwargs begin
         res = DataFrames.nonunique(df, cols; kwargs...)
-        # @show "nonunique" res
         res_size = Tuple(df_nrows)
     end
 
