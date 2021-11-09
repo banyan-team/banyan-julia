@@ -231,13 +231,16 @@ function partitioned_computation(fut::AbstractFuture; destination, new_source=no
         # print("LISTENING ON: ", gather_queue)
         @debug "Waiting on running job $job_id"
         println("Waiting on running job $job_id and computing value with ID " * fut.value_id)
+        if get_job_status(job_id) != "running"
+            wait_for_job(job_id)
+        end
         while true
             # TODO: Use to_jl_value and from_jl_value to support Client
             message = receive_next_message(gather_queue)
             @show message
             message_type = message["kind"]
             if message_type == "JOB_READY"
-                @info "Job $job_id is now running"
+                @info "Job $job_id is running"
             elseif message_type == "SCATTER_REQUEST"
                 @debug "Received scatter request"
                 # Send scatter

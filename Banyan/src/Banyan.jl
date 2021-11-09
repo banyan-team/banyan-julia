@@ -26,7 +26,8 @@ export Cluster,
     get_cluster_status,
     get_cluster_s3_bucket_name,
     assert_cluster_is_ready,
-    wait_for_cluster
+    wait_for_cluster,
+    upload_to_s3
 
 # Job management
 export Job,
@@ -38,6 +39,7 @@ export Job,
     get_jobs,
     get_job,
     get_job_id,
+    get_job_status,
     get_cluster_name,
     get_running_jobs,
     wait_for_job

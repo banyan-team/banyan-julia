@@ -12,6 +12,32 @@
     @test any(j -> (j[1] == job_id && j[2]["status"] == "completed"), jobs)
 end
 
+@testset "Create jobs with nowait=$nowait" for
+        nowait in [true, false]
+    Pkg.activate("envs/DataAnalysisProject/")
+    cluster_name = ENV["BANYAN_CLUSTER_NAME"]
+
+    job_id = create_job(
+        cluster_name=cluster_name,
+        nworkers=2,
+        nowait=nowait
+    )
+
+    job_status = get_job_status(job_id)
+    if !nowait
+        @test job_status == "running"
+    else
+        @test job_status == "creating"
+        while job_status == "creating"
+            sleep(20)
+            job_status = get_job_status(job_id)
+        end
+        @test job_status == "running"
+    end
+
+    destroy_job(job_id)
+end
+
 @testset "Create jobs where store_logs_in_s3=$store_logs_in_s3" for 
         store_logs_in_s3 in [true, false]
     Pkg.activate("./")
@@ -19,7 +45,7 @@ end
 
     job_id = create_job(
         cluster_name=cluster_name,
-        store_logs_in_s3=store_logs_in_s3
+        store_logs_in_s3=store_logs_in_s3,
     )
     destroy_job(job_id)
     sleep(10)
@@ -54,6 +80,9 @@ end
             force_pull = true,
             force_install = true,
         )
+
+        job_status = get_job_status(job_id)
+        @test job_status == "running"
 
         # Destroy job
         destroy_job(job_id)
