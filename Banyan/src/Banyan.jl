@@ -167,11 +167,11 @@ include("queues.jl")
 # and functions get dispatched based on the `pf_dispatch_table.json`
 # (originally called `pt_lib_info.json`) which is used by the scheduler behind
 # the scenes.
+include("utils.jl")
 include("utils_pfs.jl")
 include("pfs.jl")
 
 # Jobs
-include("utils.jl")
 include("utils_abstract_types.jl")
 include("utils_s3fs.jl")
 include("clusters.jl")

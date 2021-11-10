@@ -437,9 +437,9 @@ end
 
 function get_remote_source(remotepath, remote_source=nothing, remote_sample=nothing; shuffled=false)::Location
     if isnothing(remote_sample)
-        @info "Collecting sample from $remotepath. This will take some time but the sample will be cached for future use. Note that writing to this location may invalidate the cached sample."
+        @info "Collecting sample from $remotepath. This will take some time. The resulting sample will be cached and invalidated when the location is written to."
     elseif isnothing(remote_source)
-        @info "Collecting location information about $remotepath. This will take some time."
+        @info "Collecting location information about $remotepath. This will take some time. The resulting location info will be cached and invalidated when the location is written to."
     end
 
     # If both the location and sample are already cached, just return them
@@ -538,6 +538,17 @@ function get_remote_hdf5_source(remotepath, datasetpath, remote_source=nothing, 
                 datasize = size(dset)
                 datandims = ndims(dset)
                 dataeltype = eltype(dset)
+
+                # TODO: Warn here if the data is too large
+                # TODO: Modify the alert that is given before sample collection starts
+                # TODO: Optimize utils_pfs.jl and generated code
+
+                memory_used_in_sampling = nbytes * 2
+                free_memory = Sys.free_memory()
+                if memory_used_in_sampling > cld(free_memory, 4)
+                    @warn "Sample of $remotepath is too large (up to $(format_bytes(memory_used_in_sampling))/$(format_bytes(free_memory)) to be used). Try re-creating this job with a greater `sample_rate` than $(get_job().sample_rate)."
+                    GC.gc()
+                end
 
                 if isnothing(remote_sample)
                     # Collect sample
@@ -795,9 +806,10 @@ function get_remote_table_source(remotepath, remote_source=nothing, remote_sampl
                     memory_used_in_sampling = total_memory_usage(chunk) + total_memory_usage(chunkdf) + total_memory_usage(exactsample) + total_memory_usage(randomsample)
                     chunkdf = nothing
                     chunk = nothing
-                    if memory_used_in_sampling > cld(Sys.free_memory(), 10)
+                    free_memory = Sys.free_memory()
+                    if memory_used_in_sampling > cld(free_memory, 4)
                         if !already_warned_about_too_large_sample
-                            @warn "Sample is too large; try creating a job with a greater `sample_rate` than the number of workers (default is 2)"
+                            @warn "Sample of $remotepath is too large ($(format_bytes(memory_used_in_sampling))/$(format_bytes(free_memory)) used so far). Try re-creating this job with a greater `sample_rate` than $(get_job().sample_rate)."
                             already_warned_about_too_large_sample = true
                         end
                         GC.gc()

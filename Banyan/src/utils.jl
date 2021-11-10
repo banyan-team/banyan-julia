@@ -499,3 +499,11 @@ function get_hash(s)
     return bytes2hex(sha256(s))
 end
 
+function format_bytes(bytes, decimals = 2)
+    bytes == 0 && return "0 Bytes"
+    k = 1024
+    dm = decimals < 0 ? 0 : decimals
+    sizes = ["Bytes", "KB", "MB", "GB", "TB", "PB", "EB", "ZB", "YB"]
+    i = Base.convert(Int, floor(log(bytes) / log(k)))
+    return string(round((bytes / ^(k, i)), digits = dm)) * " " * sizes[i+1]
+end
