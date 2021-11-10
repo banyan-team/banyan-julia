@@ -536,6 +536,7 @@ function get_remote_hdf5_source(remotepath, datasetpath, remote_source=nothing, 
                 # Collect metadata
                 nbytes += length(dset) * sizeof(eltype(dset))
                 datasize = size(dset)
+                datalength = first(datasize)
                 datandims = ndims(dset)
                 dataeltype = eltype(dset)
 
@@ -543,7 +544,7 @@ function get_remote_hdf5_source(remotepath, datasetpath, remote_source=nothing, 
                 # TODO: Modify the alert that is given before sample collection starts
                 # TODO: Optimize utils_pfs.jl and generated code
 
-                memory_used_in_sampling = nbytes * 2
+                memory_used_in_sampling = datalength == 0 ? 0 : (nbytes * getsamplenrows(datalength) / datalength)
                 free_memory = Sys.free_memory()
                 if memory_used_in_sampling > cld(free_memory, 4)
                     @warn "Sample of $remotepath is too large (up to $(format_bytes(memory_used_in_sampling))/$(format_bytes(free_memory)) to be used). Try re-creating this job with a greater `sample_rate` than $(get_job().sample_rate)."
@@ -552,7 +553,6 @@ function get_remote_hdf5_source(remotepath, datasetpath, remote_source=nothing, 
 
                 if isnothing(remote_sample)
                     # Collect sample
-                    datalength = first(datasize)
                     totalnrows = datalength
                     remainingcolons = repeat([:], ndims(dset) - 1)
                     # Start of with an empty array. The dataset has to have at
