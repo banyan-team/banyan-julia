@@ -21,7 +21,7 @@ function get_job_id()::JobId
     global current_job_id
     if isnothing(current_job_id)
         error(
-            "No job selected using `create_job` or `with_job` or `set_job`. The current job may have been destroyed or no job may have been created yet",
+            "No job selected using `create_job` or `with_job` or `set_job`. The current job may have been destroyed or no job created yet.",
         )
     end
     current_job_id
@@ -62,7 +62,6 @@ function create_job(;
     global jobs
     global current_job_id
 
-    @debug "Creating job"
     if cluster_name == ""
         cluster_name = nothing
     end
@@ -126,7 +125,7 @@ function create_job(;
         # Otherwise, use url and optionally a particular branch
         environment_info["url"] = url
         if isnothing(directory)
-            error("Directory must be provided for a url")
+            error("Directory must be provided for given URL $url")
         end
         environment_info["directory"] = directory
         if !isnothing(branch)
@@ -163,7 +162,6 @@ function create_job(;
     job_response = send_request_get_response(:create_job, job_configuration)
     sleep(30)
     job_id = job_response["job_id"]
-    @debug "Creating job $job_id"
     @info "Started creating job with ID $job_id on cluster named \"$cluster_name\""
 
     # Store in global state
@@ -200,7 +198,7 @@ function destroy_job(job_id::JobId = get_job_id(); failed = false, force = false
 end
 
 function get_jobs(cluster_name = nothing; status = nothing, kwargs...)
-    @debug "Downloading description of jobs in each cluster"
+    @debug "Downloading description of all jobs in cluster named $cluster_name"
     configure(; kwargs...)
     filters = Dict()
     if !isnothing(cluster_name)
@@ -254,7 +252,7 @@ function download_job_logs(job_id::JobId, cluster_name::String, filename::String
 end
 
 function destroy_all_jobs(cluster_name::String; kwargs...)
-    @debug "Destroying all running jobs for cluster"
+    @info "Destroying all running jobs for cluster named $cluster_name"
     configure(; kwargs...)
     jobs = get_jobs(cluster_name, status = "running")
     for (job_id, job) in jobs
@@ -270,7 +268,9 @@ function get_job_status(job_id::String=get_job_id(); kwargs...)
     response = send_request_get_response(:describe_jobs, Dict{String,Any}("filters"=>filters))
     job_status = response["jobs"][job_id]["status"]
     if job_status == "failed"
-        @info response["jobs"][job_id]["status_explanation"]
+        # We don't immediately fail - we're just explaining. It's only later on
+        # where it's like we're actually using this job do we set the status.
+        @error response["jobs"][job_id]["status_explanation"]
     end
     job_status
 end
@@ -279,7 +279,7 @@ function wait_for_job(job_id::JobId=get_job_id(), kwargs...)
     t = 5
     job_status = get_job_status(job_id; kwargs)
     while job_status == "creating"
-        @info "Job $job_id is creating"
+        @debug "Preparing job with ID $job_id"
         sleep(t)
         if t < 80
             t *= 2
@@ -287,13 +287,12 @@ function wait_for_job(job_id::JobId=get_job_id(), kwargs...)
         job_status = get_job_status(job_id; kwargs)
     end
     if job_status == "running"
-        @info "Job $job_id is ready for computation"
+        @info "Job with ID $job_id is ready"
     elseif job_status == "completed"
-        @info "Job $job_id has completed and is no longer running"
+        @info "Job with ID $job_id has completed"
     elseif job_status == "failed"
-        error("Job $job_id has failed")
+        error("Job with ID $job_id has failed")
     end
-    @show job_status
 end
 
 function with_job(f::Function; kwargs...)

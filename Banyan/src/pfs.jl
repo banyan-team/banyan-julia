@@ -166,7 +166,6 @@ function ReadBlock(
     rowrange = split_len(nrows, batch_idx, nbatches, comm)
     dfs::Vector{DataFrames.DataFrame} = []
     rowsscanned = 0
-    # @showloc_params
     for file in sort(loc_params["files"], by = filedict -> filedict["path"])
         newrowsscanned = rowsscanned + file["nrows"]
         filerowrange = (rowsscanned+1):newrowsscanned
@@ -333,8 +332,6 @@ function ReadGroup(
     for i = 1:nbatches
         # Read in data for this batch
         part = ReadBlock(src, params, i, nbatches, comm, loc_name, loc_params)
-
-        # # @showi nbatches typeof(part)
 
         # Shuffle the batch and add it to the set of data for this partition
         params["divisions_by_worker"] = curr_partition_divisions
@@ -892,7 +889,6 @@ function SplitGroup(
     )
 
     # Apply divisions to get only the elements relevant to this worker
-    # # # # @showkey
     res = if isa_df(src)
         # TODO: Do the groupby and filter on batch_idx == 1 and then share
         # among other batches

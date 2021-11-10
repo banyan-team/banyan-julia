@@ -27,7 +27,7 @@ function create_cluster(;
     # If it does, then recreate cluster
     if haskey(clusters, name)
         if clusters[name].status == :terminated
-            @warn "Cluster configuration with name $name already exists. Ignoring new configuration and re-creating cluster."
+            @info "Started re-creating cluster named $name"
             send_request_get_response(
                 :create_cluster,
                 Dict("cluster_name" => name, "recreate" => true),
@@ -37,7 +37,7 @@ function create_cluster(;
             end
             return get_cluster(name)
         else
-            error("Cluster with name $name already exists and has status $(string(clusters[name].status))")
+            error("Cluster with name $name already exists and its current status is $(string(clusters[name].status))")
         end
     end
 
@@ -50,7 +50,7 @@ function create_cluster(;
     if isnothing(s3_bucket_arn)
         s3_bucket_arn = ""
     elseif !(s3_bucket_name in s3_list_buckets(get_aws_config()))
-        error("Bucket $s3_bucket_name does not exist in connected AWS account")
+        error("Bucket $s3_bucket_name does not exist in the connected AWS account")
     end
 
     # Construct cluster creation
@@ -78,7 +78,7 @@ function create_cluster(;
         cluster_config["subnet_id"] = subnet_id
     end
 
-    @info "Creating cluster"
+    @info "Started creating cluster named $name"
 
     # Send request to create cluster
     send_request_get_response(:create_cluster, cluster_config)
@@ -92,13 +92,13 @@ end
 
 function destroy_cluster(name::String; kwargs...)
     configure(; kwargs...)
-    @debug "Destroying cluster"
+    @info "Destroying cluster named $name"
     send_request_get_response(:destroy_cluster, Dict{String,Any}("cluster_name" => name))
 end
 
 function delete_cluster(name::String; kwargs...)
     configure(; kwargs...)
-    @debug "Deleting cluster"
+    @info "Deleting cluster named $name"
     send_request_get_response(
         :destroy_cluster,
         Dict{String,Any}("cluster_name" => name, "permanently_delete" => true),
@@ -107,7 +107,7 @@ end
 
 function update_cluster(name::String; kwargs...)
     configure(; kwargs...)
-    @debug "Updating cluster"
+    @info "Updating cluster named $name"
     send_request_get_response(
         :update_cluster,
         Dict{String, Any}("cluster_name" => name)
@@ -115,7 +115,7 @@ function update_cluster(name::String; kwargs...)
 end
 
 function assert_cluster_is_ready(name::String; kwargs...)
-    @info "Setting cluster status to running"
+    @info "Setting status of cluster named $name to running"
 
     # Configure
     configure(; kwargs...)
@@ -156,9 +156,6 @@ function get_clusters(; kwargs...)
     @debug "Downloading description of clusters"
     configure(; kwargs...)
     response = send_request_get_response(:describe_clusters, Dict{String,Any}())
-    if is_debug_on()
-        @show response
-    end
     Dict(
         name => Cluster(
             name,
@@ -183,7 +180,7 @@ get_running_clusters(args...; kwargs...) = filter(entry -> entry[2].status == :r
 function get_cluster_status(name::String=get_cluster_name(), kwargs...)
     c = get_clusters(; kwargs...)[name]
     if c.status == :failed
-        @info c.status_explanation
+        @error c.status_explanation
     end
     c.status
 end
@@ -193,9 +190,9 @@ function wait_for_cluster(name::String=get_cluster_name(), kwargs...)
     cluster_status = get_cluster_status(name; kwargs...)
     while (cluster_status == :creating || cluster_status == :updating)
         if cluster_status == :creating
-            @info "Cluster $(name) is getting set up"
+            @debug "Setting up cluster $(name)"
         else
-            @info "Cluster $(name) is updating"
+            @debug "Updating cluster $(name)"
         end
         sleep(t)
         if t < 80
@@ -204,12 +201,13 @@ function wait_for_cluster(name::String=get_cluster_name(), kwargs...)
         cluster_status = get_cluster_status(name; kwargs...)
     end
     if cluster_status == :running
-        @info "Cluster $(name) is running and ready for jobs"
+        @info "Cluster $name is ready"
     elseif cluster_status == :terminated
-        @info "Cluster $(name) no longer exists"
+        error("Cluster $name no longer exists")
     elseif cluster_status != :creating && cluster_status != :updating
-        @info "Cluster $(name) setup has failed"
-        # delete_cluster(name)
+        error("Failed to set up cluster named $name")
+    else
+        error("Cluster $name has unexpected status: $cluster_status")
     end
 end
 

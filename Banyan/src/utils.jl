@@ -22,9 +22,6 @@ axis_to_jl(axis) = reinterpret(UInt8, hash(string(key))) |> String
 total_memory_usage(val) =
     begin
         size = Base.summarysize(val)
-        if is_debug_on()
-            @show size
-        end
         # TODO: Maybe make this larger
         if size ≤ 128
             0
@@ -122,7 +119,6 @@ function write_config(banyanconfig_path=nothing)
     end
     mkpath(joinpath(homedir(), ".banyan"))
     f = open(banyanconfig_path, "w")
-    @show banyan_config
     TOML.print(f, banyan_config)
     close(f)
 end
@@ -382,7 +378,7 @@ function send_request_get_response(method, content::Dict)
     elseif resp.status == 500 || resp.status == 504
         error(data)
     elseif resp.status == 502
-        error("Sorry there has been an error. Please contact support")
+        error("Sorry there has been an error. Please contact support.")
     end
     return data
 
@@ -403,13 +399,9 @@ function send_request_get_response_using_http(method, content::Dict)
 
     # Post and return response
     try
-        # println(headers)
-	    # println(content)
         response = HTTP.post(url, headers, JSON.json(content))
-        # println(response)
         body = String(response.body)
         return JSON.parse(body)
-        #return JSON.parse(JSON.parse(body)["body"])
     catch e
         if e isa HTTP.ExceptionRequest.StatusError
             if e.response.status == 403
@@ -421,18 +413,18 @@ function send_request_get_response_using_http(method, content::Dict)
             end
             if e.response.status != 504
                 throw(ErrorException(String(take!(IOBuffer(e.response.body)))))
-            elseif method == :create_cluster
-                # println(
-                #     "Cluster creation in progress. Please check dashboard to view status.",
-                # )
-            elseif method == :create_job
-                # println(
-                #     "Job creation in progress. Please check dashboard to view status.",
-                # )
-            elseif method == :evaluate
-                # println(
-                #     "Evaluation is in progress. Please check dashboard to view status.",
-                # )
+            # elseif method == :create_cluster
+            #     # println(
+            #     #     "Cluster creation in progress. Please check dashboard to view status.",
+            #     # )
+            # elseif method == :create_job
+            #     # println(
+            #     #     "Job creation in progress. Please check dashboard to view status.",
+            #     # )
+            # elseif method == :evaluate
+            #     # println(
+            #     #     "Evaluation is in progress. Please check dashboard to view status.",
+            #     # )
             end
             rethrow()
         else

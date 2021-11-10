@@ -24,12 +24,6 @@ function Future(;source::Location = None(), mutate_from::Union{<:AbstractFuture,
 
     # TODO: Add Size location here if needed
     # Handle locations that have an associated value
-    if is_debug_on()
-        println(source)
-        println(source.src_name)
-    end
-    println("In Future constructor for $value_id")
-    @show source.src_name
     if source.src_name in ["None", "Client", "Value"]
         new_future.value = source.sample.value
         new_future.stale = false

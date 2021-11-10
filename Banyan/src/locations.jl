@@ -70,11 +70,6 @@ end
 sample(loc::Location) = sample(loc.sample)
 
 function to_jl(lt::Location)
-    if is_debug_on()
-        @show sample(lt.sample, :memory_usage)
-        @show sample(lt.sample, :memory_usage) * sample(lt.sample, :rate)
-        @show sample(lt.sample, :rate)
-    end
     return Dict(
         "src_name" => lt.src_name,
         "dst_name" => lt.dst_name,
@@ -370,9 +365,6 @@ function RemoteSource(p; shuffled=false, source_invalid = false, sample_invalid 
     else
         nothing
     end
-    @show remote_source
-    @show remote_sample
-    @show p
     remote_source = get_remote_source(p, remote_source, remote_sample, shuffled=shuffled)
     remote_sample = remote_source.sample
 
@@ -616,9 +608,6 @@ function get_remote_hdf5_source(remotepath, datasetpath, remote_source=nothing, 
     else
         ("None", Dict{String,Any}())
     end
-    if is_debug_on()
-        @show metadata_for_reading
-    end
 
     # Get the remote sample
     if isnothing(remote_sample)
@@ -756,7 +745,6 @@ function get_remote_table_source(remotepath, remote_source=nothing, remote_sampl
 
                 # Sample from each chunk
                 for (i, chunk) in enumerate(chunks)
-                    @show i
                     chunkdf = chunk |> DataFrames.DataFrame
                     chunknrows = nrow(chunkdf)
                     filenrows += chunknrows
@@ -798,7 +786,6 @@ function get_remote_table_source(remotepath, remote_source=nothing, remote_sampl
 
                     # Append to exactsample
                     samplenrows = getsamplenrows(totalnrows)
-                    @show samplenrows
                     if !isempty(chunkdf) && nrow(exactsample) < samplenrows
                         append!(exactsample, first(chunkdf, samplenrows - nrow(exactsample)))
                     end
@@ -945,9 +932,6 @@ function get_remote_table_source(remotepath, remote_source=nothing, remote_sampl
     # Adjust sample to have samplenrows
     if isnothing(remote_sample)
         samplenrows = getsamplenrows(totalnrows) # Either a subset of rows or the whole thing
-        if is_debug_on()
-            @show samplenrows
-        end
         # If we already have enough rows in the exact sample...
         if totalnrows <= get_max_exact_sample_length()
             randomsample = exactsample
@@ -983,10 +967,6 @@ function get_remote_table_source(remotepath, remote_source=nothing, remote_sampl
     remote_sample_value = isnothing(remote_sample) ? randomsample : remote_sample.value
     remote_sample_rate = totalnrows > 0 ? totalnrows / nrow(remote_sample_value) : 1.0
     nbytes = ceil(total_memory_usage(remote_sample_value) * remote_sample_rate)
-
-    @show isnothing(remote_source)
-    @show isnothing(remote_sample)
-    @show nbytes
 
     # Load metadata for reading
     # If we're not using S3FS, the files might be empty because `readdir`
