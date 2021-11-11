@@ -292,6 +292,8 @@ function wait_for_job(job_id::JobId=get_job_id(), kwargs...)
         @info "Job with ID $job_id has completed"
     elseif job_status == "failed"
         error("Job with ID $job_id has failed")
+    else
+        error("Unknown job status $job_status")
     end
 end
 
