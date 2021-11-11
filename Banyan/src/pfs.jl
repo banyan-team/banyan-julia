@@ -791,7 +791,9 @@ function Write(
     end
 end
 
-global partial_merges = Set()
+mutable struct PartiallyMerged
+    pieces::Vector{Any}
+end
 
 function SplitBlock(
     src,
@@ -802,9 +804,8 @@ function SplitBlock(
     loc_name,
     loc_params,
 )
-    global partial_merges
-    if isnothing(src) || objectid(src) in partial_merges
-        src
+    if isnothing(src) || src isa PartiallyMerged
+        nothing
     else
         split_on_executor(
             src,
@@ -836,8 +837,7 @@ function SplitGroup(
     # `SplitGroup`, and `Merge` are implemented, we unnecessarily concatenate
     # in the case where we are doing things like `setindex!` with a somewhat
     # faked mutation.
-    global partial_merges
-    if isnothing(src) || objectid(src) in partial_merges
+    if isnothing(src) || src isa PartiallyMerged
         # src is [] if we are partially merged (because as we iterate over
         # batches we take turns between splitting and merging)
         return nothing
@@ -929,7 +929,6 @@ function Merge(
 )
     # TODO: Ensure we can merge grouped dataframes if computing them
 
-    global partial_merges
     global splitting_divisions
 
     if batch_idx == 1 || batch_idx == nbatches
@@ -938,7 +937,7 @@ function Merge(
 
     # TODO: To allow for mutation of a value, we may want to remove this
     # condition
-    if isnothing(src) || objectid(src) in partial_merges
+    if isnothing(src) || src isa PartiallyMerged
         # We only need to concatenate partitions if the source is nothing.
         # Because if the source is something, then part must be a view into it
         # and no data movement is needed.
@@ -947,23 +946,20 @@ function Merge(
 
         # Concatenate across batches
         if batch_idx == 1
-            src = []
-            push!(partial_merges, objectid(src))
+            src = PartiallyMerged([])
         end
-        push!(src, part)
+        push!(src.pieces, part)
         if batch_idx == nbatches
-            delete!(partial_merges, objectid(src))
             delete!(splitting_divisions, part)
 
             # Concatenate across batches
-            src = merge_on_executor(src...; key = key)
+            src = merge_on_executor(src.pieces...; key = key)
 
             # Concatenate across workers
             nworkers = get_nworkers(comm)
             if nworkers > 1
                 src = Consolidate(src, params, Dict(), comm)
             end
-            # delete!(partial_merges, src)
         end
     end
 
