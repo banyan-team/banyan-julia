@@ -49,6 +49,7 @@ function create_job(;
     code_files::Union{Vector,Nothing} = [],
     force_update_files::Union{Bool,Nothing} = false,
     pf_dispatch_table::Union{String,Nothing} = "",
+    used_packages::Union{Vector,Nothing} = [],
     url::Union{String,Nothing} = nothing,
     branch::Union{String,Nothing} = nothing,
     directory::Union{String,Nothing} = nothing,
@@ -91,6 +92,7 @@ function create_job(;
         "julia_version" => julia_version,
         "nowait" => nowait,
         "benchmark" => get(ENV, "BANYAN_BENCHMARK", "0") == "1"
+        "used_packages" => vcat(get_loaded_modules(), used_packages)
     )
     if !isnothing(job_name)
         job_configuration["job_name"] = job_name
