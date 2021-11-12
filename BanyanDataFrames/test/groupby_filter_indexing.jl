@@ -658,74 +658,20 @@ end
             path = "s3://$(bucket)/iris_large.$(filetype)"
         end
 
-        # Read empty df
-        df = read_file(path)
+        for _ in 1:2
+            # Read empty df
+            df = read_file(path)
 
-        # Filter/subset to single row
-        # Filter/subset to empty
-        # Call collect on single row
-        # Call collect on empty
-        # Filter/subset to empty
-        # Call collect on empty
-        if filter_type == "filter"
-            filt1 = filter(row -> row.petal_length == 1.4 && row.sepal_length == 4.9 && row.species == "setosa", df)
-            filt2 = filter([:petal_length, :sepal_length] => (pl, sl) -> pl * sl > 100.0, filt1)
-        elseif filter_type == "subset"
-            filt1 = subset(groupby(df, :species), [:petal_length, :sepal_length, :species] => (pl, sl, s) -> ((pl .< mean(pl)) .& (sl .== 4.9) .& (s .== "setosa")))
-            filt2 = subset(groupby(filt1, :species), :sepal_width => sw -> sw .> 100 * mean(sw))
+            if filter_type == "filter"
+                filt1 = filter(row -> row.petal_length == 1.4 && row.sepal_length == 4.9 && row.species == "setosa", df)
+                filt2 = filter([:petal_length, :sepal_length] => (pl, sl) -> pl * sl > 100.0, filt1)
+            elseif filter_type == "subset"
+                filt1 = subset(groupby(df, :species), [:petal_length, :sepal_length, :species] => (pl, sl, s) -> ((pl .< mean(pl)) .& (sl .== 4.9) .& (s .== "setosa")))
+                filt2 = subset(groupby(filt1, :species), :sepal_width => sw -> sw .> 100 * mean(sw))
+            end
+
+            df1 = collect(filt1)
         end
-        df1 = collect(filt1)
-        # df2 = collect(filt2)
-        # if filter_type == "filter"
-        #     filt3 = filter(row -> row.petal_width == 100, filt2)
-        # elseif filter_type == "subset"
-        #     filt3 = subset(groupby(filt1, :petal_width), :petal_width => pw -> pw .== 100)
-        # end
-        # df3 = collect(filt3)
-
-        # @test size(df1) == (1, 5)
-        # @test names(df1) == ["sepal_length", "sepal_width", "petal_length", "petal_width", "species"]
-        # @test collect(df1[1, :]) == [4.9, 3.0, 1.4, 0.2, "setosa"]
-
-        # @test size(df2) == (0, 5)
-        # @test names(df2) == ["sepal_length", "sepal_width", "petal_length", "petal_width", "species"]
-
-        # @test size(df3) == (0, 5)
-        # @test names(df3) == ["sepal_length", "sepal_width", "petal_length", "petal_width", "species"]
-
-        
-        # # Filter/subset to single row
-        # # Filter/subset to empty
-        # # Filter/subset to empty
-        # # Call collect
-        # if filter_type == "filter"
-        #     filt01 = filter(row -> row.sepal_length == row.sepal_width + 1.9 && row.species == "species_10", df)
-        #     filt02 = filter(
-        #         row -> row.petal_length == row.sepal_length * 2,
-        #         filter(row -> row.species == "setosa", filt01)
-        #     )
-        # elseif filter_type == "subset"
-        #     filt01 = subset(groupby(df, :species), [:petal_length, :sepal_length, :species] => (pl, sl, s) -> ((pl .< mean(pl)) .& (sl .== 4.9) .& (s .== "species_10")))
-        #     filt02 = subset(
-        #         groupby(
-        #             subset(
-        #                 groupby(filt01, :petal_width),
-        #                 :petal_width => pw -> pw .== 100
-        #             ),
-        #             :species
-        #         ),
-        #         :petal_width => pw -> pw .== 100
-        #     )
-        # end
-        # df01 = collect(filt01)
-        # df02 = collect(filt02)
-
-        # @test size(df01) == (1, 5)
-        # @test collect(df01[1, :]) == [4.9, 3.0, 1.4, 0.2, "species_10"]
-
-        # @test size(df02) == (0, 5)
-        # @test names(df02) == ["sepal_length", "sepal_width", "petal_length", "petal_width", "species"]
-
     end
 end
 
