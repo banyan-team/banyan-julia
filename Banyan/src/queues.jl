@@ -80,7 +80,7 @@ function receive_next_message(queue_name)
             destroy_job(failed=true) # This will reset the `current_job_id` and delete from `jobs`
             error("Job failed; see preceding output")
         end
-        response = Dict{String,Any}("kind" => "JOB_FAILURE")
+        Dict{String,Any}("kind" => "JOB_FAILURE")
     else
         @debug "Received scatter or gather request"
         JSON.parse(content)
