@@ -226,7 +226,6 @@ function pt(
             if :match in keys(kwargs) && !isnothing(kwargs[:match])
                 to_match_with = to_vector(kwargs[:match])
                 if :on in keys(kwargs) && !isnothing(kwargs[:on])
-                    @debug "Matching on something"
                     for to_match_on in to_vector(get(kwargs, :on, []))
                         push!(
                             pa.constraints.constraints,

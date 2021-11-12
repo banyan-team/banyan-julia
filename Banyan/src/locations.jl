@@ -191,7 +191,6 @@ function located(fut, location::Location)
 
     job.locations[value_id] = location
     record_request(RecordLocationRequest(value_id, location))
-    @debug value_id
     # @debug size(location.sample.value)
 end
 
