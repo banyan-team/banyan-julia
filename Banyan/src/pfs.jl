@@ -946,9 +946,9 @@ function Merge(
 
         # Concatenate across batches
         if batch_idx == 1
-            src = PartiallyMerged([])
+            src = PartiallyMerged(Vector{Any}(undef, nbatches))
         end
-        push!(src.pieces, part)
+        src.pieces[batch_idx] = part
         if batch_idx == nbatches
             delete!(splitting_divisions, part)
 
