@@ -49,7 +49,7 @@ function create_job(;
     code_files::Union{Vector,Nothing} = [],
     force_update_files::Union{Bool,Nothing} = false,
     pf_dispatch_table::Union{String,Nothing} = "",
-    used_packages::Union{Vector,Nothing} = [],
+    using_modules::Union{Vector,Nothing} = [],
     url::Union{String,Nothing} = nothing,
     branch::Union{String,Nothing} = nothing,
     directory::Union{String,Nothing} = nothing,
@@ -92,7 +92,8 @@ function create_job(;
 	    "store_logs_in_s3" => store_logs_in_s3,
         "store_logs_on_cluster" => store_logs_on_cluster,
         "julia_version" => julia_version,
-        "used_packages" => vcat(get_loaded_modules(), used_packages)
+        "main_modules" => get_loaded_packages(),
+        "using_modules" => using_modules,
     )
     if !isnothing(job_name)
         job_configuration["job_name"] = job_name
