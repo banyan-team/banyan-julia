@@ -175,7 +175,7 @@ function create_job(;
     end
 
     @debug "Finished creating job $job_id"
-    return job_id
+    job_id
 end
 
 function destroy_job(job_id::JobId = get_job_id(); failed = false, force = false, kwargs...)
@@ -195,6 +195,7 @@ function destroy_job(job_id::JobId = get_job_id(); failed = false, force = false
         set_job(nothing)
     end
     delete!(jobs, job_id)
+    job_id
 end
 
 function get_jobs(cluster_name = nothing; status = nothing, kwargs...)
