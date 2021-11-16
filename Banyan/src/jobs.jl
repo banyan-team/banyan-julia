@@ -89,7 +89,8 @@ function create_job(;
 	    "store_logs_in_s3" => store_logs_in_s3,
         "store_logs_on_cluster" => store_logs_on_cluster,
         "julia_version" => julia_version,
-        "nowait" => nowait
+        "nowait" => nowait,
+        "benchmark" => get(ENV, "BANYAN_BENCHMARK", "0") == "1"
     )
     if !isnothing(job_name)
         job_configuration["job_name"] = job_name

@@ -343,6 +343,7 @@ function send_evaluation(value_id::ValueId, job_id::JobId)
             "num_bang_values_issued" => get_num_bang_values_issued(),
             "main_modules" => get_loaded_packages(),
             "partitioned_using_modules" => used_packages,
+            "benchmark" => get(ENV, "BANYAN_BENCHMARK", "0") == "1"
             # "packages" => vcat(used_packages, get_loaded_packages())
         ),
     )
