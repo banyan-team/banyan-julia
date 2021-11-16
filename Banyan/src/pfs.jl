@@ -4,11 +4,6 @@
 # splitting/casting/merging that describes how data should be partitioned
 # in order for that function to be applicable.
 
-using Serialization
-using Base64
-
-using MPI, DataFrames, FilePathsBase, HDF5, CSV, Parquet, Arrow
-
 ###################################
 # Splitting and merging functions #
 ###################################

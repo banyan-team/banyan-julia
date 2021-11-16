@@ -5,6 +5,8 @@
 # - pt, pc
 # - @partitioned
 
+__precompile__()
+
 module Banyan
 
 using FilePathsBase: joinpath, isempty
@@ -153,6 +155,9 @@ using IterTools
 # TODO: Move locations, samples, and parts of pt_lib.jl and pt_lib_info.json
 # into their respective libraries where they can be specialized
 using HDF5, CSV, Parquet, Arrow, DataFrames
+
+# For PFs:
+using Serialization, Base64, MPI
 
 # Helpers
 include("id.jl")
