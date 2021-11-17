@@ -1050,7 +1050,12 @@ function ReduceAndCopyTo(
 )
     # Merge reductions from batches
     op = params["reducer"]
-    op = params["with_key"] ? op(params["key"]) : op
+    if params["with_key"]
+        if !haskey(params, "reducer_with_key")
+            params["reducer_with_key"] = op(params["key"])
+        end
+        op = params["reducer_with_key"]
+    end
     # TODO: Ensure that we handle reductions that can produce nothing
     src = isnothing(src) ? part : op(src, part)
 
