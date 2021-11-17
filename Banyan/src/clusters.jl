@@ -188,17 +188,24 @@ end
 function wait_for_cluster(name::String=get_cluster_name(), kwargs...)
     t = 5
     cluster_status = get_cluster_status(name; kwargs...)
+    p = nothing
     while (cluster_status == :creating || cluster_status == :updating)
-        if cluster_status == :creating
-            @debug "Setting up cluster $(name)"
-        else
-            @debug "Updating cluster $(name)"
+        if isnothing(p)
+            if cluster_status == :creating
+                p = ProgressUnknown("Setting up cluster $(name)")
+            else
+                p = ProgressUnknown("Updating cluster $(name)")
+            end
         end
         sleep(t)
+        next!(p)
         if t < 80
             t *= 2
         end
         cluster_status = get_cluster_status(name; kwargs...)
+    end
+    if !isnothing(p)
+        finish!(p)
     end
     if cluster_status == :running
         @info "Cluster $name is ready"

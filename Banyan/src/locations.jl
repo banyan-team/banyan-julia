@@ -729,6 +729,7 @@ function get_remote_table_source(remotepath, remote_source=nothing, remote_sampl
     # location to read in the location.
     
     # Loop through files; stop early if we don't need 
+    p = Progress(length(files_to_read_from), "Collecting sample from $remotepath")
     for (fileidx, filep) in enumerate(files_to_read_from)
         # Initialize
         filenrows = 0
@@ -849,7 +850,10 @@ function get_remote_table_source(remotepath, remote_source=nothing, remote_sampl
                 )
             end
         end
+
+        next!(p)
     end
+    finish!(p)
 
     # A second (partial) pass over the data if we don't yet have a sample and
     # the data is shuffled. If we didn't have a sample but the data wasn't
@@ -861,6 +865,7 @@ function get_remote_table_source(remotepath, remote_source=nothing, remote_sampl
 
         # So we can iterate through the files (reverse in case some caching helps
         # us). We append to `randomsample` directly.
+        p = Progress(length(files_to_read_from), "Collecting sample from $remotepath")
         for filep in reverse(files_to_read_from)
             localfilepath = p_isdir ? joinpath(p, filep) : p
             with_downloaded_path_for_reading(localfilepath) do localfilepathp
@@ -912,7 +917,10 @@ function get_remote_table_source(remotepath, remote_source=nothing, remote_sampl
             if (!isnothing(randomsample) && nrow(randomsample) == samplenrows) || samplenrows == 0
                 break
             end
+            
+            next!(p)
         end
+        finish!(p)
 
         # In this case, the random sample would also be the exact sample if an
         # exact sample is ever required.

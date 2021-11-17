@@ -198,7 +198,7 @@ function partitioned_computation(fut::AbstractFuture; destination, new_source=no
     
         # Read instructions from gather queue
         # @info "Computing result with ID $(fut.value_id)"
-        @info "Starting computation"
+        p = ProgressUnknown("Computing value with ID $(fut.value_id)")
         @debug "Waiting on running job $job_id, listening on $gather_queue, and computing value with ID $(fut.value_id)"
         if get_job_status(job_id) != "running"
             wait_for_job(job_id)
@@ -206,6 +206,7 @@ function partitioned_computation(fut::AbstractFuture; destination, new_source=no
         while true
             # TODO: Use to_jl_value and from_jl_value to support Client
             message = receive_next_message(gather_queue)
+            next!(p)
             message_type = message["kind"]
             if message_type == "JOB_READY"
                 @debug "Job $job_id is ready"
@@ -234,7 +235,7 @@ function partitioned_computation(fut::AbstractFuture; destination, new_source=no
                     value = from_jl_value_contents(message["contents"])
                     f::Future = job.futures_on_client[value_id]
                     f.value = value
-                    @info "Received $(f.value)"
+                    @debug "Received $(f.value)"
                     # TODO: Update stale/mutated here to avoid costly
                     # call to `send_evaluation`
                 end
@@ -245,6 +246,7 @@ function partitioned_computation(fut::AbstractFuture; destination, new_source=no
                 end
             end
         end
+        finish!(p)
 
         # Update `mutated` and `stale` for the future that is being evaluated
         fut.mutated = false

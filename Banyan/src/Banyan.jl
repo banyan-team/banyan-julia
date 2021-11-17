@@ -159,6 +159,9 @@ using HDF5, CSV, Parquet, Arrow, DataFrames
 # For PFs:
 using Serialization, Base64, MPI
 
+# For loading
+using ProgressMeter
+
 # Helpers
 include("id.jl")
 include("utils_queues.jl")

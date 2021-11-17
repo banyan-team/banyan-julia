@@ -280,14 +280,16 @@ end
 function wait_for_job(job_id::JobId=get_job_id(), kwargs...)
     t = 5
     job_status = get_job_status(job_id; kwargs)
+    p = ProgressUnknown("Preparing job with ID $job_id")
     while job_status == "creating"
-        @debug "Preparing job with ID $job_id"
         sleep(t)
+        next!(p)
         if t < 80
             t *= 2
         end
         job_status = get_job_status(job_id; kwargs)
     end
+    finish!(p)
     if job_status == "running"
         @info "Job with ID $job_id is ready"
     elseif job_status == "completed"
