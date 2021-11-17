@@ -197,6 +197,8 @@ function partitioned_computation(fut::AbstractFuture; destination, new_source=no
         gather_queue = get_gather_queue(job_id)
     
         # Read instructions from gather queue
+        # @info "Computing result with ID $(fut.value_id)"
+        @info "Starting computation"
         @debug "Waiting on running job $job_id, listening on $gather_queue, and computing value with ID $(fut.value_id)"
         if get_job_status(job_id) != "running"
             wait_for_job(job_id)
