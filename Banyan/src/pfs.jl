@@ -1051,10 +1051,20 @@ function ReduceAndCopyTo(
     # Merge reductions from batches
     op = params["reducer"]
     if params["with_key"]
+        key = params["key"]
         if !haskey(params, "reducer_with_key")
-            params["reducer_with_key"] = op(params["key"])
+            op = op(key)
+            reducer_with_key = Dict(key => op)
+            params["reducer_with_key"] = reducer_with_key
+        else
+            reducer_with_key = params["reducer_with_key"]
+            if !haskey(reducer_with_key, key)
+                op = op(key)
+                reducer_with_key[key] = op
+            else
+                op = reducer_with_key[key]
+            end
         end
-        op = params["reducer_with_key"]
     end
     # TODO: Ensure that we handle reductions that can produce nothing
     src = isnothing(src) ? part : op(src, part)
