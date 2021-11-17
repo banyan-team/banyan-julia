@@ -192,9 +192,9 @@ function wait_for_cluster(name::String=get_cluster_name(), kwargs...)
     while (cluster_status == :creating || cluster_status == :updating)
         if isnothing(p)
             if cluster_status == :creating
-                p = ProgressUnknown("Setting up cluster $(name)")
+                p = ProgressUnknown("Setting up cluster $(name)", spinner=true)
             else
-                p = ProgressUnknown("Updating cluster $(name)")
+                p = ProgressUnknown("Updating cluster $(name)", spinner=true)
             end
         end
         sleep(t)
@@ -205,10 +205,10 @@ function wait_for_cluster(name::String=get_cluster_name(), kwargs...)
         cluster_status = get_cluster_status(name; kwargs...)
     end
     if !isnothing(p)
-        finish!(p)
+        finish!(p, spinner = (cluster_status == :running ? '✓' : '✗'))
     end
     if cluster_status == :running
-        @info "Cluster $name is ready"
+        # @info "Cluster $name is ready"
     elseif cluster_status == :terminated
         error("Cluster $name no longer exists")
     elseif cluster_status != :creating && cluster_status != :updating

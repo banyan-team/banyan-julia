@@ -30,11 +30,14 @@ end
 # RECEIVE MESSAGE #
 ###################
 
-function get_next_message(queue; delete = true)
+function get_next_message(queue, p=nothing; delete = true)
     m = sqs_receive_message(queue)
     while (isnothing(m))
         m = sqs_receive_message(queue)
         @debug "Waiting for message from SQS"
+        if !isnothing(p)
+            next!(p)
+        end
     end
     if delete
         sqs_delete_message(queue, m)
@@ -42,16 +45,14 @@ function get_next_message(queue; delete = true)
     return m[:message]
 end
 
-function receive_next_message(queue_name)
-    global jobs
-    job_id = get_job_id()
-    content = get_next_message(queue_name)
+function receive_next_message(queue_name, p=nothing)
+    content = get_next_message(queue_name, p)
     if startswith(content, "JOB_READY")
         response = Dict{String,Any}(
             "kind" => "JOB_READY"
         )
     elseif startswith(content, "EVALUATION_END")
-        @debug "Received evaluation end"
+        # @debug "Received evaluation end"
         response = Dict{String,Any}(
             "kind" => "EVALUATION_END",
             "end" => endswith(content, "MESSAGE_END")
@@ -59,11 +60,17 @@ function receive_next_message(queue_name)
         # Print out logs that were outputed by job on cluster. Will be empty if
         # `print_logs=false` for the job. Remove "EVALUATION_END" at start and
         #  chop off "MESSAGE_END" at the end
+        if !isnothing(p) && !p.done
+            finish!(p)
+        end
         tail = endswith(content, "MESSAGE_END") ? 11 : 0
         println(chop(content, head=14, tail=tail))
         response
     elseif startswith(content, "JOB_FAILURE")
-        @debug "Job failed"
+        if !isnothing(p) && !p.done
+            finish!(p, spinner='✗')
+        end
+        # @debug "Job failed"
         # Print job logs. Will be empty if `print_logs=false` for the job. Remove
         # "JOB_FAILURE" and "JOB_END" from the message content. Note that logs
         # are streamed in multiple parts, due to SQS message limits.
@@ -82,7 +89,7 @@ function receive_next_message(queue_name)
         end
         Dict{String,Any}("kind" => "JOB_FAILURE")
     else
-        @debug "Received scatter or gather request"
+        # @debug "Received scatter or gather request"
         JSON.parse(content)
     end
 end

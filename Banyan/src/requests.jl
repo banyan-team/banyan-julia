@@ -205,11 +205,10 @@ function partitioned_computation(fut::AbstractFuture; destination, new_source=no
         end
         while true
             # TODO: Use to_jl_value and from_jl_value to support Client
-            message = receive_next_message(gather_queue)
-            next!(p)
+            message = receive_next_message(gather_queue, p)
             message_type = message["kind"]
             if message_type == "JOB_READY"
-                @debug "Job $job_id is ready"
+                # @debug "Job $job_id is ready"
             elseif message_type == "SCATTER_REQUEST"
                 # Send scatter
                 value_id = message["value_id"]
