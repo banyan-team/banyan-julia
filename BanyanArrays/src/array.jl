@@ -257,7 +257,6 @@ function fill(v, dims::NTuple{N,Integer}) where {N}
     if is_debug_on()
         @partitioned A v fillingdims begin
             A = Base.fill(v, fillingdims)
-            println(size(A))
         end
     else
         @partitioned A v fillingdims begin
