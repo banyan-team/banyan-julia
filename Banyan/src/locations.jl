@@ -729,7 +729,7 @@ function get_remote_table_source(remotepath, remote_source=nothing, remote_sampl
     # location to read in the location.
     
     # Loop through files; stop early if we don't need 
-    p = Progress(length(files_to_read_from), "Collecting sample from $remotepath")
+    progressbar = Progress(length(files_to_read_from), "Collecting sample from $remotepath")
     for (fileidx, filep) in enumerate(files_to_read_from)
         # Initialize
         filenrows = 0
@@ -851,9 +851,9 @@ function get_remote_table_source(remotepath, remote_source=nothing, remote_sampl
             end
         end
 
-        next!(p)
+        next!(progressbar)
     end
-    finish!(p)
+    finish!(progressbar)
 
     # A second (partial) pass over the data if we don't yet have a sample and
     # the data is shuffled. If we didn't have a sample but the data wasn't
