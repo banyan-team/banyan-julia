@@ -198,8 +198,8 @@ function partitioned_computation(fut::AbstractFuture; destination, new_source=no
     
         # Read instructions from gather queue
         # @info "Computing result with ID $(fut.value_id)"
-        p = ProgressUnknown("Computing value with ID $(fut.value_id)")
         @debug "Waiting on running job $job_id, listening on $gather_queue, and computing value with ID $(fut.value_id)"
+        p = ProgressUnknown("Computing value with ID $(fut.value_id)", spinner=true)
         if get_job_status(job_id) != "running"
             wait_for_job(job_id)
         end
@@ -213,7 +213,7 @@ function partitioned_computation(fut::AbstractFuture; destination, new_source=no
                 # Send scatter
                 value_id = message["value_id"]
                 f = job.futures_on_client[value_id]
-                @debug "Received scatter request for value with ID $value_id and value $(f.value) with location $(get_location(f))"
+                # @debug "Received scatter request for value with ID $value_id and value $(f.value) with location $(get_location(f))"
                 send_message(
                     scatter_queue,
                     JSON.json(
@@ -229,23 +229,22 @@ function partitioned_computation(fut::AbstractFuture; destination, new_source=no
             elseif message_type == "GATHER"
                 # Receive gather
                 value_id = message["value_id"]
-                @debug "Received gather request for $value_id"
+                # @debug "Received gather request for $value_id"
                 if value_id in keys(job.futures_on_client)
                     value = from_jl_value_contents(message["contents"])
                     f::Future = job.futures_on_client[value_id]
                     f.value = value
-                    @debug "Received $(f.value)"
+                    # @debug "Received $(f.value)"
                     # TODO: Update stale/mutated here to avoid costly
                     # call to `send_evaluation`
                 end
             elseif message_type == "EVALUATION_END"
-                @debug "End of evaluation"
+                # @debug "End of evaluation"
                 if message["end"] == true
                     break
                 end
             end
         end
-        finish!(p)
 
         # Update `mutated` and `stale` for the future that is being evaluated
         fut.mutated = false

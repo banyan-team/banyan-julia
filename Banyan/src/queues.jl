@@ -34,7 +34,7 @@ function get_next_message(queue, p=nothing; delete = true)
     m = sqs_receive_message(queue)
     while (isnothing(m))
         m = sqs_receive_message(queue)
-        @debug "Waiting for message from SQS"
+        # @debug "Waiting for message from SQS"
         if !isnothing(p)
             next!(p)
         end
