@@ -21,7 +21,7 @@ function get_job_id()::JobId
     global current_job_id
     if isnothing(current_job_id)
         error(
-            "No job selected using `create_job` or `with_job` or `set_job`. The current job may have been destroyed or no job may have been created yet",
+            "No job selected using `create_job` or `with_job` or `set_job`. The current job may have been destroyed or no job created yet.",
         )
     end
     current_job_id
@@ -62,7 +62,6 @@ function create_job(;
     global jobs
     global current_job_id
 
-    @debug "Creating job"
     if cluster_name == ""
         cluster_name = nothing
     end
@@ -73,7 +72,6 @@ function create_job(;
     # Construct parameters for creating job
     cluster_name = if isnothing(cluster_name)
         running_clusters = get_running_clusters()
-        println(running_clusters)
         if length(running_clusters) == 0
             error("Failed to create job: you don't have any clusters created")
         end
@@ -91,7 +89,8 @@ function create_job(;
 	    "store_logs_in_s3" => store_logs_in_s3,
         "store_logs_on_cluster" => store_logs_on_cluster,
         "julia_version" => julia_version,
-        "nowait" => nowait
+        "nowait" => nowait,
+        "benchmark" => get(ENV, "BANYAN_BENCHMARK", "0") == "1"
     )
     if !isnothing(job_name)
         job_configuration["job_name"] = job_name
@@ -127,7 +126,7 @@ function create_job(;
         # Otherwise, use url and optionally a particular branch
         environment_info["url"] = url
         if isnothing(directory)
-            error("Directory must be provided for a url")
+            error("Directory must be provided for given URL $url")
         end
         environment_info["directory"] = directory
         if !isnothing(branch)
@@ -164,15 +163,10 @@ function create_job(;
     job_response = send_request_get_response(:create_job, job_configuration)
     sleep(30)
     job_id = job_response["job_id"]
-    @debug "Creating job $job_id"
     @info "Started creating job with ID $job_id on cluster named \"$cluster_name\""
 
     # Store in global state
     current_job_id = job_id
-    if is_debug_on()
-        @show nworkers
-        @show sample_rate
-    end
     jobs[current_job_id] = Job(cluster_name, current_job_id, nworkers, sample_rate)
 
     wait_for_cluster(cluster_name)
@@ -182,7 +176,7 @@ function create_job(;
     end
 
     @debug "Finished creating job $job_id"
-    return job_id
+    job_id
 end
 
 function destroy_job(job_id::JobId = get_job_id(); failed = false, force = false, kwargs...)
@@ -202,10 +196,11 @@ function destroy_job(job_id::JobId = get_job_id(); failed = false, force = false
         set_job(nothing)
     end
     delete!(jobs, job_id)
+    job_id
 end
 
 function get_jobs(cluster_name = nothing; status = nothing, kwargs...)
-    @debug "Downloading description of jobs in each cluster"
+    @debug "Downloading description of all jobs in cluster named $cluster_name"
     configure(; kwargs...)
     filters = Dict()
     if !isnothing(cluster_name)
@@ -223,9 +218,6 @@ function get_jobs(cluster_name = nothing; status = nothing, kwargs...)
     else
         curr_last_eval = indiv_response["last_eval"]
         while finished == false
-            if is_debug_on()
-                println(curr_last_eval)
-            end
             indiv_response = send_request_get_response(:describe_jobs, Dict{String,Any}("filters"=>filters, "this_start_key"=>curr_last_eval))
             response["jobs"] = merge!(response["jobs"], indiv_response["jobs"])
             # print(indiv_response["last_eval"])
@@ -262,7 +254,7 @@ function download_job_logs(job_id::JobId, cluster_name::String, filename::String
 end
 
 function destroy_all_jobs(cluster_name::String; kwargs...)
-    @debug "Destroying all running jobs for cluster"
+    @info "Destroying all running jobs for cluster named $cluster_name"
     configure(; kwargs...)
     jobs = get_jobs(cluster_name, status = "running")
     for (job_id, job) in jobs
@@ -278,27 +270,34 @@ function get_job_status(job_id::String=get_job_id(); kwargs...)
     response = send_request_get_response(:describe_jobs, Dict{String,Any}("filters"=>filters))
     job_status = response["jobs"][job_id]["status"]
     if job_status == "failed"
-        @info response["jobs"][job_id]["status_explanation"]
+        # We don't immediately fail - we're just explaining. It's only later on
+        # where it's like we're actually using this job do we set the status.
+        @error response["jobs"][job_id]["status_explanation"]
     end
+    job_status
 end
 
 function wait_for_job(job_id::JobId=get_job_id(), kwargs...)
     t = 5
     job_status = get_job_status(job_id; kwargs)
+    p = ProgressUnknown("Preparing job with ID $job_id", spinner=true)
     while job_status == "creating"
-        @info "Job $job_id is creating"
         sleep(t)
+        next!(p)
         if t < 80
             t *= 2
         end
         job_status = get_job_status(job_id; kwargs)
     end
+    finish!(p, spinner = job_status == "running" ? '✓' : '✗')
     if job_status == "running"
-        @info "Job $job_id is ready for computation"
+        @debug "Job with ID $job_id is ready"
     elseif job_status == "completed"
-        @info "Job $job_id has completed and is no longer running"
+        error("Job with ID $job_id has already completed")
     elseif job_status == "failed"
-        error("Job $job_id has failed")
+        error("Job with ID $job_id has failed")
+    else
+        error("Unknown job status $job_status")
     end
 end
 

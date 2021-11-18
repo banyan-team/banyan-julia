@@ -5,6 +5,8 @@
 # - pt, pc
 # - @partitioned
 
+__precompile__()
+
 module Banyan
 
 using FilePathsBase: joinpath, isempty
@@ -154,6 +156,12 @@ using IterTools
 # into their respective libraries where they can be specialized
 using HDF5, CSV, Parquet, Arrow, DataFrames
 
+# For PFs:
+using Serialization, Base64, MPI
+
+# For loading
+using ProgressMeter
+
 # Helpers
 include("id.jl")
 include("utils_queues.jl")
@@ -167,11 +175,11 @@ include("queues.jl")
 # and functions get dispatched based on the `pf_dispatch_table.json`
 # (originally called `pt_lib_info.json`) which is used by the scheduler behind
 # the scenes.
+include("utils.jl")
 include("utils_pfs.jl")
 include("pfs.jl")
 
 # Jobs
-include("utils.jl")
 include("utils_abstract_types.jl")
 include("utils_s3fs.jl")
 include("clusters.jl")

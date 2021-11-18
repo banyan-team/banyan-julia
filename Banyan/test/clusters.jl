@@ -51,8 +51,6 @@ end
     ]
     Random.seed!()
     cluster_name = "cluster-$(Random.randstring(['a':'z'; '0':'9'], 6))"
-    @show cluster_name
-
     if s3_bucket == "default"
         s3_bucket = nothing
     elseif s3_bucket == "user-provided"
@@ -109,7 +107,6 @@ end
 ]
     Random.seed!()
     cluster_name = "cluster-$(Random.randstring(['a':'z'; '0':'9'], 6))"
-    @show cluster_name
     t = @elapsed begin
         c = create_cluster(
             name=cluster_name,

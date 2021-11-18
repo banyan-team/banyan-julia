@@ -18,11 +18,6 @@ end
 
 function finish_task()
     global curr_delayed_task
-    # if is_debug_on()
-	    @show "finishing task"
-        @show curr_delayed_task.mutation
-        @show curr_delayed_task.effects
-    # end
     curr_delayed_task = DelayedTask()
 end
 
@@ -231,7 +226,6 @@ function pt(
             if :match in keys(kwargs) && !isnothing(kwargs[:match])
                 to_match_with = to_vector(kwargs[:match])
                 if :on in keys(kwargs) && !isnothing(kwargs[:on])
-                    @debug "Matching on something"
                     for to_match_on in to_vector(get(kwargs, :on, []))
                         push!(
                             pa.constraints.constraints,
@@ -742,8 +736,6 @@ duplicated_constraints_for_batching(pc::PartitioningConstraints, pa::PartitionAn
 function duplicate_for_batching!(pa::PartitionAnnotation)
     # Duplicate PT stacks
     for (v, pt_stack) in pa.partitions.pt_stacks
-        println("$(length(pt_stack.pts)) PTs before for v=$(v) in duplicate_for_batching!")
-
         # Copy over the PT stack
         second_half = deepcopy(pt_stack.pts)
 
@@ -767,7 +759,6 @@ function duplicate_for_batching!(pa::PartitionAnnotation)
     # Add constraints for second half being Sequential and Match-ing the first
     # half
     for (v, pt_stack) in pa.partitions.pt_stacks
-        println("$(length(pt_stack.pts)) PTs after for v=$(v) in duplicate_for_batching!")
         for i = 1:div(length(pt_stack.pts), 2)
             dupi = i + div(length(pt_stack.pts), 2)
 

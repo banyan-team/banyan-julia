@@ -43,11 +43,6 @@ function partitioned_computation(fut::AbstractFuture; destination, new_source=no
     job_id = get_job_id()
     job = get_job()
 
-    @show fut.value_id
-    @show fut.stale
-    @show destination
-    @show fut.mutated
-
     if fut.mutated || (destination.dst_name == "Client" && fut.stale) || destination.dst_name == "Remote"
         # TODO: Check to ensure that `fut` is annotated
         # This creates an empty final task that ensures that the future
@@ -62,12 +57,6 @@ function partitioned_computation(fut::AbstractFuture; destination, new_source=no
         # Call `partitioned_using_func`s in 2 passes - forwards and backwards.
         # This allows sample properties to propagate in both directions. We
         # must also make sure to apply mutations in each task appropriately.
-        for t in tasks
-            if is_debug_on()
-	            @show t.mutation
-                @show t.effects
-            end
-        end
         for t in Iterators.reverse(tasks)
             apply_mutation(invert(t.mutation))
         end
@@ -150,26 +139,12 @@ function partitioned_computation(fut::AbstractFuture; destination, new_source=no
         # Switch back to a new task for next code region
         finish_task()
 
-        # for t in tasks
-        #     # Apply defaults to PAs
-        #     for pa in t.pa_union
-        #         @show pa
-        #     end
-        # end
-
         # Iterate through tasks for further processing before recording them
         for t in tasks
-            @show t.code
-            @show t.value_names
-            @show t.mutation
-            @show t.effects
             # Apply defaults to PAs
             for pa in t.pa_union
                 apply_default_constraints!(pa)
                 duplicate_for_batching!(pa)
-                if is_debug_on()
-		            @show pa
-                end
             end
 
             # Destroy all closures so that all references to `Future`s are dropped
@@ -184,7 +159,6 @@ function partitioned_computation(fut::AbstractFuture; destination, new_source=no
         GC.gc()
     
         # Destroy everything that is to be destroyed in this task
-        println("Sending `DestroyRequest`s in this `evaluate`")
         for req in job.pending_requests
             # Don't destroy stuff where a `DestroyRequest` was produced just
             # because of a `mutated(old, new)`
@@ -206,10 +180,6 @@ function partitioned_computation(fut::AbstractFuture; destination, new_source=no
                 # sample taken from it
                 delete!(job.locations, req.value_id)
             end
-
-            if req isa DestroyRequest
-                println("Sending `DestroyRequest($(req.value_id))` in this `evaluate`")
-            end
         end
     
         # Send evaluation request
@@ -227,26 +197,23 @@ function partitioned_computation(fut::AbstractFuture; destination, new_source=no
         gather_queue = get_gather_queue(job_id)
     
         # Read instructions from gather queue
-        # println("job id: ", job_id)
-        # print("LISTENING ON: ", gather_queue)
-        @debug "Waiting on running job $job_id"
-        println("Waiting on running job $job_id and computing value with ID " * fut.value_id)
+        # @info "Computing result with ID $(fut.value_id)"
+        @debug "Waiting on running job $job_id, listening on $gather_queue, and computing value with ID $(fut.value_id)"
+        p = ProgressUnknown("Computing value with ID $(fut.value_id)", spinner=true)
         if get_job_status(job_id) != "running"
             wait_for_job(job_id)
         end
         while true
             # TODO: Use to_jl_value and from_jl_value to support Client
-            message = receive_next_message(gather_queue)
-            @show message
+            message = receive_next_message(gather_queue, p)
             message_type = message["kind"]
             if message_type == "JOB_READY"
-                @info "Job $job_id is running"
+                # @debug "Job $job_id is ready"
             elseif message_type == "SCATTER_REQUEST"
-                @debug "Received scatter request"
                 # Send scatter
                 value_id = message["value_id"]
                 f = job.futures_on_client[value_id]
-                @info "Received scatter request for value with ID $value_id and value $(f.value) with location $(get_location(f))"
+                # @debug "Received scatter request for value with ID $value_id and value $(f.value) with location $(get_location(f))"
                 send_message(
                     scatter_queue,
                     JSON.json(
@@ -260,22 +227,19 @@ function partitioned_computation(fut::AbstractFuture; destination, new_source=no
                 # TODO: Update stale/mutated here to avoid costly
                 # call to `send_evaluation`
             elseif message_type == "GATHER"
-                @debug "Received gather request"
                 # Receive gather
                 value_id = message["value_id"]
-                @info "Received gather request for $value_id"
-                @show value_id in keys(job.futures_on_client)
+                # @debug "Received gather request for $value_id"
                 if value_id in keys(job.futures_on_client)
                     value = from_jl_value_contents(message["contents"])
                     f::Future = job.futures_on_client[value_id]
                     f.value = value
-                    @info "Received $(f.value)"
+                    # @debug "Received $(f.value)"
                     # TODO: Update stale/mutated here to avoid costly
                     # call to `send_evaluation`
-                    @debug value
                 end
             elseif message_type == "EVALUATION_END"
-                @debug "Received evaluation"
+                # @debug "End of evaluation"
                 if message["end"] == true
                     break
                 end
@@ -291,15 +255,12 @@ function partitioned_computation(fut::AbstractFuture; destination, new_source=no
         end
 
         # This is where we update the location source.
-        @show sample(fut)
         if is_merged_to_disk
             sourced(fut, Disk())
         else
             # TODO: If not still merged to disk, we need to lazily set the location source to something else
             if !isnothing(new_source)
                 sourced(fut, new_source)
-                @show new_source
-                @show sample(fut)
             else
                 # TODO: Maybe suppress this warning because while it may be
                 # useful for large datasets, it is going to come up for
@@ -323,7 +284,6 @@ function partitioned_computation(fut::AbstractFuture; destination, new_source=no
         # Reset the location destination to its default. This is where we
         # update the location destination.
         destined(fut, None())
-        @show sample(fut)
     end
 
     # Reset the annotation for this partitioned computation
@@ -366,16 +326,10 @@ function send_evaluation(value_id::ValueId, job_id::JobId)
     global encourage_parallelism_with_batches
     global exaggurate_size
 
-    @debug "Sending evaluation request"
-
     # Get list of the modules used in the code regions here
     used_packages = union(vcat([req.task.used_modules for req in get_job().pending_requests if req isa RecordTaskRequest]...))
-    println("HERE IS A MODULE: ", used_packages)
 
     # Submit evaluation request
-    println("Submitting evaluation request")
-    @show value_id
-    @show [to_jl(req) for req in get_job().pending_requests]
     response = send_request_get_response(
         :evaluate,
         Dict{String,Any}(
@@ -389,24 +343,21 @@ function send_evaluation(value_id::ValueId, job_id::JobId)
                 "exaggurate_size" => exaggurate_size
             ),
             "num_bang_values_issued" => get_num_bang_values_issued(),
-            # "main_packages" => get_loaded_packages(),
-            # "used_packages" => used_packages,
-            "packages" => vcat(used_packages, get_loaded_packages())
+            "main_modules" => get_loaded_packages(),
+            "partitioned_using_modules" => used_packages,
+            "benchmark" => get(ENV, "BANYAN_BENCHMARK", "0") == "1"
+            # "packages" => vcat(used_packages, get_loaded_packages())
         ),
     )
     if isnothing(response)
         throw(ErrorException("The evaluation request has failed. Please contact support"))
     end
 
-    @show response
-
     # Update counters for generating unique values
     set_num_bang_values_issued(response["num_bang_values_issued"])
 
     # Clear global state and return response
-    println("Emptying job of $(get_job().pending_requests) requests")
     empty!(get_job().pending_requests)
-    println("Emptying job to have $(get_job().pending_requests) requests")
     response
 end
 
@@ -417,8 +368,6 @@ function Base.collect(fut::AbstractFuture)
     # we need to avoid partitioned computation (which will reset the task)
 
     # # Fast case for where the future has not been mutated and isn't stale
-    # @show fut.mutated
-    # @show fut.stale
     if !fut.mutated && !fut.stale
         return fut.value
     end

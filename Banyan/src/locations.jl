@@ -70,11 +70,6 @@ end
 sample(loc::Location) = sample(loc.sample)
 
 function to_jl(lt::Location)
-    if is_debug_on()
-        @show sample(lt.sample, :memory_usage)
-        @show sample(lt.sample, :memory_usage) * sample(lt.sample, :rate)
-        @show sample(lt.sample, :rate)
-    end
     return Dict(
         "src_name" => lt.src_name,
         "dst_name" => lt.dst_name,
@@ -196,7 +191,6 @@ function located(fut, location::Location)
 
     job.locations[value_id] = location
     record_request(RecordLocationRequest(value_id, location))
-    @debug value_id
     # @debug size(location.sample.value)
 end
 
@@ -370,9 +364,6 @@ function RemoteSource(p; shuffled=false, source_invalid = false, sample_invalid 
     else
         nothing
     end
-    @show remote_source
-    @show remote_sample
-    @show p
     remote_source = get_remote_source(p, remote_source, remote_sample, shuffled=shuffled)
     remote_sample = remote_source.sample
 
@@ -445,9 +436,9 @@ end
 
 function get_remote_source(remotepath, remote_source=nothing, remote_sample=nothing; shuffled=false)::Location
     if isnothing(remote_sample)
-        @info "Collecting sample from $remotepath. This will take some time but the sample will be cached for future use. Note that writing to this location may invalidate the cached sample."
+        @info "Collecting sample from $remotepath. This will take some time. The resulting sample will be cached and invalidated when the location is written to."
     elseif isnothing(remote_source)
-        @info "Collecting location information about $remotepath. This will take some time."
+        @info "Collecting location information about $remotepath. This will take some time. The resulting location info will be cached and invalidated when the location is written to."
     end
 
     # If both the location and sample are already cached, just return them
@@ -544,12 +535,23 @@ function get_remote_hdf5_source(remotepath, datasetpath, remote_source=nothing, 
                 # Collect metadata
                 nbytes += length(dset) * sizeof(eltype(dset))
                 datasize = size(dset)
+                datalength = first(datasize)
                 datandims = ndims(dset)
                 dataeltype = eltype(dset)
 
+                # TODO: Warn here if the data is too large
+                # TODO: Modify the alert that is given before sample collection starts
+                # TODO: Optimize utils_pfs.jl and generated code
+
+                memory_used_in_sampling = datalength == 0 ? 0 : (nbytes * getsamplenrows(datalength) / datalength)
+                free_memory = Sys.free_memory()
+                if memory_used_in_sampling > cld(free_memory, 4)
+                    @warn "Sample of $remotepath is too large (up to $(format_bytes(memory_used_in_sampling))/$(format_bytes(free_memory)) to be used). Try re-creating this job with a greater `sample_rate` than $(get_job().sample_rate)."
+                    GC.gc()
+                end
+
                 if isnothing(remote_sample)
                     # Collect sample
-                    datalength = first(datasize)
                     totalnrows = datalength
                     remainingcolons = repeat([:], ndims(dset) - 1)
                     # Start of with an empty array. The dataset has to have at
@@ -615,9 +617,6 @@ function get_remote_hdf5_source(remotepath, datasetpath, remote_source=nothing, 
         )
     else
         ("None", Dict{String,Any}())
-    end
-    if is_debug_on()
-        @show metadata_for_reading
     end
 
     # Get the remote sample
@@ -730,6 +729,7 @@ function get_remote_table_source(remotepath, remote_source=nothing, remote_sampl
     # location to read in the location.
     
     # Loop through files; stop early if we don't need 
+    progressbar = Progress(length(files_to_read_from), "Collecting sample from $remotepath")
     for (fileidx, filep) in enumerate(files_to_read_from)
         # Initialize
         filenrows = 0
@@ -756,7 +756,6 @@ function get_remote_table_source(remotepath, remote_source=nothing, remote_sampl
 
                 # Sample from each chunk
                 for (i, chunk) in enumerate(chunks)
-                    @show i
                     chunkdf = chunk |> DataFrames.DataFrame
                     chunknrows = nrow(chunkdf)
                     filenrows += chunknrows
@@ -798,7 +797,6 @@ function get_remote_table_source(remotepath, remote_source=nothing, remote_sampl
 
                     # Append to exactsample
                     samplenrows = getsamplenrows(totalnrows)
-                    @show samplenrows
                     if !isempty(chunkdf) && nrow(exactsample) < samplenrows
                         append!(exactsample, first(chunkdf, samplenrows - nrow(exactsample)))
                     end
@@ -808,9 +806,10 @@ function get_remote_table_source(remotepath, remote_source=nothing, remote_sampl
                     memory_used_in_sampling = total_memory_usage(chunk) + total_memory_usage(chunkdf) + total_memory_usage(exactsample) + total_memory_usage(randomsample)
                     chunkdf = nothing
                     chunk = nothing
-                    if memory_used_in_sampling > cld(Sys.free_memory(), 10)
+                    free_memory = Sys.free_memory()
+                    if memory_used_in_sampling > cld(free_memory, 4)
                         if !already_warned_about_too_large_sample
-                            @warn "Sample is too large; try creating a job with a greater `sample_rate` than the number of workers (default is 2)"
+                            @warn "Sample of $remotepath is too large ($(format_bytes(memory_used_in_sampling))/$(format_bytes(free_memory)) used so far). Try re-creating this job with a greater `sample_rate` than $(get_job().sample_rate)."
                             already_warned_about_too_large_sample = true
                         end
                         GC.gc()
@@ -851,7 +850,10 @@ function get_remote_table_source(remotepath, remote_source=nothing, remote_sampl
                 )
             end
         end
+
+        next!(progressbar)
     end
+    finish!(progressbar)
 
     # A second (partial) pass over the data if we don't yet have a sample and
     # the data is shuffled. If we didn't have a sample but the data wasn't
@@ -863,6 +865,7 @@ function get_remote_table_source(remotepath, remote_source=nothing, remote_sampl
 
         # So we can iterate through the files (reverse in case some caching helps
         # us). We append to `randomsample` directly.
+        progressbar = Progress(length(files_to_read_from), "Collecting sample from $remotepath")
         for filep in reverse(files_to_read_from)
             localfilepath = p_isdir ? joinpath(p, filep) : p
             with_downloaded_path_for_reading(localfilepath) do localfilepathp
@@ -914,7 +917,10 @@ function get_remote_table_source(remotepath, remote_source=nothing, remote_sampl
             if (!isnothing(randomsample) && nrow(randomsample) == samplenrows) || samplenrows == 0
                 break
             end
+            
+            next!(progressbar)
         end
+        finish!(progressbar)
 
         # In this case, the random sample would also be the exact sample if an
         # exact sample is ever required.
@@ -945,9 +951,6 @@ function get_remote_table_source(remotepath, remote_source=nothing, remote_sampl
     # Adjust sample to have samplenrows
     if isnothing(remote_sample)
         samplenrows = getsamplenrows(totalnrows) # Either a subset of rows or the whole thing
-        if is_debug_on()
-            @show samplenrows
-        end
         # If we already have enough rows in the exact sample...
         if totalnrows <= get_max_exact_sample_length()
             randomsample = exactsample
@@ -983,10 +986,6 @@ function get_remote_table_source(remotepath, remote_source=nothing, remote_sampl
     remote_sample_value = isnothing(remote_sample) ? randomsample : remote_sample.value
     remote_sample_rate = totalnrows > 0 ? totalnrows / nrow(remote_sample_value) : 1.0
     nbytes = ceil(total_memory_usage(remote_sample_value) * remote_sample_rate)
-
-    @show isnothing(remote_source)
-    @show isnothing(remote_sample)
-    @show nbytes
 
     # Load metadata for reading
     # If we're not using S3FS, the files might be empty because `readdir`

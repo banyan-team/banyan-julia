@@ -65,7 +65,6 @@ function DataFrames.groupby(df::DataFrame, cols; kwargs...)::GroupedDataFrame
     end
 
     @partitioned df gdf gdf_length cols kwargs begin
-        println("In groupby with nrow(df)=$(nrow(df))")
         gdf = DataFrames.groupby(df, cols; kwargs...)
         gdf_length = DataFrames.length(gdf)
     end
@@ -266,9 +265,6 @@ function DataFrames.combine(gdf::GroupedDataFrame, args...; kwargs...)
     # TODO: Put groupingkeys in GroupedDataFrame
     groupingkeys = Symbol.(names(sample(gdf_parent), collect(groupcols)))
 
-    @show sample(gdf_parent)
-    @show groupingkeys
-
     partitioned_using_modules("DataFrames")
     partitioned_using() do
         keep_sample_keys(
@@ -279,7 +275,6 @@ function DataFrames.combine(gdf::GroupedDataFrame, args...; kwargs...)
     end
 
     partitioned_with() do
-        @show sample(res)
         # TODO: If we want to support `keepkeys=false`, we need to make the
         # result be Blocked and `filtered_from` the input
         pts_for_filtering(gdf_parent, res, with=Grouped, by=groupingkeys)
@@ -290,24 +285,12 @@ function DataFrames.combine(gdf::GroupedDataFrame, args...; kwargs...)
     end
 
     @partitioned gdf gdf_parent groupcols groupkwargs args kwargs res res_nrows begin
-        println("here!")
         if !(gdf isa DataFrames.GroupedDataFrame) || gdf.parent != gdf_parent
-            println("right inside here")
             gdf = DataFrames.groupby(gdf_parent, groupcols; groupkwargs...)
         end
-        println("here2!")
         res = DataFrames.combine(gdf, args...; kwargs...)
-        println("here3!")
         res_nrows = DataFrames.nrow(res)
-        println("here4!")
     end
-
-    @show gdf
-    @show gdf_parent
-    @show res
-    @show sample(gdf)
-    @show sample(gdf_parent)
-    @show sample(res)
 
     res
 end
@@ -349,7 +332,6 @@ function DataFrames.subset(gdf::GroupedDataFrame, args...; kwargs...)
             gdf = DataFrames.groupby(gdf_parent, groupcols; groupkwargs...)
         end
         res = DataFrames.subset(gdf, args...; kwargs...)
-        println("In subset with length(gdf)=$(length(gdf)) and nrow(gdf_parent)=$(nrow(gdf_parent)) and nrow(res)=$(nrow(res))")
         res_nrows = DataFrames.nrow(res)
     end
 

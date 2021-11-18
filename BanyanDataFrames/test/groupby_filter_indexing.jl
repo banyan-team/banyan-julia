@@ -641,6 +641,40 @@ end
     end
 end
 
+@testset "Slow generated code" begin
+    scheduling_config = "size exaggurated"
+    filetype = "arrow"
+    filter_type = "filter"
+
+    use_job_for_testing(scheduling_config_name = scheduling_config) do
+        use_basic_data()
+
+        bucket = get_cluster_s3_bucket_name()
+
+        path = ""
+        if filetype == "directory"
+            path = "s3://$(bucket)/iris_large_dir.csv"
+        else
+            path = "s3://$(bucket)/iris_large.$(filetype)"
+        end
+
+        for _ in 1:2
+            # Read empty df
+            df = read_file(path)
+
+            if filter_type == "filter"
+                filt1 = filter(row -> row.petal_length == 1.4 && row.sepal_length == 4.9 && row.species == "setosa", df)
+                filt2 = filter([:petal_length, :sepal_length] => (pl, sl) -> pl * sl > 100.0, filt1)
+            elseif filter_type == "subset"
+                filt1 = subset(groupby(df, :species), [:petal_length, :sepal_length, :species] => (pl, sl, s) -> ((pl .< mean(pl)) .& (sl .== 4.9) .& (s .== "setosa")))
+                filt2 = subset(groupby(filt1, :species), :sepal_width => sw -> sw .> 100 * mean(sw))
+            end
+
+            df1 = collect(filt1)
+        end
+    end
+end
+
 # Reading an empty dataset
 @testset "Filter and groupby with $scheduling_config for empty $filetype with $headertype" for scheduling_config in [
     "default scheduling",

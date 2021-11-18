@@ -132,9 +132,6 @@ function get_partition_idx_from_divisions(
     firstdivisionidx = findfirst(x->!isempty(x), divisions)
     lastdivisionidx = findlast(x->!isempty(x), divisions)
 
-    println("In get_partition_idx_from_divisions")
-    @show divisions
-
     # The given divisions may be returned from `get_divisions`
     oh = orderinghash(val)
     for (i, div) in enumerate(divisions)
@@ -148,12 +145,9 @@ function get_partition_idx_from_divisions(
         islastdivision = i == lastdivisionidx
         if ((!boundedlower && isfirstdivision) || oh >= first(div)[1]) &&
            ((!boundedupper && islastdivision) || oh < last(div)[2])
-            println("Returning $i from get_partition_idx_from_divisions")
             return i
         end
     end
-
-    println("Returning -1 from get_partition_idx_from_divisions")
 
     # We return -1 since this value doesn't belong to any of the partitions
     # represented by `divisions`.
@@ -224,8 +218,6 @@ function get_divisions(divisions, npartitions)
     # produce divisions for. The result is a list of length `npartitions`
     # containing lists of divisions for each partition. A partition may contain
     # multiple divisions.
-
-    print("In get_divisions splitting divisions=$divisions into npartitions=$npartitions")
 
     ndivisions = length(divisions)
     if ndivisions == 0
