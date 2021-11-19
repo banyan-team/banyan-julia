@@ -326,6 +326,13 @@ function send_evaluation(value_id::ValueId, job_id::JobId)
     global encourage_parallelism_with_batches
     global exaggurate_size
 
+    # Note that we do not need to check if the job is running here, because
+    # `evaluate` will check if the job has failed. If the job is still creating,
+    # we will proceed with the eval request, but the client side will wait
+    # for the job to be ready when reading from the queue.
+
+    @debug "Sending evaluation request"
+
     # Get list of the modules used in the code regions here
     used_packages = union(vcat([req.task.used_modules for req in get_job().pending_requests if req isa RecordTaskRequest]...))
 
@@ -346,7 +353,6 @@ function send_evaluation(value_id::ValueId, job_id::JobId)
             "main_modules" => get_loaded_packages(),
             "partitioned_using_modules" => used_packages,
             "benchmark" => get(ENV, "BANYAN_BENCHMARK", "0") == "1"
-            # "packages" => vcat(used_packages, get_loaded_packages())
         ),
     )
     if isnothing(response)
