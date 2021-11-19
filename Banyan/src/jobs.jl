@@ -91,7 +91,7 @@ function create_job(;
         "store_logs_on_cluster" => store_logs_on_cluster,
         "julia_version" => julia_version,
         "nowait" => nowait,
-        "benchmark" => get(ENV, "BANYAN_BENCHMARK", "0") == "1"
+        "benchmark" => get(ENV, "BANYAN_BENCHMARK", "0") == "1",
         "main_modules" => get_loaded_packages(),
         "using_modules" => using_modules,
     )
