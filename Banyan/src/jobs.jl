@@ -248,8 +248,7 @@ get_running_jobs(args...; kwargs...) = get_jobs(args...; status="running", kwarg
 function download_job_logs(job_id::JobId, cluster_name::String, filename::String=nothing; kwargs...)
     @debug "Downloading logs for job"
     configure(; kwargs...)
-    s3_bucket_arn = get_cluster(cluster_name).s3_bucket_arn
-    s3_bucket_name = s3_bucket_arn_to_name(s3_bucket_arn)
+    s3_bucket_name = get_cluster_s3_bucket_name(cluster_name)
     log_file_name = "banyan-log-for-job-$(job_id)"
     filename = !isnothing(filename) ? filename : joinpath(homedir(), ".banyan", "logs")
     s3_get_file(get_aws_config(), s3_bucket_name, log_file_name, filename)
