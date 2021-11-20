@@ -1,3 +1,6 @@
+# Process-local dictionary mapping from cluster names to instances of `Cluster`
+# Might contain stale information
+global clusters = Dict()
 
 function create_cluster(;
     name::Union{String,Nothing} = nothing,
@@ -87,7 +90,12 @@ function create_cluster(;
         wait_for_cluster(name)
     end
 
-    return Cluster(name, get_cluster_status(name), "", 0, s3_bucket_arn)
+    # Cache info
+    global clusters
+    cl = Cluster(name, get_cluster_status(name), "", 0, s3_bucket_arn)
+    clusters[name] = cl
+
+    return cl
 end
 
 function destroy_cluster(name::String; kwargs...)
@@ -152,11 +160,15 @@ parsestatus(status) =
         error("Unexpected status ", status)
     end
 
-function get_clusters(; kwargs...)
+function get_clusters(cluster_name=nothing; kwargs...)
     @debug "Downloading description of clusters"
     configure(; kwargs...)
-    response = send_request_get_response(:describe_clusters, Dict{String,Any}())
-    Dict(
+    filters = Dict()
+    if !isnothing(cluster_name)
+        filters["cluster_name"] = cluster_name
+    end
+    response = send_request_get_response(:describe_clusters, Dict{String,Any}("filters"=>filters))
+    clusters_dict = Dict(
         name => Cluster(
             name,
             parsestatus(c["status"]),
@@ -165,20 +177,43 @@ function get_clusters(; kwargs...)
             c["s3_read_write_resource"],
         ) for (name, c) in response["clusters"]
     )
+
+    # Cache info
+    global clusters
+    for (name, c) in clusters_dict
+        clusters[name] = c
+    end
+
+    return clusters_dict
+end
+
+function get_cluster_s3_bucket_arn(cluster_name=get_cluster_name(); kwargs...)
+    configure(; kwargs...)
+    global clusters
+    # Check if cached, sine this property is immutable
+    if !haskey(clusters, cluster_name)
+        get_cluster(cluster_name)
+    end
+    return clusters[cluster_name].s3_bucket_arn
 end
 
 function get_cluster_s3_bucket_name(cluster_name=get_cluster_name(); kwargs...)
     configure(; kwargs...)
-    cluster = get_cluster(cluster_name)
-    return s3_bucket_arn_to_name(cluster.s3_bucket_arn)
+    return s3_bucket_arn_to_name(get_cluster_s3_bucket_arn(cluster_name))
 end
 
-get_cluster(name::String=get_cluster_name(), kwargs...) = get_clusters(; kwargs...)[name]
+get_cluster(name::String=get_cluster_name(), kwargs...) = get_clusters(name; kwargs...)[name]
 
 get_running_clusters(args...; kwargs...) = filter(entry -> entry[2].status == :running, get_clusters(args...; kwargs...))
 
 function get_cluster_status(name::String=get_cluster_name(), kwargs...)
-    c = get_clusters(; kwargs...)[name]
+    global clusters
+    if haskey(clusters, name)
+        if clusters[name].status == :failed
+            @error c.status_explanation
+        end
+    end
+    c = get_cluster(name; kwargs...)
     if c.status == :failed
         @error c.status_explanation
     end

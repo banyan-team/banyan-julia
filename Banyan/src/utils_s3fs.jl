@@ -1,8 +1,8 @@
 get_s3_bucket_arn(cluster_name) = get_cluster(cluster_name).s3_bucket_arn
 get_s3_bucket_path(cluster_name) =
-    replace(get_cluster(cluster_name).s3_bucket_arn, "arn:aws:s3:::" => "s3://")
+    replace(get_cluster_s3_bucket_arn(), "arn:aws:s3:::" => "s3://")
 function get_s3fs_bucket_path(cluster_name)
-    arn = get_cluster(cluster_name).s3_bucket_arn
+    arn = get_cluster_s3_bucket_arn()
     joinpath(
         homedir(),
         ".banyan",
