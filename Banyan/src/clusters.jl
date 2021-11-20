@@ -208,7 +208,7 @@ get_running_clusters(args...; kwargs...) = filter(entry -> entry[2].status == :r
 
 function get_cluster_status(name::String=get_cluster_name(), kwargs...)
     global clusters
-    if !haskey(clusters, name)
+    if haskey(clusters, name)
         if clusters[name].status == :failed
             @error c.status_explanation
         end
