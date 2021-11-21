@@ -435,12 +435,6 @@ function extract_dataset_path(remotepath)
 end
 
 function get_remote_source(remotepath, remote_source=nothing, remote_sample=nothing; shuffled=false)::Location
-    if isnothing(remote_sample)
-        @info "Collecting sample from $remotepath. This will take some time. The resulting sample will be cached and invalidated when the location is written to."
-    elseif isnothing(remote_source)
-        @info "Collecting location information about $remotepath. This will take some time. The resulting location info will be cached and invalidated when the location is written to."
-    end
-
     # If both the location and sample are already cached, just return them
     if !isnothing(remote_source) && !isnothing(remote_sample)
         remote_source.sample = remote_sample
@@ -729,7 +723,8 @@ function get_remote_table_source(remotepath, remote_source=nothing, remote_sampl
     # location to read in the location.
     
     # Loop through files; stop early if we don't need 
-    progressbar = Progress(length(files_to_read_from), "Collecting sample from $remotepath")
+
+    progressbar = Progress(length(files_to_read_from), isnothing(remote_sample) ? "Collecting sample from $remotepath" : "Collecting location information from $remotepath")
     for (fileidx, filep) in enumerate(files_to_read_from)
         # Initialize
         filenrows = 0
