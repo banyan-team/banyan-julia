@@ -226,7 +226,7 @@ function ReadBlock(
                 # This should not be empty for disk-spilled data
                 DataFrame()
             else
-                empty(Arrow.Table(getpath(first(files_sorted_by_nrow)["path"])) |> DataFrame)
+                empty(DataFrames.DataFrame(Arrow.Table(getpath(first(files_sorted_by_nrow)["path"])), copycols=false))
             end
         else
             # When we construct the location, we store an empty data frame with The

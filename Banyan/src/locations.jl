@@ -751,7 +751,7 @@ function get_remote_table_source(remotepath, remote_source=nothing, remote_sampl
 
                 # Sample from each chunk
                 for (i, chunk) in enumerate(chunks)
-                    chunkdf = chunk |> DataFrames.DataFrame
+                    chunkdf = DataFrames.DataFrame(chunk, copycols=false)
                     chunknrows = nrow(chunkdf)
                     filenrows += chunknrows
                     if isnothing(remote_source)
