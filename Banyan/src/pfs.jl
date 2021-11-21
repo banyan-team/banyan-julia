@@ -178,13 +178,13 @@ function ReadBlock(
                     skipto = header + readrange.start - filerowrange.start + 1,
                     footerskip = filerowrange.stop - readrange.stop,
                 )
-                push!(dfs, DataFrames.DataFrame(f))
+                push!(dfs, DataFrames.DataFrame(f, copycols=false))
             elseif endswith(file_path, ".parquet")
                 f = Parquet.read_parquet(
                     path,
                     rows = (readrange.start-filerowrange.start+1):(readrange.stop-filerowrange.start+1),
                 )
-                push!(dfs, DataFrames.DataFrame(f))
+                push!(dfs, DataFrames.DataFrame(f, copycols=false))
             elseif endswith(file_path, ".arrow")
                 rbrowrange = filerowrange.start:(filerowrange.start-1)
                 for tbl in Arrow.Stream(path)
@@ -195,7 +195,7 @@ function ReadBlock(
                                 rowrange.stop,
                                 rbrowrange.stop,
                             )
-                        df = DataFrames.DataFrame(tbl)
+                        df = DataFrames.DataFrame(tbl, copycols=false)
                         df = df[
                             (readrange.start-rbrowrange.start+1):(readrange.stop-rbrowrange.start+1),
                             :,
@@ -233,6 +233,8 @@ function ReadBlock(
             # correct schema.
             from_jl_value_contents(loc_params["emptysample"])
         end
+    elseif length(dfs) == 1
+        dfs[1]
     else
         vcat(dfs...)
     end

@@ -882,7 +882,7 @@ function get_remote_table_source(remotepath, remote_source=nothing, remote_sampl
                 # Sample from each chunk
                 for (i, chunk) in enumerate(chunks)
                     # Read in chunk
-                    chunkdf = chunk |> DataFrames.DataFrame
+                    chunkdf = DataFrames.DataFrame(chunk, copycols=false)
 
                     # Use `chunkdf` to initialize the schema of the sampels
                     # regardless of whethere `chunkdf` has any rows or not.
