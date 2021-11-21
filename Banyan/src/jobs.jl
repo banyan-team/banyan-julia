@@ -220,10 +220,9 @@ function get_jobs(cluster_name = nothing; status = nothing, kwargs...)
         finished = true
     else
         curr_last_eval = indiv_response["last_eval"]
-        while finished == false
+        while !finished
             indiv_response = send_request_get_response(:describe_jobs, Dict{String,Any}("filters"=>filters, "this_start_key"=>curr_last_eval))
             response["jobs"] = merge!(response["jobs"], indiv_response["jobs"])
-            # print(indiv_response["last_eval"])
             if isnothing(indiv_response["last_eval"])
                 finished = true
             else
@@ -258,7 +257,7 @@ end
 function destroy_all_jobs(cluster_name::String; kwargs...)
     @info "Destroying all running jobs for cluster named $cluster_name"
     configure(; kwargs...)
-    jobs = get_jobs(cluster_name, status = "running")
+    jobs = get_jobs(cluster_name, status=["creating", "running"])
     for (job_id, job) in jobs
         if job["status"] == "running"
             destroy_job(job_id, kwargs...)
