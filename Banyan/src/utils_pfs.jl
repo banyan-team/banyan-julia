@@ -89,10 +89,18 @@ function merge_on_executor(obj...; key = nothing)
     # @show length(first_obj)
     if isa_df(first_obj)
         # If this is a dataframe then we ignore the grouping key
-        vcat(obj...)
+        if length(obj) == 1
+            first_obj
+        else
+            vcat(obj...)
+        end
     elseif isa_array(first_obj)
         # @show obj
-        cat(obj...; dims = key)
+        if length(obj) == 1
+            first_obj
+        else
+            cat(obj...; dims = key)
+        end
     elseif isa_gdf(first_obj)
         nothing
     else
@@ -506,6 +514,7 @@ function getpath(path)
         # cache on disk
         hashed_path = string(hash(path))
         joined_path = "efs/banyan_dataset_" * hashed_path
+        # @info "Downloading $path to $joined_path"
         if !isfile(joined_path)
             # NOTE: Even though we are storing in /tmp, this is
             # effectively caching the download. If this is undesirable
@@ -514,6 +523,7 @@ function getpath(path)
             # URL)
             Downloads.download(path, joined_path)
         end
+        # @show isfile(joined_path)
         joined_path
     elseif startswith(path, "s3://")
         replace(path, "s3://" => "/home/ec2-user/s3fs/")

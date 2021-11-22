@@ -658,7 +658,7 @@ end
             path = "s3://$(bucket)/iris_large.$(filetype)"
         end
 
-        for _ in 1:2
+        for _ in 1:1
             # Read empty df
             df = read_file(path)
 
@@ -756,14 +756,17 @@ end
 
 @testset "NYC Taxi Stress Test" begin
     using Statistics
-    use_job_for_testing(scheduling_config_name = "default scheduling", sample_rate=128) do
+    use_job_for_testing(scheduling_config_name = "default scheduling", sample_rate=1024) do
         s3_bucket_name = get_cluster_s3_bucket_name()
         df = read_csv(
-	    "s3://$s3_bucket_name/nyc_tripdata.csv",
-	    sample_invalid=true
-	)
+            "s3://$s3_bucket_name/nyc_tripdata.csv",
+            sample_invalid=true,
+            source_invalid=true,
+            shuffled=true
+        )
         # @show sample(df)
         println("Finished reading df")
+        @debug Banyan.format_available_memory()
 
         # Filter all trips with distance longer than 1.0. Group by passenger count
         # and get the average trip distance for each group.
@@ -772,15 +775,18 @@ end
             df
         )
         println("Finished filtering to long_trips")
+        @debug Banyan.format_available_memory()
         # @show sample(long_trips)
 
         gdf = groupby(long_trips, :passenger_count)
         println("Finished groupby by passenger count to gdf")
+        @debug Banyan.format_available_memory()
         trip_means = combine(gdf, :trip_distance => mean)
         println("Finished combining by mean to trip_means")
+        @debug Banyan.format_available_memory()
 
         trip_means = collect(trip_means)
         println("Finished collecting to trip_means")
-
+        @debug Banyan.format_available_memory()
     end
 end

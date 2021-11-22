@@ -47,6 +47,7 @@ function ReadBlock(
     path = getpath(loc_params["path"])
     if (loc_name == "Remote" && (occursin(".h5", loc_params["path"]) || occursin(".hdf5", loc_params["path"]))) ||
         (loc_name == "Disk" && HDF5.ishdf5(path))
+        # @show isfile(path)
         f = h5open(path, "r")
         dset = loc_name == "Disk" ? f["part"] : f[loc_params["subpath"]]
 
@@ -178,13 +179,13 @@ function ReadBlock(
                     skipto = header + readrange.start - filerowrange.start + 1,
                     footerskip = filerowrange.stop - readrange.stop,
                 )
-                push!(dfs, DataFrames.DataFrame(f))
+                push!(dfs, DataFrames.DataFrame(f, copycols=false))
             elseif endswith(file_path, ".parquet")
                 f = Parquet.read_parquet(
                     path,
                     rows = (readrange.start-filerowrange.start+1):(readrange.stop-filerowrange.start+1),
                 )
-                push!(dfs, DataFrames.DataFrame(f))
+                push!(dfs, DataFrames.DataFrame(f, copycols=false))
             elseif endswith(file_path, ".arrow")
                 rbrowrange = filerowrange.start:(filerowrange.start-1)
                 for tbl in Arrow.Stream(path)
@@ -195,11 +196,12 @@ function ReadBlock(
                                 rowrange.stop,
                                 rbrowrange.stop,
                             )
-                        df = DataFrames.DataFrame(tbl)
-                        df = df[
-                            (readrange.start-rbrowrange.start+1):(readrange.stop-rbrowrange.start+1),
-                            :,
-                        ]
+                        df = let unfiltered = DataFrames.DataFrame(tbl, copycols=false)
+                            unfiltered[
+                                (readrange.start-rbrowrange.start+1):(readrange.stop-rbrowrange.start+1),
+                                :,
+                            ]
+                        end
                         push!(dfs, df)
                     end
                 end
@@ -226,13 +228,15 @@ function ReadBlock(
                 # This should not be empty for disk-spilled data
                 DataFrame()
             else
-                empty(Arrow.Table(getpath(first(files_sorted_by_nrow)["path"])) |> DataFrame)
+                empty(DataFrames.DataFrame(Arrow.Table(getpath(first(files_sorted_by_nrow)["path"])), copycols=false))
             end
         else
             # When we construct the location, we store an empty data frame with The
             # correct schema.
             from_jl_value_contents(loc_params["emptysample"])
         end
+    elseif length(dfs) == 1
+        dfs[1]
     else
         vcat(dfs...)
     end
@@ -819,7 +823,8 @@ function SplitGroup(
     nbatches::Integer,
     comm::MPI.Comm,
     loc_name,
-    loc_params,
+    loc_params;
+    store_splitting_divisions = false
 )
     # NOTE: The way we have `partial_merges` requires us to be splitting from
     # `nothing` and then merging back. If we are splitting from some value and
@@ -844,7 +849,7 @@ function SplitGroup(
     # Ensure that this partition has a schema that is suitable for usage
     # here. We have to do this for `Shuffle` and `SplitGroup` (which is
     # used by `DistributeAndShuffle`)
-    if isempty(src)
+    if isempty(src) || npartitions == 1
         # TODO: Ensure we can return here like this and don't need the above
         # (which is copied from `Shuffle`)
         return src
@@ -890,24 +895,25 @@ function SplitGroup(
     else
         throw(ArgumentError("Expected array or dataframe to distribute and shuffle"))
     end
-    worker_idx = get_worker_idx(comm)
 
-    # The first and last partitions (used if this lacks a lower or upper bound)
-    # must have actual division(s) associated with them. If there is no
-    # partition that has divisions, then they will all be skipped and -1 will
-    # be returned. So these indices are only used if there are nonempty
-    # divisions.
-    hasdivision = any(x->!isempty(x), divisions_by_partition)
-    firstdivisionidx = findfirst(x->!isempty(x), divisions_by_partition)
-    lastdivisionidx = findlast(x->!isempty(x), divisions_by_partition)
+    if store_splitting_divisions
+        # The first and last partitions (used if this lacks a lower or upper bound)
+        # must have actual division(s) associated with them. If there is no
+        # partition that has divisions, then they will all be skipped and -1 will
+        # be returned. So these indices are only used if there are nonempty
+        # divisions.
+        hasdivision = any(x->!isempty(x), divisions_by_partition)
+        firstdivisionidx = findfirst(x->!isempty(x), divisions_by_partition)
+        lastdivisionidx = findlast(x->!isempty(x), divisions_by_partition)
 
-    # Store divisions
-    global splitting_divisions
-    splitting_divisions[res] = (
-        divisions_by_partition[partition_idx],
-        !hasdivision || boundedlower || partition_idx != firstdivisionidx,
-        !hasdivision || boundedupper || partition_idx != lastdivisionidx,
-    )
+        # Store divisions
+        global splitting_divisions
+        splitting_divisions[res] = (
+            divisions_by_partition[partition_idx],
+            !hasdivision || boundedlower || partition_idx != firstdivisionidx,
+            !hasdivision || boundedupper || partition_idx != lastdivisionidx,
+        )
+    end
 
     res
 end
@@ -1260,7 +1266,7 @@ function Consolidate(part, src_params, dst_params, comm)
 end
 
 DistributeAndShuffle(part, src_params, dst_params, comm) =
-    SplitGroup(part, dst_params, 1, 1, comm, "Memory", Dict())
+    SplitGroup(part, dst_params, 1, 1, comm, "Memory", Dict(), store_splitting_divisions = true)
 
 function Shuffle(
     part,
@@ -1333,14 +1339,13 @@ function Shuffle(
         MPI.Alltoallv!(sendbuf, recvbuf, comm)
 
         # Return the concatenated dataframe
-        res = vcat(
-            [
-                DataFrames.DataFrame(
-                    Arrow.Table(IOBuffer(view(recvbuf.data, displ+1:displ+count))),
-                    copycols = false,
-                ) for (displ, count) in zip(recvbuf.displs, recvbuf.counts)
-            ]...,
-        )
+        things_to_concatenate = [
+            DataFrames.DataFrame(
+                Arrow.Table(IOBuffer(view(recvbuf.data, displ+1:displ+count))),
+                copycols = false,
+            ) for (displ, count) in zip(recvbuf.displs, recvbuf.counts)
+        ]
+        res = length(things_to_concatenate) == 1 ? things_to_concatenate[1] : vcat(things_to_concatenate...)
         if :banyan_shuffling_key in propertynames(res)
             DataFrames.select!(res, Not(:banyan_shuffling_key))
         end
@@ -1396,13 +1401,18 @@ function Shuffle(
         MPI.Alltoallv!(sendbuf, recvbuf, comm)
 
         # Return the concatenated array
-        cat(
-            [
-                deserialize(IOBuffer(view(recvbuf.data, displ+1:displ+count))) for
-                (displ, count) in zip(recvbuf.displs, recvbuf.counts)
-            ]...;
-            dims = key,
-        )
+        things_to_concatenate = [
+            deserialize(IOBuffer(view(recvbuf.data, displ+1:displ+count))) for
+            (displ, count) in zip(recvbuf.displs, recvbuf.counts)
+        ]
+        if length(things_to_concatenate) == 1
+            things_to_concatenate[1]
+        else
+            cat(
+                things_to_concatenate...;
+                dims = key,
+            )
+        end
     else
         throw(ArgumentError("Expected array or dataframe to distribute and shuffle"))
     end

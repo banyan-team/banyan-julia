@@ -27,7 +27,7 @@ end
 
 @testset "Read/Write to CSV, Parquet, and Arrow" begin
     run_with_job("Reading/writing CSV/Parquet/Arrow") do job
-        bucket = get_cluster_s3_bucket_name(get_cluster().name)
+        bucket = get_cluster_s3_bucket_name(get_cluster_name())
         upload_iris_all_formats_to_s3(bucket)
         for filetype in ["csv", "parquet", "arrow"]
             read_func = if filetype == "csv" read_csv
@@ -89,9 +89,9 @@ end
         end
     end
     try
-        s3_delete(get_cluster_s3_bucket_name(get_cluster().name), "iris_new.csv")
-        s3_delete(get_cluster_s3_bucket_name(get_cluster().name), "iris_new.parquet")
-        s3_delete(get_cluster_s3_bucket_name(get_cluster().name), "iris_new.arrow")
+        s3_delete(get_cluster_s3_bucket_name(get_cluster_name()), "iris_new.csv")
+        s3_delete(get_cluster_s3_bucket_name(get_cluster_name()), "iris_new.parquet")
+        s3_delete(get_cluster_s3_bucket_name(get_cluster_name()), "iris_new.arrow")
     catch
     end
 end

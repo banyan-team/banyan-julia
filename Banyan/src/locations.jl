@@ -435,12 +435,6 @@ function extract_dataset_path(remotepath)
 end
 
 function get_remote_source(remotepath, remote_source=nothing, remote_sample=nothing; shuffled=false)::Location
-    if isnothing(remote_sample)
-        @info "Collecting sample from $remotepath. This will take some time. The resulting sample will be cached and invalidated when the location is written to."
-    elseif isnothing(remote_source)
-        @info "Collecting location information about $remotepath. This will take some time. The resulting location info will be cached and invalidated when the location is written to."
-    end
-
     # If both the location and sample are already cached, just return them
     if !isnothing(remote_source) && !isnothing(remote_sample)
         remote_source.sample = remote_sample
@@ -720,6 +714,7 @@ function get_remote_table_source(remotepath, remote_source=nothing, remote_sampl
     randomsample = nothing
     emptysample = nothing
     already_warned_about_too_large_sample = false
+    memory_used_in_sampling = 0
 
     # A second pass is only needed if there is no sample and the data is
     # shuffled. On this second pass, we only read in some files.
@@ -729,7 +724,8 @@ function get_remote_table_source(remotepath, remote_source=nothing, remote_sampl
     # location to read in the location.
     
     # Loop through files; stop early if we don't need 
-    progressbar = Progress(length(files_to_read_from), "Collecting sample from $remotepath")
+
+    progressbar = Progress(length(files_to_read_from), isnothing(remote_sample) ? "Collecting sample from $remotepath" : "Collecting location information from $remotepath")
     for (fileidx, filep) in enumerate(files_to_read_from)
         # Initialize
         filenrows = 0
@@ -756,7 +752,7 @@ function get_remote_table_source(remotepath, remote_source=nothing, remote_sampl
 
                 # Sample from each chunk
                 for (i, chunk) in enumerate(chunks)
-                    chunkdf = chunk |> DataFrames.DataFrame
+                    chunkdf = DataFrames.DataFrame(chunk, copycols=false)
                     chunknrows = nrow(chunkdf)
                     filenrows += chunknrows
                     if isnothing(remote_source)
@@ -803,13 +799,14 @@ function get_remote_table_source(remotepath, remote_source=nothing, remote_sampl
 
                     # Warn about sample being too large
                     # TODO: Maybe call GC.gc() here if we get an error when sampling really large datasets
-                    memory_used_in_sampling = total_memory_usage(chunk) + total_memory_usage(chunkdf) + total_memory_usage(exactsample) + total_memory_usage(randomsample)
+                    memory_used_in_sampling += total_memory_usage(chunkdf)
+                    memory_used_in_sampling_total = memory_used_in_sampling + total_memory_usage(exactsample) + total_memory_usage(randomsample)
                     chunkdf = nothing
                     chunk = nothing
                     free_memory = Sys.free_memory()
-                    if memory_used_in_sampling > cld(free_memory, 4)
+                    if memory_used_in_sampling_total > cld(free_memory, 4)
                         if !already_warned_about_too_large_sample
-                            @warn "Sample of $remotepath is too large ($(format_bytes(memory_used_in_sampling))/$(format_bytes(free_memory)) used so far). Try re-creating this job with a greater `sample_rate` than $(get_job().sample_rate)."
+                            @warn "Sample of $remotepath is too large ($(format_bytes(memory_used_in_sampling_total))/$(format_bytes(free_memory)) used so far). Try re-creating this job with a greater `sample_rate` than $(get_job().sample_rate)."
                             already_warned_about_too_large_sample = true
                         end
                         GC.gc()
@@ -882,7 +879,7 @@ function get_remote_table_source(remotepath, remote_source=nothing, remote_sampl
                 # Sample from each chunk
                 for (i, chunk) in enumerate(chunks)
                     # Read in chunk
-                    chunkdf = chunk |> DataFrames.DataFrame
+                    chunkdf = DataFrames.DataFrame(chunk, copycols=false)
 
                     # Use `chunkdf` to initialize the schema of the sampels
                     # regardless of whethere `chunkdf` has any rows or not.
@@ -896,9 +893,24 @@ function get_remote_table_source(remotepath, remote_source=nothing, remote_sampl
                         emptysample = empty(chunkdf)
                     end
 
-                    # Append to exactsample
+                    # Append to randomsample; append to exactsample later
                     if !isempty(chunkdf) && nrow(randomsample) < samplenrows
                         append!(randomsample, first(chunkdf, samplenrows - nrow(randomsample)))
+                    end
+
+                    # Warn about sample being too large
+                    # TODO: Maybe call GC.gc() here if we get an error when sampling really large datasets
+                    memory_used_in_sampling += total_memory_usage(chunkdf)
+                    memory_used_in_sampling_total = memory_used_in_sampling + 2 * total_memory_usage(randomsample)
+                    chunkdf = nothing
+                    chunk = nothing
+                    free_memory = Sys.free_memory()
+                    if memory_used_in_sampling_total > cld(free_memory, 4)
+                        if !already_warned_about_too_large_sample
+                            @warn "Sample of $remotepath is too large ($(format_bytes(memory_used_in_sampling_total))/$(format_bytes(free_memory)) used so far). Try re-creating this job with a greater `sample_rate` than $(get_job().sample_rate)."
+                            already_warned_about_too_large_sample = true
+                        end
+                        GC.gc()
                     end
 
                     # Stop as soon as we get our sample
