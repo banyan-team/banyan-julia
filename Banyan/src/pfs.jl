@@ -1339,14 +1339,13 @@ function Shuffle(
         MPI.Alltoallv!(sendbuf, recvbuf, comm)
 
         # Return the concatenated dataframe
-        res = vcat(
-            [
-                DataFrames.DataFrame(
-                    Arrow.Table(IOBuffer(view(recvbuf.data, displ+1:displ+count))),
-                    copycols = false,
-                ) for (displ, count) in zip(recvbuf.displs, recvbuf.counts)
-            ]...,
-        )
+        things_to_concatenate = [
+            DataFrames.DataFrame(
+                Arrow.Table(IOBuffer(view(recvbuf.data, displ+1:displ+count))),
+                copycols = false,
+            ) for (displ, count) in zip(recvbuf.displs, recvbuf.counts)
+        ]
+        res = length(things_to_concatenate) == 1 ? things_to_concatenate[1] : vcat(things_to_concatenate...)
         if :banyan_shuffling_key in propertynames(res)
             DataFrames.select!(res, Not(:banyan_shuffling_key))
         end
@@ -1402,13 +1401,18 @@ function Shuffle(
         MPI.Alltoallv!(sendbuf, recvbuf, comm)
 
         # Return the concatenated array
-        cat(
-            [
-                deserialize(IOBuffer(view(recvbuf.data, displ+1:displ+count))) for
-                (displ, count) in zip(recvbuf.displs, recvbuf.counts)
-            ]...;
-            dims = key,
-        )
+        things_to_concatenate = [
+            deserialize(IOBuffer(view(recvbuf.data, displ+1:displ+count))) for
+            (displ, count) in zip(recvbuf.displs, recvbuf.counts)
+        ]
+        if length(things_to_concatenate) == 1
+            things_to_concatenate[1]
+        else
+            cat(
+                things_to_concatenate...;
+                dims = key,
+            )
+        end
     else
         throw(ArgumentError("Expected array or dataframe to distribute and shuffle"))
     end
