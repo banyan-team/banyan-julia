@@ -195,11 +195,12 @@ function ReadBlock(
                                 rowrange.stop,
                                 rbrowrange.stop,
                             )
-                        df = DataFrames.DataFrame(tbl, copycols=false)
-                        df = df[
-                            (readrange.start-rbrowrange.start+1):(readrange.stop-rbrowrange.start+1),
-                            :,
-                        ]
+                        df = let unfiltered = DataFrames.DataFrame(tbl, copycols=false)
+                            unfiltered[
+                                (readrange.start-rbrowrange.start+1):(readrange.stop-rbrowrange.start+1),
+                                :,
+                            ]
+                        end
                         push!(dfs, df)
                     end
                 end
