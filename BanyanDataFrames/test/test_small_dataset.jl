@@ -24,7 +24,7 @@ end
 
 @testset "Basic data analytics on a small dataset" begin
     run_with_job("Indexing small dataset") do job
-        bucket = get_cluster_s3_bucket_name(get_cluster().name)
+        bucket = get_cluster_s3_bucket_name(get_cluster_name())
         # upload_iris_to_s3(bucket)
         iris = read_csv("s3://$(bucket)/iris_large.csv")
 
@@ -55,7 +55,7 @@ end
     end
 
     run_with_job("Filtering small dataset") do job
-        bucket = get_cluster_s3_bucket_name(get_cluster().name)
+        bucket = get_cluster_s3_bucket_name(get_cluster_name())
         # upload_iris_to_s3(bucket)
         iris = read_csv("s3://$(bucket)/iris_large.csv")
 
@@ -140,7 +140,7 @@ end
     end
 
     run_with_job("Sorting small dataset") do job
-        bucket = get_cluster_s3_bucket_name(get_cluster().name)
+        bucket = get_cluster_s3_bucket_name(get_cluster_name())
         # upload_iris_to_s3(bucket)
         iris = read_csv("s3://$(bucket)/iris_large.csv")
 
@@ -161,7 +161,7 @@ end
 
     run_with_job("Join and group-by-aggregate small dataset") do job
         # Join and groupby aggregration
-        bucket = get_cluster_s3_bucket_name(get_cluster().name)
+        bucket = get_cluster_s3_bucket_name(get_cluster_name())
         # upload_iris_to_s3(bucket)
         iris = read_csv("s3://$(bucket)/iris_large.csv")
         species_info = read_csv("s3://$(bucket)/iris_species_info.csv")
@@ -213,7 +213,7 @@ end
     end
 
     run_with_job("Group and map over small dataset") do job
-        bucket = get_cluster_s3_bucket_name(get_cluster().name)
+        bucket = get_cluster_s3_bucket_name(get_cluster_name())
         # upload_iris_to_s3(bucket)
         iris = read_csv("s3://$(bucket)/iris_large.csv")
 
@@ -374,7 +374,7 @@ end
     end
 
     run_with_job("Simple group-by aggregation on small dataset") do job
-        bucket = get_cluster_s3_bucket_name(get_cluster().name)
+        bucket = get_cluster_s3_bucket_name(get_cluster_name())
         # upload_iris_to_s3(bucket)
         iris = read_csv("s3://$(bucket)/iris_large.csv")
         gdf = groupby(iris, :species)
@@ -409,7 +409,7 @@ end
     end
 
     run_with_job("Inner Join") do job
-        bucket = get_cluster_s3_bucket_name(get_cluster().name)
+        bucket = get_cluster_s3_bucket_name(get_cluster_name())
         # upload_iris_to_s3(bucket)
         iris = read_csv("s3://$(bucket)/iris_large.csv")
         species_info = read_csv("s3://$(bucket)/iris_species_info.csv")
@@ -466,7 +466,7 @@ end
 
 @testset "Complex data analytics on a small dataset" begin
     run_with_job("Multiple evaluations together (test 1) on small dataset") do job
-        bucket = get_cluster_s3_bucket_name(get_cluster().name)
+        bucket = get_cluster_s3_bucket_name(get_cluster_name())
         # upload_iris_to_s3(bucket)
         iris = read_csv("s3://$(bucket)/iris_large.csv")
 
@@ -514,7 +514,7 @@ end
     end
 
     run_with_job("Multiple evaluations together (test 2) on small dataset") do job
-        bucket = get_cluster_s3_bucket_name(get_cluster().name)
+        bucket = get_cluster_s3_bucket_name(get_cluster_name())
         # upload_iris_to_s3(bucket)
         iris = read_csv("s3://$(bucket)/iris_large.csv")
 
@@ -540,7 +540,7 @@ end
     end
 
     run_with_job("Multiple evaluations apart on small dataset") do job
-        bucket = get_cluster_s3_bucket_name(get_cluster().name)
+        bucket = get_cluster_s3_bucket_name(get_cluster_name())
         # upload_iris_to_s3(bucket)
         iris = read_csv("s3://$(bucket)/iris_large.csv")
 

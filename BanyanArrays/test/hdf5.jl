@@ -1,22 +1,29 @@
-@testset "Simple usage of HDF5 with $scheduling_config" for scheduling_config in [
+@testset "Simple usage of HDF5 in $src with $scheduling_config" for scheduling_config in [
     "default scheduling",
     "parallelism encouraged",
     "parallelism and batches encouraged",
-]
+],
+src in ["Internet", "S3"]
     use_job_for_testing(scheduling_config_name = scheduling_config) do
         use_data()
 
-        x = read_hdf5(joinpath("s3://", get_cluster_s3_bucket_name(), "fillval.h5/DS1"))
+        for _ in 1:2
+            x = if src == "S3"
+                read_hdf5(joinpath("s3://", get_cluster_s3_bucket_name(), "fillval.h5/DS1"))
+            else
+                read_hdf5(joinpath("https://github.com/banyan-team/banyan-julia/raw/v0.1.1/BanyanArrays/test/res", "fillval.h5/DS1"))
+            end
 
-        # Test basic case of reading from remote file
-        x_length_collect = length(x)
-        @test x_length_collect == 600000
-        x_size_collect = size(x)
-        @test x_size_collect == (1000, 600)
-        x_sum_collect = collect(sum(x))
-        @test x_sum_collect == 32100000
-        x_sum_collect = collect(sum(x))
-        @test x_sum_collect == 32100000
+            # Test basic case of reading from remote file
+            x_length_collect = length(x)
+            @test x_length_collect == 600000
+            x_size_collect = size(x)
+            @test x_size_collect == (1000, 600)
+            x_sum_collect = collect(sum(x))
+            @test x_sum_collect == 32100000
+            x_sum_collect = collect(sum(x))
+            @test x_sum_collect == 32100000
+        end
     end
 end
 

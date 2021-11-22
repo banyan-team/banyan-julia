@@ -58,14 +58,12 @@ function setup_basic_tests(bucket_name=get_cluster_s3_bucket_name())
         "iris_species_info.parquet",
         "iris_species_info.arrow",
     ]
+    bucket_contents = s3_list_keys(Banyan.get_aws_config(), bucket_name)
     to_be_downloaded = [
         iris_s3_path for iris_s3_path in iris_s3_paths if
         # TODO: Use the following when AWSS3.jl supports folders
         # !s3_exists(Banyan.get_aws_config(), bucket_name, iris_s3_path)
-        !(
-            iris_s3_path in
-            readdir(S3Path("s3://$bucket_name", config = Banyan.get_aws_config()))
-        )
+        !(iris_s3_path in bucket_contents)
     ]
     if !isempty(to_be_downloaded)
         @info "Downloading $to_be_downloaded"
@@ -73,8 +71,8 @@ function setup_basic_tests(bucket_name=get_cluster_s3_bucket_name())
         iris_species_info_download_path = "https://raw.githubusercontent.com/banyan-team/banyan-julia/v0.1.3/BanyanDataFrames/test/res/iris_species_info.csv"
         iris_local_path = download(iris_download_path)
         iris_species_info_local_path = download(iris_species_info_download_path)
-        df = CSV.read(iris_local_path, DataFrames.DataFrame)
-        df_s = CSV.read(iris_species_info_local_path, DataFrames.DataFrame)
+        df = CSV.read(iris_local_path, DataFrames.DataFrame, stringtype=String)
+        df_s = CSV.read(iris_species_info_local_path, DataFrames.DataFrame, stringtype=String)
         # Duplicate df six times and change the species names
         species_list = df[:, :species]
         df = reduce(vcat, [df, df, df, df, df, df])
@@ -240,9 +238,10 @@ end
 
 function cleanup_tests(bucket_name=get_cluster_s3_bucket_name())
     # Delete all temporary test files that are prepended with "test-tmp__"
-    for p in readdir(S3Path("s3://$bucket_name", config = Banyan.get_aws_config()))
+    @show bucket_name
+    for p in s3_list_keys(Banyan.get_aws_config(), bucket_name)
         if contains(string(p), "test-tmp_")
-            s3_path = S3Path("s3://$bucket_name/$p", config = Banyan.get_aws_config())
+            # s3_path = S3Path("s3://$bucket_name/$p", config = Banyan.get_aws_config())
             rm(S3Path("s3://$bucket_name/$p", config = Banyan.get_aws_config()), recursive=true)
         end
     end

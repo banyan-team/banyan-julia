@@ -8,7 +8,7 @@ end
 
 @testset "Complex usage of BanyanDataFrames on medium dataset" begin
     run_with_job("Filter groupby") do job
-        bucket = get_cluster_s3_bucket_name(get_cluster().name)
+        bucket = get_cluster_s3_bucket_name(get_cluster_name())
         upload_tripdata_to_s3(bucket)
         tripdata = read_csv("s3://$(bucket)/tripdata.csv")
 
@@ -41,7 +41,7 @@ end
     end
 
     run_with_job("Operations on DateTime") do job
-        bucket = get_cluster_s3_bucket_name(get_cluster().name)
+        bucket = get_cluster_s3_bucket_name(get_cluster_name())
         upload_tripdata_to_s3(bucket)
         tripdata = read_csv("s3://$(bucket)/tripdata.csv")
 
@@ -140,7 +140,7 @@ end
     end
 
     run_with_job("Groups and joins") do job
-        bucket = get_cluster_s3_bucket_name(get_cluster().name)
+        bucket = get_cluster_s3_bucket_name(get_cluster_name())
         upload_tripdata_to_s3(bucket)
         tripdata = read_csv("s3://$(bucket)/tripdata.csv")
 
@@ -181,7 +181,7 @@ end
     end
 
     run_with_job("Select and subset") do job
-        bucket = get_cluster_s3_bucket_name(get_cluster().name)
+        bucket = get_cluster_s3_bucket_name(get_cluster_name())
         upload_tripdata_to_s3(bucket)
         tripdata = read_csv("s3://$(bucket)/tripdata.csv")
 
