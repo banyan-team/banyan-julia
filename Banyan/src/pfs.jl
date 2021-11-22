@@ -823,7 +823,8 @@ function SplitGroup(
     nbatches::Integer,
     comm::MPI.Comm,
     loc_name,
-    loc_params,
+    loc_params;
+    store_splitting_divisions = false
 )
     # NOTE: The way we have `partial_merges` requires us to be splitting from
     # `nothing` and then merging back. If we are splitting from some value and
@@ -848,7 +849,7 @@ function SplitGroup(
     # Ensure that this partition has a schema that is suitable for usage
     # here. We have to do this for `Shuffle` and `SplitGroup` (which is
     # used by `DistributeAndShuffle`)
-    if isempty(src)
+    if isempty(src) || npartitions == 1
         # TODO: Ensure we can return here like this and don't need the above
         # (which is copied from `Shuffle`)
         return src
@@ -894,24 +895,25 @@ function SplitGroup(
     else
         throw(ArgumentError("Expected array or dataframe to distribute and shuffle"))
     end
-    worker_idx = get_worker_idx(comm)
 
-    # The first and last partitions (used if this lacks a lower or upper bound)
-    # must have actual division(s) associated with them. If there is no
-    # partition that has divisions, then they will all be skipped and -1 will
-    # be returned. So these indices are only used if there are nonempty
-    # divisions.
-    hasdivision = any(x->!isempty(x), divisions_by_partition)
-    firstdivisionidx = findfirst(x->!isempty(x), divisions_by_partition)
-    lastdivisionidx = findlast(x->!isempty(x), divisions_by_partition)
+    if store_splitting_divisions
+        # The first and last partitions (used if this lacks a lower or upper bound)
+        # must have actual division(s) associated with them. If there is no
+        # partition that has divisions, then they will all be skipped and -1 will
+        # be returned. So these indices are only used if there are nonempty
+        # divisions.
+        hasdivision = any(x->!isempty(x), divisions_by_partition)
+        firstdivisionidx = findfirst(x->!isempty(x), divisions_by_partition)
+        lastdivisionidx = findlast(x->!isempty(x), divisions_by_partition)
 
-    # Store divisions
-    global splitting_divisions
-    splitting_divisions[res] = (
-        divisions_by_partition[partition_idx],
-        !hasdivision || boundedlower || partition_idx != firstdivisionidx,
-        !hasdivision || boundedupper || partition_idx != lastdivisionidx,
-    )
+        # Store divisions
+        global splitting_divisions
+        splitting_divisions[res] = (
+            divisions_by_partition[partition_idx],
+            !hasdivision || boundedlower || partition_idx != firstdivisionidx,
+            !hasdivision || boundedupper || partition_idx != lastdivisionidx,
+        )
+    end
 
     res
 end
@@ -1264,7 +1266,7 @@ function Consolidate(part, src_params, dst_params, comm)
 end
 
 DistributeAndShuffle(part, src_params, dst_params, comm) =
-    SplitGroup(part, dst_params, 1, 1, comm, "Memory", Dict())
+    SplitGroup(part, dst_params, 1, 1, comm, "Memory", Dict(), store_splitting_divisions = true)
 
 function Shuffle(
     part,
