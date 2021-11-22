@@ -514,7 +514,7 @@ function getpath(path)
         # cache on disk
         hashed_path = string(hash(path))
         joined_path = "efs/banyan_dataset_" * hashed_path
-        @info "Downloading $path to $joined_path"
+        # @info "Downloading $path to $joined_path"
         if !isfile(joined_path)
             # NOTE: Even though we are storing in /tmp, this is
             # effectively caching the download. If this is undesirable
@@ -523,7 +523,7 @@ function getpath(path)
             # URL)
             Downloads.download(path, joined_path)
         end
-        @show isfile(joined_path)
+        # @show isfile(joined_path)
         joined_path
     elseif startswith(path, "s3://")
         replace(path, "s3://" => "/home/ec2-user/s3fs/")

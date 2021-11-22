@@ -47,7 +47,7 @@ function ReadBlock(
     path = getpath(loc_params["path"])
     if (loc_name == "Remote" && (occursin(".h5", loc_params["path"]) || occursin(".hdf5", loc_params["path"]))) ||
         (loc_name == "Disk" && HDF5.ishdf5(path))
-        @show isfile(path)
+        # @show isfile(path)
         f = h5open(path, "r")
         dset = loc_name == "Disk" ? f["part"] : f[loc_params["subpath"]]
 
