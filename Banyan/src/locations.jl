@@ -475,7 +475,8 @@ function convert_to_unpooled(A)
     elseif type_name == :CategoricalArray
         unwrap.(A)
     else
-        convert(Array, A)
+        # For handling SentinelArrays.MissingVector
+        Base.convert(Array, A)
     end
 end
     
