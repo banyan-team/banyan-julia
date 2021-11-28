@@ -84,37 +84,29 @@ split_on_executor(
     end
 end
 
-function merge_on_executor(obj...; key = nothing)
-    # @show obj
-    # @show length(obj)
-    # @show typeof(obj)
-    first_obj = first(obj)
-    # @show first_obj
-    # @show typeof(first_obj)
-    # @show length(first_obj)
-    if isa_df(first_obj)
-        # If this is a dataframe then we ignore the grouping key
-        if length(obj) == 1
-            first_obj
-        else
-            vcat(obj...)
-        end
-    elseif isa_array(first_obj)
-        # @show obj
-        if length(obj) == 1
-            first_obj
-        else
-            cat(obj...; dims = key)
-        end
-    elseif isa_gdf(first_obj)
-        nothing
+function merge_on_executor(obj::Vararg{AbstractArray{T,N},M}; key = nothing) where {T,N,M}
+    if length(obj) == 1
+        obj[1]
     else
-        # error("Expected either AbstractDataFrame or AbstractArray for concatenation")
-        # TODO: Handle grouped dataframe better
-        first_obj
+        cat(obj...; dims = key)
     end
 end
 
+# If this is a dataframe then we ignore the grouping key
+function merge_on_executor(obj::Vararg{DataFrame,M}; key = nothing) where {M}
+    if length(obj) == 1
+        obj[1]
+    else
+        vcat(obj...)
+    end
+end
+
+merge_on_executor(obj::Vararg{GroupedDataFrame,M}; key = nothing) where {M} = nothing
+merge_on_executor(obj::Vararg{T,M}; key = nothing) where {T,M} = first(obj)
+
+# TODO: Make `merge_on_executor` and `tobuf` and `frombuf`
+# dispatch based on the `kind` so we only have to precompile Arrow if we are
+# working with dataframes.
 function merge_on_executor(kind::Symbol, vbuf::MPI.VBuffer, nchunks::Integer; key)
     chunks = [
         begin

@@ -953,53 +953,58 @@ function SplitGroup(
 end
 
 function Merge(
-    src,
+    src::Union{Nothing,PartiallyMerged},
     part,
-    params,
+    params::Dict{String,Any},
     batch_idx::Integer,
     nbatches::Integer,
     comm::MPI.Comm,
-    loc_name,
-    loc_params,
+    loc_name::String,
+    loc_params::Dict{String,Any},
 )
     # TODO: Ensure we can merge grouped dataframes if computing them
 
     global splitting_divisions
 
-    if batch_idx == 1 || batch_idx == nbatches
-        GC.gc()
-    end
-
     # TODO: To allow for mutation of a value, we may want to remove this
     # condition
-    if isnothing(src) || src isa PartiallyMerged
-        # We only need to concatenate partitions if the source is nothing.
-        # Because if the source is something, then part must be a view into it
-        # and no data movement is needed.
+    # We only need to concatenate partitions if the source is nothing.
+    # Because if the source is something, then part must be a view into it
+    # and no data movement is needed.
 
-        key = params["key"]
+    key = params["key"]
+
+    # Concatenate across batches
+    if batch_idx == 1
+        src = PartiallyMerged(Vector{Any}(undef, nbatches))
+    end
+    src.pieces[batch_idx] = part
+    if batch_idx == nbatches
+        delete!(splitting_divisions, part)
 
         # Concatenate across batches
-        if batch_idx == 1
-            src = PartiallyMerged(Vector{Any}(undef, nbatches))
-        end
-        src.pieces[batch_idx] = part
-        if batch_idx == nbatches
-            delete!(splitting_divisions, part)
+        src = merge_on_executor(src.pieces...; key = key)
 
-            # Concatenate across batches
-            src = merge_on_executor(src.pieces...; key = key)
-
-            # Concatenate across workers
-            nworkers = get_nworkers(comm)
-            if nworkers > 1
-                src = Consolidate(src, params, Dict(), comm)
-            end
+        # Concatenate across workers
+        nworkers = get_nworkers(comm)
+        if nworkers > 1
+            src = Consolidate(src, params, Dict(), comm)
         end
     end
 
     src
 end
+
+Merge(
+    src,
+    part,
+    params::Dict{String,Any},
+    batch_idx::Integer,
+    nbatches::Integer,
+    comm::MPI.Comm,
+    loc_name::String,
+    loc_params::Dict{String,Any},
+) = src
 
 function CopyFrom(
     src,
@@ -1278,13 +1283,12 @@ function Distribute(part, src_params, dst_params, comm)
     SplitBlock(part, dst_params, 1, 1, comm, "Memory", Dict())
 end
 
-function Consolidate(part, src_params, dst_params, comm)
-    if isnothing(part) || isa_gdf(part)
-        # If this is a grouped data frame or nothing (the result of merging
-        # a grouped data frame is nothing), we consolidate by simply returning
-        # nothing.
-        return nothing
-    end
+# If this is a grouped data frame or nothing (the result of merging
+# a grouped data frame is nothing), we consolidate by simply returning
+# nothing.
+Consolidate(part::Union{Nothing, GroupedDataFrame}, src_params, dst_params, comm) = nothing
+
+function Consolidate(part::AbstractArray, src_params, dst_params, comm)
     kind, sendbuf = tobuf(part)
     recvvbuf = buftovbuf(sendbuf, comm)
     # TODO: Maybe sometimes use gatherv if all sendbuf's are known to be equally sized
@@ -1294,7 +1298,22 @@ function Consolidate(part, src_params, dst_params, comm)
         kind,
         recvvbuf,
         get_nworkers(comm);
-        key = (isa_array(part) ? src_params["key"] : 1),
+        key = src_params["key"],
+    )
+    part
+end
+
+function Consolidate(part::DataFrame, src_params, dst_params, comm)
+    kind, sendbuf = tobuf(part)
+    recvvbuf = buftovbuf(sendbuf, comm)
+    # TODO: Maybe sometimes use gatherv if all sendbuf's are known to be equally sized
+
+    MPI.Allgatherv!(sendbuf, recvvbuf, comm)
+    part = merge_on_executor(
+        kind,
+        recvvbuf,
+        get_nworkers(comm);
+        key = 1,
     )
     part
 end
