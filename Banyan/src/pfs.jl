@@ -1278,7 +1278,7 @@ function Rebalance(part, src_params, dst_params, comm)
     res
 end
 
-function Distribute(part, src_params, dst_params, comm)
+function Distribute(part::T, src_params::Dict{String,Any}, dst_params::Dict{String,Any}, comm::MPI.Comm) where {T}
     # TODO: Determine whether copy is needed
     SplitBlock(part, dst_params, 1, 1, comm, "Memory", Dict{String,Any}())
 end
@@ -1286,9 +1286,9 @@ end
 # If this is a grouped data frame or nothing (the result of merging
 # a grouped data frame is nothing), we consolidate by simply returning
 # nothing.
-Consolidate(part::Union{Nothing, GroupedDataFrame}, src_params, dst_params, comm) = nothing
+Consolidate(part::Union{Nothing, GroupedDataFrame}, src_params::Dict{String,Any}, dst_params::Dict{String,Any}, comm::MPI.Comm) = nothing
 
-function Consolidate(part::AbstractArray, src_params, dst_params, comm)
+function Consolidate(part::AbstractArray, src_params::Dict{String,Any}, dst_params::Dict{String,Any}, comm::MPI.Comm)
     kind, sendbuf = tobuf(part)
     recvvbuf = buftovbuf(sendbuf, comm)
     # TODO: Maybe sometimes use gatherv if all sendbuf's are known to be equally sized
@@ -1303,7 +1303,7 @@ function Consolidate(part::AbstractArray, src_params, dst_params, comm)
     part
 end
 
-function Consolidate(part::DataFrame, src_params, dst_params, comm)
+function Consolidate(part::DataFrame, src_params::Dict{String,Any}, dst_params::Dict{String,Any}, comm::MPI.Comm)
     kind, sendbuf = tobuf(part)
     recvvbuf = buftovbuf(sendbuf, comm)
     # TODO: Maybe sometimes use gatherv if all sendbuf's are known to be equally sized
@@ -1318,14 +1318,14 @@ function Consolidate(part::DataFrame, src_params, dst_params, comm)
     part
 end
 
-DistributeAndShuffle(part, src_params, dst_params, comm) =
+DistributeAndShuffle(part::T, src_params::Dict{String,Any}, dst_params::Dict{String,Any}, comm::MPI.Comm) where {T} =
     SplitGroup(part, dst_params, 1, 1, comm, "Memory", Dict{String,Any}(), store_splitting_divisions = true)
 
 function Shuffle(
-    part,
-    src_params,
-    dst_params,
-    comm;
+    part::DataFrame,
+    src_params::Dict{String,Any},
+    dst_params::Dict{String,Any},
+    comm::MPI.Comm;
     boundedlower = false,
     boundedupper = false,
     store_splitting_divisions = true
@@ -1353,8 +1353,7 @@ function Shuffle(
         boundedlower = boundedlower,
         boundedupper = boundedupper,
     )
-    res = if isa_df(part)
-
+    res = begin
         gdf = if !isempty(part)
             # Compute the partition to send each row of the dataframe to
             DataFrames.transform!(part, key => ByRow(partition_idx_getter) => :banyan_shuffling_key)
@@ -1404,7 +1403,60 @@ function Shuffle(
         end
 
         res
-    elseif isa_array(part)
+    end
+
+    if store_splitting_divisions
+        # The first and last partitions (used if this lacks a lower or upper bound)
+        # must have actual division(s) associated with them. If there is no
+        # partition that has divisions, then they will all be skipped and -1 will
+        # be returned. So these indices are only used if there are nonempty
+        # divisions.
+        hasdivision = any(x->!isempty(x), divisions_by_worker)
+        firstdivisionidx = findfirst(x->!isempty(x), divisions_by_worker)
+        lastdivisionidx = findlast(x->!isempty(x), divisions_by_worker)
+
+        # Store divisions
+        global splitting_divisions
+        splitting_divisions[res] =
+            (divisions_by_worker[worker_idx], !hasdivision || worker_idx != firstdivisionidx, !hasdivision || worker_idx != lastdivisionidx)
+    end
+
+    res
+end
+
+function Shuffle(
+    part::AbstractArray,
+    src_params::Dict{String,Any},
+    dst_params::Dict{String,Any},
+    comm::MPI.Comm;
+    boundedlower = false,
+    boundedupper = false,
+    store_splitting_divisions = true
+)
+    # We don't have to worry about grouped data frames since they are always
+    # block-partitioned.
+
+    # Get the divisions to apply
+    key = dst_params["key"]
+    rev = dst_params["rev"]
+    worker_idx, nworkers = get_worker_idx(comm), get_nworkers(comm)
+    divisions_by_worker = if haskey(dst_params, "divisions_by_worker")
+        dst_params["divisions_by_worker"] # list of min-max tuples
+    else 
+        get_divisions(dst_params["divisions"], nworkers)
+    end # list of min-max tuple lists
+    if rev
+        reverse!(divisions_by_worker)
+    end
+
+    # Perform shuffle
+    partition_idx_getter(val) = get_partition_idx_from_divisions(
+        val,
+        divisions_by_worker,
+        boundedlower = boundedlower,
+        boundedupper = boundedupper,
+    )
+    res = begin
         # Group the data along the splitting axis (specified by the "key"
         # parameter)
         partition_idx_to_e = [[] for partition_idx = 1:nworkers]
@@ -1466,8 +1518,6 @@ function Shuffle(
                 dims = key,
             )
         end
-    else
-        throw(ArgumentError("Expected array or dataframe to distribute and shuffle"))
     end
 
     if store_splitting_divisions
