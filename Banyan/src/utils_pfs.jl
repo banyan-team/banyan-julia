@@ -37,33 +37,38 @@ split_len(src_len, batch_idx::Integer, nbatches::Integer, comm::MPI.Comm) = spli
     get_npartitions(nbatches, comm),
 )
 
-split_on_executor(src, d::Integer, i) =
-    if isa_df(src)
-        @view src[i, :]
-    elseif isa_array(src)
-        selectdim(src, d, i)
-    elseif isa_gdf(src)
-        nothing
-    else
-        error(
-            "Expected split across either dimension of an AbstractArray or rows of an AbstractDataFrame",
-        )
-    end
+split_on_executor(src::AbstractArray, d::Integer, i) = selectdim(src, d, i)
+split_on_executor(src::AbstractDataFrame, d::Integer, i) = @view src[i, :]
+split_on_executor(src::GroupedDataFrame, d::Integer, i) = nothing
+
+# In case we are trying to `Distribute` a grouped data frame,
+# we can't do that so we will simply return nothing so that the groupby
+# partitioned computation will redo the groupby.
 
 split_on_executor(
-    src,
+    src::Nothing,
     dim::Integer,
     batch_idx::Integer,
     nbatches::Integer,
     comm::MPI.Comm,
-) = begin
+) = nothing
+
+split_on_executor(
+    src::GroupedDataFrame,
+    dim::Integer,
+    batch_idx::Integer,
+    nbatches::Integer,
+    comm::MPI.Comm,
+) = nothing
+
+split_on_executor(
+    src::T,
+    dim::Integer,
+    batch_idx::Integer,
+    nbatches::Integer,
+    comm::MPI.Comm,
+) where {T} = begin
     npartitions = get_npartitions(nbatches, comm)
-    if isnothing(src) || isa_gdf(src)
-        # In case we are trying to `Distribute` a grouped data frame,
-        # we can't do that so we will simply return nothing so that the groupby
-        # partitioned computation will redo the groupby.
-        return nothing
-    end
     if npartitions > 1
         split_on_executor(
             src,
@@ -75,7 +80,7 @@ split_on_executor(
             ),
         )
     else
-        getindex(src, fill(Colon(), ndims(src))...)
+        src
     end
 end
 
