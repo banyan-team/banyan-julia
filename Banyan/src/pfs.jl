@@ -794,26 +794,60 @@ mutable struct PartiallyMerged
     pieces::Vector{Any}
 end
 
-function SplitBlock(
-    src,
-    params,
+SplitBlock(
+    src::Nothing,
+    params::Dict{String,Any},
     batch_idx::Integer,
     nbatches::Integer,
     comm::MPI.Comm,
-    loc_name,
-    loc_params,
+    loc_name::String,
+    loc_params::Dict{String,Any},
+) = nothing
+
+SplitBlock(
+    src::PartiallyMerged,
+    params::Dict{String,Any},
+    batch_idx::Integer,
+    nbatches::Integer,
+    comm::MPI.Comm,
+    loc_name::String,
+    loc_params::Dict{String,Any},
+) = nothing
+
+function SplitBlock(
+    src::AbstractArray,
+    params::Dict{String,Any},
+    batch_idx::Integer,
+    nbatches::Integer,
+    comm::MPI.Comm,
+    loc_name::String,
+    loc_params::Dict{String,Any},
 )
-    if isnothing(src) || src isa PartiallyMerged
-        nothing
-    else
-        split_on_executor(
-            src,
-            isa_array(src) ? params["key"] : 1,
-            batch_idx,
-            nbatches,
-            comm,
-        )
-    end
+    split_on_executor(
+        src,
+        params["key"],
+        batch_idx,
+        nbatches,
+        comm,
+    )
+end
+
+function SplitBlock(
+    src::T,
+    params::Dict{String,Any},
+    batch_idx::Integer,
+    nbatches::Integer,
+    comm::MPI.Comm,
+    loc_name::String,
+    loc_params::Dict{String,Any},
+) where {T}
+    split_on_executor(
+        src,
+        1,
+        batch_idx,
+        nbatches,
+        comm,
+    )
 end
 
 function SplitGroup(
