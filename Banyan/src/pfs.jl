@@ -329,7 +329,7 @@ function ReadGroup(
             parts,
             Shuffle(
                 part,
-                Dict(),
+                Dict{String,Any}(),
                 params,
                 comm,
                 boundedlower = !hasdivision || batch_idx != firstbatchidx,
@@ -988,7 +988,7 @@ function Merge(
         # Concatenate across workers
         nworkers = get_nworkers(comm)
         if nworkers > 1
-            src = Consolidate(src, params, Dict(), comm)
+            src = Consolidate(src, params, Dict{String,Any}(), comm)
         end
     end
 
@@ -1116,7 +1116,7 @@ function ReduceAndCopyTo(
 
     # Merge reductions across workers
     if batch_idx == nbatches
-        src = Reduce(src, params, Dict(), comm)
+        src = Reduce(src, params, Dict{String,Any}(), comm)
 
         if loc_name != "Memory"
             # We use 1 here so that it is as if we are copying from the head
@@ -1280,7 +1280,7 @@ end
 
 function Distribute(part, src_params, dst_params, comm)
     # TODO: Determine whether copy is needed
-    SplitBlock(part, dst_params, 1, 1, comm, "Memory", Dict())
+    SplitBlock(part, dst_params, 1, 1, comm, "Memory", Dict{String,Any}())
 end
 
 # If this is a grouped data frame or nothing (the result of merging
@@ -1319,7 +1319,7 @@ function Consolidate(part::DataFrame, src_params, dst_params, comm)
 end
 
 DistributeAndShuffle(part, src_params, dst_params, comm) =
-    SplitGroup(part, dst_params, 1, 1, comm, "Memory", Dict(), store_splitting_divisions = true)
+    SplitGroup(part, dst_params, 1, 1, comm, "Memory", Dict{String,Any}(), store_splitting_divisions = true)
 
 function Shuffle(
     part,
