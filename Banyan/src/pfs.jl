@@ -356,6 +356,19 @@ function ReadGroup(
     res
 end
 
+function rmdir_on_nfs(actualpath)
+    if isdir(actualpath)
+        for actualpath_f in readdir(actualpath, join=true)
+            if isfile(actualpath_f)
+                rm(actualpath_f, force=true)
+            end
+        end
+    end
+    # TODO: Also try to remove the directory itself right away although there
+    # might still be .nfs files in it. This isn't too much of a problem since we _do_ try
+    # to remove all directories at the end of the job.
+end
+
 function Write(
     src,
     part,
@@ -427,14 +440,14 @@ function Write(
                 # only at the end.
                 # TODO: When refactoring the locations, think about how to allow
                 # stuff in the directory
-                rm(actualpath, force = true, recursive = true)
+                rmdir_on_nfs(actualpath)
             end
 
             # Create directory if it doesn't exist
             # TODO: Avoid this and other filesystem operations that would be costly
             # since S3FS is being used
             if batch_idx == 1
-                rm(path, force = true, recursive = true)
+                rmdir_on_nfs(path)
                 mkpath(path)
             end
         end
@@ -459,28 +472,7 @@ function Write(
         if nbatches > 1 && batch_idx == nbatches
             tmpdir = readdir(path)
             if worker_idx == 1
-                @show actualpath
-                @show isdir(actualpath)
-                if isdir(actualpath)
-                    @show readdir(actualpath)
-                end
-                if isdir(actualpath)
-                    for actualpath_f in readdir(actualpath, join=true)
-                        if isfile(actualpath_f)
-                            rm(actualpath_f, force=true)
-                        end
-                    end
-                end
-                @show isdir(actualpath)
-                if isdir(actualpath)
-                    @show readdir(actualpath)
-                end
-                mkpath(actualpath)
-                rm(actualpath, force = true, recursive = true)
-                @show isdir(actualpath)
-                if isdir(actualpath)
-                    @show readdir(actualpath)
-                end
+                rmdir_on_nfs(actualpath)
                 mkpath(actualpath)
             end
             MPI.Barrier(comm)
@@ -495,7 +487,7 @@ function Write(
             end
             MPI.Barrier(comm)
             if worker_idx == 1
-                rm(path, force = true, recursive = true)
+                rmdir_on_nfs(path)
             end
             MPI.Barrier(comm)
         end
