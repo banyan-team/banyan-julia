@@ -459,7 +459,15 @@ function Write(
         if nbatches > 1 && batch_idx == nbatches
             tmpdir = readdir(path)
             if worker_idx == 1
+                @show isdir(actualpath)
+                if isdir(actualpath)
+                    @show readdir(actualpath)
+                end
                 rm(actualpath, force = true, recursive = true)
+                @show isdir(actualpath)
+                if isdir(actualpath)
+                    @show readdir(actualpath)
+                end
                 mkpath(actualpath)
             end
             MPI.Barrier(comm)
