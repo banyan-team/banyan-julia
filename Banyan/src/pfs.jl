@@ -459,10 +459,23 @@ function Write(
         if nbatches > 1 && batch_idx == nbatches
             tmpdir = readdir(path)
             if worker_idx == 1
+                @show actualpath
                 @show isdir(actualpath)
                 if isdir(actualpath)
                     @show readdir(actualpath)
                 end
+                if isdir(actualpath)
+                    for actualpath_f in readdir(actualpath, join=true)
+                        if isfile(actualpath_f)
+                            rm(actualpath_f, force=true)
+                        end
+                    end
+                end
+                @show isdir(actualpath)
+                if isdir(actualpath)
+                    @show readdir(actualpath)
+                end
+                mkpath(actualpath)
                 rm(actualpath, force = true, recursive = true)
                 @show isdir(actualpath)
                 if isdir(actualpath)
