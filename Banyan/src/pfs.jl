@@ -1199,6 +1199,7 @@ function Divide(
     loc_params::Dict{String,Any},
 )
     @show src
+    @show nbatches
     dim = params["key"]
     part = CopyFrom(src, params, batch_idx, nbatches, comm, loc_name, loc_params)
     res = length(split_len(part[dim], batch_idx, nbatches, comm))
