@@ -1114,6 +1114,7 @@ function get_op!(params::Dict{String,Any})
             end
         end
     end
+    op
 end
 
 reduce_in_memory(src::Nothing, part::T, op::Function) where {T} = part
