@@ -1133,6 +1133,8 @@ function ReduceAndCopyTo(
     # Merge reductions from batches
     op = get_op!(params)
     # TODO: Ensure that we handle reductions that can produce nothing
+    @show op
+    @show src
     src = reduce_in_memory(src, part, op)
 
     @show src
@@ -1207,6 +1209,7 @@ function Reduce(
 ) where {T}
     # Get operator for reduction
     op = get_op!(src_params)
+    @show op
     @show op(part, part)
 
     # TODO: Handle case where different processes have differently sized
