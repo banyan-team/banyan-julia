@@ -1097,7 +1097,9 @@ function CopyTo(
 end
 
 function get_op!(params::Dict{String,Any})
+    @show params
     op = params["reducer"]
+    @show op
     if params["with_key"]
         key = params["key"]
         if !haskey(params, "reducer_with_key")
@@ -1113,6 +1115,7 @@ function get_op!(params::Dict{String,Any})
                 op = reducer_with_key[key]
             end
         end
+        @show reducer_with_key
     end
     op
 end
