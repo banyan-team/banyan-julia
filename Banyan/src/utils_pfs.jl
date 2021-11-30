@@ -37,33 +37,38 @@ split_len(src_len, batch_idx::Integer, nbatches::Integer, comm::MPI.Comm) = spli
     get_npartitions(nbatches, comm),
 )
 
-split_on_executor(src, d::Integer, i) =
-    if isa_df(src)
-        @view src[i, :]
-    elseif isa_array(src)
-        selectdim(src, d, i)
-    elseif isa_gdf(src)
-        nothing
-    else
-        error(
-            "Expected split across either dimension of an AbstractArray or rows of an AbstractDataFrame",
-        )
-    end
+split_on_executor(src::AbstractArray, d::Integer, i) = selectdim(src, d, i)
+split_on_executor(src::AbstractDataFrame, d::Integer, i) = @view src[i, :]
+split_on_executor(src::GroupedDataFrame, d::Integer, i) = nothing
+
+# In case we are trying to `Distribute` a grouped data frame,
+# we can't do that so we will simply return nothing so that the groupby
+# partitioned computation will redo the groupby.
 
 split_on_executor(
-    src,
+    src::Nothing,
     dim::Integer,
     batch_idx::Integer,
     nbatches::Integer,
     comm::MPI.Comm,
-) = begin
+) = nothing
+
+split_on_executor(
+    src::GroupedDataFrame,
+    dim::Integer,
+    batch_idx::Integer,
+    nbatches::Integer,
+    comm::MPI.Comm,
+) = nothing
+
+split_on_executor(
+    src::T,
+    dim::Integer,
+    batch_idx::Integer,
+    nbatches::Integer,
+    comm::MPI.Comm,
+) where {T} = begin
     npartitions = get_npartitions(nbatches, comm)
-    if isnothing(src) || isa_gdf(src)
-        # In case we are trying to `Distribute` a grouped data frame,
-        # we can't do that so we will simply return nothing so that the groupby
-        # partitioned computation will redo the groupby.
-        return nothing
-    end
     if npartitions > 1
         split_on_executor(
             src,
@@ -75,41 +80,33 @@ split_on_executor(
             ),
         )
     else
-        getindex(src, fill(Colon(), ndims(src))...)
+        src
     end
 end
 
-function merge_on_executor(obj...; key = nothing)
-    # @show obj
-    # @show length(obj)
-    # @show typeof(obj)
-    first_obj = first(obj)
-    # @show first_obj
-    # @show typeof(first_obj)
-    # @show length(first_obj)
-    if isa_df(first_obj)
-        # If this is a dataframe then we ignore the grouping key
-        if length(obj) == 1
-            first_obj
-        else
-            vcat(obj...)
-        end
-    elseif isa_array(first_obj)
-        # @show obj
-        if length(obj) == 1
-            first_obj
-        else
-            cat(obj...; dims = key)
-        end
-    elseif isa_gdf(first_obj)
-        nothing
+function merge_on_executor(obj::Vararg{AbstractArray{T,N},M}; key = nothing) where {T,N,M}
+    if length(obj) == 1
+        obj[1]
     else
-        # error("Expected either AbstractDataFrame or AbstractArray for concatenation")
-        # TODO: Handle grouped dataframe better
-        first_obj
+        cat(obj...; dims = key)
     end
 end
 
+# If this is a dataframe then we ignore the grouping key
+function merge_on_executor(obj::Vararg{DataFrame,M}; key = nothing) where {M}
+    if length(obj) == 1
+        obj[1]
+    else
+        vcat(obj...)
+    end
+end
+
+merge_on_executor(obj::Vararg{GroupedDataFrame,M}; key = nothing) where {M} = nothing
+merge_on_executor(obj::Vararg{T,M}; key = nothing) where {T,M} = first(obj)
+
+# TODO: Make `merge_on_executor` and `tobuf` and `frombuf`
+# dispatch based on the `kind` so we only have to precompile Arrow if we are
+# working with dataframes.
 function merge_on_executor(kind::Symbol, vbuf::MPI.VBuffer, nchunks::Integer; key)
     chunks = [
         begin

@@ -329,7 +329,7 @@ function ReadGroup(
             parts,
             Shuffle(
                 part,
-                Dict(),
+                Dict{String,Any}(),
                 params,
                 comm,
                 boundedlower = !hasdivision || batch_idx != firstbatchidx,
@@ -354,6 +354,19 @@ function ReadGroup(
         (partition_divisions[partition_idx], !hasdivision || partition_idx != firstdivisionidx, !hasdivision || partition_idx != lastdivisionidx)
 
     res
+end
+
+function rmdir_on_nfs(actualpath)
+    if isdir(actualpath)
+        for actualpath_f in readdir(actualpath, join=true)
+            if isfile(actualpath_f)
+                rm(actualpath_f, force=true)
+            end
+        end
+    end
+    # TODO: Also try to remove the directory itself right away although there
+    # might still be .nfs files in it. This isn't too much of a problem since we _do_ try
+    # to remove all directories at the end of the job.
 end
 
 function Write(
@@ -427,14 +440,14 @@ function Write(
                 # only at the end.
                 # TODO: When refactoring the locations, think about how to allow
                 # stuff in the directory
-                rm(actualpath, force = true, recursive = true)
+                rmdir_on_nfs(actualpath)
             end
 
             # Create directory if it doesn't exist
             # TODO: Avoid this and other filesystem operations that would be costly
             # since S3FS is being used
             if batch_idx == 1
-                rm(path, force = true, recursive = true)
+                rmdir_on_nfs(path)
                 mkpath(path)
             end
         end
@@ -459,7 +472,7 @@ function Write(
         if nbatches > 1 && batch_idx == nbatches
             tmpdir = readdir(path)
             if worker_idx == 1
-                rm(actualpath, force = true, recursive = true)
+                rmdir_on_nfs(actualpath)
                 mkpath(actualpath)
             end
             MPI.Barrier(comm)
@@ -474,7 +487,7 @@ function Write(
             end
             MPI.Barrier(comm)
             if worker_idx == 1
-                rm(path, force = true, recursive = true)
+                rmdir_on_nfs(path)
             end
             MPI.Barrier(comm)
         end
@@ -794,26 +807,60 @@ mutable struct PartiallyMerged
     pieces::Vector{Any}
 end
 
-function SplitBlock(
-    src,
-    params,
+SplitBlock(
+    src::Nothing,
+    params::Dict{String,Any},
     batch_idx::Integer,
     nbatches::Integer,
     comm::MPI.Comm,
-    loc_name,
-    loc_params,
+    loc_name::String,
+    loc_params::Dict{String,Any},
+) = nothing
+
+SplitBlock(
+    src::PartiallyMerged,
+    params::Dict{String,Any},
+    batch_idx::Integer,
+    nbatches::Integer,
+    comm::MPI.Comm,
+    loc_name::String,
+    loc_params::Dict{String,Any},
+) = nothing
+
+function SplitBlock(
+    src::AbstractArray,
+    params::Dict{String,Any},
+    batch_idx::Integer,
+    nbatches::Integer,
+    comm::MPI.Comm,
+    loc_name::String,
+    loc_params::Dict{String,Any},
 )
-    if isnothing(src) || src isa PartiallyMerged
-        nothing
-    else
-        split_on_executor(
-            src,
-            isa_array(src) ? params["key"] : 1,
-            batch_idx,
-            nbatches,
-            comm,
-        )
-    end
+    split_on_executor(
+        src,
+        params["key"],
+        batch_idx,
+        nbatches,
+        comm,
+    )
+end
+
+function SplitBlock(
+    src::T,
+    params::Dict{String,Any},
+    batch_idx::Integer,
+    nbatches::Integer,
+    comm::MPI.Comm,
+    loc_name::String,
+    loc_params::Dict{String,Any},
+) where {T}
+    split_on_executor(
+        src,
+        1,
+        batch_idx,
+        nbatches,
+        comm,
+    )
 end
 
 function SplitGroup(
@@ -919,53 +966,58 @@ function SplitGroup(
 end
 
 function Merge(
-    src,
+    src::Union{Nothing,PartiallyMerged},
     part,
-    params,
+    params::Dict{String,Any},
     batch_idx::Integer,
     nbatches::Integer,
     comm::MPI.Comm,
-    loc_name,
-    loc_params,
+    loc_name::String,
+    loc_params::Dict{String,Any},
 )
     # TODO: Ensure we can merge grouped dataframes if computing them
 
     global splitting_divisions
 
-    if batch_idx == 1 || batch_idx == nbatches
-        GC.gc()
-    end
-
     # TODO: To allow for mutation of a value, we may want to remove this
     # condition
-    if isnothing(src) || src isa PartiallyMerged
-        # We only need to concatenate partitions if the source is nothing.
-        # Because if the source is something, then part must be a view into it
-        # and no data movement is needed.
+    # We only need to concatenate partitions if the source is nothing.
+    # Because if the source is something, then part must be a view into it
+    # and no data movement is needed.
 
-        key = params["key"]
+    key = params["key"]
+
+    # Concatenate across batches
+    if batch_idx == 1
+        src = PartiallyMerged(Vector{Any}(undef, nbatches))
+    end
+    src.pieces[batch_idx] = part
+    if batch_idx == nbatches
+        delete!(splitting_divisions, part)
 
         # Concatenate across batches
-        if batch_idx == 1
-            src = PartiallyMerged(Vector{Any}(undef, nbatches))
-        end
-        src.pieces[batch_idx] = part
-        if batch_idx == nbatches
-            delete!(splitting_divisions, part)
+        src = merge_on_executor(src.pieces...; key = key)
 
-            # Concatenate across batches
-            src = merge_on_executor(src.pieces...; key = key)
-
-            # Concatenate across workers
-            nworkers = get_nworkers(comm)
-            if nworkers > 1
-                src = Consolidate(src, params, Dict(), comm)
-            end
+        # Concatenate across workers
+        nworkers = get_nworkers(comm)
+        if nworkers > 1
+            src = Consolidate(src, params, Dict{String,Any}(), comm)
         end
     end
 
     src
 end
+
+Merge(
+    src,
+    part,
+    params::Dict{String,Any},
+    batch_idx::Integer,
+    nbatches::Integer,
+    comm::MPI.Comm,
+    loc_name::String,
+    loc_params::Dict{String,Any},
+) = src
 
 function CopyFrom(
     src,
@@ -1044,17 +1096,7 @@ function CopyTo(
     part
 end
 
-function ReduceAndCopyTo(
-    src,
-    part,
-    params,
-    batch_idx::Integer,
-    nbatches::Integer,
-    comm::MPI.Comm,
-    loc_name,
-    loc_params,
-)
-    # Merge reductions from batches
+function get_op!(params::Dict{String,Any})
     op = params["reducer"]
     if params["with_key"]
         key = params["key"]
@@ -1072,12 +1114,30 @@ function ReduceAndCopyTo(
             end
         end
     end
+    op
+end
+
+reduce_in_memory(src::Nothing, part::T, op::Function) where {T} = part
+reduce_in_memory(src, part::T, op::Function) where {T} = op(src, part)
+
+function ReduceAndCopyTo(
+    src,
+    part::T,
+    params,
+    batch_idx::Integer,
+    nbatches::Integer,
+    comm::MPI.Comm,
+    loc_name,
+    loc_params,
+) where {T}
+    # Merge reductions from batches
+    op = get_op!(params)
     # TODO: Ensure that we handle reductions that can produce nothing
-    src = isnothing(src) ? part : op(src, part)
+    src = reduce_in_memory(src, part, op)
 
     # Merge reductions across workers
     if batch_idx == nbatches
-        src = Reduce(src, params, Dict(), comm)
+        src = Reduce(src, params, Dict{String,Any}(), comm)
 
         if loc_name != "Memory"
             # We use 1 here so that it is as if we are copying from the head
@@ -1100,32 +1160,46 @@ end
 ReduceWithKeyAndCopyTo = ReduceAndCopyTo
 
 function Divide(
-    src,
-    params,
+    src::Tuple,
+    params::Dict{String,Any},
     batch_idx::Integer,
     nbatches::Integer,
     comm::MPI.Comm,
-    loc_name,
-    loc_params,
+    loc_name::String,
+    loc_params::Dict{String,Any},
 )
     dim = params["key"]
     part = CopyFrom(src, params, batch_idx, nbatches, comm, loc_name, loc_params)
-    if part isa Tuple
-        newpartdim = length(split_len(part[dim], batch_idx, nbatches, comm))
-        indexapply(_ -> newpartdim, part, index = dim)
-    else
-        length(split_len(part[dim], batch_idx, nbatches, comm))
-    end
+    newpartdim = length(split_len(part[dim], batch_idx, nbatches, comm))
+    indexapply(_ -> newpartdim, part, index = dim)
+end
+
+function Divide(
+    src,
+    params::Dict{String,Any},
+    batch_idx::Integer,
+    nbatches::Integer,
+    comm::MPI.Comm,
+    loc_name::String,
+    loc_params::Dict{String,Any},
+)
+    dim = params["key"]
+    part = CopyFrom(src, params, batch_idx, nbatches, comm, loc_name, loc_params)
+    length(split_len(part[dim], batch_idx, nbatches, comm))
 end
 
 #####################
 # Casting functions #
 #####################
 
-function Reduce(part, src_params, dst_params, comm)
+function Reduce(
+    part::T,
+    src_params::Dict{String,Any},
+    dst_params::Dict{String,Any},
+    comm::MPI.Comm
+) where {T}
     # Get operator for reduction
-    op = src_params["reducer"]
-    op = src_params["with_key"] ? op(src_params["key"]) : op
+    op = get_op!(src_params)
 
     # TODO: Handle case where different processes have differently sized
     # sendbuf and where sendbuf is not isbitstype
@@ -1146,16 +1220,23 @@ end
 
 ReduceWithKey = Reduce
 
-function Rebalance(part, src_params, dst_params, comm)
+# Grouped data frames can be block-partitioned but we will have to
+# redo the groupby if we try to do any sort of merging/splitting on it.
+Rebalance(
+    part::Union{Nothing,GroupedDataFrame},
+    src_params::Dict{String,Any},
+    dst_params::Dict{String,Any},
+    comm::MPI.Comm
+) = nothing
 
-    if isnothing(part) || isa_gdf(part)
-        # Grouped data frames can be block-partitioned but we will have to
-        # redo the groupby if we try to do any sort of merging/splitting on it.
-        return nothing
-    end
-
+function Rebalance(
+    part::AbstractArray,
+    src_params::Dict{String,Any},
+    dst_params::Dict{String,Any},
+    comm::MPI.Comm
+)
     # Get the range owned by this worker
-    dim = isa_array(part) ? dst_params["key"] : 1
+    dim = dst_params["key"]
     worker_idx, nworkers = get_worker_idx(comm), get_nworkers(comm)
     len = size(part, dim)
     scannedstartidx = MPI.Exscan(len, +, comm)
@@ -1163,7 +1244,7 @@ function Rebalance(part, src_params, dst_params, comm)
     endidx = startidx + len - 1
 
     # Get functions for serializing/deserializing
-    ser = isa_array(part) ? serialize : Arrow.write
+    ser = serialize
     # TODO: Use JLD for ser/de for arrays
     # TODO: Ensure that we are properly handling intermediate arrays or
     # dataframes that are empty (especially because they may not have their
@@ -1171,11 +1252,9 @@ function Rebalance(part, src_params, dst_params, comm)
     # empty should concatenate properly. We just need to be sure to not expect
     # every partition to know what its schema is. We can however expect each
     # partition of an array to know its ndims.
-    de = if isa_array(part)
-        x -> deserialize(IOBuffer(x))
-    else
-        x -> DataFrames.DataFrame(Arrow.Table(IOBuffer(x)))
-    end
+    de = x -> deserialize(IOBuffer(x))
+
+    # NOTE: Below this is all common between Rebalance for DataFrame and AbstractArray
 
     # Construct buffer to send parts to all workers who own in this range
     nworkers = get_nworkers(comm)
@@ -1239,18 +1318,104 @@ function Rebalance(part, src_params, dst_params, comm)
     res
 end
 
-function Distribute(part, src_params, dst_params, comm)
-    # TODO: Determine whether copy is needed
-    SplitBlock(part, dst_params, 1, 1, comm, "Memory", Dict())
+function Rebalance(
+    part::DataFrame,
+    src_params::Dict{String,Any},
+    dst_params::Dict{String,Any},
+    comm::MPI.Comm
+)
+    # Get the range owned by this worker
+    dim = 1
+    worker_idx, nworkers = get_worker_idx(comm), get_nworkers(comm)
+    len = size(part, dim)
+    scannedstartidx = MPI.Exscan(len, +, comm)
+    startidx = worker_idx == 1 ? 1 : scannedstartidx + 1
+    endidx = startidx + len - 1
+
+    # Get functions for serializing/deserializing
+    ser = Arrow.write
+    # TODO: Use JLD for ser/de for arrays
+    # TODO: Ensure that we are properly handling intermediate arrays or
+    # dataframes that are empty (especially because they may not have their
+    # ndims or dtype or schema). We probably are because dataframes that are
+    # empty should concatenate properly. We just need to be sure to not expect
+    # every partition to know what its schema is. We can however expect each
+    # partition of an array to know its ndims.
+    de = x -> DataFrames.DataFrame(Arrow.Table(IOBuffer(x)))
+
+    # Construct buffer to send parts to all workers who own in this range
+    nworkers = get_nworkers(comm)
+    npartitions = nworkers
+    whole_len = MPI.bcast(endidx, nworkers - 1, comm)
+    io = IOBuffer()
+    nbyteswritten = 0
+    counts::Vector{Int64} = []
+    for partition_idx = 1:npartitions
+        # `split_len` gives us the range that this partition needs
+        partitionrange = split_len(whole_len, partition_idx, npartitions)
+
+        # Check if the range overlaps with the range owned by this worker
+        rangesoverlap =
+            max(startidx, partitionrange.start) <= min(endidx, partitionrange.stop)
+
+        # If they do overlap, then serialize the overlapping slice
+        ser(
+            io,
+            view(
+                part,
+                fill(:, dim - 1)...,
+                if rangesoverlap
+                    max(1, partitionrange.start - startidx + 1):min(
+                        size(part, dim),
+                        partitionrange.stop - startidx + 1,
+                    )
+                else
+                    # Return zero length for this dimension
+                    1:0
+                end,
+                fill(:, ndims(part) - dim)...,
+            ),
+        )
+
+        # Add the count of the size of this chunk in bytes
+        push!(counts, io.size - nbyteswritten)
+        nbyteswritten = io.size
+
+    end
+    sendbuf = MPI.VBuffer(view(io.data, 1:nbyteswritten), counts)
+
+    # Create buffer for receiving pieces
+    # TODO: Refactor the intermediate part starting from there if we add
+    # more cases for this function
+    sizes = MPI.Alltoall(MPI.UBuffer(counts, 1), comm)
+    recvbuf = MPI.VBuffer(similar(io.data, sum(sizes)), sizes)
+
+    # Perform the shuffle
+    MPI.Alltoallv!(sendbuf, recvbuf, comm)
+
+    # Return the concatenated array
+    things_to_concatenate = [
+        de(view(recvbuf.data, displ+1:displ+count)) for
+        (displ, count) in zip(recvbuf.displs, recvbuf.counts)
+    ]
+    res = merge_on_executor(
+        things_to_concatenate...;
+        key = dim,
+    )
+    res
 end
 
-function Consolidate(part, src_params, dst_params, comm)
-    if isnothing(part) || isa_gdf(part)
-        # If this is a grouped data frame or nothing (the result of merging
-        # a grouped data frame is nothing), we consolidate by simply returning
-        # nothing.
-        return nothing
-    end
+function Distribute(part::T, src_params::Dict{String,Any}, dst_params::Dict{String,Any}, comm::MPI.Comm) where {T}
+    # TODO: Determine whether copy is needed
+    SplitBlock(part, dst_params, 1, 1, comm, "Memory", Dict{String,Any}())
+end
+
+# If this is a grouped data frame or nothing (the result of merging
+# a grouped data frame is nothing), we consolidate by simply returning
+# nothing.
+Consolidate(part::Union{Nothing, GroupedDataFrame}, src_params::Dict{String,Any}, dst_params::Dict{String,Any}, comm::MPI.Comm) = nothing
+
+function Consolidate(part::AbstractArray, src_params::Dict{String,Any}, dst_params::Dict{String,Any}, comm::MPI.Comm)
     kind, sendbuf = tobuf(part)
     recvvbuf = buftovbuf(sendbuf, comm)
     # TODO: Maybe sometimes use gatherv if all sendbuf's are known to be equally sized
@@ -1260,19 +1425,34 @@ function Consolidate(part, src_params, dst_params, comm)
         kind,
         recvvbuf,
         get_nworkers(comm);
-        key = (isa_array(part) ? src_params["key"] : 1),
+        key = src_params["key"],
     )
     part
 end
 
-DistributeAndShuffle(part, src_params, dst_params, comm) =
-    SplitGroup(part, dst_params, 1, 1, comm, "Memory", Dict(), store_splitting_divisions = true)
+function Consolidate(part::DataFrame, src_params::Dict{String,Any}, dst_params::Dict{String,Any}, comm::MPI.Comm)
+    kind, sendbuf = tobuf(part)
+    recvvbuf = buftovbuf(sendbuf, comm)
+    # TODO: Maybe sometimes use gatherv if all sendbuf's are known to be equally sized
+
+    MPI.Allgatherv!(sendbuf, recvvbuf, comm)
+    part = merge_on_executor(
+        kind,
+        recvvbuf,
+        get_nworkers(comm);
+        key = 1,
+    )
+    part
+end
+
+DistributeAndShuffle(part::T, src_params::Dict{String,Any}, dst_params::Dict{String,Any}, comm::MPI.Comm) where {T} =
+    SplitGroup(part, dst_params, 1, 1, comm, "Memory", Dict{String,Any}(), store_splitting_divisions = true)
 
 function Shuffle(
-    part,
-    src_params,
-    dst_params,
-    comm;
+    part::DataFrame,
+    src_params::Dict{String,Any},
+    dst_params::Dict{String,Any},
+    comm::MPI.Comm;
     boundedlower = false,
     boundedupper = false,
     store_splitting_divisions = true
@@ -1300,8 +1480,7 @@ function Shuffle(
         boundedlower = boundedlower,
         boundedupper = boundedupper,
     )
-    res = if isa_df(part)
-
+    res = begin
         gdf = if !isempty(part)
             # Compute the partition to send each row of the dataframe to
             DataFrames.transform!(part, key => ByRow(partition_idx_getter) => :banyan_shuffling_key)
@@ -1351,7 +1530,60 @@ function Shuffle(
         end
 
         res
-    elseif isa_array(part)
+    end
+
+    if store_splitting_divisions
+        # The first and last partitions (used if this lacks a lower or upper bound)
+        # must have actual division(s) associated with them. If there is no
+        # partition that has divisions, then they will all be skipped and -1 will
+        # be returned. So these indices are only used if there are nonempty
+        # divisions.
+        hasdivision = any(x->!isempty(x), divisions_by_worker)
+        firstdivisionidx = findfirst(x->!isempty(x), divisions_by_worker)
+        lastdivisionidx = findlast(x->!isempty(x), divisions_by_worker)
+
+        # Store divisions
+        global splitting_divisions
+        splitting_divisions[res] =
+            (divisions_by_worker[worker_idx], !hasdivision || worker_idx != firstdivisionidx, !hasdivision || worker_idx != lastdivisionidx)
+    end
+
+    res
+end
+
+function Shuffle(
+    part::AbstractArray,
+    src_params::Dict{String,Any},
+    dst_params::Dict{String,Any},
+    comm::MPI.Comm;
+    boundedlower = false,
+    boundedupper = false,
+    store_splitting_divisions = true
+)
+    # We don't have to worry about grouped data frames since they are always
+    # block-partitioned.
+
+    # Get the divisions to apply
+    key = dst_params["key"]
+    rev = dst_params["rev"]
+    worker_idx, nworkers = get_worker_idx(comm), get_nworkers(comm)
+    divisions_by_worker = if haskey(dst_params, "divisions_by_worker")
+        dst_params["divisions_by_worker"] # list of min-max tuples
+    else 
+        get_divisions(dst_params["divisions"], nworkers)
+    end # list of min-max tuple lists
+    if rev
+        reverse!(divisions_by_worker)
+    end
+
+    # Perform shuffle
+    partition_idx_getter(val) = get_partition_idx_from_divisions(
+        val,
+        divisions_by_worker,
+        boundedlower = boundedlower,
+        boundedupper = boundedupper,
+    )
+    res = begin
         # Group the data along the splitting axis (specified by the "key"
         # parameter)
         partition_idx_to_e = [[] for partition_idx = 1:nworkers]
@@ -1413,8 +1645,6 @@ function Shuffle(
                 dims = key,
             )
         end
-    else
-        throw(ArgumentError("Expected array or dataframe to distribute and shuffle"))
     end
 
     if store_splitting_divisions

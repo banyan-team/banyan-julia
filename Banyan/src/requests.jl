@@ -408,11 +408,15 @@ function Base.collect(fut::AbstractFuture)
     # have a sample since we are merging it to the client.
 
     pt(fut, Replicated())
-    partitioned_computation(fut, destination=Client())
+    partitioned_computation(fut, destination=Client(), new_source=Client(nothing))
 
     # NOTE: We can't use `new_source=fut->Client(fut.value)` because
-    # we need to immediately change the location. The location will then be
-    # used to scatter the correct thing.
+    # `new_source` is for locations that require expensive sample collection
+    # and so we would only want to compute that location if we really need to
+    # use it as a source. Instead in this case, we really just know initially
+    # that this is a destination with _some_ value (so we default it to `nothing`)
+    # and then right after when we have actually computed, we will set it to the right
+    # location using the computed `fut.value`.
     sourced(fut, Client(fut.value))
 
     fut.value
