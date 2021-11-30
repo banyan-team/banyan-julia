@@ -1180,10 +1180,13 @@ function Divide(
     loc_name::String,
     loc_params::Dict{String,Any},
 )
+    @show src
     dim = params["key"]
     part = CopyFrom(src, params, batch_idx, nbatches, comm, loc_name, loc_params)
     newpartdim = length(split_len(part[dim], batch_idx, nbatches, comm))
-    indexapply(_ -> newpartdim, part, index = dim)
+    res = indexapply(_ -> newpartdim, part, index = dim)
+    @show res
+    res
 end
 
 function Divide(
@@ -1195,9 +1198,12 @@ function Divide(
     loc_name::String,
     loc_params::Dict{String,Any},
 )
+    @show src
     dim = params["key"]
     part = CopyFrom(src, params, batch_idx, nbatches, comm, loc_name, loc_params)
-    length(split_len(part[dim], batch_idx, nbatches, comm))
+    res = length(split_len(part[dim], batch_idx, nbatches, comm))
+    @show res
+    res
 end
 
 #####################
