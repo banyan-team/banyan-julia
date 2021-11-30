@@ -490,10 +490,10 @@ function Base.reduce(op, A::Array{T,N}; dims=:, kwargs...) where {T,N}
     end
 
     @partitioned op A dims kwargs res res_size begin
-        if is_debug_on()
-            # @show size(A)
-            # @show dims # TODO: Figure out why dims is sometimes a function
-        end
+        # if is_debug_on()
+        #     # @show size(A)
+        #     # @show dims # TODO: Figure out why dims is sometimes a function
+        # end
         res = Base.reduce(op, A; dims=dims, kwargs...)
         if res isa Base.Array
             res_size = Base.size(res)
