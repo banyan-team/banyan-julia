@@ -1135,6 +1135,9 @@ function ReduceAndCopyTo(
     # TODO: Ensure that we handle reductions that can produce nothing
     src = reduce_in_memory(src, part, op)
 
+    @show src
+    @show part
+
     # Merge reductions across workers
     if batch_idx == nbatches
         src = Reduce(src, params, Dict{String,Any}(), comm)
@@ -1144,6 +1147,8 @@ function ReduceAndCopyTo(
             # node
             CopyTo(src, src, params, 1, nbatches, comm, loc_name, loc_params)
         end
+
+        @show src
     end
 
     # TODO: Ensure we don't have issues where with batched execution we are
