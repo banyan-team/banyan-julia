@@ -1175,7 +1175,7 @@ function Divide(
 end
 
 function Divide(
-    src::Tuple,
+    src,
     params::Dict{String,Any},
     batch_idx::Integer,
     nbatches::Integer,
