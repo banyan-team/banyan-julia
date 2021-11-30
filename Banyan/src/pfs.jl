@@ -1183,6 +1183,7 @@ function Divide(
     @show src
     dim = params["key"]
     part = CopyFrom(src, params, batch_idx, nbatches, comm, loc_name, loc_params)
+    @show part
     newpartdim = length(split_len(part[dim], batch_idx, nbatches, comm))
     res = indexapply(_ -> newpartdim, part, index = dim)
     @show res
@@ -1202,6 +1203,7 @@ function Divide(
     @show nbatches
     dim = params["key"]
     part = CopyFrom(src, params, batch_idx, nbatches, comm, loc_name, loc_params)
+    @show part
     res = length(split_len(part[dim], batch_idx, nbatches, comm))
     @show res
     res
