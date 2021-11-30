@@ -1160,22 +1160,32 @@ end
 ReduceWithKeyAndCopyTo = ReduceAndCopyTo
 
 function Divide(
-    src,
-    params,
+    src::Tuple,
+    params::Dict{String,Any},
     batch_idx::Integer,
     nbatches::Integer,
     comm::MPI.Comm,
-    loc_name,
-    loc_params,
+    loc_name::String,
+    loc_params::Dict{String,Any},
 )
     dim = params["key"]
     part = CopyFrom(src, params, batch_idx, nbatches, comm, loc_name, loc_params)
-    if part isa Tuple
-        newpartdim = length(split_len(part[dim], batch_idx, nbatches, comm))
-        indexapply(_ -> newpartdim, part, index = dim)
-    else
-        length(split_len(part[dim], batch_idx, nbatches, comm))
-    end
+    newpartdim = length(split_len(part[dim], batch_idx, nbatches, comm))
+    indexapply(_ -> newpartdim, part, index = dim)
+end
+
+function Divide(
+    src::Tuple,
+    params::Dict{String,Any},
+    batch_idx::Integer,
+    nbatches::Integer,
+    comm::MPI.Comm,
+    loc_name::String,
+    loc_params::Dict{String,Any},
+)
+    dim = params["key"]
+    part = CopyFrom(src, params, batch_idx, nbatches, comm, loc_name, loc_params)
+    length(split_len(part[dim], batch_idx, nbatches, comm))
 end
 
 #####################
@@ -1210,16 +1220,23 @@ end
 
 ReduceWithKey = Reduce
 
-function Rebalance(part, src_params, dst_params, comm)
+# Grouped data frames can be block-partitioned but we will have to
+# redo the groupby if we try to do any sort of merging/splitting on it.
+Rebalance(
+    part::Union{Nothing,GroupedDataFrame},
+    src_params::Dict{String,Any},
+    dst_params::Dict{String,Any},
+    comm::MPI.Comm
+) = nothing
 
-    if isnothing(part) || isa_gdf(part)
-        # Grouped data frames can be block-partitioned but we will have to
-        # redo the groupby if we try to do any sort of merging/splitting on it.
-        return nothing
-    end
-
+function Rebalance(
+    part::AbstractArray,
+    src_params::Dict{String,Any},
+    dst_params::Dict{String,Any},
+    comm::MPI.Comm
+)
     # Get the range owned by this worker
-    dim = isa_array(part) ? dst_params["key"] : 1
+    dim = dst_params["key"]
     worker_idx, nworkers = get_worker_idx(comm), get_nworkers(comm)
     len = size(part, dim)
     scannedstartidx = MPI.Exscan(len, +, comm)
@@ -1227,7 +1244,7 @@ function Rebalance(part, src_params, dst_params, comm)
     endidx = startidx + len - 1
 
     # Get functions for serializing/deserializing
-    ser = isa_array(part) ? serialize : Arrow.write
+    ser = serialize
     # TODO: Use JLD for ser/de for arrays
     # TODO: Ensure that we are properly handling intermediate arrays or
     # dataframes that are empty (especially because they may not have their
@@ -1235,11 +1252,96 @@ function Rebalance(part, src_params, dst_params, comm)
     # empty should concatenate properly. We just need to be sure to not expect
     # every partition to know what its schema is. We can however expect each
     # partition of an array to know its ndims.
-    de = if isa_array(part)
-        x -> deserialize(IOBuffer(x))
-    else
-        x -> DataFrames.DataFrame(Arrow.Table(IOBuffer(x)))
+    de = x -> deserialize(IOBuffer(x))
+
+    # NOTE: Below this is all common between Rebalance for DataFrame and AbstractArray
+
+    # Construct buffer to send parts to all workers who own in this range
+    nworkers = get_nworkers(comm)
+    npartitions = nworkers
+    whole_len = MPI.bcast(endidx, nworkers - 1, comm)
+    io = IOBuffer()
+    nbyteswritten = 0
+    counts::Vector{Int64} = []
+    for partition_idx = 1:npartitions
+        # `split_len` gives us the range that this partition needs
+        partitionrange = split_len(whole_len, partition_idx, npartitions)
+
+        # Check if the range overlaps with the range owned by this worker
+        rangesoverlap =
+            max(startidx, partitionrange.start) <= min(endidx, partitionrange.stop)
+
+        # If they do overlap, then serialize the overlapping slice
+        ser(
+            io,
+            view(
+                part,
+                fill(:, dim - 1)...,
+                if rangesoverlap
+                    max(1, partitionrange.start - startidx + 1):min(
+                        size(part, dim),
+                        partitionrange.stop - startidx + 1,
+                    )
+                else
+                    # Return zero length for this dimension
+                    1:0
+                end,
+                fill(:, ndims(part) - dim)...,
+            ),
+        )
+
+        # Add the count of the size of this chunk in bytes
+        push!(counts, io.size - nbyteswritten)
+        nbyteswritten = io.size
+
     end
+    sendbuf = MPI.VBuffer(view(io.data, 1:nbyteswritten), counts)
+
+    # Create buffer for receiving pieces
+    # TODO: Refactor the intermediate part starting from there if we add
+    # more cases for this function
+    sizes = MPI.Alltoall(MPI.UBuffer(counts, 1), comm)
+    recvbuf = MPI.VBuffer(similar(io.data, sum(sizes)), sizes)
+
+    # Perform the shuffle
+    MPI.Alltoallv!(sendbuf, recvbuf, comm)
+
+    # Return the concatenated array
+    things_to_concatenate = [
+        de(view(recvbuf.data, displ+1:displ+count)) for
+        (displ, count) in zip(recvbuf.displs, recvbuf.counts)
+    ]
+    res = merge_on_executor(
+        things_to_concatenate...;
+        key = dim,
+    )
+    res
+end
+
+function Rebalance(
+    part::DataFrame,
+    src_params::Dict{String,Any},
+    dst_params::Dict{String,Any},
+    comm::MPI.Comm
+)
+    # Get the range owned by this worker
+    dim = 1
+    worker_idx, nworkers = get_worker_idx(comm), get_nworkers(comm)
+    len = size(part, dim)
+    scannedstartidx = MPI.Exscan(len, +, comm)
+    startidx = worker_idx == 1 ? 1 : scannedstartidx + 1
+    endidx = startidx + len - 1
+
+    # Get functions for serializing/deserializing
+    ser = Arrow.write
+    # TODO: Use JLD for ser/de for arrays
+    # TODO: Ensure that we are properly handling intermediate arrays or
+    # dataframes that are empty (especially because they may not have their
+    # ndims or dtype or schema). We probably are because dataframes that are
+    # empty should concatenate properly. We just need to be sure to not expect
+    # every partition to know what its schema is. We can however expect each
+    # partition of an array to know its ndims.
+    de = x -> DataFrames.DataFrame(Arrow.Table(IOBuffer(x)))
 
     # Construct buffer to send parts to all workers who own in this range
     nworkers = get_nworkers(comm)
