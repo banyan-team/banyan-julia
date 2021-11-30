@@ -1138,6 +1138,8 @@ function ReduceAndCopyTo(
     @show src
     @show part
 
+    @show batch_idx
+
     # Merge reductions across workers
     if batch_idx == nbatches
         src = Reduce(src, params, Dict{String,Any}(), comm)
@@ -1205,6 +1207,7 @@ function Reduce(
 ) where {T}
     # Get operator for reduction
     op = get_op!(src_params)
+    @show op(part, part)
 
     # TODO: Handle case where different processes have differently sized
     # sendbuf and where sendbuf is not isbitstype
