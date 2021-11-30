@@ -1097,9 +1097,7 @@ function CopyTo(
 end
 
 function get_op!(params::Dict{String,Any})
-    @show params
     op = params["reducer"]
-    @show op
     if params["with_key"]
         key = params["key"]
         if !haskey(params, "reducer_with_key")
@@ -1115,7 +1113,6 @@ function get_op!(params::Dict{String,Any})
                 op = reducer_with_key[key]
             end
         end
-        @show reducer_with_key
     end
     op
 end
@@ -1136,14 +1133,7 @@ function ReduceAndCopyTo(
     # Merge reductions from batches
     op = get_op!(params)
     # TODO: Ensure that we handle reductions that can produce nothing
-    @show op
-    @show src
     src = reduce_in_memory(src, part, op)
-
-    @show src
-    @show part
-
-    @show batch_idx
 
     # Merge reductions across workers
     if batch_idx == nbatches
@@ -1154,8 +1144,6 @@ function ReduceAndCopyTo(
             # node
             CopyTo(src, src, params, 1, nbatches, comm, loc_name, loc_params)
         end
-
-        @show src
     end
 
     # TODO: Ensure we don't have issues where with batched execution we are
@@ -1202,8 +1190,6 @@ function Reduce(
 ) where {T}
     # Get operator for reduction
     op = get_op!(src_params)
-    @show op
-    @show op(part, part)
 
     # TODO: Handle case where different processes have differently sized
     # sendbuf and where sendbuf is not isbitstype
