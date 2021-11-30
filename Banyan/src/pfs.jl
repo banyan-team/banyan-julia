@@ -1096,17 +1096,7 @@ function CopyTo(
     part
 end
 
-function ReduceAndCopyTo(
-    src,
-    part,
-    params,
-    batch_idx::Integer,
-    nbatches::Integer,
-    comm::MPI.Comm,
-    loc_name,
-    loc_params,
-)
-    # Merge reductions from batches
+function get_op!(params::Dict{String,Any})
     op = params["reducer"]
     if params["with_key"]
         key = params["key"]
@@ -1124,8 +1114,25 @@ function ReduceAndCopyTo(
             end
         end
     end
+end
+
+reduce_in_memory(src::Nothing, part::T, op::Function) where {T} = part
+reduce_in_memory(src, part::T, op::Function) where {T} = op(src, part)
+
+function ReduceAndCopyTo(
+    src,
+    part::T,
+    params,
+    batch_idx::Integer,
+    nbatches::Integer,
+    comm::MPI.Comm,
+    loc_name,
+    loc_params,
+) where {T}
+    # Merge reductions from batches
+    op = get_op!(params)
     # TODO: Ensure that we handle reductions that can produce nothing
-    src = isnothing(src) ? part : op(src, part)
+    src = reduce_in_memory(src, part, op)
 
     # Merge reductions across workers
     if batch_idx == nbatches
@@ -1174,10 +1181,14 @@ end
 # Casting functions #
 #####################
 
-function Reduce(part, src_params, dst_params, comm)
+function Reduce(
+    part::T,
+    src_params::Dict{String,Any},
+    dst_params::Dict{String,Any},
+    comm::MPI.Comm
+) where {T}
     # Get operator for reduction
-    op = src_params["reducer"]
-    op = src_params["with_key"] ? op(src_params["key"]) : op
+    op = get_op!(src_params)
 
     # TODO: Handle case where different processes have differently sized
     # sendbuf and where sendbuf is not isbitstype
