@@ -12,6 +12,7 @@ function create_cluster(;
     s3_bucket_arn::Union{String,Nothing} = nothing,
     s3_bucket_name::Union{String,Nothing} = nothing,
     scaledown_time = 25,
+    region = nothing,
     vpc_id = nothing,
     subnet_id = nothing,
     nowait=false,
@@ -24,6 +25,9 @@ function create_cluster(;
     clusters = get_clusters(; kwargs...)
     if isnothing(name)
         name = "Cluster " * string(length(clusters) + 1)
+    end
+    if isnothing(region)
+        aws_region = get_aws_config_region()
     end
 
     # Check if the configuration for this cluster name already exists
@@ -63,7 +67,7 @@ function create_cluster(;
         "max_num_workers" => max_num_workers,
         "initial_num_workers" => initial_num_workers,
         "min_num_workers" => min_num_workers,
-        "aws_region" => get_aws_config_region(),
+        "aws_region" => region,
         "s3_read_write_resource" => s3_bucket_arn,
         "scaledown_time" => scaledown_time,
         "recreate" => false,
@@ -156,6 +160,8 @@ parsestatus(status) =
         :running
     elseif status == "terminated"
         :terminated
+    elseif status == "unknown"
+        :unknown
     else
         error("Unexpected status ", status)
     end
