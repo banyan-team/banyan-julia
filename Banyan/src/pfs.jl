@@ -1160,21 +1160,6 @@ end
 ReduceWithKeyAndCopyTo = ReduceAndCopyTo
 
 function Divide(
-    src::Tuple,
-    params::Dict{String,Any},
-    batch_idx::Integer,
-    nbatches::Integer,
-    comm::MPI.Comm,
-    loc_name::String,
-    loc_params::Dict{String,Any},
-)
-    dim = params["key"]
-    part = CopyFrom(src, params, batch_idx, nbatches, comm, loc_name, loc_params)
-    newpartdim = length(split_len(part[dim], batch_idx, nbatches, comm))
-    indexapply(_ -> newpartdim, part, index = dim)
-end
-
-function Divide(
     src,
     params::Dict{String,Any},
     batch_idx::Integer,
@@ -1185,7 +1170,12 @@ function Divide(
 )
     dim = params["key"]
     part = CopyFrom(src, params, batch_idx, nbatches, comm, loc_name, loc_params)
-    length(split_len(part[dim], batch_idx, nbatches, comm))
+    if part isa Tuple
+        newpartdim = length(split_len(part[dim], batch_idx, nbatches, comm))
+        indexapply(_ -> newpartdim, part, index = dim)
+    else
+        length(split_len(part[dim], batch_idx, nbatches, comm))
+    end
 end
 
 #####################
