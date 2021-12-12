@@ -1407,7 +1407,7 @@ end
 
 function Distribute(part::T, src_params::Dict{String,Any}, dst_params::Dict{String,Any}, comm::MPI.Comm) where {T}
     # TODO: Determine whether copy is needed
-    SplitBlock(part, dst_params, 1, 1, comm, "Memory", Dict{String,Any}())
+    copy(SplitBlock(part, dst_params, 1, 1, comm, "Memory", Dict{String,Any}()))
 end
 
 # If this is a grouped data frame or nothing (the result of merging
