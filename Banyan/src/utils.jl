@@ -330,9 +330,10 @@ end
 Sends given request with given content
 """
 function request_body(url::AbstractString; kwargs...)
+    global downloader
     resp = nothing
     body = sprint() do output
-        resp = request(url; output=output, kwargs...)
+        resp = request(url; output=output, throw=false, downloader=downloader, kwargs...)
     end
     return resp, body
 end

@@ -213,6 +213,12 @@ function __init__()
     global BANYAN_API_ENDPOINT
     BANYAN_API_ENDPOINT = "https://hcohsbhhzf.execute-api.us-west-2.amazonaws.com/dev/"
 
+    # Downloads settings
+    global downloader
+    downloader = Downloads.Downloader()
+    downloader.easy_hook = (easy, info) ->
+       Downloads.Curl.setopt(easy, Downloads.Curl.CURLOPT_LOW_SPEED_TIME, 40)
+
     load_config()
 end
 
