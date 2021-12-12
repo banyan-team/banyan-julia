@@ -1588,8 +1588,10 @@ function Shuffle(
         # parameter)
         partition_idx_to_e = [[] for partition_idx = 1:nworkers]
         for e in eachslice(part, dims = key)
-            partition_idx = get_partition_idx_from_divisions(e, divisions_by_worker)
-            push!(partition_idx_to_e[partition_idx], e)
+            partition_idx = partition_idx_getter(e)
+            if partition_idx != -1
+                push!(partition_idx_to_e[partition_idx], e)
+            end
         end
 
         # Construct buffer for sending data
