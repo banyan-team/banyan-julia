@@ -933,10 +933,11 @@ function SplitGroup(
         filter(row -> partition_idx_getter(row[key]) == partition_idx, src)
     elseif isa_array(src)
         cat(
-            filter(
-                e -> partition_idx_getter(e) == partition_idx,
-                eachslice(src, dims = key),
-            )...;
+            [
+                slice
+                for slice in eachslice(src, dims = key)
+                if partition_idx_getter(e) == partition_idx
+            ]...;
             dims = key,
         )
     else
