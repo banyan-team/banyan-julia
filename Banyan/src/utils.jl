@@ -333,7 +333,7 @@ function request_body(url::AbstractString; kwargs...)
     global downloader
     resp = nothing
     body = sprint() do output
-        @time resp = request(url; output=output, throw=false, downloader=downloader, kwargs...)
+        resp = request(url; output=output, throw=false, downloader=downloader, kwargs...)
     end
     return resp, body
 end
