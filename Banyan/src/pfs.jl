@@ -932,14 +932,21 @@ function SplitGroup(
         # among other batches
         filter(row -> partition_idx_getter(row[key]) == partition_idx, src)
     elseif isa_array(src)
-        cat(
-            [
-                slice
-                for slice in eachslice(src, dims = key)
-                if partition_idx_getter(e) == partition_idx
-            ]...;
-            dims = key,
-        )
+        if ndims(src) > 1
+            cat(
+                [
+                    slice
+                    for slice in eachslice(src, dims = key)
+                    if partition_idx_getter(slice) == partition_idx
+                ]...;
+                dims = key,
+            )
+        else
+            filter(
+                e -> partition_idx_getter(e) == partition_idx,
+                src
+            )
+        end
     else
         throw(ArgumentError("Expected array or dataframe to distribute and shuffle"))
     end
@@ -1587,12 +1594,18 @@ function Shuffle(
     res = begin
         # Group the data along the splitting axis (specified by the "key"
         # parameter)
-        partition_idx_to_e = [[] for partition_idx = 1:nworkers]
-        for e in eachslice(part, dims = key)
-            partition_idx = partition_idx_getter(e)
-            if partition_idx != -1
-                push!(partition_idx_to_e[partition_idx], e)
+        multidimensional = ndims(part) > 1
+        if multidimensional
+            partition_idx_to_e = [[] for partition_idx = 1:nworkers]
+            for e in eachslice(part, dims = key)
+                partition_idx = partition_idx_getter(e)
+                if partition_idx != -1
+                    push!(partition_idx_to_e[partition_idx], e)
+                end
             end
+        else
+            part_sortperm = sortperm(part, by=partition_idx_getter)
+            part_sortperm_idx = 1
         end
 
         # Construct buffer for sending data
@@ -1600,25 +1613,33 @@ function Shuffle(
         nbyteswritten = 0
         a_counts::Vector{Int64} = []
         for partition_idx = 1:nworkers
-            # TODO: If `isbitstype(eltype(e))`, we may want to pass it in
-            # directly as an MPI buffer (if there is such a thing) instead of
-            # serializing
-            # Append to serialized buffer
-            e = partition_idx_to_e[partition_idx]
-            # NOTE: We ensure that we serialize something (even if its an
-            # empty array) for each partition to ensure that we can
-            # deserialize each item
-            serialize(
-                io,
-                !isempty(e) ? cat(e...; dims = key) :
-                view(part, [
-                    if d == key
-                        1:0
-                    else
-                        Colon()
-                    end for d = 1:ndims(part)
-                ]...),
-            )
+            if multidimensional
+                # TODO: If `isbitstype(eltype(e))`, we may want to pass it in
+                # directly as an MPI buffer (if there is such a thing) instead of
+                # serializing
+                # Append to serialized buffer
+                e = partition_idx_to_e[partition_idx]
+                # NOTE: We ensure that we serialize something (even if its an
+                # empty array) for each partition to ensure that we can
+                # deserialize each item
+                serialize(
+                    io,
+                    !isempty(e) ? cat(e...; dims = key) :
+                    view(part, [
+                        if d == key
+                            1:0
+                        else
+                            Colon()
+                        end for d = 1:ndims(part)
+                    ]...),
+                )
+            else
+                next_part_sortperm_idx = part_sortperm_idx
+                while partition_idx_getter(part_sortperm[part_sortperm_idx]) == partition_idx
+                    next_part_sortperm_idx += 1
+                end
+                serialize(io, part[@view part_sortperm[part_sortperm_idx:next_part_sortperm_idx-1]])
+            end
 
             # Add the count of the size of this chunk in bytes
             push!(a_counts, io.size - nbyteswritten)
