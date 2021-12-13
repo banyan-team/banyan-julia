@@ -2,78 +2,288 @@
     "splits": {
         "ReturnNull": {
             "location_names": ["None"],
-            "partition_memory_usage": "none"
+            "partition_memory_usage": "none",
+            "scale_by": 0
         },
-        "ReadBlock": {
+        "ReadBlockHDF5": {
             "expected": ["key"],
             "required": {"name": "Distributing", "distribution": "blocked", "id": "!"},
-            "default": {},
-            "location_names": ["Remote", "Disk"],
-            "partition_memory_usage": "div"
+            "locations": [
+                {"name": "Remote", "format": "HDF5"},
+                {"name": "Disk", "datatype": "Array"}
+            ],
+            "partition_memory_usage": "part",
+            "scale_by": 2,
+            "owns_partitions": false
         },
-        "ReadGroup": {
+        "ReadBlockCSV": {
+            "expected": ["key"],
+            "required": {"name": "Distributing", "distribution": "blocked", "id": "!"},
+            "locations": [{"name": "Remote", "format": "CSV"}],
+            "partition_memory_usage": "part",
+            "scale_by": 3,
+            "owns_partitions": false
+        },
+        "ReadBlockParquet": {
+            "expected": ["key"],
+            "required": {"name": "Distributing", "distribution": "blocked", "id": "!"},
+            "locations": [{"name": "Remote", "format": "Parquet"}],
+            "partition_memory_usage": "part",
+            "scale_by": 3,
+            "owns_partitions": false
+        },
+        "ReadBlockArrow": {
+            "expected": ["key"],
+            "required": {"name": "Distributing", "distribution": "blocked", "id": "!"},
+            "locations": [
+                {"name": "Remote", "format": "Arrow"},
+                {"name": "Disk", "datatype": "DataFrame"}
+            ],
+            "partition_memory_usage": "part",
+            "scale_by": 3,
+            "owns_partitions": false
+        },
+        "ReadGroupHDF5": {
             "expected": ["key", "divisions"],
             "required": {"name": "Distributing", "distribution": "grouped", "id": "!"},
             "default": {"rev": false},
-            "location_names": ["Remote", "Disk"],
-            "partition_memory_usage": "div"
+            "locations": [
+                {"name": "Remote", "format": "HDF5"},
+                {"name": "Disk", "datatype": "Array"}
+            ],
+            "partition_memory_usage": "part",
+            "scale_by": 9,
+            "owns_partitions": false
+        },
+        "ReadGroupCSV": {
+            "expected": ["key", "divisions"],
+            "required": {"name": "Distributing", "distribution": "grouped", "id": "!"},
+            "default": {"rev": false},
+            "locations": [{"name": "Remote", "format": "CSV"}],
+            "partition_memory_usage": "part",
+            "scale_by": 6,
+            "owns_partitions": false
+        },
+        "ReadGroupParquet": {
+            "expected": ["key", "divisions"],
+            "required": {"name": "Distributing", "distribution": "grouped", "id": "!"},
+            "default": {"rev": false},
+            "locations": [{"name": "Remote", "format": "Parquet"}],
+            "scale_by_num_partitions": false,
+            "scale_by": 6,
+            "owns_partitions": false
+        },
+        "ReadGroupArrow": {
+            "expected": ["key", "divisions"],
+            "required": {"name": "Distributing", "distribution": "grouped", "id": "!"},
+            "default": {"rev": false},
+            "locations": [
+                {"name": "Remote", "format": "Arrow"},
+                {"name": "Disk", "datatype": "DataFrame"}
+            ],
+            "scale_by_num_partitions": false,
+            "scale_by": 6,
+            "owns_partitions": false
         },
         "SplitBlock": {
             "expected": ["key"],
             "required": {"name": "Distributing", "distribution": "blocked", "id": "!"},
-            "default": {},
             "location_names": ["Memory"],
-            "partition_memory_usage": "div"
+            "partition_memory_usage": "part",
+            "scale_by": 0,
+            "owns_partitions": true
         },
         "SplitGroup": {
             "expected": ["key"],
             "required": {"name": "Distributing", "distribution": "grouped", "id": "!"},
-            "default": {"rev": false},
             "location_names": ["Memory"],
-            "partition_memory_usage": "div"
+            "partition_memory_usage": "part",
+            "scale_by": 1,
+            "owns_partitions": false
         },
         "CopyFrom": {
             "required": {"name": "Replicating", "dividing": false},
-            "default": {},
-            "location_names": ["Client", "Remote", "Value", "Disk", "Memory"],
-            "partition_memory_usage": "all"
+            "location_names": ["Memory"],
+            "partition_memory_usage": "all",
+            "scale_by": 0,
+            "owns_partitions": true
+        },
+        "CopyFromClient": {
+            "required": {"name": "Replicating", "dividing": false},
+            "location_names": ["Client"],
+            "partition_memory_usage": "all",
+            "scale_by": 2,
+            "owns_partitions": false
+        },
+        "CopyFromJulia": {
+            "required": {"name": "Replicating", "dividing": false},
+            "locations": [{"name": "Disk"}],
+            "partition_memory_usage": "all",
+            "scale_by": 2,
+            "owns_partitions": false
+        },
+        "CopyFromHDF5": {
+            "required": {"name": "Replicating", "dividing": false},
+            "locations": [
+                {"name": "Remote", "format": "HDF5"},
+                {"name": "Disk", "datatype": "Array"}
+            ],
+            "partition_memory_usage": "all",
+            "scale_by": 2,
+            "owns_partitions": false
+        },
+        "CopyFromCSV": {
+            "required": {"name": "Replicating", "dividing": false},
+            "locations": [{"name": "Remote", "format": "CSV"}],
+            "partition_memory_usage": "all",
+            "scale_by": 3,
+            "owns_partitions": false
+        },
+        "CopyFromParquet": {
+            "required": {"name": "Replicating", "dividing": false},
+            "locations": [{"name": "Remote", "format": "Parquet"}],
+            "partition_memory_usage": "all",
+            "scale_by": 3,
+            "owns_partitions": false
+        },
+        "CopyFromArrow": {
+            "required": {"name": "Replicating", "dividing": false},
+            "locations": [
+                {"name": "Remote", "format": "Arrow"},
+                {"name": "Disk", "datatype": "DataFrame"}
+            ],
+            "partition_memory_usage": "all",
+            "scale_by": 3,
+            "owns_partitions": false
         },
         "Divide": {
             "expected": ["key"],
             "required": {"name": "Replicating", "dividing": true},
-            "default": {},
             "location_names": ["Value", "Disk", "Memory"],
-            "partition_memory_usage": "all"
+            "partition_memory_usage": "all",
+            "scale_by": 1,
+            "owns_partitions": false
         }
     },
     "merges": {
-        "Write": {
+        "ReturnNull": {
+            "location_names": ["None"],
+            "partition_memory_usage": "none",
+            "scale_by": 0,
+            "owns_partitions": false
+        },
+        "WriteHDF5": {
             "required": {"name": "Distributing"},
-            "default": {},
-            "location_names": ["Remote", "Disk"]
+            "locations": [
+                {"name": "Remote", "format": "HDF5"},
+                {"name": "Disk", "datatype": "Array"}
+            ],
+            "partition_memory_usage": "part",
+            "scale_by": 0,
+            "owns_partitions": false
+        },
+        "WriteCSV": {
+            "required": {"name": "Distributing"},
+            "locations": [{"name": "Remote", "format": "CSV"}],
+            "partition_memory_usage": "part",
+            "scale_by": 0,
+            "owns_partitions": false
+        },
+        "WriteParquet": {
+            "required": {"name": "Distributing"},
+            "locations": [{"name": "Remote", "format": "Parquet"}],
+            "partition_memory_usage": "part",
+            "scale_by": 0,
+            "owns_partitions": false
+        },
+        "WriteArrow": {
+            "required": {"name": "Distributing"},
+            "locations": [
+                {"name": "Remote", "format": "Arrow"},
+                {"name": "Disk", "datatype": "DataFrame"}
+            ],
+            "partition_memory_usage": "part",
+            "scale_by": 0,
+            "owns_partitions": false
         },
         "Merge": {
             "expected": ["key"],
             "required": {"name": "Distributing"},
-            "default": {},
-            "location_names": ["Memory"]
+            "location_names": ["Memory"],
+            "partition_memory_usage": "part",
+            "scale_by": 1,
+            "owns_partitions": false
         },
         "CopyTo": {
             "required": {"name": "Replicating", "replication": "all"},
-            "default": {},
-            "location_names": ["Memory", "Disk", "Remote", "Client"]
+            "location_names": ["Memory"],
+            "partition_memory_usage": "all",
+            "scale_by": 0,
+            "owns_partitions": true
         },
-        "ReduceAndCopyTo": {
+        "CopyToClient": {
+            "required": {"name": "Replicating", "replication": "all"},
+            "location_names": ["Client"],
+            "partition_memory_usage": "all",
+            "scale_by": 1,
+            "owns_partitions": false
+        },
+        "CopyToJulia": {
+            "required": {"name": "Replicating", "replication": "all"},
+            "locations": [{"name": "Disk"}],
+            "partition_memory_usage": "all",
+            "scale_by": 0,
+            "owns_partitions": false
+        },
+        "CopyToHDF5": {
+            "required": {"name": "Replicating", "replication": "all"},
+            "locations": [
+                {"name": "Remote", "format": "HDF5"},
+                {"name": "Disk", "datatype": "Array"}
+            ],
+            "partition_memory_usage": "all",
+            "scale_by": 0,
+            "owns_partitions": false
+        },
+        "CopyToCSV": {
+            "required": {"name": "Replicating", "replication": "all"},
+            "locations": [{"name": "Remote", "format": "CSV"}],
+            "partition_memory_usage": "all",
+            "scale_by": 0,
+            "owns_partitions": false
+        },
+        "CopyToParquet": {
+            "required": {"name": "Replicating", "replication": "all"},
+            "locations": [{"name": "Remote", "format": "Parquet"}],
+            "partition_memory_usage": "all",
+            "scale_by": 0,
+            "owns_partitions": false
+        },
+        "CopyToArrow": {
+            "required": {"name": "Replicating", "replication": "all"},
+            "locations": [
+                {"name": "Remote", "format": "Arrow"},
+                {"name": "Disk", "datatype": "DataFrame"}
+            ],
+            "partition_memory_usage": "all",
+            "scale_by": 0,
+            "owns_partitions": false
+        },
+        "ReduceAndCopyToJulia": {
             "expected": ["reducer"],
             "required": {"name": "Replicating", "replication": null, "with_key": false},
-            "default": {},
-            "location_names": ["Memory", "Disk", "Remote"]
+            "location_names": ["Memory", "Disk"],
+            "partition_memory_usage": "all",
+            "scale_by": 1,
+            "owns_partitions": false
         },
-        "ReduceWithKeyAndCopyTo": {
+        "ReduceWithKeyAndCopyToJulia": {
             "expected": ["key", "reducer"],
             "required": {"name": "Replicating", "replication": null, "with_key": true},
-            "default": {},
-            "location_names": ["Memory", "Disk", "Remote"]
+            "location_names": ["Memory", "Disk"],
+            "partition_memory_usage": "all",
+            "scale_by": 1,
+            "owns_partitions": false
         }
     },
     "casts": {
@@ -81,49 +291,47 @@
             "src_expected": ["reducer"],
             "src_required": {"name": "Replicating", "replication": null, "with_key": false},
             "dst_required": {"name": "Replicating", "replication": "all"},
-            "dst_default": {},
-            "matching": []
+            "scale_by_dst": 1
         },
         "ReduceWithKey": {
             "src_expected": ["reducer", "key"],
             "src_required": {"name": "Replicating", "replication": null, "with_key": true},
             "dst_required": {"name": "Replicating", "replication": "all"},
-            "dst_default": {},
-            "matching": []
+            "scale_by_dst": 1
         },
         "Rebalance": {
             "src_required": {"name": "Distributing"},
             "dst_required": {"name": "Distributing", "distribution": "blocked", "balanced": true, "id": "!"},
-            "dst_default": {},
-            "matching": ["dim"]
+            "scale_by_src": 1,
+            "scale_by_dst": 3
         },
         "Distribute": {
             "src_required": {"name": "Replicating", "replication": "all"},
             "dst_required": {"name": "Distributing", "distribution": "blocked", "id": "!"},
             "dst_expected": ["key"],
-            "dst_default": {},
-            "matching": []
+            "scale_by_dst": 1
         },
         "Consolidate": {
             "src_expected": ["key"],
             "src_required": {"name": "Distributing"},
             "dst_required": {"name": "Replicating", "replication": "all"},
-            "dst_default": {},
-            "matching": []
+            "scale_by_src": 1,
+            "scale_by_dst": 3
         },
         "Shuffle": {
             "src_required": {"name": "Distributing"},
             "dst_required": {"name": "Distributing", "distribution": "grouped", "id": "!"},
             "dst_default": {"rev": false},
             "dst_expected": ["key", "divisions"],
-            "matching": []
+            "scale_by_src": 3,
+            "scale_by_dst": 3
         },
         "DistributeAndShuffle": {
             "src_required": {"name": "Replicating", "replication": "all"},
             "dst_required": {"name": "Distributing", "distribution": "grouped", "id": "!"},
             "dst_default": {"rev": false},
             "dst_expected": ["key", "divisions"],
-            "matching": []
+            "scale_by_dst": 1
         }
     }
 }
