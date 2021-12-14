@@ -1,7 +1,7 @@
 name = "BanyanArrays"
 uuid = "369465de-032e-4609-9dcf-82b89c370a7b"
 authors = ["Banyan <support@banyancomputing.com>"]
-version = "0.1.5"
+version = "0.1.6"
 
 [deps]
 Banyan = "706d138b-e922-45b9-a636-baf8ae0d5317"
