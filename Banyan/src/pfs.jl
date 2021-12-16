@@ -922,8 +922,34 @@ function SplitBlock(
     )
 end
 
+# NOTE: The way we have `partial_merges` requires us to be splitting from
+# `nothing` and then merging back. If we are splitting from some value and
+# then expecting to merge back in some way then that won't work. If we are
+# splitting from a value we assume that we don't have to merge back either
+# because we split with a view (so the source was directly mutated) or we
+# didn't mutate this value at all. If we are doing in-place mutations where
+# we split from some value and then merge back up, then we might have to
+# add support for that. Right now, because of the way `SplitBlock`,
+# `SplitGroup`, and `Merge` are implemented, we unnecessarily concatenate
+# in the case where we are doing things like `setindex!` with a somewhat
+# faked mutation.
+
+# src is [] if we are partially merged (because as we iterate over
+# batches we take turns between splitting and merging)
+SplitGroup(
+    src::Union{Nothing,PartiallyMerged},
+    params,
+    batch_idx::Integer,
+    nbatches::Integer,
+    comm::MPI.Comm,
+    loc_name,
+    loc_params;
+    store_splitting_divisions = false
+) = nothing
+    
+
 function SplitGroup(
-    src,
+    src::DataFrame,
     params,
     batch_idx::Integer,
     nbatches::Integer,
@@ -932,22 +958,6 @@ function SplitGroup(
     loc_params;
     store_splitting_divisions = false
 )
-    # NOTE: The way we have `partial_merges` requires us to be splitting from
-    # `nothing` and then merging back. If we are splitting from some value and
-    # then expecting to merge back in some way then that won't work. If we are
-    # splitting from a value we assume that we don't have to merge back either
-    # because we split with a view (so the source was directly mutated) or we
-    # didn't mutate this value at all. If we are doing in-place mutations where
-    # we split from some value and then merge back up, then we might have to
-    # add support for that. Right now, because of the way `SplitBlock`,
-    # `SplitGroup`, and `Merge` are implemented, we unnecessarily concatenate
-    # in the case where we are doing things like `setindex!` with a somewhat
-    # faked mutation.
-    if isnothing(src) || src isa PartiallyMerged
-        # src is [] if we are partially merged (because as we iterate over
-        # batches we take turns between splitting and merging)
-        return nothing
-    end
 
     partition_idx = get_partition_idx(batch_idx, nbatches, comm)
     npartitions = get_npartitions(nbatches, comm)
@@ -986,28 +996,95 @@ function SplitGroup(
     )
 
     # Apply divisions to get only the elements relevant to this worker
-    res = if isa_df(src)
-        # TODO: Do the groupby and filter on batch_idx == 1 and then share
-        # among other batches
-        filter(row -> partition_idx_getter(row[key]) == partition_idx, src)
-    elseif isa_array(src)
-        if ndims(src) > 1
-            cat(
-                [
-                    slice
-                    for slice in eachslice(src, dims = key)
-                    if partition_idx_getter(slice) == partition_idx
-                ]...;
-                dims = key,
-            )
-        else
-            filter(
-                e -> partition_idx_getter(e) == partition_idx,
-                src
-            )
-        end
+    # TODO: Do the groupby and filter on batch_idx == 1 and then share
+    # among other batches
+    res = filter(row -> partition_idx_getter(row[key]) == partition_idx, src)
+
+    if store_splitting_divisions
+        # The first and last partitions (used if this lacks a lower or upper bound)
+        # must have actual division(s) associated with them. If there is no
+        # partition that has divisions, then they will all be skipped and -1 will
+        # be returned. So these indices are only used if there are nonempty
+        # divisions.
+        hasdivision = any(x->!isempty(x), divisions_by_partition)
+        firstdivisionidx = findfirst(x->!isempty(x), divisions_by_partition)
+        lastdivisionidx = findlast(x->!isempty(x), divisions_by_partition)
+
+        # Store divisions
+        global splitting_divisions
+        splitting_divisions[res] = (
+            divisions_by_partition[partition_idx],
+            !hasdivision || boundedlower || partition_idx != firstdivisionidx,
+            !hasdivision || boundedupper || partition_idx != lastdivisionidx,
+        )
+    end
+
+    res
+end
+    
+
+function SplitGroup(
+    src::AbstractArray,
+    params,
+    batch_idx::Integer,
+    nbatches::Integer,
+    comm::MPI.Comm,
+    loc_name,
+    loc_params;
+    store_splitting_divisions = false
+)
+
+    partition_idx = get_partition_idx(batch_idx, nbatches, comm)
+    npartitions = get_npartitions(nbatches, comm)
+
+    # Ensure that this partition has a schema that is suitable for usage
+    # here. We have to do this for `Shuffle` and `SplitGroup` (which is
+    # used by `DistributeAndShuffle`)
+    if isempty(src) || npartitions == 1
+        # TODO: Ensure we can return here like this and don't need the above
+        # (which is copied from `Shuffle`)
+        return src
+    end
+
+    # Get divisions stored with src
+    global splitting_divisions
+    src_divisions, boundedlower, boundedupper = get!(splitting_divisions, src) do
+        # This case lets us use `SplitGroup` in `DistributeAndShuffle`
+        (params["divisions"], false, false)
+    end
+    divisions_by_partition = get_divisions(src_divisions, npartitions)
+
+    # Get the divisions to apply
+    key = params["key"]
+    rev = params["rev"]
+    if rev
+        reverse!(divisions_by_partition)
+    end
+
+    # Create helper function for getting index of partition that owns a given
+    # value
+    partition_idx_getter(val) = get_partition_idx_from_divisions(
+        val,
+        divisions_by_partition,
+        boundedlower = boundedlower,
+        boundedupper = boundedupper,
+    )
+
+    # Apply divisions to get only the elements relevant to this worker
+    res = if ndims(src) > 1
+        cat(
+            [
+                slice
+                for slice in eachslice(src, dims = key)
+                if partition_idx_getter(slice) == partition_idx
+            ]...;
+            dims = key,
+        )
     else
-        throw(ArgumentError("Expected array or dataframe to distribute and shuffle"))
+        filter(
+            e -> partition_idx_getter(e) == partition_idx,
+            src
+        )
     end
 
     if store_splitting_divisions
