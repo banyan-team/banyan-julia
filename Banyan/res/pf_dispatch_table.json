@@ -108,6 +108,13 @@
             "scale_by": 0,
             "owns_partitions": true
         },
+        "CopyFromValue": {
+            "required": {"name": "Replicating", "dividing": false},
+            "location_names": ["Value"],
+            "partition_memory_usage": "all",
+            "scale_by": 0,
+            "owns_partitions": true
+        },
         "CopyFromClient": {
             "required": {"name": "Replicating", "dividing": false},
             "location_names": ["Client"],
