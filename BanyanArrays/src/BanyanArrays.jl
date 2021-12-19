@@ -20,5 +20,7 @@ export ReadBlockHDF5,
     Shuffle
 
 include("array.jl")
+include("pfs.jl")
+include("utils_pfs.jl")
 
 end # module

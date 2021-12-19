@@ -7,6 +7,8 @@ using DataFrames, Missings
 
 include("df.jl")
 include("gdf.jl")
+include("pfs.jl")
+include("utils_pfs.jl")
 
 # Types
 export DataFrame, GroupedDataFrame
