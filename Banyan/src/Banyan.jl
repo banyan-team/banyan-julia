@@ -115,24 +115,24 @@ export is_debug_on,
 # Partitioning functions for usage in jobs that run on the cluster; dispatched
 # based on `res/pf_dispatch_table.json`.
 export ReturnNull,
-    ReadBlock,
-    ReadGroup,
-    Write,
     SplitBlock,
     SplitGroup,
+    Consolidate,
     Merge,
     CopyFrom,
+    CopyFromValue,
+    CopyFromClient,
+    CopyFromJulia,
     CopyTo,
-    ReduceAndCopyTo,
-    ReduceWithKeyAndCopyTo,
+    CopyToClient,
+    CopyToJulia,
+    ReduceAndCopyToJulia,
+    ReduceWithKeyAndCopyToJulia,
     Divide,
     Reduce,
     ReduceWithKey,
-    Rebalance,
     Distribute,
-    Consolidate,
-    DistributeAndShuffle,
-    Shuffle
+    DistributeAndShuffle
 
 using AWS: _get_ini_value
 using AWSCore

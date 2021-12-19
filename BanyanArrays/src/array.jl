@@ -384,25 +384,6 @@ function Base.map(f, c::Array{T,N}...) where {T,N}
     Array{eltype(sample(res)),N}(res, deepcopy(first(c).size))
 end
 
-# NOTE: This function is shared between the client library and the PT library
-function indexapply(op, objs...; index::Integer=1)
-    lists = [obj for obj in objs if (obj isa AbstractVector || obj isa Tuple)]
-    length(lists) > 0 || throw(ArgumentError("Expected at least one tuple as input"))
-    index = index isa Colon ? length(first(lists)) : index
-    operands = [((obj isa AbstractVector || obj isa Tuple) ? obj[index] : obj) for obj in objs]
-    indexres = op(operands...)
-    res = first(lists)
-    if first(lists) isa Tuple
-        res = [res...]
-        res[index] = indexres
-        Tuple(res)
-    else
-        res = copy(res)
-        res[index] = indexres
-        res
-    end
-end
-
 function Base.mapslices(f, A::Array{T,N}; dims) where {T,N}
     if isempty(dims) return map(f, A) end
 
@@ -430,7 +411,7 @@ function Base.mapslices(f, A::Array{T,N}; dims) where {T,N}
 
         # replicated
         # TODO: Determine why this MatchOn constraint is not propagating
-        pt(res_size, ReducingWithKey(quote axis -> (a, b) -> indexapply(+, a, b, index=axis) end), match=A, on="key")
+        pt(res_size, ReducingWithKey(quote axis -> (a, b) -> Banyan.indexapply(+, a, b, index=axis) end), match=A, on="key")
         pt(A, res, res_size, f, dims, Replicated())
     end
 
@@ -480,7 +461,7 @@ function Base.reduce(op, A::Array{T,N}; dims=:, kwargs...) where {T,N}
                 pt(res, bpt.balanced ? Balanced() : Unbalanced(scaled_by_same_as=A), match=A)
             end
         end
-        pt(res_size, ReducingWithKey(quote axis -> (a, b) -> indexapply(+, a, b, index=axis) end), match=A, on="key")
+        pt(res_size, ReducingWithKey(quote axis -> (a, b) -> Banyan.indexapply(+, a, b, index=axis) end), match=A, on="key")
         # TODO: Allow replication
         if !is_debug_on()
             pt(A, res, res_size, dims, kwargs, op, Replicated())

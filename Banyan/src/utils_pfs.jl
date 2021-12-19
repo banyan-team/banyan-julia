@@ -5,10 +5,6 @@ using MPI, HDF5, DataFrames
 # Helper functions #
 ####################
 
-isa_df(obj) = (@isdefined(DataFrames) && @isdefined(AbstractDataFrame)) && obj isa DataFrames.AbstractDataFrame
-isa_gdf(obj) = (@isdefined(DataFrames) && @isdefined(GroupedDataFrame)) && obj isa DataFrames.GroupedDataFrame
-isa_array(obj) = obj isa AbstractArray || obj isa HDF5.Dataset
-
 get_worker_idx(comm::MPI.Comm) = MPI.Comm_rank(comm) + 1
 get_nworkers(comm::MPI.Comm) = MPI.Comm_size(comm)
 
@@ -37,29 +33,7 @@ split_len(src_len, batch_idx::Integer, nbatches::Integer, comm::MPI.Comm) = spli
     get_npartitions(nbatches, comm),
 )
 
-split_on_executor(src::AbstractArray, d::Integer, i) = selectdim(src, d, i)
-split_on_executor(src::AbstractDataFrame, d::Integer, i) = @view src[i, :]
-split_on_executor(src::GroupedDataFrame, d::Integer, i) = nothing
-
-# In case we are trying to `Distribute` a grouped data frame,
-# we can't do that so we will simply return nothing so that the groupby
-# partitioned computation will redo the groupby.
-
-split_on_executor(
-    src::Nothing,
-    dim::Integer,
-    batch_idx::Integer,
-    nbatches::Integer,
-    comm::MPI.Comm,
-) = nothing
-
-split_on_executor(
-    src::GroupedDataFrame,
-    dim::Integer,
-    batch_idx::Integer,
-    nbatches::Integer,
-    comm::MPI.Comm,
-) = nothing
+split_on_executor(src, d, i) = error("Splitting $(typeof(src)) not supported")
 
 split_on_executor(
     src::T,
@@ -77,51 +51,33 @@ split_on_executor(
                 size(src, dim),
                 get_partition_idx(batch_idx, nbatches, comm),
                 npartitions,
-            ),
+            )
         )
     else
         src
     end
 end
 
-function merge_on_executor(obj::Vararg{AbstractArray{T,N},M}; key = nothing) where {T,N,M}
-    if length(obj) == 1
-        obj[1]
-    else
-        cat(obj...; dims = key)
-    end
-end
+merge_on_executor(obj; key = nothing) = error("Merging $(typeof(obj)) not supported")
 
-# If this is a dataframe then we ignore the grouping key
-function merge_on_executor(obj::Vararg{DataFrame,M}; key = nothing) where {M}
-    if length(obj) == 1
-        obj[1]
-    else
-        vcat(obj...)
-    end
-end
-
-merge_on_executor(obj::Vararg{GroupedDataFrame,M}; key = nothing) where {M} = nothing
-merge_on_executor(obj::Vararg{T,M}; key = nothing) where {T,M} = first(obj)
-
-# TODO: Make `merge_on_executor` and `tobuf` and `frombuf`
-# dispatch based on the `kind` so we only have to precompile Arrow if we are
-# working with dataframes.
-function merge_on_executor(kind::Symbol, vbuf::MPI.VBuffer, nchunks::Integer; key)
-    chunks = [
-        begin
-            chunk = view(vbuf.data, (vbuf.displs[i]+1):(vbuf.displs[i]+vbuf.counts[i]))
-            if kind == :df
-                DataFrames.DataFrame(Arrow.Table(IOBuffer(chunk)))
-            elseif kind == :bits
-                chunk
-            else
-                deserialize(IOBuffer(chunk))
-            end
-        end for i = 1:nchunks
-    ]
-    merge_on_executor(chunks...; key = key)
-end
+# # TODO: Make `merge_on_executor` and `tobuf` and `frombuf`
+# # dispatch based on the `kind` so we only have to precompile Arrow if we are
+# # working with dataframes.
+# function merge_on_executor(kind::Symbol, vbuf::MPI.VBuffer, nchunks::Integer; key)
+#     chunks = [
+#         begin
+#             chunk = view(vbuf.data, (vbuf.displs[i]+1):(vbuf.displs[i]+vbuf.counts[i]))
+#             if kind == :df
+#                 DataFrames.DataFrame(Arrow.Table(IOBuffer(chunk)))
+#             elseif kind == :bits
+#                 chunk
+#             else
+#                 deserialize(IOBuffer(chunk))
+#             end
+#         end for i = 1:nchunks
+#     ]
+#     merge_on_executor(chunks...; key = key)
+# end
 
 function get_partition_idx_from_divisions(
     val,
@@ -202,9 +158,9 @@ from_jl_value_contents(jl_value_contents) = begin
 end
 
 
-##########################################
-# Ordering hash for computing  divisions #
-##########################################
+##################################################
+# Order-preserving hash for computing  divisions #
+##################################################
 
 # NOTE: `orderinghash` must either return a number or a vector of
 # equally-sized numbers
@@ -434,74 +390,74 @@ end
 # end
 
 # function tobuf(obj)::Tuple{Symbol, MPI.Buffer}
-function tobuf(obj)
-    # We pass around Julia objects between MPI processes in different ways
-    # depending on the data type. For simple isbitstype data we keep it as-is
-    # and use the simple C-like data layout for fast transfer. For dataframes,
-    # we use Arrow data layout for zero-copy deserialization. For everything
-    # else including variably-sized arrays and arbitrary Julia objects, we
-    # simply serialize and deserialize using the Serialization module in Julia
-    # standard library.
+# function tobuf(obj)
+#     # We pass around Julia objects between MPI processes in different ways
+#     # depending on the data type. For simple isbitstype data we keep it as-is
+#     # and use the simple C-like data layout for fast transfer. For dataframes,
+#     # we use Arrow data layout for zero-copy deserialization. For everything
+#     # else including variably-sized arrays and arbitrary Julia objects, we
+#     # simply serialize and deserialize using the Serialization module in Julia
+#     # standard library.
 
-    if isbits(obj)
-        (:bits, MPI.Buffer(Ref(obj)))
-        # (:bits, MPI.Buffer(obj))
-        # (:bits, MPI.Buffer(Ref(obj)))
-    elseif isa_array(obj) && isbitstype(first(typeof(obj).parameters)) && ndims(obj) == 1
-        # (:bits, MPI.Buffer(obj))
-        (:bits, MPI.Buffer(obj))
-    elseif isa_df(obj)
-        io = IOBuffer()
-        Arrow.write(io, obj)
-        # (:df, MPI.Buffer(view(io.data, 1:position(io))))
-        (:df, MPI.Buffer(view(io.data, 1:io.size)))
-    else
-        io = IOBuffer()
-        serialize(io, obj)
-        (:unknown, MPI.Buffer(view(io.data, 1:io.size)))
-        # (:unknown, io)
-    end
-end
+#     if isbits(obj)
+#         (:bits, MPI.Buffer(Ref(obj)))
+#         # (:bits, MPI.Buffer(obj))
+#         # (:bits, MPI.Buffer(Ref(obj)))
+#     elseif isa_array(obj) && isbitstype(first(typeof(obj).parameters)) && ndims(obj) == 1
+#         # (:bits, MPI.Buffer(obj))
+#         (:bits, MPI.Buffer(obj))
+#     elseif isa_df(obj)
+#         io = IOBuffer()
+#         Arrow.write(io, obj)
+#         # (:df, MPI.Buffer(view(io.data, 1:position(io))))
+#         (:df, MPI.Buffer(view(io.data, 1:io.size)))
+#     else
+#         io = IOBuffer()
+#         serialize(io, obj)
+#         (:unknown, MPI.Buffer(view(io.data, 1:io.size)))
+#         # (:unknown, io)
+#     end
+# end
 
-function buftovbuf(buf::MPI.Buffer, comm::MPI.Comm)::MPI.VBuffer
-    # This function expects that the given buf has buf.data being an array.
-    # Basically what it does is it takes the result of a call to tobuf above
-    # on each process and constructs a VBuffer with the sum of the sizes of the
-    # buffers on different processes.
-    sizes = MPI.Allgather(buf.count, comm)
-    # NOTE: This function should only be used for variably-sized buffers for
-    # receiving data because the returned buffer contains zeroed-out memory.
-    VBuffer(similar(buf.data, sum(sizes)), sizes)
-end
+# function buftovbuf(buf::MPI.Buffer, comm::MPI.Comm)::MPI.VBuffer
+#     # This function expects that the given buf has buf.data being an array.
+#     # Basically what it does is it takes the result of a call to tobuf above
+#     # on each process and constructs a VBuffer with the sum of the sizes of the
+#     # buffers on different processes.
+#     sizes = MPI.Allgather(buf.count, comm)
+#     # NOTE: This function should only be used for variably-sized buffers for
+#     # receiving data because the returned buffer contains zeroed-out memory.
+#     VBuffer(similar(buf.data, sum(sizes)), sizes)
+# end
 
-function bufstosendvbuf(bufs::Vector{MPI.Buffer}, comm::MPI.Comm)::MPI.VBuffer
-    sizes = [length(buf.data) for buf in bufs]
-    VBuffer(vcat(map(buf -> buf.data, bufs)), sizes)
-end
+# function bufstosendvbuf(bufs::Vector{MPI.Buffer}, comm::MPI.Comm)::MPI.VBuffer
+#     sizes = [length(buf.data) for buf in bufs]
+#     VBuffer(vcat(map(buf -> buf.data, bufs)), sizes)
+# end
 
-function bufstorecvvbuf(bufs::Vector{MPI.Buffer}, comm::MPI.Comm)::MPI.VBuffer
-    # This function expects that each given buf has buf.data being an array and
-    # that the number of bufs in bufs is equal to the size of the communicator.
-    # sizes = MPI.Allgather(length(buf.data), comm)
-    sizes = MPI.Alltoall([length(buf.data) for buf in bufs])
-    # NOTE: Ensure that the data fields of the bufs are initialized to have the
-    # right data type (e.g., Vector{UInt8} or Vector{Int64})
-    # We use `similar` here because we want zeroed out memory to receive data.
-    VBuffer(similar(first(bufs).data, sum(sizes)), sizes)
-end
+# function bufstorecvvbuf(bufs::Vector{MPI.Buffer}, comm::MPI.Comm)::MPI.VBuffer
+#     # This function expects that each given buf has buf.data being an array and
+#     # that the number of bufs in bufs is equal to the size of the communicator.
+#     # sizes = MPI.Allgather(length(buf.data), comm)
+#     sizes = MPI.Alltoall([length(buf.data) for buf in bufs])
+#     # NOTE: Ensure that the data fields of the bufs are initialized to have the
+#     # right data type (e.g., Vector{UInt8} or Vector{Int64})
+#     # We use `similar` here because we want zeroed out memory to receive data.
+#     VBuffer(similar(first(bufs).data, sum(sizes)), sizes)
+# end
 
-function frombuf(kind, obj)
-    if kind == :bits && obj isa Ref
-        # TODO: Ensure that the "dereferece" here is necessary
-        obj[]
-    elseif kind == :bits
-        obj
-    elseif kind == :df
-        DataFrames.DataFrame(Arrow.Table(obj), copycols = false)
-    else
-        deserialize(obj)
-    end
-end
+# function frombuf(kind, obj)
+#     if kind == :bits && obj isa Ref
+#         # TODO: Ensure that the "dereferece" here is necessary
+#         obj[]
+#     elseif kind == :bits
+#         obj
+#     elseif kind == :df
+#         DataFrames.DataFrame(Arrow.Table(obj), copycols = false)
+#     else
+#         deserialize(obj)
+#     end
+# end
 
 function getpath(path)
     if startswith(path, "http://") || startswith(path, "https://")

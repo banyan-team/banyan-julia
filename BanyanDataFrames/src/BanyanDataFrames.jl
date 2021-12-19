@@ -38,4 +38,23 @@ export groupby, select, transform, combine, subset
 # Missing
 export allowmissing, disallowmissing
 
+export ReadBlockCSV,
+    ReadBlockParquet,
+    ReadBlockArrow,
+    WriteParquet,
+    WriteCSV,
+    WriteArrow,
+    CopyFromArrow,
+    CopyFromCSV,
+    CopyFromParquet,
+    CopyToCSV,
+    CopyToParquet,
+    CopyToArrow,
+    CopyTo,
+    SplitBlock,
+    SplitGroup,
+    Rebalance,
+    Consolidate,
+    Shuffle
+
 end # module

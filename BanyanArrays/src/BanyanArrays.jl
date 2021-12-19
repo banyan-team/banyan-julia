@@ -8,6 +8,17 @@ export ndims, size, length, eltype
 export fill, zeros, ones, trues, falses
 export map, mapslices, reduce, sort, sortlices
 
+export ReadBlockHDF5,
+    ReadGroupHDF5,
+    WriteHDF5,
+    CopyFromHDF5,
+    CopyToHDF5,
+    SplitBlock,
+    SplitGroup,
+    Rebalance,
+    Consolidate,
+    Shuffle
+
 include("array.jl")
 
 end # module
