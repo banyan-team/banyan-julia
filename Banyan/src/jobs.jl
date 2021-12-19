@@ -48,7 +48,7 @@ function create_job(;
     files::Union{Vector,Nothing} = [],
     code_files::Union{Vector,Nothing} = [],
     force_update_files::Union{Bool,Nothing} = false,
-    pf_dispatch_table::Union{String,Nothing} = "",
+    pf_dispatch_table::Vector{String} = ["https://raw.githubusercontent.com/banyan-team/banyan-julia/v0.1.3/Banyan/res/pf_dispatch_table.json"],
     using_modules::Union{Vector,Nothing} = [],
     url::Union{String,Nothing} = nothing,
     branch::Union{String,Nothing} = nothing,
@@ -155,10 +155,6 @@ function create_job(;
     # TODO: Optimize so that we only upload (and download onto cluster) the files if the filename doesn't already exist
     job_configuration["files"] = [basename(f) for f in files]
     job_configuration["code_files"] = [basename(f) for f in code_files]
-
-    if pf_dispatch_table == ""
-        pf_dispatch_table = "https://raw.githubusercontent.com/banyan-team/banyan-julia/v0.1.3/Banyan/res/pf_dispatch_table.json"
-    end
     job_configuration["pf_dispatch_table"] = load_json(pf_dispatch_table)
 
     # Create the job

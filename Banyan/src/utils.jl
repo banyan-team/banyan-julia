@@ -453,6 +453,12 @@ function load_json(path::String)
     end
 end
 
+function load_json(paths::Vector{String})
+    # Each file should have merges, splits, and casts. So we need to take those
+    # and merge them.
+    mergewith(merge, [load_json(p) for p in paths]...)
+end
+
 # Loads file into String and returns
 function load_file(path::String)
     if startswith(path, "file://")
