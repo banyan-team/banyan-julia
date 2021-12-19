@@ -186,7 +186,7 @@
                 {"name": "Disk", "datatype": "Array"}
             ],
             "partition_memory_usage": "part",
-            "scale_by": 0,
+            "scale_by": 1,
             "owns_partitions": false
         },
         "WriteCSV": {

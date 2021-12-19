@@ -253,7 +253,7 @@ ReadBlockCSV, ReadBlockParquet, ReadBlockArrow = [
         end
         ReadBlock
     end
-    for read_file, file_extension in [
+    for (read_file, file_extension) in [
         (read_csv_file, ".csv"),
         (read_parquet_file, ".parquet"),
         (read_arrow_file, ".arrow")
@@ -262,117 +262,123 @@ ReadBlockCSV, ReadBlockParquet, ReadBlockArrow = [
 
 splitting_divisions = IdDict()
 
-function ReadGroup(
-    src,
-    params,
-    batch_idx::Integer,
-    nbatches::Integer,
-    comm::MPI.Comm,
-    loc_name,
-    loc_params,
-)
-    # TODO: Store filters in parameters of the PT and use them to do
-    # partition pruning, avoiding reads that are unnecessary
-
-    # Get information needed to read in the appropriate group
-    divisions = params["divisions"]
-    key = params["key"]
-    rev = params["rev"] # Passed in ReadBlock
-    nworkers = get_nworkers(comm)
-    npartitions = nworkers * nbatches
-    partition_divisions = get_divisions(divisions, npartitions)
-
-    # TODO: Do some reversing here instead of only doing it later in Shuffle
-    # to ensure that sorting in reverse order works correctly
-
-    # The first and last partitions (used if this lacks a lower or upper bound)
-    # must have actual division(s) associated with them. If there is no
-    # partition that has divisions, then they will all be skipped and -1 will
-    # be returned. So these indices are only used if there are nonempty
-    # divisions.
-    hasdivision = any(x->!isempty(x), partition_divisions)
-    firstdivisionidx = findfirst(x->!isempty(x), partition_divisions)
-    lastdivisionidx = findlast(x->!isempty(x), partition_divisions)
-    firstbatchidx = nothing
-    lastbatchidx = nothing
-
-    # Get the divisions that are relevant to this batch by iterating
-    # through the divisions in a stride and consolidating the list of divisions
-    # for each partition. Then, ensure we use boundedlower=true only for the
-    # first batch and boundedupper=true for the last batch.
-    curr_partition_divisions = []
-    for worker_division_idx = 1:nworkers
-        for batch_division_idx = 1:nbatches
-            # partition_division_idx =
-            #     (worker_division_idx - 1) * nbatches + batch_division_idx
-            partition_division_idx =
-                get_partition_idx(batch_division_idx, nbatches, worker_division_idx)
-            if batch_division_idx == batch_idx
-                # Get the divisions for this partition
-                p_divisions = partition_divisions[partition_division_idx]
-
-                # We've already used `get_divisions` to get a list of min-max
-                # tuples (we call these tuples "divisions") for each partition
-                # that `ReadGroup` produces. But we only want to read in all
-                # the partitions relevant for this batch. But it is important
-                # then that `curr_partition_divisions` has an element for each
-                # worker. That way, when we call `Shuffle`, it will properly
-                # read data onto each worker that is in the appropriate
-                # partition.
-                push!(
-                    curr_partition_divisions,
-                    p_divisions,
-                )
-            end
-
-            # Find the batches that have the first and last divisions
-            if partition_division_idx == firstdivisionidx
-                firstbatchidx = batch_division_idx
-            end
-            if partition_division_idx == lastdivisionidx
-                lastbatchidx = batch_division_idx
-            end
-        end
-    end
-
-    # Read in each batch and shuffle it to get the data for this partition
-    parts = []
-    for i = 1:nbatches
-        # Read in data for this batch
-        part = ReadBlock(src, params, i, nbatches, comm, loc_name, loc_params)
-
-        # Shuffle the batch and add it to the set of data for this partition
-        params["divisions_by_worker"] = curr_partition_divisions
-        push!(
-            parts,
-            Shuffle(
-                part,
-                Dict{String,Any}(),
-                params,
-                comm,
-                boundedlower = !hasdivision || batch_idx != firstbatchidx,
-                boundedupper = !hasdivision || batch_idx != lastbatchidx,
-                store_splitting_divisions = false
-            ),
+ReadGroupHDF5, ReadGroupCSV, ReadGroupParquet, ReadGroupArrow = [
+    begin
+        function ReadGroup(
+            src,
+            params,
+            batch_idx::Integer,
+            nbatches::Integer,
+            comm::MPI.Comm,
+            loc_name,
+            loc_params,
         )
-        delete!(params, "divisions_by_worker")
+            # TODO: Store filters in parameters of the PT and use them to do
+            # partition pruning, avoiding reads that are unnecessary
+
+            # Get information needed to read in the appropriate group
+            divisions = params["divisions"]
+            key = params["key"]
+            rev = params["rev"] # Passed in ReadBlock
+            nworkers = get_nworkers(comm)
+            npartitions = nworkers * nbatches
+            partition_divisions = get_divisions(divisions, npartitions)
+
+            # TODO: Do some reversing here instead of only doing it later in Shuffle
+            # to ensure that sorting in reverse order works correctly
+
+            # The first and last partitions (used if this lacks a lower or upper bound)
+            # must have actual division(s) associated with them. If there is no
+            # partition that has divisions, then they will all be skipped and -1 will
+            # be returned. So these indices are only used if there are nonempty
+            # divisions.
+            hasdivision = any(x->!isempty(x), partition_divisions)
+            firstdivisionidx = findfirst(x->!isempty(x), partition_divisions)
+            lastdivisionidx = findlast(x->!isempty(x), partition_divisions)
+            firstbatchidx = nothing
+            lastbatchidx = nothing
+
+            # Get the divisions that are relevant to this batch by iterating
+            # through the divisions in a stride and consolidating the list of divisions
+            # for each partition. Then, ensure we use boundedlower=true only for the
+            # first batch and boundedupper=true for the last batch.
+            curr_partition_divisions = []
+            for worker_division_idx = 1:nworkers
+                for batch_division_idx = 1:nbatches
+                    # partition_division_idx =
+                    #     (worker_division_idx - 1) * nbatches + batch_division_idx
+                    partition_division_idx =
+                        get_partition_idx(batch_division_idx, nbatches, worker_division_idx)
+                    if batch_division_idx == batch_idx
+                        # Get the divisions for this partition
+                        p_divisions = partition_divisions[partition_division_idx]
+
+                        # We've already used `get_divisions` to get a list of min-max
+                        # tuples (we call these tuples "divisions") for each partition
+                        # that `ReadGroup` produces. But we only want to read in all
+                        # the partitions relevant for this batch. But it is important
+                        # then that `curr_partition_divisions` has an element for each
+                        # worker. That way, when we call `Shuffle`, it will properly
+                        # read data onto each worker that is in the appropriate
+                        # partition.
+                        push!(
+                            curr_partition_divisions,
+                            p_divisions,
+                        )
+                    end
+
+                    # Find the batches that have the first and last divisions
+                    if partition_division_idx == firstdivisionidx
+                        firstbatchidx = batch_division_idx
+                    end
+                    if partition_division_idx == lastdivisionidx
+                        lastbatchidx = batch_division_idx
+                    end
+                end
+            end
+
+            # Read in each batch and shuffle it to get the data for this partition
+            parts = []
+            for i = 1:nbatches
+                # Read in data for this batch
+                part = ReadBlock(src, params, i, nbatches, comm, loc_name, loc_params)
+
+                # Shuffle the batch and add it to the set of data for this partition
+                params["divisions_by_worker"] = curr_partition_divisions
+                push!(
+                    parts,
+                    Shuffle(
+                        part,
+                        Dict{String,Any}(),
+                        params,
+                        comm,
+                        boundedlower = !hasdivision || batch_idx != firstbatchidx,
+                        boundedupper = !hasdivision || batch_idx != lastbatchidx,
+                        store_splitting_divisions = false
+                    ),
+                )
+                delete!(params, "divisions_by_worker")
+            end
+
+            # Concatenate together the data for this partition
+            res = merge_on_executor(parts...; key = key)
+
+            # If there are no divisions for any of the partitions, then they are all
+            # bounded. For a partition to be unbounded on one side, there must be a
+            # division(s) for that partition.
+
+            # Store divisions
+            global splitting_divisions
+            partition_idx = get_partition_idx(batch_idx, nbatches, comm)
+            splitting_divisions[res] =
+                (partition_divisions[partition_idx], !hasdivision || partition_idx != firstdivisionidx, !hasdivision || partition_idx != lastdivisionidx)
+
+            res
+        end
+        ReadGroup
     end
-
-    # Concatenate together the data for this partition
-    res = merge_on_executor(parts...; key = key)
-
-    # If there are no divisions for any of the partitions, then they are all
-    # bounded. For a partition to be unbounded on one side, there must be a
-    # division(s) for that partition.
-
-    # Store divisions
-    global splitting_divisions
-    partition_idx = get_partition_idx(batch_idx, nbatches, comm)
-    splitting_divisions[res] =
-        (partition_divisions[partition_idx], !hasdivision || partition_idx != firstdivisionidx, !hasdivision || partition_idx != lastdivisionidx)
-
-    res
-end
+    for ReadBlock in [ReadBlockHDF5, ReadBlockCSV, ReadBlockParquet, ReadBlockArrow]
+]
 
 function rmdir_on_nfs(actualpath)
     if isdir(actualpath)
