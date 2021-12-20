@@ -6,12 +6,17 @@ version = "0.1.1"
 [deps]
 Banyan = "706d138b-e922-45b9-a636-baf8ae0d5317"
 BanyanArrays = "369465de-032e-4609-9dcf-82b89c370a7b"
+CSV = "336ed68f-0bac-5ca0-87d4-7b16caf5d00b"
 DataFrames = "a93c6f00-e57d-5684-b7b6-d8193f3e46c0"
 Missings = "e1d29d7a-bbdc-5cf2-9ac0-f12de2c33e28"
+Parquet = "626c502c-15b0-58ad-a749-f091afb673ae"
 
 [compat]
+Arrow = "1.5.0"
 Banyan = "0.2.1"
 BanyanArrays = "0.1.3"
+CSV = "0.9.5"
 DataFrames = "1"
 Missings = "1"
 julia = "1.6"
+Parquet = "0.8.3"

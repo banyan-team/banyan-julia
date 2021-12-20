@@ -19,6 +19,8 @@ export ReadBlockHDF5,
     Consolidate,
     Shuffle
 
+export RemoteTableSource, RemoteTableDestination
+
 include("array.jl")
 include("pfs.jl")
 include("utils_pfs.jl")

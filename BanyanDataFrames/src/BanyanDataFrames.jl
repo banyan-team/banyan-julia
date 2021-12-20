@@ -59,4 +59,6 @@ export ReadBlockCSV,
     Consolidate,
     Shuffle
 
+export RemoteTableSource, RemoteTableDestination
+
 end # module
