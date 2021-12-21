@@ -513,3 +513,10 @@ function format_bytes(bytes, decimals = 2)
     i = Base.convert(Int, floor(log(bytes) / log(k)))
     return string(round((bytes / ^(k, i)), digits = dm)) * " " * sizes[i+1]
 end
+
+function get_branch_name()
+    prepo = LibGit2.GitRepo(realpath(joinpath(@__DIR__, "../..")))
+    phead = LibGit2.head(prepo)
+    branchname = LibGit2.shortname(phead)
+    branchname
+end

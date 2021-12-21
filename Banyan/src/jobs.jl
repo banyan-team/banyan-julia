@@ -48,7 +48,7 @@ function create_job(;
     files::Union{Vector,Nothing} = [],
     code_files::Union{Vector,Nothing} = [],
     force_update_files::Union{Bool,Nothing} = false,
-    pf_dispatch_table::Vector{String} = ["https://raw.githubusercontent.com/banyan-team/banyan-julia/v0.1.3/Banyan/res/pf_dispatch_table.json"],
+    pf_dispatch_table::Vector{String} = nothing,
     using_modules::Union{Vector,Nothing} = [],
     url::Union{String,Nothing} = nothing,
     branch::Union{String,Nothing} = nothing,
@@ -62,6 +62,14 @@ function create_job(;
 )
     global jobs
     global current_job_id
+
+    if isnothing(pf_dispatch_table)
+        branch_to_use = get(ENV, "BANYAN_TESTING", "0") == "1" ? "v21.12.28" : get_branch_name()
+        pf_dispatch_table = [
+            "https://raw.githubusercontent.com/banyan-team/banyan-julia/$branch_to_use/$dir/res/pf_dispatch_table.json"
+            for dir in ["Banyan", "BanyanArrays", "BanyanDataFrames"]
+        ]
+    end
 
     if cluster_name == ""
         cluster_name = nothing

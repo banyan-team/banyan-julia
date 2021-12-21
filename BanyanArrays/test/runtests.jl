@@ -13,13 +13,6 @@ function destroy_all_jobs_for_testing()
     end
 end
 
-function get_branch_name()
-    prepo = LibGit2.GitRepo(realpath(joinpath(@__DIR__, "../..")))
-    phead = LibGit2.head(prepo)
-    branchname = LibGit2.shortname(phead)
-    branchname
-end
-
 function use_job_for_testing(
     f::Function;
     sample_rate = 2,
@@ -49,7 +42,7 @@ function use_job_for_testing(
                 sample_rate = sample_rate,
                 print_logs = true,
                 url = "https://github.com/banyan-team/banyan-julia.git",
-                branch = get(ENV, "BANYAN_JULIA_BRANCH", get_branch_name()),
+                branch = get(ENV, "BANYAN_JULIA_BRANCH", Banyan.get_branch_name()),
                 directory = "banyan-julia/BanyanArrays/test",
                 dev_paths = [
                     "banyan-julia/Banyan",

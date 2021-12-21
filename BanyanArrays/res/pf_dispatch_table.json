@@ -1,0 +1,60 @@
+{
+    "splits": {
+        "ReadBlockHDF5": {
+            "expected": ["key"],
+            "required": {"name": "Distributing", "distribution": "blocked", "id": "!"},
+            "locations": [
+                {"name": "Remote", "format": "HDF5"},
+                {"name": "Disk", "datatype": "Array"}
+            ],
+            "partition_memory_usage": "part",
+            "scale_by": 2,
+            "owns_partitions": false
+        },
+        "ReadGroupHDF5": {
+            "expected": ["key", "divisions"],
+            "required": {"name": "Distributing", "distribution": "grouped", "id": "!"},
+            "default": {"rev": false},
+            "locations": [
+                {"name": "Remote", "format": "HDF5"},
+                {"name": "Disk", "datatype": "Array"}
+            ],
+            "partition_memory_usage": "part",
+            "scale_by": 9,
+            "owns_partitions": false
+        },
+        "CopyFromHDF5": {
+            "required": {"name": "Replicating", "dividing": false},
+            "locations": [
+                {"name": "Remote", "format": "HDF5"},
+                {"name": "Disk", "datatype": "Array"}
+            ],
+            "partition_memory_usage": "all",
+            "scale_by": 2,
+            "owns_partitions": false
+        }
+    },
+    "merges": {
+        "WriteHDF5": {
+            "required": {"name": "Distributing"},
+            "locations": [
+                {"name": "Remote", "format": "HDF5"},
+                {"name": "Disk", "datatype": "Array"}
+            ],
+            "partition_memory_usage": "part",
+            "scale_by": 1,
+            "owns_partitions": false
+        },
+        "CopyToHDF5": {
+            "required": {"name": "Replicating", "replication": "all"},
+            "locations": [
+                {"name": "Remote", "format": "HDF5"},
+                {"name": "Disk", "datatype": "Array"}
+            ],
+            "partition_memory_usage": "all",
+            "scale_by": 0,
+            "owns_partitions": false
+        }
+    },
+    "casts": {}
+}
