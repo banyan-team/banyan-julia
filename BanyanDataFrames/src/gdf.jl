@@ -40,7 +40,7 @@ function DataFrames.groupby(df::DataFrame, cols; kwargs...)::GroupedDataFrame
     gdf_length = Future()
     cols = Future(cols)
     kwargs = Future(kwargs)
-    gdf = GroupedDataFrame(Future(), gdf_length, df, cols, kwargs)
+    gdf = GroupedDataFrame(Future(datatype="GroupedDataFrame"), gdf_length, df, cols, kwargs)
 
     # partition(df, Replicated())
     # partition(gdf, Replicated())
@@ -129,7 +129,7 @@ function DataFrames.select(gdf::GroupedDataFrame, args...; kwargs...)
     gdf_parent = gdf.parent
     groupcols = gdf.groupcols
     groupkwargs = gdf.groupkwargs
-    res = Future()
+    res = Future(datatype="DataFrame")
     args = Future(args)
     kwargs = Future(kwargs)
 
@@ -212,7 +212,7 @@ function DataFrames.transform(gdf::GroupedDataFrame, args...; kwargs...)
     gdf_parent = gdf.parent
     groupcols = gdf.groupcols
     groupkwargs = gdf.groupkwargs
-    res = Future()
+    res = Future(datatype="DataFrame")
     args = Future(args)
     kwargs = Future(kwargs)
 
@@ -258,7 +258,7 @@ function DataFrames.combine(gdf::GroupedDataFrame, args...; kwargs...)
     groupcols = gdf.groupcols
     groupkwargs = gdf.groupkwargs
     res_nrows = Future()
-    res = DataFrame(Future(), res_nrows)
+    res = DataFrame(Future(datatype="DataFrame"), res_nrows)
     args = Future(args)
     kwargs = Future(kwargs)
 
@@ -304,7 +304,7 @@ function DataFrames.subset(gdf::GroupedDataFrame, args...; kwargs...)
     groupcols = gdf.groupcols
     groupkwargs = gdf.groupkwargs
     res_nrows = Future()
-    res = DataFrame(Future(), res_nrows)
+    res = DataFrame(Future(datatype="DataFrame"), res_nrows)
     args = Future(args)
     kwargs = Future(kwargs)
 

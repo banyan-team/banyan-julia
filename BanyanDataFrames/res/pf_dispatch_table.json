@@ -1,5 +1,11 @@
 {
     "splits": {
+        "ReturnNullGrouping": {
+            "locations": [{"datatype": "GroupedDataFrame"}],
+            "partition_memory_usage": "none",
+            "scale_by": 0,
+            "owns_partitions": false
+        },
         "ReadBlockCSV": {
             "expected": ["key"],
             "required": {"name": "Distributing", "distribution": "blocked", "id": "!"},
@@ -83,6 +89,12 @@
         }
     },
     "merges": {
+        "ReturnNullGrouping": {
+            "locations": [{"datatype": "GroupedDataFrame"}],
+            "partition_memory_usage": "none",
+            "scale_by": 0,
+            "owns_partitions": false
+        },
         "WriteCSV": {
             "required": {"name": "Distributing"},
             "locations": [{"name": "Remote", "format": "CSV"}],

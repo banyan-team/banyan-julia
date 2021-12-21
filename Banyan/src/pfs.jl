@@ -18,6 +18,20 @@ ReturnNull(
     loc_params,
 ) = nothing
 
+ReturnNull(
+    src,
+    part,
+    params,
+    batch_idx::Integer,
+    nbatches::Integer,
+    comm::MPI.Comm,
+    loc_name,
+    loc_params,
+) = begin
+    src = nothing
+    src
+end
+
 format_available_memory() =
     format_bytes(Sys.free_memory()) * " / " * format_bytes(Sys.total_memory())
 

@@ -1,3 +1,27 @@
+ReturnNullGrouping(
+    src,
+    params,
+    batch_idx::Integer,
+    nbatches::Integer,
+    comm::MPI.Comm,
+    loc_name,
+    loc_params,
+) = nothing
+
+ReturnNullGrouping(
+    src,
+    part,
+    params,
+    batch_idx::Integer,
+    nbatches::Integer,
+    comm::MPI.Comm,
+    loc_name,
+    loc_params,
+) = begin
+    src = nothing
+    src
+end
+
 function read_csv_file(path, header, readrange, filerowrange, dfs)
     f = CSV.File(
         path,

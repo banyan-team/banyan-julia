@@ -181,6 +181,11 @@ function located(fut, location::Location)
     fut = convert(Future, fut)
     value_id = fut.value_id
 
+    # Store future's datatype in the parameters so that it could be used for
+    # dispatching various PFs (partitioning functions).
+    location.src_parameters["datatype"] = fut.datatype
+    location.dst_parameters["datatype"] = fut.datatype
+
     if location.src_name == "Client" || location.dst_name == "Client"
         job.futures_on_client[value_id] = fut
     else
@@ -206,6 +211,8 @@ end
 # should probably even remove them at some point. Memory usage of each sample
 # is automatically detected and stored. If you want to make a future have Value
 # location type, simply use the `Future` constructor and pass your value in.
+
+# NOTE: The below mem and val are not used anywhere.
 
 function mem(fut, estimated_total_memory_usage::Integer)
     fut = convert(Future, fut)

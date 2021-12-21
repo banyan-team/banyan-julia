@@ -13,12 +13,12 @@
 
 Constructs a new future, representing a value that has not yet been evaluated.
 """
-function Future(;source::Location = None(), mutate_from::Union{<:AbstractFuture,Nothing}=nothing)
+function Future(;source::Location = None(), mutate_from::Union{<:AbstractFuture,Nothing}=nothing, datatype="Any")
     # Generate new value id
     value_id = generate_value_id()
 
     # Create new Future and assign a location to it
-    new_future = Future(nothing, value_id, false, true)
+    new_future = Future(datatype, nothing, value_id, false, true)
     sourced(new_future, source)
     destined(new_future, None())
 
