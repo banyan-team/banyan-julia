@@ -56,8 +56,8 @@ struct Array{T,N} <: AbstractFuture where {T,N}
     # TODO: Add offset for indexing
     # offset::Future
 
-    Array{T,N}() where {T,N} = new(Future(), Future())
-    Array{T,N}(A::Array{T,N}) where {T,N} = new(Future(), Future(A.size))
+    Array{T,N}() where {T,N} = new(Future(datatype="Array"), Future())
+    Array{T,N}(A::Array{T,N}) where {T,N} = new(Future(datatype="Array"), Future(A.size))
     Array{T,N}(data::Future, size::Future) where {T,N} = new(data, size)
 end
 
@@ -178,7 +178,7 @@ function read_hdf5(path; kwargs...)
         # @show A_loc.src_parameters
         # @show A_loc.size
     end
-    A = Future(source=A_loc)
+    A = Future(datatype="Array", source=A_loc)
     Array{A_loc.eltype,A_loc.ndims}(A, Future(A_loc.size))
 end
 
@@ -216,7 +216,7 @@ end
 
 function fill(v, dims::NTuple{N,Integer}) where {N}
     fillingdims = Future(source=Size(dims))
-    A = Array{typeof(v),N}(Future(), Future(dims))
+    A = Array{typeof(v),N}(Future(datatype="Array"), Future(dims))
     v = Future(v)
     dims = Future(dims)
 
@@ -297,7 +297,7 @@ function pts_for_copying(A, res)
 end
 
 function Base.copy(A::Array{T,N})::Array{T,N} where {T,N}
-    res = Future()
+    res = Future(datatype="Array")
 
     partitioned_using() do
         keep_all_sample_keys(res, A)
@@ -316,7 +316,7 @@ function Base.copy(A::Array{T,N})::Array{T,N} where {T,N}
 end
 
 function Base.deepcopy(A::Array{T,N})::Array{T,N} where {T,N}
-    res = Future()
+    res = Future(datatype="Array")
 
     partitioned_using() do
         keep_all_sample_keys(res, A)
@@ -338,7 +338,7 @@ end
 
 function Base.map(f, c::Array{T,N}...) where {T,N}
     f = Future(f)
-    res = Future()
+    res = Future(datatype="Array")
 
     partitioned_using() do
         # We shouldn't need to keep sample keys since we are only allowing data
@@ -390,7 +390,7 @@ function Base.mapslices(f, A::Array{T,N}; dims) where {T,N}
     f = Future(f)
     res_size = Future()
     # TODO: Ensure that this usage of Any is correct here and elsewhere
-    res = Array{Any,Any}(Future(), res_size)
+    res = Array{Any,Any}(Future(datatype="Array"), res_size)
     dims = Future(dims)
 
     partitioned_using() do
@@ -430,7 +430,7 @@ function Base.reduce(op, A::Array{T,N}; dims=:, kwargs...) where {T,N}
 
     op = Future(op)
     res_size = Future()
-    res = dims isa Colon ? Future() : Array{Any,Any}(Future(), res_size)
+    res = dims isa Colon ? Future(datatype="Array") : Array{Any,Any}(Future(datatype="Array"), res_size)
     if is_debug_on()
         # @show dims # TODO: Ensure this isn't a function
     end
@@ -492,7 +492,7 @@ function Base.sortslices(A::Array{T,N}, dims; kwargs...) where {T,N}
     sortingdim = dims isa Colon ? 1 : first(dims)
     isreversed = get(kwargs, :rev, false)
 
-    res = Future()
+    res = Future(datatype="Array")
     dims = Future(dims)
     kwargs = Future(kwargs)
 

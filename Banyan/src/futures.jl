@@ -52,6 +52,7 @@ function Future(value::Any)
     location = if Base.summarysize(value) ≤ 4 * 1024
         Value(value)
     else
+        # TODO: Store values in S3 instead so that we can read from there
         Client(value)
     end
 
@@ -79,6 +80,7 @@ function Future(fut::AbstractFuture; mutation::Function=identity)
     if !fut.stale
         # Copy over value
         new_future = Future(
+            fut.datatype,
             deepcopy(mutation(fut.value)),
             generate_value_id(),
             # If the future is not stale, it is not mutated in a way where

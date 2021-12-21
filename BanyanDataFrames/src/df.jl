@@ -53,7 +53,7 @@ function read_csv(path::String; kwargs...)
     df_loc = RemoteSource(path; kwargs...)
     df_loc.src_name == "Remote" || error("$path does not exist")
     df_nrows = Future(df_loc.nrows)
-    DataFrame(Future(source=df_loc), df_nrows)
+    DataFrame(Future(datatype="DataFrame", source=df_loc), df_nrows)
 end
 
 read_parquet(p; kwargs...) = read_csv(p; kwargs...)
@@ -308,7 +308,7 @@ function DataFrames.dropmissing(df::DataFrame, args...; kwargs...)
     !get(kwargs, :view, false) || throw(ArgumentError("Cannot return view of filtered dataframe"))
 
     res_nrows = Future()
-    res = DataFrame(Future(), res_nrows)
+    res = DataFrame(Future(datatype="DataFrame"), res_nrows)
     args = Future(args)
     kwargs = Future(kwargs)
 
@@ -355,7 +355,7 @@ function Base.filter(f, df::DataFrame; kwargs...)
 
     f = Future(f)
     res_nrows = Future()
-    res = DataFrame(Future(), res_nrows)
+    res = DataFrame(Future(datatype="DataFrame"), res_nrows)
     kwargs = Future(kwargs)
 
     partitioned_using_modules("DataFrames")
@@ -383,7 +383,7 @@ end
 # DataFrame element-wise
 
 function Missings.allowmissing(df::DataFrame)::DataFrame
-    res = Future()
+    res = Future(datatype="DataFrame")
 
     partitioned_using_modules("DataFrames")
     partitioned_using() do
@@ -410,7 +410,7 @@ function Missings.allowmissing(df::DataFrame)::DataFrame
 end
 
 function Missings.disallowmissing(df::DataFrame)::DataFrame
-    res = Future()
+    res = Future(datatype="DataFrame")
 
     partitioned_using_modules("DataFrames")
     partitioned_using() do
@@ -437,7 +437,7 @@ function Missings.disallowmissing(df::DataFrame)::DataFrame
 end
 
 function Base.deepcopy(df::DataFrame)::DataFrame
-    res = Future()
+    res = Future(datatype="DataFrame")
 
     partitioned_using_modules("DataFrames")
     partitioned_using() do
@@ -464,7 +464,7 @@ function Base.deepcopy(df::DataFrame)::DataFrame
 end
 
 function Base.copy(df::DataFrame)::DataFrame
-    res = Future()
+    res = Future(datatype="DataFrame")
 
     partitioned_using_modules("DataFrames")
     partitioned_using() do
@@ -652,9 +652,9 @@ function Base.getindex(df::DataFrame, rows=:, cols=:)
         end
     res =
         if return_vector
-            BanyanArrays.Vector{eltype(sample(df)[!, collect(cols)])}(Future(), res_size)
+            BanyanArrays.Vector{eltype(sample(df)[!, collect(cols)])}(Future(datatype="Array"), res_size)
         else
-            DataFrame(Future(), res_size)
+            DataFrame(Future(datatype="DataFrame"), res_size)
         end
 
     partitioned_using_modules("DataFrames")
@@ -983,7 +983,7 @@ function Base.setindex!(df::DataFrame, v::Union{BanyanArrays.Vector, BanyanArray
 
     # selection = names(sample(df), cols)
 
-    res = Future()
+    res = Future(datatype="DataFrame")
     # cols = Future(Symbol.(names(sample(df), cols)))
     cols = Future(cols)
 
@@ -1153,7 +1153,7 @@ end
 # end
 
 function DataFrames.rename(df::DataFrame, args...; kwargs...)
-    res = Future()
+    res = Future(datatype="DataFrame")
     args = Future(args)
     kwargs = Future(kwargs)
 
@@ -1313,7 +1313,7 @@ function Base.sort(df::DataFrame, cols=:; kwargs...)
     #     first(names(sample(df), firstcol)), get(kwargs, :rev, false)
     # end
 
-    res = Future()
+    res = Future(datatype="DataFrame")
     columns = Symbol.(names(sample(df), cols))
     cols = Future(cols)
     kwargs = Future(kwargs)
@@ -1368,7 +1368,7 @@ function DataFrames.innerjoin(dfs::DataFrame...; on, kwargs...)
     groupingkeys = Symbol.(groupingkeys isa Union{Tuple,Pair} ? [groupingkeys...] : Base.fill(groupingkeys, length(dfs)))
 
     res_nrows = Future()
-    res = DataFrame(Future(), res_nrows)
+    res = DataFrame(Future(datatype="DataFrame"), res_nrows)
     on = Future(on)
     kwargs = Future(kwargs)
 
@@ -1501,7 +1501,7 @@ function DataFrames.unique(df::DataFrame, cols=:; kwargs...)
 
     # TODO: Check all usage of first
     res_nrows = Future()
-    res = DataFrame(Future(), res_nrows)
+    res = DataFrame(Future(datatype="DataFrame"), res_nrows)
     columns = Symbol.(names(sample(df), cols))
     cols = Future(cols)
     kwargs = Future(kwargs)
@@ -1566,7 +1566,7 @@ function DataFrames.nonunique(df::DataFrame, cols=:; kwargs...)
 
     df_nrows = df.nrows
     res_size = Future(df.nrows, mutation=tuple)
-    res = BanyanArrays.Vector{Bool}(Future(), res_size)
+    res = BanyanArrays.Vector{Bool}(Future(datatype="Array"), res_size)
     columns = Symbol.(names(sample(df), cols))
     cols = Future(cols)
     kwargs = Future(kwargs)
