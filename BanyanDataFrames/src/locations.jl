@@ -373,7 +373,17 @@ function RemoteTableSource(remotepath; shuffled=false, source_invalid = false, s
         # it is not a file. And we won't call readdir if it isn't isdir and that
         # works fine in the backend since we use S3FS there.
         loc_for_reading, metadata_for_reading = if !isempty(files) || p_isdir # empty directory can still be read from
-            ("Remote", Dict("path" => remotepath, "files" => files, "nrows" => totalnrows, "nbytes" => nbytes, "emptysample" => to_jl_value_contents(empty(randomsample))))
+            (
+                "Remote",
+                Dict(
+                    "path" => remotepath,
+                    "files" => files,
+                    "nrows" => totalnrows,
+                    "nbytes" => nbytes,
+                    "emptysample" => to_jl_value_contents(empty(randomsample)),
+                    "format" => uppercase(splitext(remotepath))
+                )
+            )
         else
             ("None", Dict{String,Any}())
         end
@@ -418,7 +428,16 @@ function RemoteTableDestination(remotepath; invalidate_source = true, invalidate
         # Load metadata for writing
         # NOTE: `remotepath` should end with `.parquet` or `.csv` if Parquet
         # or CSV dataset is desired to be created
-        loc_for_writing, metadata_for_writing = ("Remote", Dict("path" => remotepath, "files" => [], "nrows" => 0, "nbytes" => 0))
+        loc_for_writing, metadata_for_writing = (
+            "Remote",
+            Dict(
+                "path" => remotepath,
+                "files" => [],
+                "nrows" => 0,
+                "nbytes" => 0,
+                "format" => uppercase(splitext(remotepath))
+            )
+        )
 
         LocationDestination(loc_for_writing, metadata_for_writing)
     end
