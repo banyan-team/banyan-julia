@@ -12,11 +12,11 @@ mutable struct Job
     # `jobs`. If it is, it's running. If it's not it either failed or
     # completed (`destroy_job` being called doesn't necessarily mean that the
     # job failed).
-    max_worker_memory::Int32
+    max_worker_memory::Float64
 
     # This struct just stores local state for the job.
     function Job(cluster_name::String, job_id::JobId, nworkers::Integer, sample_rate::Integer)::Job
-        new(job_id, nworkers, sample_rate, Dict(), [], Dict(), cluster_name)
+        new(job_id, nworkers, sample_rate, Dict(), [], Dict(), cluster_name, -1)
     end
 end
 

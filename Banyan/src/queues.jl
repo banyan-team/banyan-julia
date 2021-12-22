@@ -51,6 +51,11 @@ function receive_next_message(queue_name, p=nothing)
         response = Dict{String,Any}(
             "kind" => "JOB_READY"
         )
+    elseif startswith(content, "WORKER_MEMORY")
+        response = Dict{String, Any}(
+            "kind" => "WORKER_MEMORY",
+            "max_worker_memory" => parse(Float64, content[14:end-11])
+        )
     elseif startswith(content, "EVALUATION_END")
         # @debug "Received evaluation end"
         response = Dict{String,Any}(

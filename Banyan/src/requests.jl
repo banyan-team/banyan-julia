@@ -182,6 +182,10 @@ function partitioned_computation(fut::AbstractFuture; destination, new_source=no
             end
         end
 
+        # Get queues for moving data between client and cluster
+        scatter_queue = get_scatter_queue(job_id)
+        gather_queue = get_gather_queue(job_id)
+
         # Get max_worker_memory
         max_worker_memory = jobs[job_id].max_worker_memory
         if max_worker_memory == -1
@@ -192,8 +196,7 @@ function partitioned_computation(fut::AbstractFuture; destination, new_source=no
                     @info "Job $job_id is running"
                 elseif message_type == "WORKER_MEMORY"
                     @debug "Received workery memory"
-                    max_worker_memory = parse(Int64, message)
-                    jobs[job_id].max_worker_memory = max_worker_memory
+                    jobs[job_id].max_worker_memory = message["max_worker_memory"]
                     break
                 end
             end
@@ -202,16 +205,13 @@ function partitioned_computation(fut::AbstractFuture; destination, new_source=no
         # Send evaluation request
         is_merged_to_disk = false
         try
+            println("Sending evaluation with max_worker_memory ", max_worker_memory)
             response = send_evaluation(fut.value_id, job_id, max_worker_memory)
             is_merged_to_disk = response["is_merged_to_disk"]
         catch
             destroy_job(failed=true)
             rethrow()
         end
-    
-        # Get queues for moving data between client and cluster
-        scatter_queue = get_scatter_queue(job_id)
-        gather_queue = get_gather_queue(job_id)
     
         # Read instructions from gather queue
         # @info "Computing result with ID $(fut.value_id)"
@@ -228,7 +228,7 @@ function partitioned_computation(fut::AbstractFuture; destination, new_source=no
                 @info "Job $job_id is running"
             elseif message_type == "WORKER_MEMORY"
                 @debug "Received workery memory"
-                jobs[job_id].max_worker_memory = parse(Int64, message)
+                jobs[job_id].max_worker_memory = message["max_worker_memory"]
             elseif message_type == "SCATTER_REQUEST"
                 # Send scatter
                 value_id = message["value_id"]
@@ -341,7 +341,7 @@ function configure_scheduling(;kwargs...)
     end
 end
 
-function send_evaluation(value_id::ValueId, job_id::JobId, max_worker_memory::Int64)
+function send_evaluation(value_id::ValueId, job_id::JobId, max_worker_memory::Float64)
     global encourage_parallelism
     global encourage_parallelism_with_batches
     global exaggurate_size
