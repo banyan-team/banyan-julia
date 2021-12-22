@@ -164,6 +164,54 @@ function partitioned_with(handler::Function)
     curr_delayed_task.partitioned_with_func = handler
 end
 
+function partitioned_with(
+    handler::Function;
+    args::Union{AbstractFuture,Vector{AbstractFuture}},
+    res::Union{AbstractFuture,Vector{AbstractFuture}},
+    relative_sample_rate::Bool = true,
+    same_keys::Bool = false,
+    keys::Union{AbstractVector,Nothing} = nothing,
+    keys_by_future = nothing,
+    renamed::Bool = false,
+    drifted::Bool = false,
+    modules::Union{String,AbstractVector{String},Nothing} = nothing
+)
+    global curr_delayed_task
+
+    if !isnothing(modules)
+        modules = to_vector(modules)
+        partitioned_using_modules(modules...)
+    end
+
+    partitioned_using() do 
+        args = to_vector(args)
+        res = to_vector(res)
+        if same_keys
+            if renamed
+                if length(args) != 1 || length(res) != 1
+                    error("Only 1 argument can be renamed to 1 result at once")
+                end
+                keep_all_sample_keys_renamed(arg[1], res[1])
+            else
+                keep_all_sample_keys(vcat(res, args)...; drifted=drifted)
+            end
+        end
+        if relative_sample_rate
+            for r in res
+                keep_sample_rate(r, args...)
+            end
+        end
+        if !isnothing(keys)
+            keep_sample_keys(keys, vcat(res, args)...; drifted=drifted)
+        end
+        if !isnothing(keys_by_future)
+            keep_sample_keys_named(keys_by_future...; drifted=drifted)
+        end
+    end
+
+    curr_delayed_task.partitioned_with_func = handler
+end
+
 function pt(
     args::Union{AbstractFuture,PartitionType,PartitionTypeComposition,Vector}...;
     kwargs...,

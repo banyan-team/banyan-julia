@@ -254,14 +254,8 @@ function fill(v, dims::NTuple{N,Integer}) where {N}
     #     println(v)
     #     A = fill(v, fillingdims)
     # end end)
-    if is_debug_on()
-        @partitioned A v fillingdims begin
-            A = Base.fill(v, fillingdims)
-        end
-    else
-        @partitioned A v fillingdims begin
-            A = Base.fill(v, fillingdims)
-        end
+    @partitioned A v fillingdims begin
+        A = Base.fill(v, fillingdims)
     end
 
     A
@@ -299,12 +293,7 @@ end
 function Base.copy(A::Array{T,N})::Array{T,N} where {T,N}
     res = Future(datatype="Array")
 
-    partitioned_using() do
-        keep_all_sample_keys(res, A)
-        keep_sample_rate(res, A)
-    end
-
-    partitioned_with() do
+    partitioned_with(args=A, res=res, same_keys=true) do
         pts_for_copying(A, res)
     end
 
@@ -318,12 +307,7 @@ end
 function Base.deepcopy(A::Array{T,N})::Array{T,N} where {T,N}
     res = Future(datatype="Array")
 
-    partitioned_using() do
-        keep_all_sample_keys(res, A)
-        keep_sample_rate(res, A)
-    end
-
-    partitioned_with() do
+    partitioned_with(args=A, res=res, same_keys=true) do
         pts_for_copying(A, res)
     end
 
@@ -340,17 +324,14 @@ function Base.map(f, c::Array{T,N}...) where {T,N}
     f = Future(f)
     res = Future(datatype="Array")
 
-    partitioned_using() do
-        # We shouldn't need to keep sample keys since we are only allowing data
-        # to be blocked for now. The sample rate is kept because it might be
-        # smaller if this is a column of the result of a join operation.
-        # keep_all_sample_keys(res, fut)
-        keep_sample_rate(res, first(c))
-    end
+    # We shouldn't need to keep sample keys since we are only allowing data
+    # to be blocked for now. The sample rate is kept because it might be
+    # smaller if this is a column of the result of a join operation.
+    # keep_all_sample_keys(res, fut)
 
     # TODO: Determine whether array operations need to use mutated_from or mutated_to
 
-    partitioned_with() do
+    partitioned_with(args=first(c), res=res) do
         # balanced
         pt(first(c), Blocked(first(c), balanced=true))
         pt(c[2:end]..., res, Blocked() & Balanced(), match=first(c), on=["key", "id"])
@@ -393,11 +374,7 @@ function Base.mapslices(f, A::Array{T,N}; dims) where {T,N}
     res = Array{Any,Any}(Future(datatype="Array"), res_size)
     dims = Future(dims)
 
-    partitioned_using() do
-        keep_sample_rate(res, A)
-    end
-
-    partitioned_with() do
+    partitioned_with(args=A, res=res) do
         # Blocked PTs along dimensions _not_ being mapped along
         bpt = [bpt for bpt in Blocked(A) if !(dims isa Colon) && !(bpt.key in [dims...])]
 
@@ -431,17 +408,10 @@ function Base.reduce(op, A::Array{T,N}; dims=:, kwargs...) where {T,N}
     op = Future(op)
     res_size = Future()
     res = dims isa Colon ? Future(datatype="Array") : Array{Any,Any}(Future(datatype="Array"), res_size)
-    if is_debug_on()
-        # @show dims # TODO: Ensure this isn't a function
-    end
     dims = Future(dims)
     kwargs = Future(kwargs)
 
-    partitioned_using() do
-        keep_sample_rate(res, A)
-    end
-
-    partitioned_with() do
+    partitioned_with(args=A, res=res) do
         # TODO: Duplicate annotations to handle the balanced and unbalanced cases
         # seperately
         # TODO: Have a better API where duplicating to handle balanced and unbalanced
@@ -496,11 +466,7 @@ function Base.sortslices(A::Array{T,N}, dims; kwargs...) where {T,N}
     dims = Future(dims)
     kwargs = Future(kwargs)
 
-    partitioned_using() do
-        keep_sample_rate(res, A)
-    end
-
-    partitioned_with() do
+    partitioned_with(args=A, res=res) do
         # unbalanced -> unbalanced
         pt(A, Grouped(A, by=sortingdim, rev=isreversed, scaled_by_same_as=res, balanced=false))
         pt(res, Blocked() & Unbalanced(scaled_by_same_as=A), match=A, on=["key", "divisions", "id"])

@@ -48,12 +48,7 @@ function DataFrames.groupby(df::DataFrame, cols; kwargs...)::GroupedDataFrame
 
     groupingkeys = Symbol.(names(sample(df), collect(cols)))
 
-    partitioned_using_modules("DataFrames")
-    partitioned_using() do
-        keep_sample_rate(gdf, df)
-    end
-
-    partitioned_with() do
+    partitioned_with(args=df, res=gdf, modules="DataFrames") do
         pt(df, Grouped(df, by=groupingkeys, scaled_by_same_as=gdf))
         # TODO: Avoid circular dependency
         # TODO: Specify key for Blocked
@@ -135,13 +130,7 @@ function DataFrames.select(gdf::GroupedDataFrame, args...; kwargs...)
 
     groupingkeys = Symbol.(names(sample(gdf_parent), collect(groupcols)))
 
-    partitioned_using_modules("DataFrames")
-    partitioned_using() do
-        keep_sample_keys(if get(collect(kwargs), :keepkeys, true) groupingkeys else [] end, res, gdf_parent, drifted=true)
-        keep_sample_rate(res, gdf_parent)
-    end
-
-    partitioned_with() do
+    partitioned_with(args=gdf_parent, res=res, keys=get(collect(kwargs), :keepkeys, true) ? groupingkeys : [], drifted=true, modules="DataFrames") do
         pt(gdf_parent, Grouped(gdf_parent, by=groupingkeys, scaled_by_same_as=res), match=res)
         pt(gdf, Blocked(along=1) & ScaledBySame(as=res))
         pt(res, ScaledBySame(as=gdf_parent))
@@ -219,20 +208,11 @@ function DataFrames.transform(gdf::GroupedDataFrame, args...; kwargs...)
     # TODO: Put groupingkeys in GroupedDataFrame
     groupingkeys = Symbol.(names(sample(gdf_parent), collect(groupcols)))
 
-    partitioned_using_modules("DataFrames")
-    partitioned_using() do
-        keep_sample_keys(
-            get(collect(kwargs), :keepkeys, true) ? groupingkeys : [], res, gdf_parent,
-            drifted=true
-        )
-        keep_sample_rate(res, gdf_parent)
-    end
-
     # TODO: Maybe automatically infer sample properties (set with
     # `partitioned_using`) by looking at the actual annotations in
     # `partitioned_with`
 
-    partitioned_with() do
+    partitioned_with(args=gdf_parent, res=res, keys=get(collect(kwargs), :keepkeys, true) ? groupingkeys : [], drifted=true, modules="DataFrames") do
         pt(gdf_parent, Grouped(gdf_parent, by=groupingkeys, scaled_by_same_as=res), match=res)
         pt(gdf, Blocked(along=1) & ScaledBySame(as=res))
         pt(res, ScaledBySame(as=gdf_parent))
@@ -265,16 +245,7 @@ function DataFrames.combine(gdf::GroupedDataFrame, args...; kwargs...)
     # TODO: Put groupingkeys in GroupedDataFrame
     groupingkeys = Symbol.(names(sample(gdf_parent), collect(groupcols)))
 
-    partitioned_using_modules("DataFrames")
-    partitioned_using() do
-        keep_sample_keys(
-            get(collect(kwargs), :keepkeys, true) ? groupingkeys : [], res, gdf_parent,
-            drifted=true
-        )
-        keep_sample_rate(res, gdf_parent)
-    end
-
-    partitioned_with() do
+    partitioned_with(args=gdf_parent, res=res, keys=get(collect(kwargs), :keepkeys, true) ? groupingkeys : [], drifted=true, modules="DataFrames") do
         # TODO: If we want to support `keepkeys=false`, we need to make the
         # result be Blocked and `filtered_from` the input
         pts_for_filtering(gdf_parent, res, with=Grouped, by=groupingkeys)
@@ -311,16 +282,7 @@ function DataFrames.subset(gdf::GroupedDataFrame, args...; kwargs...)
     # TODO: Put groupingkeys in GroupedDataFrame
     groupingkeys = Symbol.(names(sample(gdf_parent), collect(groupcols)))
 
-    partitioned_using_modules("DataFrames")
-    partitioned_using() do
-        keep_sample_keys(
-            get(collect(kwargs), :keepkeys, true) ? groupingkeys : [], res, gdf_parent,
-            drifted=true
-        )
-        keep_sample_rate(res, gdf_parent)
-    end
-
-    partitioned_with() do
+    partitioned_with(args=gdf_parent, res=res, keys=get(collect(kwargs), :keepkeys, true) ? groupingkeys : [], drifted=true, modules="DataFrames") do
         pts_for_filtering(gdf_parent, res, with=Grouped, by=groupingkeys)
         pt(gdf, Blocked(along=1) & ScaledBySame(as=gdf_parent))
         pt(res_nrows, Reducing(quote (a, b) -> a .+ b end))
