@@ -453,11 +453,29 @@ function load_json(path::String)
     end
 end
 
+function load_toml(path::String)
+    if startswith(path, "file://")
+        if !isfile(path[8:end])
+            error("File $path does not exist")
+        end
+        TOML.parsefile(path[8:end])
+    elseif startswith(path, "s3://")
+        error("S3 path not currently supported")
+        # JSON.parsefile(S3Path(path, config=get_aws_config()))
+    elseif startswith(path, "http://") || startswith(path, "https://")
+	    TOML.parse(String(HTTP.get(path).body))
+    else
+        error("Path $path must start with \"file://\", \"s3://\", or \"http(s)://\"")
+    end
+end
+
 function load_json(paths::Vector{String})
     # Each file should have merges, splits, and casts. So we need to take those
     # and merge them.
     mergewith(merge, [load_json(p) for p in paths]...)
 end
+
+load_toml(paths::Vector{String}) = mergewith(merge, [load_toml(p) for p in paths]...)
 
 # Loads file into String and returns
 function load_file(path::String)

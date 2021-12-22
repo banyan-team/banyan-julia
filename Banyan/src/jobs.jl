@@ -66,7 +66,7 @@ function create_job(;
     if isnothing(pf_dispatch_table)
         branch_to_use = get(ENV, "BANYAN_TESTING", "0") == "1" ? "v21.12.28" : get_branch_name()
         pf_dispatch_table = [
-            "https://raw.githubusercontent.com/banyan-team/banyan-julia/$branch_to_use/$dir/res/pf_dispatch_table.json"
+            "https://raw.githubusercontent.com/banyan-team/banyan-julia/$branch_to_use/$dir/res/pf_dispatch_table.toml"
             for dir in ["Banyan", "BanyanArrays", "BanyanDataFrames"]
         ]
     end
@@ -163,7 +163,7 @@ function create_job(;
     # TODO: Optimize so that we only upload (and download onto cluster) the files if the filename doesn't already exist
     job_configuration["files"] = [basename(f) for f in files]
     job_configuration["code_files"] = [basename(f) for f in code_files]
-    job_configuration["pf_dispatch_table"] = load_json(pf_dispatch_table)
+    job_configuration["pf_dispatch_table"] = load_toml(pf_dispatch_table)
 
     # Create the job
     @debug "Sending request for job creation"

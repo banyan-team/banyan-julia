@@ -165,7 +165,7 @@ function RemoteHDF5Source(remotepath; shuffled=false, source_invalid = false, sa
                     "ndims" => datandims,
                     "eltype" => dataeltype,
                     "nbytes" => 0,
-                    "format" => "HDF5"
+                    "format" => "hdf5"
                 ),
             )
         else
@@ -202,7 +202,7 @@ function RemoteHDF5Destination(remotepath; invalidate_source = true, invalidate_
 
         # Load metadata for writing to HDF5 file
         loc_for_writing, metadata_for_writing =
-            ("Remote", Dict("path" => remotepath, "subpath" => datasetpath, "nbytes" => 0, "format" => "HDF5"))
+            ("Remote", Dict("path" => remotepath, "subpath" => datasetpath, "nbytes" => 0, "format" => "hdf5"))
 
         LocationDestination(
             loc_for_writing,

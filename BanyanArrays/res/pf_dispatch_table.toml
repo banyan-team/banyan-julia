@@ -1,0 +1,39 @@
+[splits.ReadBlockHDF5]
+expected = [ "key" ]
+partition_memory_usage = "part"
+scale_by = 2
+owns_partitions = false
+required = { name = "Distributing", distribution = "blocked", id = "!" }
+locations = [ {name = "Remote", format = "hdf5"}, { name = "Disk", datatype = "Array" } ]
+
+[splits.ReadGroupHDF5]
+expected = [ "key", "divisions" ]
+partition_memory_usage = "part"
+scale_by = 9
+owns_partitions = false
+required = { name = "Distributing", distribution = "grouped", id = "!" }
+default = { rev = false }
+locations = [ {name = "Remote", format = "hdf5"}, { name = "Disk", datatype = "Array" } ]
+
+[splits.CopyFromHDF5]
+partition_memory_usage = "all"
+scale_by = 2
+owns_partitions = false
+required = { name = "Replicating", dividing = false }
+locations = [ {name = "Remote", format = "hdf5"}, { name = "Disk", datatype = "Array" } ]
+
+[merges.WriteHDF5]
+partition_memory_usage = "part"
+scale_by = 1
+owns_partitions = false
+required = { name = "Distributing" }
+locations = [ {name = "Remote", format = "hdf5"}, { name = "Disk", datatype = "Array" } ]
+
+[merges.CopyToHDF5]
+partition_memory_usage = "all"
+scale_by = 0
+owns_partitions = false
+required = { name = "Replicating", replication = "all" }
+locations = [ {name = "Remote", format = "hdf5"}, { name = "Disk", datatype = "Array" } ]
+
+casts = { }
