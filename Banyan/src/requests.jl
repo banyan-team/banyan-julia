@@ -205,7 +205,7 @@ function partitioned_computation(fut::AbstractFuture; destination, new_source=no
         # Send evaluation request
         is_merged_to_disk = false
         try
-            println("Sending evaluation with max_worker_memory ", max_worker_memory)
+            @debug "Sending evaluation with max_worker_memory $max_worker_memory"
             response = send_evaluation(fut.value_id, job_id, max_worker_memory)
             is_merged_to_disk = response["is_merged_to_disk"]
         catch
