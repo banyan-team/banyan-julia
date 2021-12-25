@@ -185,28 +185,11 @@ function partitioned_computation(fut::AbstractFuture; destination, new_source=no
         # Get queues for moving data between client and cluster
         scatter_queue = get_scatter_queue(job_id)
         gather_queue = get_gather_queue(job_id)
-
-        # Get max_worker_memory
-        max_worker_memory = jobs[job_id].max_worker_memory
-        if max_worker_memory == -1
-            while true
-                message = receive_next_message(gather_queue)
-                message_type = message["kind"]
-                if message_type == "JOB_READY"
-                    @info "Job $job_id is running"
-                elseif message_type == "WORKER_MEMORY"
-                    @debug "Received workery memory"
-                    jobs[job_id].max_worker_memory = message["max_worker_memory"]
-                    break
-                end
-            end
-        end
     
         # Send evaluation request
         is_merged_to_disk = false
         try
-            @debug "Sending evaluation with max_worker_memory $max_worker_memory"
-            response = send_evaluation(fut.value_id, job_id, max_worker_memory)
+            response = send_evaluation(fut.value_id, job_id)
             is_merged_to_disk = response["is_merged_to_disk"]
         catch
             destroy_job(failed=true)
@@ -224,12 +207,7 @@ function partitioned_computation(fut::AbstractFuture; destination, new_source=no
             # TODO: Use to_jl_value and from_jl_value to support Client
             message = receive_next_message(gather_queue, p)
             message_type = message["kind"]
-            if message_type == "JOB_READY"
-                @info "Job $job_id is running"
-            elseif message_type == "WORKER_MEMORY"
-                @debug "Received workery memory"
-                jobs[job_id].max_worker_memory = message["max_worker_memory"]
-            elseif message_type == "SCATTER_REQUEST"
+            if message_type == "SCATTER_REQUEST"
                 # Send scatter
                 value_id = message["value_id"]
                 f = job.futures_on_client[value_id]
@@ -341,7 +319,7 @@ function configure_scheduling(;kwargs...)
     end
 end
 
-function send_evaluation(value_id::ValueId, job_id::JobId, max_worker_memory::Float64)
+function send_evaluation(value_id::ValueId, job_id::JobId)
     global encourage_parallelism
     global encourage_parallelism_with_batches
     global exaggurate_size
@@ -370,7 +348,6 @@ function send_evaluation(value_id::ValueId, job_id::JobId, max_worker_memory::Fl
                 "exaggurate_size" => exaggurate_size
             ),
             "num_bang_values_issued" => get_num_bang_values_issued(),
-            "max_worker_memory" => max_worker_memory,
             "main_modules" => get_loaded_packages(),
             "partitioned_using_modules" => used_packages,
             "benchmark" => get(ENV, "BANYAN_BENCHMARK", "0") == "1"

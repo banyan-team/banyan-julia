@@ -44,6 +44,7 @@ function create_job(;
     store_logs_in_s3::Union{Bool,Nothing} = true,
     store_logs_on_cluster::Union{Bool,Nothing} = false,
     sample_rate::Union{Integer,Nothing} = nworkers,
+    estimated_available_memory = false,
     job_name::Union{String,Nothing} = nothing,
     files::Union{Vector,Nothing} = [],
     code_files::Union{Vector,Nothing} = [],
@@ -86,6 +87,7 @@ function create_job(;
     job_configuration = Dict{String,Any}(
         "cluster_name" => cluster_name,
         "num_workers" => nworkers,
+        "estimated_available_memory" => estimated_available_memory,
     	"return_logs" => print_logs,
 	    "store_logs_in_s3" => store_logs_in_s3,
         "store_logs_on_cluster" => store_logs_on_cluster,
