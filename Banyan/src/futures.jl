@@ -3,7 +3,9 @@
 ###########
 
 # Every future does have a location assigned to it: both a source and a
-# location.
+# location. If the future is created from some remote location, the
+# location will have a memory usage that will tell the future how much memory
+# is used.
 
 """
     Future()
@@ -11,7 +13,7 @@
     Future(location::Location)
     Future(; kwargs...)
 
-Constructs a new future, representing a value that has not yet been evaluated.
+Constructs a new future, representing a value that has not yet been computed.
 """
 function Future(;source::Location = None(), mutate_from::Union{<:AbstractFuture,Nothing}=nothing, datatype="Any")
     # Generate new value id

@@ -172,7 +172,7 @@ Banyan.sample_max(A::U, key) where U <: Base.AbstractArray{T,N} where {T,N} = is
 # Array creation
 
 function read_hdf5(path; kwargs...)
-    A_loc = RemoteSource(path; kwargs...)
+    A_loc = RemoteHDF5Source(path; kwargs...)
     A_loc.src_name == "Remote" || error("$path does not exist")
     if is_debug_on()
         # @show A_loc.src_parameters
@@ -204,8 +204,8 @@ function write_hdf5(A, path; invalidate_source=true, invalidate_sample=true, kwa
     pt(A, Blocked(A) | Replicated())
     partitioned_computation(
         A,
-        destination=RemoteDestination(path; invalidate_source=invalidate_source, invalidate_sample=invalidate_sample, kwargs...),
-        new_source=_->RemoteSource(path)
+        destination=RemoteHDF5Destination(path; invalidate_source=invalidate_source, invalidate_sample=invalidate_sample, kwargs...),
+        new_source=_->RemoteHDF5Source(path)
     )
 end
 

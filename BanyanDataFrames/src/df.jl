@@ -50,7 +50,7 @@ Banyan.convert(::Type{Future}, df::DataFrame) = df.data
 # end
 
 function read_csv(path::String; kwargs...)
-    df_loc = RemoteSource(path; kwargs...)
+    df_loc = RemoteTableSource(path; kwargs...)
     df_loc.src_name == "Remote" || error("$path does not exist")
     df_nrows = Future(df_loc.nrows)
     DataFrame(Future(datatype="DataFrame", source=df_loc), df_nrows)
@@ -76,8 +76,8 @@ function write_csv(df, path; invalidate_source=true, invalidate_sample=true, kwa
     end
     partitioned_computation(
         df,
-        destination=RemoteDestination(path; invalidate_source=invalidate_source, invalidate_sample=invalidate_sample, kwargs...),
-        new_source=_->RemoteSource(path)
+        destination=RemoteTableDestination(path; invalidate_source=invalidate_source, invalidate_sample=invalidate_sample, kwargs...),
+        new_source=_->RemoteTableSource(path)
     )
 end
 

@@ -150,6 +150,7 @@ end
 
 # This is useful for workloads that involve joins where the sample rate is
 # diminished quadratically for each joinv
+# TODO: Make _this_ more accurate for `innerjoin``
 keep_sample_rate(fut::AbstractFuture, relative_to::AbstractFuture...) =
     setsample!(fut, :rate, prod([sample(r, :rate) for r in relative_to]))
 
