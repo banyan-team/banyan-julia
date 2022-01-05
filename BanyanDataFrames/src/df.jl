@@ -328,7 +328,7 @@ function DataFrames.dropmissing(df::DataFrame, args...; kwargs...)
     # We need to maintain these sample properties and hold constraints on
     # memory usage so that we can properly handle data skew
 
-    partitioned_with(args=df, res=res, same_keys=true, drifted=true, modules="DataFrames") do
+    partitioned_with(in=df, out=res, same_keys=true, drifted=true, modules="DataFrames") do
         pts_for_filtering(df, res, with=Distributed)
         pt(res_nrows, Reducing(quote (a, b) -> a .+ b end))
         pt(df, res, res_nrows, args, kwargs, Replicated())
@@ -353,7 +353,7 @@ function Base.filter(f, df::DataFrame; kwargs...)
     res = DataFrame(Future(datatype="DataFrame"), res_nrows)
     kwargs = Future(kwargs)
 
-    partitioned_with(args=df, res=res, same_keys=true, drifted=true, modules="DataFrames") do
+    partitioned_with(in=df, out=res, same_keys=true, drifted=true, modules="DataFrames") do
         pts_for_filtering(df, res, with=Distributed)
         pt(res_nrows, Reducing(quote (a, b) -> a .+ b end))
         pt(df, res, res_nrows, f, kwargs, Replicated())
@@ -374,7 +374,7 @@ end
 function Missings.allowmissing(df::DataFrame)::DataFrame
     res = Future(datatype="DataFrame")
 
-    partitioned_with(args=df, res=res, same_keys=true, modules="DataFrames") do
+    partitioned_with(in=df, out=res, same_keys=true, modules="DataFrames") do
         pt(df, Distributed(df, scaled_by_same_as=res))
         pt(res, ScaledBySame(as=df), match=df)
 
@@ -395,7 +395,7 @@ end
 function Missings.disallowmissing(df::DataFrame)::DataFrame
     res = Future(datatype="DataFrame")
 
-    partitioned_with(args=df, res=res, same_keys=true, modules="DataFrames") do
+    partitioned_with(in=df, out=res, same_keys=true, modules="DataFrames") do
         pt(df, Distributed(df, scaled_by_same_as=res))
         pt(res, ScaledBySame(as=df), match=df)
 
@@ -416,7 +416,7 @@ end
 function Base.deepcopy(df::DataFrame)::DataFrame
     res = Future(datatype="DataFrame")
 
-    partitioned_with(args=df, res=res, same_keys=true, modules="DataFrames") do
+    partitioned_with(in=df, out=res, same_keys=true, modules="DataFrames") do
         pt(df, Distributed(df, scaled_by_same_as=res))
         pt(res, ScaledBySame(as=df), match=df)
 
@@ -437,7 +437,7 @@ end
 function Base.copy(df::DataFrame)::DataFrame
     res = Future(datatype="DataFrame")
 
-    partitioned_with(args=df, res=res, same_keys=true, modules="DataFrames") do
+    partitioned_with(in=df, out=res, same_keys=true, modules="DataFrames") do
         pt(df, Distributed(df, scaled_by_same_as=res))
         pt(res, ScaledBySame(as=df), match=df)
 
@@ -622,7 +622,7 @@ function Base.getindex(df::DataFrame, rows=:, cols=:)
             DataFrame(Future(datatype="DataFrame"), res_size)
         end
 
-    partitioned_with(args=df, res=res, same_keys=true, drifted=filter_rows, modules="DataFrames") do
+    partitioned_with(in=df, out=res, same_keys=true, drifted=filter_rows, modules="DataFrames") do
         if filter_rows
             for (dfpt_unbalanced, respt_unbalanced, dfpt_balanced, respt_balanced) in zip(
                 # unbalanced
@@ -946,7 +946,7 @@ function Base.setindex!(df::DataFrame, v::Union{BanyanArrays.Vector, BanyanArray
     # cols = Future(Symbol.(names(sample(df), cols)))
     cols = Future(cols)
 
-    partitioned_with(args=df, res=res, same_keys=true, modules="DataFrames") do
+    partitioned_with(in=df, out=res, same_keys=true, modules="DataFrames") do
         for dpt in Distributed(df, scaled_by_same_as=res)
             pt(df, dpt)
             pt(res, ScaledBySame(as=df), match=df)
@@ -1110,7 +1110,7 @@ function DataFrames.rename(df::DataFrame, args...; kwargs...)
     args = Future(args)
     kwargs = Future(kwargs)
 
-    partitioned_with(args=df, res=res, same_keys=true, renamed=true, modules="DataFrames") do
+    partitioned_with(in=df, out=res, same_keys=true, renamed=true, modules="DataFrames") do
         # distributed
         for dfpt in Distributed(df, scaled_by_same_as=res)
             pt(dfpt)
@@ -1269,7 +1269,7 @@ function Base.sort(df::DataFrame, cols=:; kwargs...)
 
     # TODO: Change to_vector(x) to [x;]
 
-    partitioned_with(args=df, res=res, keys=sortingkey, modules="DataFrames") do
+    partitioned_with(in=df, out=res, keys=sortingkey, modules="DataFrames") do
         # We must construct seperate PTs for balanced=true and balanced=false
         # because these different PTs have different required constraints
         # TODO: Implement reversed in Grouped constructor
@@ -1315,12 +1315,12 @@ function DataFrames.innerjoin(dfs::DataFrame...; on, kwargs...)
 
     # TODO: Use something like this for join
     partitioned_with(
-        args=dfs,
+        in=dfs,
         # NOTE: We are adjusting the sample rate accordingly, but we still need
         # to note that skew can occur in the selectivity of the join.
         # Therefore, we create ScaleBy constraints just for the
         # selectivity/skew issue - not for the sample rate.
-        res=res,
+        out=res,
         # The sample rate multiplies since this is a join
         keep_sample_rate=false,
         # NOTE: `to_vector` is necessary here (`[on...]` won't cut it) because
@@ -1339,7 +1339,7 @@ function DataFrames.innerjoin(dfs::DataFrame...; on, kwargs...)
         # unbalanced, ...., unbalanced -> balanced - "partial sort-merge join"
         dfs_with_groupingkeys = [df => groupingkey for (df, groupingkey) in zip(dfs, groupingkeys)]
         for (df, groupingkey) in dfs_with_groupingkeys
-            pt(df, Grouped(df, by=groupingkey, balanced=false, filtered_to=(res=>first(groupingkeys))), match=res, on=["divisions", "rev"])
+            pt(df, Grouped(df, by=groupingkey, balanced=false, filtered_to=(out=>first(groupingkeys))), match=res, on=["divisions", "rev"])
         end
         pt(res, Grouped(res, by=first(groupingkeys), balanced=true, filtered_from=dfs_with_groupingkeys) & Drifted())
 
@@ -1448,7 +1448,7 @@ function DataFrames.unique(df::DataFrame, cols=:; kwargs...)
     cols = Future(cols)
     kwargs = Future(kwargs)
 
-    partitioned_with(args=df, res=res, keys=columns, drifted=true, modules="DataFrames") do
+    partitioned_with(in=df, out=res, keys=columns, drifted=true, modules="DataFrames") do
         pts_for_filtering(df, res, with=Grouped, by=columns)
         pt(res_nrows, Reducing(quote (a, b) -> a .+ b end))
         pt(df, res, res_nrows, cols, kwargs, Replicated())
@@ -1507,7 +1507,7 @@ function DataFrames.nonunique(df::DataFrame, cols=:; kwargs...)
     cols = Future(cols)
     kwargs = Future(kwargs)
 
-    partitioned_with(args=df, res=res, modules="DataFrames") do
+    partitioned_with(in=df, out=res, modules="DataFrames") do
         pt(df, Grouped(df, by=columns))
         pt(res, Blocked(along=1) & ScaledBySame(as=df), match=df, on=["balanced", "id"])
         pt(df_nrows, Replicating())
