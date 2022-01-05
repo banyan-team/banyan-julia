@@ -58,6 +58,7 @@ function create_job(;
     force_pull::Union{Bool,Nothing} = false,
     force_install::Union{Bool,Nothing} = false,
     nowait::Bool=false,
+    email_address::String=nothing,
     kwargs...,
 )
     global jobs
@@ -66,6 +67,18 @@ function create_job(;
     if cluster_name == ""
         cluster_name = nothing
     end
+
+    # Update the email address
+    # if !isnothing(email_address)
+    #     if email_address == ""
+            
+    #     else
+    #         ---
+    #     end
+    # else
+    #     email_address = nothing
+    # end
+
 
     # Configure
     configure(; kwargs...)
@@ -94,6 +107,7 @@ function create_job(;
         "benchmark" => get(ENV, "BANYAN_BENCHMARK", "0") == "1",
         "main_modules" => get_loaded_packages(),
         "using_modules" => using_modules,
+        "email_address" => email_address,
     )
     if !isnothing(job_name)
         job_configuration["job_name"] = job_name
