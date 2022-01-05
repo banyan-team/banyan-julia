@@ -532,6 +532,62 @@ function format_bytes(bytes, decimals = 2)
     return string(round((bytes / ^(k, i)), digits = dm)) * " " * sizes[i+1]
 end
 
+byte_sizes = Dict(
+    "kB" => 10 ^ 3,
+    "MB" => 10 ^ 6,
+    "GB" => 10 ^ 9,
+    "TB" => 10 ^ 12,
+    "PB" => 10 ^ 15,
+    "KiB" => 2 ^ 10,
+    "MiB" => 2 ^ 20,
+    "GiB" => 2 ^ 30,
+    "TiB" => 2 ^ 40,
+    "PiB" => 2 ^ 50,
+    "B" => 1,
+    "" => 1,
+)
+
+byte_sizes = Dict(lowercase(k) => v for (k, v) in byte_sizes)
+merge!(byte_sizes, Dict(string(k[1]) => v for (k, v) in byte_sizes if !isempty(k) && !occursin("i", k)))
+merge!(byte_sizes, Dict(k[1:end-1] => v for (k, v) in byte_sizes if !isempty(k) && occursin("i", k)))
+
+parse_bytes(r::Real) = r
+
+function parse_bytes(s::String)
+    s = replace(s, " " => "")
+    if !any([isdigit(char) for char in s])
+        s = "1" * s
+    end
+
+    index = -1
+    for i in length(s):-1:0
+        if !isletter(s[i])
+            index = i + 1
+            break
+        end
+    end
+
+    prefix = s[1:index-1]
+    suffix = s[index:end]
+
+    n = -1
+    try
+        n = parse(Float32, prefix)
+    catch
+        throw(ArgumentError("Could not interpret '$prefix' as a number"))
+    end
+
+    multiplier = -1
+    try
+        multiplier = byte_sizes[lowercase(suffix)]
+    catch
+        throw(ArgumentError("Could not interpret '$suffix' as a byte unit"))
+    end
+
+    result = n * multiplier
+    result
+end
+
 function get_branch_name()
     prepo = LibGit2.GitRepo(realpath(joinpath(@__DIR__, "../..")))
     phead = LibGit2.head(prepo)

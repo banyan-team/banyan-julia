@@ -12,6 +12,7 @@ mutable struct Location
     dst_name::String
     src_parameters::LocationParameters
     dst_parameters::LocationParameters
+    total_memory_usage::Union{Integer,Nothing}
     sample::Sample
 
     function Location(
@@ -19,6 +20,7 @@ mutable struct Location
         dst_name::String,
         src_parameters::Dict{String,<:Any},
         dst_parameters::Dict{String,<:Any},
+        total_memory_usage::Union{Integer,Nothing} = nothing,
         sample::Sample = Sample(),
     )
         # NOTE: A file might be None and None if it is simply to be cached on
@@ -29,20 +31,27 @@ mutable struct Location
         #     )
         # end
 
-        new(src_name, dst_name, src_parameters, dst_parameters, sample)
+        new(
+            src_name,
+            dst_name,
+            src_parameters,
+            dst_parameters,
+            total_memory_usage,
+            sample
+        )
     end
 end
 
-Location(name::String, parameters::Dict{String,<:Any}, sample::Sample = Sample()) =
-    Location(name, name, parameters, parameters, sample)
+Location(name::String, parameters::Dict{String,<:Any}, total_memory_usage::Union{Integer,Nothing} = nothing, sample::Sample = Sample()) =
+    Location(name, name, parameters, parameters, total_memory_usage, sample)
 
-LocationSource(name::String, parameters::Dict{String,<:Any}, sample::Sample = Sample()) =
-    Location(name, "None", parameters, LocationParameters(), sample)
+LocationSource(name::String, parameters::Dict{String,<:Any}, total_memory_usage::Union{Integer,Nothing} = nothing, sample::Sample = Sample()) =
+    Location(name, "None", parameters, LocationParameters(), total_memory_usage, sample)
 
 LocationDestination(
     name::String,
     parameters::Dict{String,<:Any}
-) = Location("None", name, LocationParameters(), parameters)
+) = Location("None", name, LocationParameters(), nothing, parameters)
 
 function Base.getproperty(loc::Location, name::Symbol)
     if hasfield(Location, name)
@@ -81,7 +90,7 @@ function to_jl(lt::Location)
         # TODO: Instead of computing the total memory usage here, compute it
         # at the end of each `@partitioned`. That way we will count twice for
         # mutation
-        "total_memory_usage" => sample(lt.sample, :memory_usage) * sample(lt.sample, :rate),
+        "total_memory_usage" => lt.total_memory_usage,
     )
 end
 
@@ -108,6 +117,7 @@ function sourced(fut, loc::Location)
             isnothing(fut_location) ? "None" : fut_location.dst_name,
             loc.src_parameters,
             isnothing(fut_location) ? Dict{String,Any}() : fut_location.dst_parameters,
+            loc.total_memory_usage,
             if !isnothing(loc.sample.value)
                 # If this location is like some remote location, then we need
                 # a sample from it.
@@ -139,6 +149,7 @@ function destined(fut, loc::Location)
             loc.dst_name,
             isnothing(fut_location) ? Dict{String,Any}() : fut_location.src_parameters,
             loc.dst_parameters,
+            nothing,
             isnothing(fut_location) ? Sample() : fut_location.sample,
         ),
     )
@@ -249,21 +260,22 @@ get_dst_parameters(fut) = get_location(fut).dst_parameters
 # Simple locations #
 ####################
 
-Value(val) = LocationSource("Value", Dict("value" => to_jl_value(val)), ExactSample(val))
+Value(val) = LocationSource("Value", Dict("value" => to_jl_value(val)), total_memory_usage(val), ExactSample(val))
 
 # TODO: Implement Size
 Size(val) = LocationSource(
     "Value",
     Dict("value" => to_jl_value(val)),
+    0,
     Sample(indexapply(getsamplenrows, val, index = 1)),
 )
 
-Client(val) = LocationSource("Client", Dict{String,Any}(), ExactSample(val))
+Client(val) = LocationSource("Client", Dict{String,Any}(), total_memory_usage(val), ExactSample(val))
 Client() = LocationDestination("Client", Dict{String,Any}())
 # TODO: Un-comment only if Size is needed
 # Size(size) = Value(size)
 
-None() = Location("None", Dict{String,Any}(), Sample())
+None() = Location("None", Dict{String,Any}())
 Disk() = None() # The scheduler intelligently determines when to split from and merge to disk even when no location is specified
 # Values assigned "None" location as well as other locations may reassigned
 # "Memory" or "Disk" locations by the scheduler depending on where the relevant

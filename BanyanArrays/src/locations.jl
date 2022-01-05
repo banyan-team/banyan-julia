@@ -187,6 +187,7 @@ function RemoteHDF5Source(remotepath; shuffled=false, source_invalid = false, sa
         LocationSource(
             loc_for_reading,
             metadata_for_reading,
+            nbytes,
             remote_sample,
         )
     end

@@ -92,7 +92,7 @@ export Any,
     Partitioned
 
 # Partitioning constraints
-export Co, Cross, Equal, Sequential, Match, MatchOn, AtMost, ScaleBy
+export Co, Cross, Equal, Sequential, Match, MatchOn, AtMost, Scale
 
 # Annotations
 export partitioned_using,

@@ -67,10 +67,15 @@ AtMost(npartitions, args...) =
         "AT_MOST=$npartitions",
         pt_refs_to_jl(args)
     )
-ScaleBy(arg, factor::Real = 1.0, relative_to...) = 
+# ScaleBy(arg, factor::Real = 1.0, relative_to...) = 
+#     PartitioningConstraintOverGroup(
+#         "SCALE_BY=$factor",
+#         pt_refs_to_jl([arg; relative_to...])
+#     )
+function Scale(arg; to::Union{Real,String,Nothing}=nothing, by::Real=1.0, relative_to=[])
     PartitioningConstraintOverGroup(
-        "SCALE_BY=$factor",
-        pt_refs_to_jl([arg; relative_to...])
+        isnothing(to) ? "SCALE_BY=$by" : "SCALE_TO=$(parse_bytes(to))",
+        pt_refs_to_jl([arg; to_vector(relative_to)...])
     )
 
 # Co, Cross, Equal, Sequential, Match, MatchOn, AtMost are PA-level constraints.

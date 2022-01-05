@@ -331,7 +331,7 @@ function Base.map(f, c::Array{T,N}...) where {T,N}
 
     # TODO: Determine whether array operations need to use mutated_from or mutated_to
 
-    partitioned_with(args=first(c), res=res) do
+    partitioned_with(args=c, res=res) do
         # balanced
         pt(first(c), Blocked(first(c), balanced=true))
         pt(c[2:end]..., res, Blocked() & Balanced(), match=first(c), on=["key", "id"])

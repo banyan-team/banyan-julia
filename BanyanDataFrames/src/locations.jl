@@ -418,6 +418,7 @@ function RemoteTableSource(remotepath; shuffled=false, source_invalid = false, s
         LocationSource(
             loc_for_reading,
             metadata_for_reading,
+            nbytes,
             remote_sample,
         )
     end

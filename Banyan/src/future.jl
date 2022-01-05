@@ -4,9 +4,10 @@ mutable struct Future <: AbstractFuture
     value_id::ValueId
     mutated::Bool
     stale::Bool
+    total_memory_usage::Union{Integer,Nothing}
 
     function Future(datatype::String, value::Any, value_id::ValueId, mutated::Bool, stale::Bool)
-        new_future = new(datatype, value, value_id, mutated, stale, datatype)
+        new_future = new(datatype, value, value_id, mutated, stale, datatype, nothing)
 
         # Create finalizer and register
         finalizer(new_future) do fut

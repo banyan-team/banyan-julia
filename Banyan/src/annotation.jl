@@ -167,14 +167,20 @@ end
 
 function partitioned_with(
     handler::Function;
-    args::Union{AbstractFuture,Vector{AbstractFuture}},
-    res::Union{AbstractFuture,Vector{AbstractFuture}},
-    relative_sample_rate::Bool = true,
+    in::Union{AbstractFuture,Vector{AbstractFuture}},
+    out::Union{AbstractFuture,Vector{AbstractFuture}},
+    # Memory usage, sampling
+    same_sample_rate::Bool = true,
+    memory_usage::Vector{PartitioningConstraint} = [],
+    additional_memory_usage::Vector{PartitioningConstraint} = [],
+    # Keys (not relevant if you never use grouped partitioning)
     same_keys::Bool = false,
     keys::Union{AbstractVector,Nothing} = nothing,
     keys_by_future = nothing,
     renamed::Bool = false,
+    # Asserts that output has a unique partitioning compared to inputs
     drifted::Bool = false,
+    # For generating import statements
     modules::Union{String,AbstractVector{String},Nothing} = nothing
 )
     global curr_delayed_task
@@ -185,25 +191,34 @@ function partitioned_with(
     end
 
     partitioned_using() do 
-        args = to_vector(args)
-        res = to_vector(res)
+        in = to_vector(in)
+        out = to_vector(out)
         if same_keys
             if renamed
-                if length(args) != 1 || length(res) != 1
+                if length(in) != 1 || length(out) != 1
                     error("Only 1 argument can be renamed to 1 result at once")
                 end
-                keep_all_sample_keys_renamed(arg[1], res[1])
+                keep_all_sample_keys_renamed(arg[1], out[1])
             else
-                keep_all_sample_keys(vcat(res, args)...; drifted=drifted)
+                keep_all_sample_keys(vcat(out, in)...; drifted=drifted)
             end
         end
-        if relative_sample_rate
-            for r in res
-                keep_sample_rate(r, args...)
+        if same_sample_rate
+            keep_sample_rate(r, first(in))
+            for i in 1:(length(in)-1)
+                this_sample_rate = sample(in[i], :rate)
+                other_sample_rate = sample(in[i+1], :rate)
+                if this_sample_rate != other_sample_rate
+                    @warn "Two inputs have different sample rates ($this_sample_rate, $other_sample_rate)"
+                end
+            end
+        else
+            for r in out
+                keep_sample_rate(r, in...)
             end
         end
         if !isnothing(keys)
-            keep_sample_keys(keys, vcat(res, args)...; drifted=drifted)
+            keep_sample_keys(keys, vcat(out, in)...; drifted=drifted)
         end
         if !isnothing(keys_by_future)
             keep_sample_keys_named(keys_by_future...; drifted=drifted)
@@ -211,6 +226,9 @@ function partitioned_with(
     end
 
     curr_delayed_task.partitioned_with_func = handler
+    curr_delayed_task.same_sample_rate = same_sample_rate
+    curr_delayed_task.memory_usage_constraints = memory_usage
+    curr_delayed_task.additional_memory_usage_constraints = additional_memory_usage
 end
 
 function pt(

@@ -64,7 +64,7 @@ function create_job(;
     global current_job_id
 
     if isnothing(pf_dispatch_table)
-        branch_to_use = get(ENV, "BANYAN_TESTING", "0") == "1" ? "v21.12.28" : get_branch_name()
+        branch_to_use = get(ENV, "BANYAN_TESTING", "0") == "1" ? get_branch_name() : "v21.12.28"
         pf_dispatch_table = [
             "https://raw.githubusercontent.com/banyan-team/banyan-julia/$branch_to_use/$dir/res/pf_dispatch_table.toml"
             for dir in ["Banyan", "BanyanArrays", "BanyanDataFrames"]

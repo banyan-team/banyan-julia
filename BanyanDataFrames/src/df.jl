@@ -942,7 +942,7 @@ function Base.setindex!(df::DataFrame, v::Union{BanyanArrays.Vector, BanyanArray
 
     # selection = names(sample(df), cols)
 
-    res = Future(datatype="DataFrame")
+    res = Future(datatype="DataFrame", mutate_from=df)
     # cols = Future(Symbol.(names(sample(df), cols)))
     cols = Future(cols)
 
@@ -1315,12 +1315,14 @@ function DataFrames.innerjoin(dfs::DataFrame...; on, kwargs...)
 
     # TODO: Use something like this for join
     partitioned_with(
-        args=[dfs...],
+        args=dfs,
         # NOTE: We are adjusting the sample rate accordingly, but we still need
         # to note that skew can occur in the selectivity of the join.
         # Therefore, we create ScaleBy constraints just for the
         # selectivity/skew issue - not for the sample rate.
         res=res,
+        # The sample rate multiplies since this is a join
+        keep_sample_rate=false,
         # NOTE: `to_vector` is necessary here (`[on...]` won't cut it) because
         # we allow for a vector of pairs
         # TODO: Determine how to deal with the fact that some groupingkeys can
