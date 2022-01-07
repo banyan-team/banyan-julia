@@ -429,6 +429,62 @@ function write_to_disk(fut::AbstractFuture)
     partitioned_computation(fut, destination=Disk())
 end
 
+# Make `offloaded` function in Banyan.jl 
+#   which calls evaluate passing in a string of bytes 
+#   by serializing the given function (just call to_jl_value_contents on it) 
+#   and passing it in with the parameter offloaded_function_code
+#
+# Make `offloaded` function specify 
+#     job_id, num_bang_values_issued, main_modules, and benchmark 
+#     when calling evaluate (see send_evaluate) and value_id -1
+function offloaded(given_function)
+    serialized = to_jl_value_contents(given_functions)
+
+    # Submit evaluation request
+    response = send_request_get_response(
+        :evaluate,
+        Dict{String,Any}(
+            "value_id" => -1,
+            "job_id" => get_job_id(),
+            "options" => Dict( ),
+            "num_bang_values_issued" => get_num_bang_values_issued(),
+            "main_modules" => get_loaded_packages(),
+            "partitioned_using_modules" => [],
+            "benchmark" => get(ENV, "BANYAN_BENCHMARK", "0") == "1",
+            "offloaded_function_code" => serialized
+        ),
+    )
+    if isnothing(response)
+        throw(ErrorException("The evaluation request has failed. Please contact support"))
+    end
+
+    job_id = get_job_id()
+    p = ProgressUnknown("Computing value with ID $(fut.value_id)", spinner=true)
+    gather_queue = get_gather_queue(job_id)
+    while true
+        message = receive_next_message(gather_queue, p)
+        message_type = message["kind"]
+        stored_message = nothing
+        if (message_type == "GATHER")
+            value_id = message["value_id"]
+            if (value_id == -1)
+                stored_message = from_jl_value_contents(message["contents"])
+            end
+        else if (message_type = "GENERATE")
+            return stored_message
+            break
+        end
+    end
+end
+
+# Make the `offloaded` function on the client side keep looping and 
+#     (1) checking receive_next_message and 
+#     (2) checking for message[“kind”] == "GATHER" and 
+#     (3) `break`ing and `return`ing the value (using `from_jl_value_contents(message["contents"])`) 
+#         if value_id == -1
+
+
+
 ###############################################################
 # Other requests to be sent with request to evaluate a Future #
 ###############################################################
