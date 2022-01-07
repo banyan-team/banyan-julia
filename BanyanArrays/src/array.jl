@@ -13,8 +13,10 @@ function Base.copy(fut::AbstractFuture)
     # copying anything  
     # pt(fut, PartitionType())
     # pt(res, PartitionType(), match=fut)
-    pt(fut, Replicating())
-    pt(res, Replicating(), match=fut)
+    partitioned_with(scaled=[fut, res]) do
+        pt(fut, Replicating())
+        pt(res, Replicating(), match=fut)
+    end
 
     @partitioned fut res begin
         res = Base.copy(fut)
@@ -38,8 +40,10 @@ function Base.deepcopy(fut::AbstractFuture)
     # copying anything  
     # pt(fut, PartitionType())
     # pt(res, PartitionType(), match=fut)
-    pt(fut, Replicating())
-    pt(res, Replicating(), match=fut)
+    partitioned_with(scaled=[fut, res]) do
+        pt(fut, Replicating())
+        pt(res, Replicating(), match=fut)
+    end
 
     @partitioned fut res begin
         res = Base.deepcopy(fut)
@@ -201,7 +205,9 @@ function write_hdf5(A, path; invalidate_source=true, invalidate_sample=true, kwa
     # # end
     # @partitioned A begin end
     # compute(A)
-    pt(A, Blocked(A) | Replicated())
+    partitioned_with(scaled=df) do
+        pt(A, Blocked(A) | Replicated())
+    end
     partitioned_computation(
         A,
         destination=RemoteHDF5Destination(path; invalidate_source=invalidate_source, invalidate_sample=invalidate_sample, kwargs...),
@@ -238,7 +244,7 @@ function fill(v, dims::NTuple{N,Integer}) where {N}
     # We use `partitioned_with` here to ensure that a sample of A is produced
     # first so that we can use the Blocked PT constructor which depends on A
     # having its sample taken
-    partitioned_with() do
+    partitioned_with(scaled=A) do
         # blocked
         # TODO: Ensure that we are properly creating new PAs
         pt(A, Blocked(A))
@@ -293,7 +299,7 @@ end
 function Base.copy(A::Array{T,N})::Array{T,N} where {T,N}
     res = Future(datatype="Array")
 
-    partitioned_with(in=A, out=res, same_keys=true) do
+    partitioned_with(scaled=[A, res], keep_same_keys=true) do
         pts_for_copying(A, res)
     end
 
@@ -307,7 +313,7 @@ end
 function Base.deepcopy(A::Array{T,N})::Array{T,N} where {T,N}
     res = Future(datatype="Array")
 
-    partitioned_with(in=A, out=res, same_keys=true) do
+    partitioned_with(scaled=[A, res], keep_same_keys=true) do
         pts_for_copying(A, res)
     end
 
@@ -331,7 +337,7 @@ function Base.map(f, c::Array{T,N}...) where {T,N}
 
     # TODO: Determine whether array operations need to use mutated_from or mutated_to
 
-    partitioned_with(in=c, out=res) do
+    partitioned_with(scaled=[res, c...]) do
         # balanced
         pt(first(c), Blocked(first(c), balanced=true))
         pt(c[2:end]..., res, Blocked() & Balanced(), match=first(c), on=["key", "id"])
@@ -374,7 +380,7 @@ function Base.mapslices(f, A::Array{T,N}; dims) where {T,N}
     res = Array{Any,Any}(Future(datatype="Array"), res_size)
     dims = Future(dims)
 
-    partitioned_with(in=A, out=res) do
+    partitioned_with(scaled=[A, res]) do
         # Blocked PTs along dimensions _not_ being mapped along
         bpt = [bpt for bpt in Blocked(A) if !(dims isa Colon) && !(bpt.key in [dims...])]
 
@@ -411,7 +417,7 @@ function Base.reduce(op, A::Array{T,N}; dims=:, kwargs...) where {T,N}
     dims = Future(dims)
     kwargs = Future(kwargs)
 
-    partitioned_with(in=A, out=res) do
+    partitioned_with(scaled=[A, res]) do
         # TODO: Duplicate annotations to handle the balanced and unbalanced cases
         # seperately
         # TODO: Have a better API where duplicating to handle balanced and unbalanced
@@ -466,7 +472,7 @@ function Base.sortslices(A::Array{T,N}, dims; kwargs...) where {T,N}
     dims = Future(dims)
     kwargs = Future(kwargs)
 
-    partitioned_with(in=A, out=res) do
+    partitioned_with(scaled=[A, res], keys=sortingdim) do
         # unbalanced -> unbalanced
         pt(A, Grouped(A, by=sortingdim, rev=isreversed, scaled_by_same_as=res, balanced=false))
         pt(res, Blocked() & Unbalanced(scaled_by_same_as=A), match=A, on=["key", "divisions", "id"])

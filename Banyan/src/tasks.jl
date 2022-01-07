@@ -15,9 +15,9 @@ mutable struct DelayedTask
     partitioned_with_func::Union{Function,Nothing}
     mutation::Dict{Future,Future} # This gets converted to `effects`
     # Fields for estimating memory usage
-    in::Vector{AbstractFuture}
-    out::Vector{AbstractFuture}
-    same_sample_rate::Bool
+    inputs::Vector{Future}
+    outputs::Vector{Future}
+    keep_same_sample_rate::Bool
     memory_usage_constraints::Vector{PartitioningConstraint}
     additional_memory_usage_constraints::Vector{PartitioningConstraint}
 end
@@ -45,6 +45,9 @@ function to_jl(task::DelayedTask)
         "value_names" => task.value_names,
         "effects" => task.effects,
         "pa_union" => [to_jl(pa) for pa in task.pa_union],
-        "memory_usage" => task.memory_usage
+        "memory_usage" => task.memory_usage,
+        "inputs" => [i.value_id for i in task.inputs],
+        "outputs" => [i.value_id for o in task.outputs],
+        "keep_same_sample_rate" => task.keep_same_sample_rate,
     )
 end
