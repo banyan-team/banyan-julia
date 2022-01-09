@@ -1,6 +1,18 @@
 module BanyanArrays
 
-using Banyan
+using Banyan,
+    AWS,
+    AWSCore,
+    AWSS3,
+    Banyan,
+    Downloads,
+    FileIO,
+    FilePathsBase,
+    HDF5,
+    IterTools,
+    MPI,
+    Random,
+    Serialization
 
 export Array, Vector, Matrix
 export read_hdf5, write_hdf5

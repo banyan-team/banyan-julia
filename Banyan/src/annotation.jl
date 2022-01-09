@@ -168,6 +168,9 @@ end
 function partitioned_with(
     handler::Function;
     # Memory usage, sampling
+    # `scaled` is the set of futures with memory usage that can potentially be
+    # scaled to larger sizes if the amount of data at a location changes.
+    # Non-scaled data has fixed memory usage regardless of its sample rate.
     scaled::Union{AbstractFuture,Vector{AbstractFuture}} = [],
     keep_same_sample_rate::Bool = true,
     memory_usage::Vector{PartitioningConstraint} = [],

@@ -1,7 +1,19 @@
 module BanyanDataFrames
 
-using Banyan
-using BanyanArrays
+using Banyan,
+    BanyanArrays,
+    AWS,
+    AWSCore,
+    AWSS3,
+    Banyan,
+    Downloads,
+    FileIO,
+    FilePathsBase,
+    HDF5,
+    IterTools,
+    MPI,
+    Random,
+    Serialization
 
 using DataFrames, Missings
 
