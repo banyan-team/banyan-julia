@@ -3,6 +3,7 @@ module BanyanImages
 using Banyan, BanyanArrays
 
 using FileIO, ImageIO, MPI
+using ProgressMeter
 
 export read_png, write_png
 
