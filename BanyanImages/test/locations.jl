@@ -1,6 +1,5 @@
-@testset "Remote PNG Source for $remotepath" for remotepath in [
-    "single file"
-]
+@testset "Remote PNG Source" begin
+    set_job("test_job_id")
     # Prepare test by writing file to S3
     s3_bucket = Random.randstring(['a':'z'; '0':'9'], 6)
     s3_create_bucket(Banyan.get_aws_config(), s3_bucket)

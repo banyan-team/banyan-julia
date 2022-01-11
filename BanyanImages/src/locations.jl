@@ -1,15 +1,16 @@
 function RemotePNGSource(remotepath; shuffled=false, source_invalid = false, sample_invalid = false, invalidate_source = false, invalidate_sample = false)::Location
     RemoteSource(
-        remotepath,
+        remotepath;
         shuffled=shuffled,
         source_invalid = source_invalid,
         sample_invalid,
         invalidate_source = invalidate_source,
         invalidate_sample = invalidate_sample
-    ) do remotepath, remote_source, remote_sample, 
+    ) do remotepath, remote_source, remote_sample, shuffled
 
         # Initialize parameters if location is already cached
         files = isnothing(remote_source) ? [] : remote_source.files
+        nimages = isnothing(remote_source) ? 0 : remote_source.nimages
         nbytes = isnothing(remote_source) ? 0 : remote_source.nbytes
         dataeltype = isnothing(remote_source) ? "" : remote_source.dataeltype
         format = isnothing(remote_source) ? "" : remote_source.format
@@ -22,8 +23,8 @@ function RemotePNGSource(remotepath; shuffled=false, source_invalid = false, sam
             format = "generator"
         else
 
-            if !isa(remotepath, Array)
-                p = download_remote_path(remotepath)
+            if !isa(remotepath, Base.Array)
+                p = Banyan.download_remote_path(remotepath)
 
                 # Determine if this is a directory
                 p_isfile = isfile(p)
@@ -45,6 +46,10 @@ function RemotePNGSource(remotepath; shuffled=false, source_invalid = false, sam
                 files = remotepath
             end
             format = "png"
+        end
+
+        if isnothing(remote_source)
+            nimages = sum(1 for _ in files)
         end
 
         # Initialize sample
@@ -112,12 +117,13 @@ function RemotePNGSource(remotepath; shuffled=false, source_invalid = false, sam
         # Serialize generator
         files = format == "generator" ? Banyan.to_jl_value_contents(files) : files
 
-        loc_for_reading, metadata_for_reading = if dataset_to_read_from_exists
+        loc_for_reading, metadata_for_reading = if !isnothing(files) && !isempty(files)
             (
                 "Remote",
                 Dict(
                     "path" => remotepath,
                     "files" => files,  # either a serialized generator or list of filepaths
+                    "nimages" => nimages,
                     "nbytes" => nbytes,  # assume all files have same size
                     "dataeltype" => dataeltype,
                     "format" => format
