@@ -470,9 +470,8 @@ function offloaded(given_function)
             if (value_id == -1)
                 stored_message = from_jl_value_contents(message["contents"])
             end
-        else if (message_type = "GENERATE")
+        else if (message_type == "EVALUATION_END")
             return stored_message
-            break
         end
     end
 end
