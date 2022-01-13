@@ -36,7 +36,7 @@ nworkers = get(ENV, "BANYAN_NWORKERS", "2")
 ntrials = parse(Int, get(ENV, "BANYAN_NTRIALS", "1"))
 s3_bucket_name = get_s3_bucket_path(cluster_name)
 
-global job = start_session(
+global job_id = start_session(
     username = username,
     user_id = user_id,
     api_key = api_key,
@@ -46,7 +46,7 @@ global job = start_session(
     return_logs = true
 )
 
-function run_with_job(test_fn, name)
+function run_with_session(test_fn, name)
     # This function should be used for tests that need a job to be already
     # created to run. We look at environment variables for a specification for
     # how to authenticate and what cluster to run on
@@ -55,7 +55,7 @@ function run_with_job(test_fn, name)
        any([occursin(t, lowercase(name)) for t in get_enabled_tests()])
         if get(ENV, "BANYAN_NWORKERS_ALL", "false") == "true"
             for nworkers in [16, 8, 4, 2, 1]
-                with_job(
+                with_session(
                     username = username,
                     api_key = api_key,
                     cluster_name = cluster_name,
@@ -68,7 +68,7 @@ function run_with_job(test_fn, name)
                 end
             end
         elseif !isnothing(nworkers)
-            with_job(job=job, destroy_job_on_exit=false) do j
+            with_session(session=job_id, destroy_session_on_exit=false) do j
                 for i in 1:ntrials
                     if ntrials > 1
                         @time test_fn(j)
@@ -81,7 +81,7 @@ function run_with_job(test_fn, name)
     end
 end
 
-function run_without_job(test_fn, name)
+function run_without_session(test_fn, name)
     # This function should be used for tests that don't need a job
     # and are run locally, such as those for baselines.
 
@@ -112,7 +112,7 @@ function include_all_tests()
     include_tests_to_run("test_black_scholes.jl")
 end
 
-with_job(job=job) do j
+with_session(session=job_id) do j
     # NOTE: We need to wrap the `include`s in `with_job` because if the tests
     # fail without an error occuring, then a `LoadError` gets thrown. If an
     # error occurs inside a test, the job gets destroyed and the error is
