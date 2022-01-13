@@ -11,6 +11,17 @@ Eventually, you will be able to use these libraries as drop-in replacements of t
 
 Visit [Banyan Computing](https://www.banyancomputing.com/resources/) for full documentation.
 
+## Getting Started
+
+Banyan is the best way to unleash Julia on big data in the cloud! To get started:
+
+1. Follow the [getting started steps](banyancomputing.com/getting-started) (15 minutes)
+2. Create a cluster on the [dashboard](banyancomputing.com/dashboard)
+3. Start a cluster session wherever you are running Julia with `start_session` (between 15s and 30min)
+4. Use functions in [BanyanArrays.jl](https://www.banyancomputing.com/banyan-arrays-jl-docs) or [BanyanDataFrames.jl](https://www.banyancomputing.com/banyan-data-frames-jl-docs) for big data processing!
+5. End the cluster session with `end_session`
+6. Destroy the cluster on the [dashboard](banyancomputing.com/dashboard)
+
 ## Contributing
 
 Please create branches named according the the author name and the feature name
