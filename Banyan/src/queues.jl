@@ -66,7 +66,7 @@ function receive_next_message(queue_name, p=nothing)
         tail = endswith(content, "MESSAGE_END") ? 11 : 0
         println(chop(content, head=14, tail=tail))
         response
-    elseif startswith(content, "JOB_FAILURE")
+    elseif startswith(content, "JOB_FAILURE") || startswith(content, "SESSION_FAILURE")
         if !isnothing(p) && !p.done
             finish!(p, spinner='✗')
         end
@@ -75,7 +75,8 @@ function receive_next_message(queue_name, p=nothing)
         # "JOB_FAILURE" and "JOB_END" from the message content. Note that logs
         # are streamed in multiple parts, due to SQS message limits.
         tail = endswith(content, "MESSAGE_END") ? 11 : 0
-        println(chop(content, head=11, tail=tail))
+        head_len = startswith(content, "JOB_FAILURE") ? 11 : 15
+        println(chop(content, head=head_len, tail=tail))
         # Destroy job when last part of log is received.
         if endswith(content, "MESSAGE_END")
             # We have to destroy the job here because we could be receiving
@@ -84,10 +85,10 @@ function receive_next_message(queue_name, p=nothing)
             # provisioned nodes should stick around for a bit so it should
             # only be a couple of minutes before the job is back up and
             # running.
-            destroy_job(failed=true) # This will reset the `current_job_id` and delete from `jobs`
+            end_session(failed=true) # This will reset the `current_job_id` and delete from `jobs`
             error("Job failed; see preceding output")
         end
-        Dict{String,Any}("kind" => "JOB_FAILURE")
+        Dict{String,Any}("kind" => "SESSION_FAILURE")
     else
         # @debug "Received scatter or gather request"
         JSON.parse(content)

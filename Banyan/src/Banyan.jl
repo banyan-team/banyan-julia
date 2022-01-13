@@ -46,6 +46,11 @@ export Job,
     get_running_jobs,
     wait_for_job
 
+# Session management
+export start_session,
+    end_session,
+    get_session_status
+
 # Futures
 export AbstractFuture, Future, partitioned_computation, write_to_disk, collect
 
@@ -184,6 +189,7 @@ include("utils_abstract_types.jl")
 include("utils_s3fs.jl")
 include("clusters.jl")
 include("jobs.jl")
+include("sessions.jl")
 
 # Futures
 include("future.jl")
@@ -211,7 +217,16 @@ function __init__()
     # - SSH key pair (used in cluster creation, not for auth)
 
     global BANYAN_API_ENDPOINT
-    BANYAN_API_ENDPOINT = "https://hcohsbhhzf.execute-api.us-west-2.amazonaws.com/dev/"
+    BANYAN_API_ENDPOINT = get(
+        ENV,"BANYAN_API_ENDPOINT",
+        "https://4whje7txc2.execute-api.us-west-2.amazonaws.com/prod/"
+    )
+
+    # Downloads settings
+    global downloader
+    downloader = Downloads.Downloader()
+    downloader.easy_hook = (easy, info) ->
+       Downloads.Curl.setopt(easy, Downloads.Curl.CURLOPT_LOW_SPEED_TIME, 40)
 
     load_config()
 end

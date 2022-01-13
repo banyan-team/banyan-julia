@@ -72,6 +72,13 @@ AtMost(npartitions, args...) =
 #         "SCALE_BY=$factor",
 #         pt_refs_to_jl([arg; relative_to...])
 #     )
+# If used inside a PT constructor as a PT-level constraint, note that
+# PT-level constraints are applicable only for the first PT in a value's
+# assigned composition of PTs.
+# So for example, if you
+# are having to scale data by a certain amount to account for data skew when
+# grouping, you should be having the same grouping PT throughout the PT
+# composition.
 function Scale(arg; to::Union{Real,String,Nothing}=nothing, by::Real=1.0, relative_to=[])
     PartitioningConstraintOverGroup(
         isnothing(to) ? "SCALE_BY=$by" : "SCALE_TO=$(parse_bytes(to))",

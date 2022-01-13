@@ -323,7 +323,7 @@ function run_bs(size::Integer)
 end
 
 #@testset "Black Scholes" begin
-#    run_with_job("Black Scholes", j -> begin
+#    run_with_session("Black Scholes", j -> begin
 #        size = Integer(1e9)
 #        run_bs(size)
 #        # evaluate(put)

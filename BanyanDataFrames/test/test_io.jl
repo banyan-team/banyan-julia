@@ -26,7 +26,7 @@ function upload_iris_all_formats_to_s3(bucket_name)
 end
 
 @testset "Read/Write to CSV, Parquet, and Arrow" begin
-    run_with_job("Reading/writing CSV/Parquet/Arrow") do job
+    run_with_session("Reading/writing CSV/Parquet/Arrow") do job
         bucket = get_cluster_s3_bucket_name(get_cluster_name())
         upload_iris_all_formats_to_s3(bucket)
         for filetype in ["csv", "parquet", "arrow"]

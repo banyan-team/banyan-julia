@@ -36,7 +36,7 @@ nworkers = get(ENV, "BANYAN_NWORKERS", "2")
 ntrials = parse(Int, get(ENV, "BANYAN_NTRIALS", "1"))
 s3_bucket_name = get_s3_bucket_path(cluster_name)
 
-global job = create_job(
+global job = start_session(
     username = username,
     user_id = user_id,
     api_key = api_key,

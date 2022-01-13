@@ -317,6 +317,12 @@ method_to_string(method) = begin
         "destroy-job"
     elseif method == :describe_jobs
         "describe-jobs"
+    elseif method == :start_session
+        "start-session"
+    elseif method == :end_session
+        "end-session"
+    elseif method == :describe_sessions
+        "describe-sessions"
     elseif method == :evaluate
         "evaluate"
     elseif method == :update_cluster
@@ -330,9 +336,10 @@ end
 Sends given request with given content
 """
 function request_body(url::AbstractString; kwargs...)
+    global downloader
     resp = nothing
     body = sprint() do output
-        resp = request(url; output=output, kwargs...)
+        resp = request(url; output=output, throw=false, downloader=downloader, kwargs...)
     end
     return resp, body
 end
