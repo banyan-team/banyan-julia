@@ -181,6 +181,10 @@ function partitioned_computation(fut::AbstractFuture; destination, new_source=no
                 delete!(job.locations, req.value_id)
             end
         end
+
+        # Get queues for moving data between client and cluster
+        scatter_queue = get_scatter_queue(job_id)
+        gather_queue = get_gather_queue(job_id)
     
         # Send evaluation request
         is_merged_to_disk = false
@@ -191,10 +195,6 @@ function partitioned_computation(fut::AbstractFuture; destination, new_source=no
             destroy_job(failed=true)
             rethrow()
         end
-    
-        # Get queues for moving data between client and cluster
-        scatter_queue = get_scatter_queue(job_id)
-        gather_queue = get_gather_queue(job_id)
     
         # Read instructions from gather queue
         # @info "Computing result with ID $(fut.value_id)"
@@ -207,9 +207,7 @@ function partitioned_computation(fut::AbstractFuture; destination, new_source=no
             # TODO: Use to_jl_value and from_jl_value to support Client
             message = receive_next_message(gather_queue, p)
             message_type = message["kind"]
-            if message_type == "JOB_READY"
-                # @debug "Job $job_id is ready"
-            elseif message_type == "SCATTER_REQUEST"
+            if message_type == "SCATTER_REQUEST"
                 # Send scatter
                 value_id = message["value_id"]
                 f = job.futures_on_client[value_id]
