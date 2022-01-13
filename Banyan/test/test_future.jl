@@ -46,7 +46,7 @@ end
 
 
 # @testset "Test constructing futures" begin
-#     job = Banyan.create_job(
+#     job = Banyan.start_session(
 #         username = get(ENV, "BANYAN_USERNAME", nothing),
 # 	user_id = get(ENV, "BANYAN_USER_ID", nothing),
 # 	api_key = get(ENV, "BANYAN_API_KEY", nothing),

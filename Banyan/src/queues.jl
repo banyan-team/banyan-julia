@@ -85,7 +85,7 @@ function receive_next_message(queue_name, p=nothing)
             # provisioned nodes should stick around for a bit so it should
             # only be a couple of minutes before the job is back up and
             # running.
-            destroy_job(failed=true) # This will reset the `current_job_id` and delete from `jobs`
+            end_session(failed=true) # This will reset the `current_job_id` and delete from `jobs`
             error("Job failed; see preceding output")
         end
         Dict{String,Any}("kind" => "SESSION_FAILURE")
