@@ -391,7 +391,7 @@ function RemoteSource(get_remote_source, p; shuffled=false, source_invalid = fal
     else
         nothing
     end
-    remote_source = get_remote_source_cached(get_remote_source, p, remote_source, remote_sample, shuffled=shuffled)
+    remote_source = get_remote_source_cached(get_remote_source, p; remote_source, remote_sample, shuffled=shuffled)
     remote_sample = remote_source.sample
 
     # Store location in cache. The same logic below applies to having a
@@ -435,7 +435,7 @@ function RemoteDestination(get_remote_destination, p; invalidate_source = true, 
     get_remote_destination(p)
 end
 
-function get_remote_source_cached(get_remote_source, remotepath, remote_source=nothing, remote_sample=nothing; shuffled=false)::Location
+function get_remote_source_cached(get_remote_source, remotepath; remote_source=nothing, remote_sample=nothing, shuffled=false)::Location
     # If both the location and sample are already cached, just return them
     if !isnothing(remote_source) && !isnothing(remote_sample)
         remote_source.sample = remote_sample

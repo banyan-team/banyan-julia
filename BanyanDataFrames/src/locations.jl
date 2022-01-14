@@ -20,7 +20,7 @@ function RemoteTableSource(remotepath; shuffled=false, source_invalid = false, s
         remotepath,
         shuffled=shuffled,
         source_invalid = source_invalid,
-        sample_invalid,
+        sample_invalid = sample_invalid,
         invalidate_source = invalidate_source,
         invalidate_sample = invalidate_sample
     ) do remotepath, remote_source, remote_sample, shuffled

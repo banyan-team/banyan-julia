@@ -109,10 +109,11 @@ export partitioned_using,
     keep_sample_rate,
     partitioned_using_modules
 
-# Debugging
+# Debugging, PFs
 export is_debug_on,
     get_s3fs_bucket_path,
     get_s3_bucket_path,
+    download_remote_path,
     with_downloaded_path_for_reading,
     configure_scheduling,
     orderinghash

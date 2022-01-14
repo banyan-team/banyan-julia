@@ -33,8 +33,9 @@ export ReadBlockHDF5,
 
 export RemoteTableSource, RemoteTableDestination
 
+include("locations.jl")
 include("array.jl")
-include("pfs.jl")
 include("utils_pfs.jl")
+include("pfs.jl")
 
 end # module

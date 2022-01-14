@@ -16,11 +16,13 @@ using Banyan,
     Serialization
 
 using DataFrames, Missings
+using ProgressMeter
 
+include("locations.jl")
 include("df.jl")
 include("gdf.jl")
-include("pfs.jl")
 include("utils_pfs.jl")
+include("pfs.jl")
 
 # Types
 export DataFrame, GroupedDataFrame

@@ -47,6 +47,17 @@ function use_job_for_testing(
                 dev_paths = [
                     "banyan-julia/Banyan",
                 ],
+                # BANYAN_REUSE_RESOURCES should be 1 when the compute resources
+                # for sessions being run can be reused; i.e., there is no
+                # forced pulling, cloning, or installation going on. When it is
+                # set to 1, we will reuse the same job for each session. When
+                # set to 0, we will use a different job for each session but
+                # each session will immediately release its resources so that
+                # it can be used for the next session instead of giving up
+                # TODO: Make it so that sessions that can't reuse existing jobs
+                # will instead destroy jobs so that when it creates a new job
+                # it can reuse the existing underlying resources.
+                resource_destruction_delay = get(ENV, "BANYAN_REUSE_RESOURCES", "0") == "1" ? 20 : 0,
                 force_pull=true,
                 store_logs_on_cluster=get(ENV, "BANYAN_STORE_LOGS_ON_CLUSTER", "0") == "1"
             )
