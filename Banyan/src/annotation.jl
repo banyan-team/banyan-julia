@@ -158,13 +158,6 @@ keep_sample_rate(fut::AbstractFuture, relative_to::AbstractFuture...) =
 # Using samples to assign PTs #
 ###############################
 
-function partitioned_with(handler::Function)
-    # NOTE: `partitioned_with` should mainly include calls to `partition`;
-    # calls to `mut` should be made outside
-    global curr_delayed_task
-    curr_delayed_task.partitioned_with_func = handler
-end
-
 function partitioned_with(
     handler::Function;
     # Memory usage, sampling

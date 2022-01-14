@@ -84,6 +84,7 @@ function Scale(arg; to::Union{Real,String,Nothing}=nothing, by::Real=1.0, relati
         isnothing(to) ? "SCALE_BY=$by" : "SCALE_TO=$(parse_bytes(to))",
         pt_refs_to_jl([arg; to_vector(relative_to)...])
     )
+end
 Fixed(args...) = PartitioningConstraintOverGroup("FIXED", pt_refs_to_jl(args))
 
 # Co, Cross, Equal, Sequential, Match, MatchOn, AtMost are PA-level constraints.
