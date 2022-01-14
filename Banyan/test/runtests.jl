@@ -1,7 +1,6 @@
 using Banyan
 using ReTest
 using FilePathsBase, AWSS3, DataFrames, CSV, Parquet, Arrow
-using LibGit2
 using Pkg
 
 global jobs_for_testing = Dict()

@@ -1,7 +1,7 @@
 name = "Banyan"
 uuid = "706d138b-e922-45b9-a636-baf8ae0d5317"
 authors = ["Banyan <support@banyancomputing.com>"]
-version = "0.2.3"
+version = "0.2.4"
 
 [deps]
 AWS = "fbe9abb3-538b-5e4e-ba9e-bc94f4f92ebc"
@@ -18,6 +18,7 @@ HTTP = "cd3eb016-35fb-5094-929b-558a96fad6f3"
 IniFile = "83e8ac13-25f8-5344-8a64-a9f2b223428f"
 IterTools = "c8e1da08-722c-5040-9ed9-7db0dc04731e"
 JSON = "682c06a0-de6a-54ab-a142-c8b1cf79cde6"
+LibGit2 = "76f85450-5226-5b5a-8eaa-529ad045b433"
 MPI = "da04e1cc-30fd-572f-bb4f-1f8673147195"
 Pkg = "44cfe95a-1eb2-52ea-b672-e2afdf69b78f"
 ProgressMeter = "92933f4c-e287-5a05-a399-4b506db050ca"

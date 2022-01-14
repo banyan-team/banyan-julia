@@ -1,0 +1,40 @@
+[37m[1m                       [22m[39m[32m[1m  Pass  [22m[39m[91m[1m Error  [22m[39m[36m[1m Total[22m[39m
+[37m[1mNYC Taxi Stress Test[22m[39m[0m |         [91m[1m     1  [22m[39m[36m[1m     1[22m[39m
+
+[37mNYC Taxi Stress Test: [39m[91m[1mError During Test[22m[39m at [39m[1m/home/calebwin/.julia/packages/ReTest/WnRIG/src/ReTest.jl:517[22m
+  Got exception outside of a @test
+  UndefVarError: LibGit2 not defined
+  Stacktrace:
+    [1] [0m[1mget_branch_name[22m[0m[1m([22m[0m[1m)[22m
+  [90m    @ [39m[35mBanyan[39m [90m~/Projects/banyan-julia/Banyan/src/[39m[90;4mutils.jl:599[0m
+    [2] [0m[1muse_job_for_testing[22m[0m[1m([22m[90mf[39m::[0mvar"#11#13"; [90msample_rate[39m::[0mInt64, [90mmax_exact_sample_length[39m::[0mInt64, [90mwith_s3fs[39m::[0mNothing, [90mscheduling_config_name[39m::[0mString[0m[1m)[22m
+  [90m    @ [39m[36mMain[39m [90m~/Projects/banyan-julia/BanyanDataFrames/test/[39m[90;4mruntests.jl:42[0m
+    [3] [0m[1mmacro expansion[22m
+  [90m    @ [39m[90m~/Projects/banyan-julia/BanyanDataFrames/test/[39m[90;4mgroupby_filter_indexing.jl:759[0m[90m [inlined][39m
+    [4] [0m[1mmacro expansion[22m
+  [90m    @ [39m[90m~/.julia/packages/ReTest/WnRIG/src/[39m[90;4mtestset.jl:654[0m[90m [inlined][39m
+    [5] [0m[1mmacro expansion[22m
+  [90m    @ [39m[90m~/Projects/banyan-julia/BanyanDataFrames/test/[39m[90;4mgroupby_filter_indexing.jl:758[0m[90m [inlined][39m
+    [6] top-level scope
+  [90m    @ [39m[90m~/.julia/packages/ReTest/WnRIG/src/[39m[90;4mReTest.jl:517[0m
+    [7] [0m[1meval[22m
+  [90m    @ [39m[90m./[39m[90;4mboot.jl:360[0m[90m [inlined][39m
+    [8] [0m[1m#80[22m
+  [90m    @ [39m[90m~/.julia/packages/ReTest/WnRIG/src/[39m[90;4mReTest.jl:1160[0m[90m [inlined][39m
+    [9] [0m[1m#137[22m
+  [90m    @ [39m[90m/buildworker/worker/package_linux64/build/usr/share/julia/stdlib/v1.6/Distributed/src/[39m[90;4mremotecall.jl:354[0m[90m [inlined][39m
+   [10] [0m[1mrun_work_thunk[22m[0m[1m([22m[90mthunk[39m::[0mDistributed.var"#137#138"[90m{ReTest.var"#80#98"{ReTest.Testset.Format}, Tuple{Module, ReTest.TestsetExpr, ReTest.And, NamedTuple{(:out, :compute, :preview), Tuple{Distributed.RemoteChannel{Channel{Union{Nothing, ReTest.Testset.ReTestSet}}}, Channel{Nothing}, Nothing}}}, Base.Iterators.Pairs{Union{}, Union{}, Tuple{}, NamedTuple{(), Tuple{}}}}[39m, [90mprint_error[39m::[0mBool[0m[1m)[22m
+  [90m    @ [39m[32mDistributed[39m [90m/buildworker/worker/package_linux64/build/usr/share/julia/stdlib/v1.6/Distributed/src/[39m[90;4mprocess_messages.jl:63[0m
+   [11] [0m[1mremotecall_fetch[22m[0m[1m([22m::[0mFunction, ::[0mDistributed.LocalProcess, ::[0mModule, ::[0mVararg[90m{Any, N} where N[39m; [90mkwargs[39m::[0mBase.Iterators.Pairs[90m{Union{}, Union{}, Tuple{}, NamedTuple{(), Tuple{}}}[39m[0m[1m)[22m
+  [90m    @ [39m[32mDistributed[39m [90m/buildworker/worker/package_linux64/build/usr/share/julia/stdlib/v1.6/Distributed/src/[39m[90;4mremotecall.jl:379[0m
+   [12] [0m[1mremotecall_fetch[22m[0m[1m([22m::[0mFunction, ::[0mDistributed.LocalProcess, ::[0mModule, ::[0mVararg[90m{Any, N} where N[39m[0m[1m)[22m
+  [90m    @ [39m[32mDistributed[39m [90m/buildworker/worker/package_linux64/build/usr/share/julia/stdlib/v1.6/Distributed/src/[39m[90;4mremotecall.jl:379[0m
+   [13] [0m[1mremotecall_fetch[22m[0m[1m([22m::[0mFunction, ::[0mInt64, ::[0mModule, ::[0mVararg[90m{Any, N} where N[39m; [90mkwargs[39m::[0mBase.Iterators.Pairs[90m{Union{}, Union{}, Tuple{}, NamedTuple{(), Tuple{}}}[39m[0m[1m)[22m
+  [90m    @ [39m[32mDistributed[39m [90m/buildworker/worker/package_linux64/build/usr/share/julia/stdlib/v1.6/Distributed/src/[39m[90;4mremotecall.jl:421[0m
+   [14] [0m[1mremotecall_fetch[22m
+  [90m    @ [39m[90m/buildworker/worker/package_linux64/build/usr/share/julia/stdlib/v1.6/Distributed/src/[39m[90;4mremotecall.jl:421[0m[90m [inlined][39m
+   [15] [0m[1mmacro expansion[22m
+  [90m    @ [39m[90m~/.julia/packages/ReTest/WnRIG/src/[39m[90;4mReTest.jl:1157[0m[90m [inlined][39m
+   [16] [0m[1m(::ReTest.var"#78#96"{Int64, ReTest.Testset.Format, Nothing, ReTest.Testset.ReTestSet, Base.Threads.Atomic{Bool}, Channel{Nothing}, Distributed.RemoteChannel{Channel{Union{Nothing, ReTest.Testset.ReTestSet}}}, Base.Vector{Any}, ReTest.And, Module})[22m[0m[1m([22m[0m[1m)[22m
+  [90m    @ [39m[33mReTest[39m [90m./[39m[90;4mtask.jl:411[0m
+
