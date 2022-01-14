@@ -12,7 +12,9 @@ function RemotePNGSource(remotepath; shuffled=false, source_invalid = false, sam
         files = isnothing(remote_source) ? [] : remote_source.files
         nimages = isnothing(remote_source) ? 0 : remote_source.nimages
         nbytes = isnothing(remote_source) ? 0 : remote_source.nbytes
-        dataeltype = isnothing(remote_source) ? "" : remote_source.dataeltype
+        ndims = isnothing(remote_source) ? 0 : remote_source.ndims
+        datasize = isnothing(remote_source) ? () : remote_source.size
+        dataeltype = isnothing(remote_source) ? "" : remote_source.eltype
         format = isnothing(remote_source) ? "" : remote_source.format
 
 
@@ -51,6 +53,7 @@ function RemotePNGSource(remotepath; shuffled=false, source_invalid = false, sam
         if isnothing(remote_source)
             nimages = sum(1 for _ in files)
         end
+        meta_collected = false
 
         # Initialize sample
         randomsample = nothing
@@ -67,9 +70,12 @@ function RemotePNGSource(remotepath; shuffled=false, source_invalid = false, sam
                     # Load file and collect metadata and sample
                     image = load(filep)
 
-                    if isnothing(remote_source)
-                        ndims = length(size(image))
+                    if isnothing(remote_source) && !meta_collected
+                        nbytes = length(image) * sizeof(eltype(image)) * nimages
+                        ndims = length(size(image)) + 1 # first dim
                         dataeltype = eltype(image)
+                        datasize = (nimages, size(image)...)
+                        meta_collected = true
                     end
                     nbytes_of_sample += length(image) * sizeof(eltype(image))
 
@@ -103,14 +109,16 @@ function RemotePNGSource(remotepath; shuffled=false, source_invalid = false, sam
             # In this case, read one random file to collect metadata
             # We assume that all files have the same nbytes and ndims
 
-            filep = files_to_read_from[end]
+            filep = files[end]
             with_downloaded_path_for_reading(filep) do filep
 
                 # Load file and collect metadata and sample
                 image = load(filep)
 
-                nbytes = length(image) * sizeof(eltype(image)) * length(files)
+                nbytes = length(image) * sizeof(eltype(image)) * nimages
+                ndims = length(size(image)) + 1 # first dim
                 dataeltype = eltype(image)
+                datasize = (nimages, size(image)...)
             end
         end
 
@@ -125,7 +133,9 @@ function RemotePNGSource(remotepath; shuffled=false, source_invalid = false, sam
                     "files" => files,  # either a serialized generator or list of filepaths
                     "nimages" => nimages,
                     "nbytes" => nbytes,  # assume all files have same size
-                    "dataeltype" => dataeltype,
+                    "ndims" => ndims,
+                    "size" => datasize,
+                    "eltype" => dataeltype,
                     "format" => format
                 ),
             )
@@ -148,6 +158,7 @@ function RemotePNGSource(remotepath; shuffled=false, source_invalid = false, sam
         LocationSource(
             loc_for_reading,
             metadata_for_reading,
+            ceil(Int, nbytes),
             remote_sample,
         )
     end
