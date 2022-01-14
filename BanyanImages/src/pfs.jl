@@ -11,7 +11,7 @@ function ReadBlockPNG(
     files = loc_params["files"]
     ndims = loc_params["ndims"]
     nbytes = loc_params["nbytes"]
-    dataeltype = loc_params["dataeltype"]
+    dataeltype = loc_params["eltype"]
     file_extension = "." * loc_params["format"]
 
     # Identify the range of indices of files for the batch currently
