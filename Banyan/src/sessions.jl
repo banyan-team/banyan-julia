@@ -13,7 +13,7 @@ function start_session(;
     files::Union{Vector,Nothing} = [],
     code_files::Union{Vector,Nothing} = [],
     force_update_files::Union{Bool,Nothing} = false,
-    pf_dispatch_table::Union{String,Nothing} = "",
+    pf_dispatch_table::Union{String,Nothing} = nothing,
     using_modules::Union{Vector,Nothing} = [],
     url::Union{String,Nothing} = nothing,
     branch::Union{String,Nothing} = nothing,
@@ -25,6 +25,8 @@ function start_session(;
     nowait::Bool=false,
     kwargs...,
 )::JobId  # TODO: This should return a session ID
+    global BANYAN_JULIA_BRANCH_NAME
+    global BANYAN_JULIA_PACKAGES
 
     global jobs
     global current_job_id
@@ -118,10 +120,14 @@ function start_session(;
     session_configuration["files"] = [basename(f) for f in files]
     session_configuration["code_files"] = [basename(f) for f in code_files]
 
-    if pf_dispatch_table == ""
-        pf_dispatch_table = "https://raw.githubusercontent.com/banyan-team/banyan-julia/v0.1.3/Banyan/res/pf_dispatch_table.json"
+    if isnothing(pf_dispatch_table)
+        branch_to_use = get(ENV, "BANYAN_TESTING", "0") == "1" ? BANYAN_JULIA_BRANCH_NAME : get_branch_name()
+        pf_dispatch_table = [
+            "https://raw.githubusercontent.com/banyan-team/banyan-julia/$branch_to_use/$dir/res/pf_dispatch_table.toml"
+            for dir in BANYAN_JULIA_PACKAGES
+        ]
     end
-    session_configuration["pf_dispatch_table"] = load_json(pf_dispatch_table)
+    session_configuration["pf_dispatch_table"] = load_toml(pf_dispatch_table)
 
     # Start the session
     @debug "Sending request for session start"
