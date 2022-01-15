@@ -11,7 +11,7 @@
             "location_names": ["Memory"],
             "partition_memory_usage": "part",
             "scale_by": 0,
-            "owns_partitions": true
+            "views": true
         },
         "SplitGroup": {
             "expected": ["key"],
@@ -19,35 +19,35 @@
             "location_names": ["Memory"],
             "partition_memory_usage": "part",
             "scale_by": 1,
-            "owns_partitions": false
+            "views": false
         },
         "CopyFrom": {
             "required": {"name": "Replicating", "dividing": false},
             "location_names": ["Memory"],
             "partition_memory_usage": "all",
             "scale_by": 0,
-            "owns_partitions": true
+            "views": true
         },
         "CopyFromValue": {
             "required": {"name": "Replicating", "dividing": false},
             "location_names": ["Value"],
             "partition_memory_usage": "all",
             "scale_by": 0,
-            "owns_partitions": true
+            "views": true
         },
         "CopyFromClient": {
             "required": {"name": "Replicating", "dividing": false},
             "location_names": ["Client"],
             "partition_memory_usage": "all",
             "scale_by": 2,
-            "owns_partitions": false
+            "views": false
         },
         "CopyFromJulia": {
             "required": {"name": "Replicating", "dividing": false},
             "locations": [{"name": "Disk"}],
             "partition_memory_usage": "all",
             "scale_by": 2,
-            "owns_partitions": false
+            "views": false
         },
         "Divide": {
             "expected": ["key"],
@@ -55,7 +55,7 @@
             "location_names": ["Value", "Disk", "Memory"],
             "partition_memory_usage": "all",
             "scale_by": 1,
-            "owns_partitions": false
+            "views": false
         }
     },
     "merges": {
@@ -63,7 +63,7 @@
             "location_names": ["None"],
             "partition_memory_usage": "none",
             "scale_by": 0,
-            "owns_partitions": false
+            "views": false
         },
         "Merge": {
             "expected": ["key"],
@@ -71,28 +71,28 @@
             "location_names": ["Memory"],
             "partition_memory_usage": "part",
             "scale_by": 1,
-            "owns_partitions": false
+            "views": false
         },
         "CopyTo": {
             "required": {"name": "Replicating", "replication": "all"},
             "location_names": ["Memory"],
             "partition_memory_usage": "all",
             "scale_by": 0,
-            "owns_partitions": true
+            "views": true
         },
         "CopyToClient": {
             "required": {"name": "Replicating", "replication": "all"},
             "location_names": ["Client"],
             "partition_memory_usage": "all",
             "scale_by": 1,
-            "owns_partitions": false
+            "views": false
         },
         "CopyToJulia": {
             "required": {"name": "Replicating", "replication": "all"},
             "locations": [{"name": "Disk"}],
             "partition_memory_usage": "all",
             "scale_by": 0,
-            "owns_partitions": false
+            "views": false
         },
         "ReduceAndCopyToJulia": {
             "expected": ["reducer"],
@@ -100,7 +100,7 @@
             "location_names": ["Memory", "Disk"],
             "partition_memory_usage": "all",
             "scale_by": 1,
-            "owns_partitions": false
+            "views": false
         },
         "ReduceWithKeyAndCopyToJulia": {
             "expected": ["key", "reducer"],
@@ -108,7 +108,7 @@
             "location_names": ["Memory", "Disk"],
             "partition_memory_usage": "all",
             "scale_by": 1,
-            "owns_partitions": false
+            "views": false
         }
     },
     "casts": {

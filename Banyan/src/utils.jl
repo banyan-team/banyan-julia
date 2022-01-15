@@ -511,10 +511,13 @@ function get_julia_version()
 end
 
 function get_loaded_packages()
+    # for m in names(Main, imported=true)
+    #     @show try Main.eval(m) catch nothing end isa Module && !(m in [:Main, :Base, :Core, :InteractiveUtils, :IJulia])
+    # end
     modules = map(
         m -> string(m),
         filter(
-            m -> Main.eval(m) isa Module && !(m in [:Main, :Base, :Core, :InteractiveUtils, :IJulia]),
+            m -> try Main.eval(m) catch nothing end isa Module && !(m in [:Main, :Base, :Core, :InteractiveUtils, :IJulia]),
             names(Main, imported=true)
         )
     )

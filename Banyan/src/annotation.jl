@@ -164,12 +164,12 @@ function partitioned_with(
     # `scaled` is the set of futures with memory usage that can potentially be
     # scaled to larger sizes if the amount of data at a location changes.
     # Non-scaled data has fixed memory usage regardless of its sample rate.
-    scaled::Union{AbstractFuture,Vector{AbstractFuture}} = [],
+    scaled::Union{AbstractFuture,Vector{<:AbstractFuture}} = AbstractFuture[],
     keep_same_sample_rate::Bool = true,
-    memory_usage::Vector{PartitioningConstraint} = [],
-    additional_memory_usage::Vector{PartitioningConstraint} = [],
+    memory_usage::Vector{PartitioningConstraint} = PartitioningConstraint[],
+    additional_memory_usage::Vector{PartitioningConstraint} = PartitioningConstraint[],
     # Keys (not relevant if you never use grouped partitioning).
-    grouped::Union{Nothing,AbstractFuture,Vector{AbstractFuture}} = nothing,
+    grouped::Union{Nothing,AbstractFuture,Vector{<:AbstractFuture}} = nothing,
     keep_same_keys::Bool = false,
     keys::Union{AbstractVector,Nothing} = nothing,
     keys_by_future = nothing,
@@ -180,12 +180,21 @@ function partitioned_with(
     # For generating import statements
     modules::Union{String,AbstractVector{String},Nothing} = nothing
 )
-    global curr_delayed_task
+    curr_delayed_task = get_task()
 
     if !isnothing(modules)
         modules = to_vector(modules)
         partitioned_using_modules(modules...)
     end
+
+    scaled = [convert(Future, f) for f in to_vector(scaled)]
+    curr_delayed_task.scaled = scaled
+    curr_delayed_task.partitioned_with_func = handler
+    curr_delayed_task.keep_same_sample_rate = keep_same_sample_rate
+    curr_delayed_task.memory_usage_constraints = memory_usage
+    curr_delayed_task.additional_memory_usage_constraints = additional_memory_usage
+
+    # TODO: Ensure partitioned_using is able to capture updates to the task when mutating
 
     partitioned_using() do
         # Categorize the futures. We determine whether a future is an input by
@@ -193,13 +202,18 @@ function partitioned_with(
         # outputs would require mutation for the future to be an output. And
         # that would have been marked by a call to `mutated` that is made in the
         # `Future` constructor.
+        curr_delayed_task = get_task()
+        @show scaled
+        @show curr_delayed_task.scaled
+        @show curr_delayed_task.mutation
         outputs = [f for f in scaled if !any((f.value_id == ff.value_id for ff in values(curr_delayed_task.mutation)))]
-        inputs = [f for f in scaled if !any((f.value_id = ff.value_id for ff in outputs))]
-        if isnothing(grouped) && (keep_same_keys || !isnothing(keys_by_future) || renamed)
-            grouped = outputs
+        inputs = [f for f in scaled if !any((f.value_id == ff.value_id for ff in outputs))]
+        grouping_needed = keep_same_keys || !isnothing(keys) || !isnothing(keys_by_future) || renamed
+        if grouping_needed
+            grouped = isnothing(grouped) ? outputs : [convert(Future, f) for f in to_vector(grouped)]
+            outputs_grouped = [f for f in grouped if any((f.value_id == ff.value_id for ff in outputs))]
+            inputs_grouped = [f for f in grouped if any((f.value_id == ff.value_id for ff in inputs))]
         end
-        outputs_grouped = [f for f in grouped if any((f.value_id = ff.value_id for ff in outputs))]
-        inputs_grouped = [f for f in grouped if any((f.value_id = ff.value_id for ff in inputs))]
 
         # Propagate information about keys that can be used for grouping
         if keep_same_keys
@@ -236,14 +250,11 @@ function partitioned_with(
                 keep_sample_rate(r, inputs...)
             end
         end
-    end
 
-    curr_delayed_task.partitioned_with_func = handler
-    curr_delayed_task.inputs = inputs
-    curr_delayed_task.outputs = outputs
-    curr_delayed_task.keep_same_sample_rate = keep_same_sample_rate
-    curr_delayed_task.memory_usage_constraints = memory_usage
-    curr_delayed_task.additional_memory_usage_constraints = additional_memory_usage
+        # Store the important inputs and outputs for scaling memory usage
+        curr_delayed_task.inputs = inputs
+        curr_delayed_task.outputs = outputs
+    end
 end
 
 function pt(
@@ -587,6 +598,8 @@ macro partitioned(ex...)
 
         # Get the initial memory usage
         for fut in splatted_futures
+            @show fut
+            @show get_location(fut)
             fut_initial_memory_usage = if !isnothing(fut.total_memory_usage)
                 fut.total_memory_usage
             else
@@ -626,17 +639,25 @@ macro partitioned(ex...)
                         factor = parse(Int32, c.type[length("SCALE_BY=")+1:end])
                         relative_to = c.args[2]
                         if haskey(task.memory_usage[relative_to], "final")
-                            task.memory_usage[fut.value_id]["final"] = task.memory_usage[relative_to]["final"]
+                            task.memory_usage[fut.value_id]["final"] = factor * task.memory_usage[relative_to]["final"]
                         end
                     end
                 end
             end
         end
 
+        @show task.memory_usage
+        @show task.scaled
+
         # Default case for determining memory usage
         for fut in splatted_futures
             if !haskey(task.memory_usage[fut.value_id], "final")
-                if task.keep_same_sample_rate
+                total_sampled_input_memory_usage = sum((
+                    sample(fut, :memory_usage)
+                    for fut in task.scaled
+                    if task.effects[fut.value_id] == "CONST"
+                ))
+                if task.keep_same_sample_rate && total_sampled_input_memory_usage > 0
                     # Use the sampels to figure out the rate of change in
                     # memory usage going from inputs to outputs
                     factor = sample(fut, :memory_usage) / sum((
@@ -648,13 +669,15 @@ macro partitioned(ex...)
                     # Now we use that rate on the actual initial memory
                     # usage which might have been modified using past memory
                     # usage constraints like ScaleBy and ScaleTo.
-                    task.memory_usage[fut.value_id]["final"] = sample(fut, :memory_usage) / sum((
+                    @show fut.value_id
+                    @show sample(fut, :memory_usage)
+                    task.memory_usage[fut.value_id]["final"] = ceil(factor * sum((
                         task.memory_usage[fut.value_id]["initial"]
                         for fut in task.scaled
                         if task.effects[fut.value_id] == "CONST"
-                    ))
+                    )))
                 else
-                    task.memory_usage[fut.value_id]["final"] = sample(fut, :memory_usage) * sample(fut, :rate)
+                    task.memory_usage[fut.value_id]["final"] = ceil(sample(fut, :memory_usage) * sample(fut, :rate))
                 end
             end
         end
@@ -672,7 +695,7 @@ macro partitioned(ex...)
                     additional_memory_usage += factor * task.memory_usage[arg]["final"]
                 end
             end
-            task.memory_usage[fut.value_id]["additional"] = additional_memory_usage
+            task.memory_usage[fut.value_id]["additional"] = ceil(additional_memory_usage)
         end
 
         # Ensure that all the outputs have the same sample rate
@@ -697,6 +720,8 @@ macro partitioned(ex...)
 
         # Destroy value IDs that are no longer needed because of mutation
         for fut in splatted_futures
+            fut.total_memory_usage = task.memory_usage[fut.value_id]["final"]
+
             # Issue destroy request for mutated futures that are no longer
             # going to be used
             if any((fut.value_id == f.value_id for f in keys(task.mutation)))

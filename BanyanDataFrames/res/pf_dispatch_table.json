@@ -4,7 +4,7 @@
             "locations": [{"datatype": "GroupedDataFrame"}],
             "partition_memory_usage": "none",
             "scale_by": 0,
-            "owns_partitions": false
+            "views": false
         },
         "ReadBlockCSV": {
             "expected": ["key"],
@@ -12,7 +12,7 @@
             "locations": [{"name": "Remote", "format": "CSV"}],
             "partition_memory_usage": "part",
             "scale_by": 3,
-            "owns_partitions": false
+            "views": false
         },
         "ReadBlockParquet": {
             "expected": ["key"],
@@ -20,7 +20,7 @@
             "locations": [{"name": "Remote", "format": "Parquet"}],
             "partition_memory_usage": "part",
             "scale_by": 3,
-            "owns_partitions": false
+            "views": false
         },
         "ReadBlockArrow": {
             "expected": ["key"],
@@ -31,7 +31,7 @@
             ],
             "partition_memory_usage": "part",
             "scale_by": 3,
-            "owns_partitions": false
+            "views": false
         },
         "ReadGroupCSV": {
             "expected": ["key", "divisions"],
@@ -40,7 +40,7 @@
             "locations": [{"name": "Remote", "format": "CSV"}],
             "partition_memory_usage": "part",
             "scale_by": 6,
-            "owns_partitions": false
+            "views": false
         },
         "ReadGroupParquet": {
             "expected": ["key", "divisions"],
@@ -49,7 +49,7 @@
             "locations": [{"name": "Remote", "format": "Parquet"}],
             "scale_by_num_partitions": false,
             "scale_by": 6,
-            "owns_partitions": false
+            "views": false
         },
         "ReadGroupArrow": {
             "expected": ["key", "divisions"],
@@ -61,21 +61,21 @@
             ],
             "scale_by_num_partitions": false,
             "scale_by": 6,
-            "owns_partitions": false
+            "views": false
         },
         "CopyFromCSV": {
             "required": {"name": "Replicating", "dividing": false},
             "locations": [{"name": "Remote", "format": "CSV"}],
             "partition_memory_usage": "all",
             "scale_by": 3,
-            "owns_partitions": false
+            "views": false
         },
         "CopyFromParquet": {
             "required": {"name": "Replicating", "dividing": false},
             "locations": [{"name": "Remote", "format": "Parquet"}],
             "partition_memory_usage": "all",
             "scale_by": 3,
-            "owns_partitions": false
+            "views": false
         },
         "CopyFromArrow": {
             "required": {"name": "Replicating", "dividing": false},
@@ -85,7 +85,7 @@
             ],
             "partition_memory_usage": "all",
             "scale_by": 3,
-            "owns_partitions": false
+            "views": false
         }
     },
     "merges": {
@@ -93,21 +93,21 @@
             "locations": [{"datatype": "GroupedDataFrame"}],
             "partition_memory_usage": "none",
             "scale_by": 0,
-            "owns_partitions": false
+            "views": false
         },
         "WriteCSV": {
             "required": {"name": "Distributing"},
             "locations": [{"name": "Remote", "format": "CSV"}],
             "partition_memory_usage": "part",
             "scale_by": 0,
-            "owns_partitions": false
+            "views": false
         },
         "WriteParquet": {
             "required": {"name": "Distributing"},
             "locations": [{"name": "Remote", "format": "Parquet"}],
             "partition_memory_usage": "part",
             "scale_by": 0,
-            "owns_partitions": false
+            "views": false
         },
         "WriteArrow": {
             "required": {"name": "Distributing"},
@@ -117,21 +117,21 @@
             ],
             "partition_memory_usage": "part",
             "scale_by": 0,
-            "owns_partitions": false
+            "views": false
         },
         "CopyToCSV": {
             "required": {"name": "Replicating", "replication": "all"},
             "locations": [{"name": "Remote", "format": "CSV"}],
             "partition_memory_usage": "all",
             "scale_by": 0,
-            "owns_partitions": false
+            "views": false
         },
         "CopyToParquet": {
             "required": {"name": "Replicating", "replication": "all"},
             "locations": [{"name": "Remote", "format": "Parquet"}],
             "partition_memory_usage": "all",
             "scale_by": 0,
-            "owns_partitions": false
+            "views": false
         },
         "CopyToArrow": {
             "required": {"name": "Replicating", "replication": "all"},
@@ -141,7 +141,7 @@
             ],
             "partition_memory_usage": "all",
             "scale_by": 0,
-            "owns_partitions": false
+            "views": false
         }
     },
     "casts": {}

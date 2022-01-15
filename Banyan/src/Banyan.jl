@@ -11,6 +11,32 @@ module Banyan
 
 using FilePathsBase: joinpath, isempty
 using Base: notnothing, env_project_file
+
+using AWS: _get_ini_value
+using AWSCore
+using AWSS3
+using AWSSQS
+using Base64
+using Downloads
+using HTTP
+using JSON
+using Random
+using Serialization
+using TOML
+
+using FileIO
+using FilePathsBase
+using IniFile
+
+# For PFs:
+using Serialization, Base64, MPI
+
+# For loading
+using ProgressMeter
+
+# For testing utils
+using LibGit2
+
 global BANYAN_API_ENDPOINT
 
 # Account management
@@ -140,33 +166,6 @@ export ReturnNull,
     ReduceWithKey,
     Distribute,
     DistributeAndShuffle
-
-using AWS: _get_ini_value
-using AWSCore
-using AWSS3
-using AWSSQS
-using Base64
-using Downloads
-using HTTP
-using JSON
-using Random
-using Serialization
-using TOML
-
-using FileIO
-using FilePathsBase
-using IniFile
-
-using IterTools
-
-# For PFs:
-using Serialization, Base64, MPI
-
-# For loading
-using ProgressMeter
-
-# For testing utils
-using LibGit2
 
 # Helpers
 include("id.jl")

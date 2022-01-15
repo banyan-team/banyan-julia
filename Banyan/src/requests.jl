@@ -61,12 +61,14 @@ function partitioned_computation(fut::AbstractFuture; destination, new_source=no
             apply_mutation(invert(t.mutation))
         end
         for t in tasks
+            set_task(t)
             if !isnothing(t.partitioned_using_func)
                 t.partitioned_using_func()
             end
             apply_mutation(t.mutation)
         end
         for t in Iterators.reverse(tasks)
+            set_task(t)
             apply_mutation(invert(t.mutation))
             if !isnothing(t.partitioned_using_func)
                 t.partitioned_using_func()

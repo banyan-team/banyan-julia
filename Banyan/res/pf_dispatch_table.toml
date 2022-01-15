@@ -8,7 +8,7 @@ expected = [ "key" ]
 location_names = [ "Memory" ]
 partition_memory_usage = "part"
 scale_by = 0
-owns_partitions = true
+views = true
 required = { name = "Distributing", distribution = "blocked", id = "!" }
 
 [splits.SplitGroup]
@@ -16,34 +16,34 @@ expected = [ "key" ]
 location_names = [ "Memory" ]
 partition_memory_usage = "part"
 scale_by = 1
-owns_partitions = false
+views = false
 required = { name = "Distributing", distribution = "grouped", id = "!" }
 
 [splits.CopyFrom]
 location_names = [ "Memory" ]
 partition_memory_usage = "all"
 scale_by = 0
-owns_partitions = true
+views = true
 required = { name = "Replicating", dividing = false }
 
 [splits.CopyFromValue]
 location_names = [ "Value" ]
 partition_memory_usage = "all"
 scale_by = 0
-owns_partitions = true
+views = true
 required = { name = "Replicating", dividing = false }
 
 [splits.CopyFromClient]
 location_names = [ "Client" ]
 partition_memory_usage = "all"
 scale_by = 2
-owns_partitions = false
+views = false
 required = { name = "Replicating", dividing = false }
 
 [splits.CopyFromJulia]
 partition_memory_usage = "all"
 scale_by = 2
-owns_partitions = false
+views = false
 required = { name = "Replicating", dividing = false }
 locations = [ { name = "Disk" } ]
 
@@ -52,41 +52,41 @@ expected = [ "key" ]
 location_names = [ "Value", "Disk", "Memory" ]
 partition_memory_usage = "all"
 scale_by = 1
-owns_partitions = false
+views = false
 required = { name = "Replicating", dividing = true }
 
 [merges.ReturnNull]
 location_names = [ "None" ]
 partition_memory_usage = "none"
 scale_by = 0
-owns_partitions = false
+views = false
 
 [merges.Merge]
 expected = [ "key" ]
 location_names = [ "Memory" ]
 partition_memory_usage = "part"
 scale_by = 1
-owns_partitions = false
+views = false
 required = { name = "Distributing" }
 
 [merges.CopyTo]
 location_names = [ "Memory" ]
 partition_memory_usage = "all"
 scale_by = 0
-owns_partitions = true
+views = true
 required = { name = "Replicating", replication = "all" }
 
 [merges.CopyToClient]
 location_names = [ "Client" ]
 partition_memory_usage = "all"
 scale_by = 1
-owns_partitions = false
+views = false
 required = { name = "Replicating", replication = "all" }
 
 [merges.CopyToJulia]
 partition_memory_usage = "all"
 scale_by = 0
-owns_partitions = false
+views = false
 required = { name = "Replicating", replication = "all" }
 locations = [ { name = "Disk" } ]
 
@@ -95,7 +95,7 @@ expected = [ "reducer" ]
 location_names = [ "Memory", "Disk" ]
 partition_memory_usage = "all"
 scale_by = 1
-owns_partitions = false
+views = false
 required = { name = "Replicating", with_key = false }
 
 [merges.ReduceWithKeyAndCopyToJulia]
@@ -103,7 +103,7 @@ expected = [ "key", "reducer" ]
 location_names = [ "Memory", "Disk" ]
 partition_memory_usage = "all"
 scale_by = 1
-owns_partitions = false
+views = false
 required = { name = "Replicating", with_key = true }
 
 [casts.Reduce]

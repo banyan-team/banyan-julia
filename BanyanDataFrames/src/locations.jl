@@ -169,7 +169,7 @@ function RemoteTableSource(remotepath; shuffled=false, source_invalid = false, s
                         free_memory = Sys.free_memory()
                         if memory_used_in_sampling_total > cld(free_memory, 4)
                             if !already_warned_about_too_large_sample
-                                @warn "Sample of $remotepath is too large ($(format_bytes(memory_used_in_sampling_total))/$(format_bytes(free_memory)) used so far). Try re-creating this job with a greater `sample_rate` than $(get_job().sample_rate)."
+                                @warn "Sample of $remotepath is too large ($(Banyan.format_bytes(memory_used_in_sampling_total))/$(Banyan.format_bytes(free_memory)) used so far). Try re-creating this job with a greater `sample_rate` than $(get_job().sample_rate)."
                                 already_warned_about_too_large_sample = true
                             end
                             GC.gc()
@@ -270,7 +270,7 @@ function RemoteTableSource(remotepath; shuffled=false, source_invalid = false, s
                         free_memory = Sys.free_memory()
                         if memory_used_in_sampling_total > cld(free_memory, 4)
                             if !already_warned_about_too_large_sample
-                                @warn "Sample of $remotepath is too large ($(format_bytes(memory_used_in_sampling_total))/$(format_bytes(free_memory)) used so far). Try re-creating this job with a greater `sample_rate` than $(get_job().sample_rate)."
+                                @warn "Sample of $remotepath is too large ($(Banyan.format_bytes(memory_used_in_sampling_total))/$(Banyan.format_bytes(free_memory)) used so far). Try re-creating this job with a greater `sample_rate` than $(get_job().sample_rate)."
                                 already_warned_about_too_large_sample = true
                             end
                             GC.gc()
@@ -345,7 +345,7 @@ function RemoteTableSource(remotepath; shuffled=false, source_invalid = false, s
         for s in [emptysample, randomsample]
             for pn in Base.propertynames(s)
                 sc = s[!, pn]
-                if !(sc isa Array)
+                if !(sc isa AbstractArray)
                     s[!, pn] = Banyan.convert_to_unpooled(sc)
                 end
             end
@@ -360,7 +360,7 @@ function RemoteTableSource(remotepath; shuffled=false, source_invalid = false, s
         # already know from the reused location.
         remote_sample_value = isnothing(remote_sample) ? randomsample : remote_sample.value
         remote_sample_rate = totalnrows > 0 ? totalnrows / nrow(remote_sample_value) : 1.0
-        nbytes = ceil(total_memory_usage(remote_sample_value) * remote_sample_rate)
+        nbytes = convert(Integer, ceil(total_memory_usage(remote_sample_value) * remote_sample_rate))
 
         # Load metadata for reading
         # If we're not using S3FS, the files might be empty because `readdir`
@@ -412,7 +412,7 @@ function RemoteTableSource(remotepath; shuffled=false, source_invalid = false, s
         # files in /tmp and so we need to cleanup (delete) these files.
         # TODO: Surround this function by a try-catch so that if this fails, we
         # will cleanup anyway.
-        cleanup_tmp()
+        Banyan.cleanup_tmp()
 
         # Construct location with metadata
         LocationSource(

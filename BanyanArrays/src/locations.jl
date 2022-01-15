@@ -98,7 +98,7 @@ function RemoteHDF5Source(remotepath; shuffled=false, source_invalid = false, sa
                     memory_used_in_sampling = datalength == 0 ? 0 : (nbytes * Banyan.getsamplenrows(datalength) / datalength)
                     free_memory = Sys.free_memory()
                     if memory_used_in_sampling > cld(free_memory, 4)
-                        @warn "Sample of $remotepath is too large (up to $(format_bytes(memory_used_in_sampling))/$(format_bytes(free_memory)) to be used). Try re-creating this job with a greater `sample_rate` than $(get_job().sample_rate)."
+                        @warn "Sample of $remotepath is too large (up to $(format_bytes(memory_used_in_sampling))/$(Banyan.format_bytes(free_memory)) to be used). Try re-creating this job with a greater `sample_rate` than $(get_job().sample_rate)."
                         GC.gc()
                     end
 
@@ -182,6 +182,8 @@ function RemoteHDF5Source(remotepath; shuffled=false, source_invalid = false, sa
                 Sample(dset_sample, total_memory_usage = nbytes)
             end
         end
+
+        Banyan.cleanup_tmp()
 
         # Construct location with metadata
         LocationSource(

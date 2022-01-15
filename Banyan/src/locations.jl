@@ -51,7 +51,7 @@ LocationSource(name::String, parameters::Dict{String,<:Any}, total_memory_usage:
 LocationDestination(
     name::String,
     parameters::Dict{String,<:Any}
-) = Location("None", name, LocationParameters(), nothing, parameters)
+) = Location("None", name, LocationParameters(), parameters, nothing)
 
 function Base.getproperty(loc::Location, name::Symbol)
     if hasfield(Location, name)
@@ -149,7 +149,7 @@ function destined(fut, loc::Location)
             loc.dst_name,
             isnothing(fut_location) ? Dict{String,Any}() : fut_location.src_parameters,
             loc.dst_parameters,
-            nothing,
+            fut_location.total_memory_usage,
             isnothing(fut_location) ? Sample() : fut_location.sample,
         ),
     )
@@ -275,8 +275,8 @@ Client() = LocationDestination("Client", Dict{String,Any}())
 # TODO: Un-comment only if Size is needed
 # Size(size) = Value(size)
 
-None() = Location("None", Dict{String,Any}())
-Disk() = None() # The scheduler intelligently determines when to split from and merge to disk even when no location is specified
+None() = Location("None", Dict{String,Any}(), 0)
+Disk() = Location("None", Dict{String,Any}()) # The scheduler intelligently determines when to split from and merge to disk even when no location is specified
 # Values assigned "None" location as well as other locations may reassigned
 # "Memory" or "Disk" locations by the scheduler depending on where the relevant
 # data is.

@@ -17,6 +17,7 @@ mutable struct DelayedTask
     # Fields for estimating memory usage
     inputs::Vector{Future}
     outputs::Vector{Future}
+    scaled::Vector{Future}
     keep_same_sample_rate::Bool
     memory_usage_constraints::Vector{PartitioningConstraint}
     additional_memory_usage_constraints::Vector{PartitioningConstraint}
@@ -34,6 +35,7 @@ DelayedTask() = DelayedTask(
     Dict(),
     [],
     [],
+    [],
     true,
     [],
     []
@@ -47,7 +49,7 @@ function to_jl(task::DelayedTask)
         "pa_union" => [to_jl(pa) for pa in task.pa_union],
         "memory_usage" => task.memory_usage,
         "inputs" => [i.value_id for i in task.inputs],
-        "outputs" => [i.value_id for o in task.outputs],
+        "outputs" => [o.value_id for o in task.outputs],
         "keep_same_sample_rate" => task.keep_same_sample_rate,
     )
 end
