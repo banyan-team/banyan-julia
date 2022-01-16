@@ -1,4 +1,4 @@
-function ReadBlockPNG(
+function ReadBlockImage(
     src,
     params,
     batch_idx::Integer,
@@ -27,7 +27,7 @@ function ReadBlockPNG(
 end
 
 
-function WritePNG(
+function WriteImage(
     src,
     part,
     params,

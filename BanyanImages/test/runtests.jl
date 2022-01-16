@@ -1,6 +1,8 @@
 using Banyan, BanyanImages
+
 using ReTest
 using AWSS3, FileIO, ImageIO, ImageCore, Random, MPI
+using Downloads, JSON
 
 MPI.Init()
 
@@ -10,6 +12,7 @@ Banyan.jobs[test_job_id] = Job(ENV["BANYAN_CLUSTER_NAME"], test_job_id, 2, 2)
 
 include("locations.jl")
 include("png.jl")
+include("jpg.jl")
 include("utils_data.jl")
 
 try
