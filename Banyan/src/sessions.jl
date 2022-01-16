@@ -4,7 +4,7 @@
 function start_session(;
     cluster_name::Union{String,Nothing} = nothing,
     nworkers::Union{Integer,Nothing} = 16,
-    resource_destruction_delay::Integer = 20,
+    resource_release_delay::Integer = 20,
     print_logs::Union{Bool,Nothing} = false,
     store_logs_in_s3::Union{Bool,Nothing} = true,
     store_logs_on_cluster::Union{Bool,Nothing} = false,
@@ -22,6 +22,7 @@ function start_session(;
     force_clone::Union{Bool,Nothing} = false,
     force_pull::Union{Bool,Nothing} = false,
     force_install::Union{Bool,Nothing} = false,
+    force_restart::Union{Bool,Nothing} = false,
     nowait::Bool=false,
     kwargs...,
 )::JobId  # TODO: This should return a session ID
@@ -48,7 +49,7 @@ function start_session(;
     session_configuration = Dict{String,Any}(
         "cluster_name" => cluster_name,
         "num_workers" => nworkers,
-        "resource_destruction_delay" => resource_destruction_delay,
+        "resource_release_delay" => resource_release_delay,
         "return_logs" => print_logs,
         "store_logs_in_s3" => store_logs_in_s3,
         "store_logs_on_cluster" => store_logs_on_cluster,
@@ -56,6 +57,7 @@ function start_session(;
         "benchmark" => get(ENV, "BANYAN_BENCHMARK", "0") == "1",
         "main_modules" => get_loaded_packages(),
         "using_modules" => using_modules,
+        "force_restart" => force_restart,
     )
     if !isnothing(session_name)
         session_configuration["session_name"] = session_name
@@ -143,14 +145,18 @@ function start_session(;
     job_id
 end
 
-function end_session(job_id::JobId = get_job_id(); failed = false, force = false, kwargs...)
+function end_session(job_id::JobId = get_job_id(); failed = false, force = false, resource_release_delay = nothing, kwargs...)
     global jobs
     global current_job_id
 
     @info "Ending session with ID $job_id"
+    request_params = Dict{String,Any}("job_id" => job_id, "failed" => failed)
+    if !isnothing(resource_release_delay)
+        request_params["resource_release_delay"] = resource_release_delay
+    end
     send_request_get_response(
         :end_session,
-        Dict{String,Any}("job_id" => job_id, "failed" => failed),
+        request_params,
     )
 
     # Remove from global state
