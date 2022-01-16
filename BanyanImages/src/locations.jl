@@ -1,4 +1,15 @@
-function RemotePNGSource(remotepath; shuffled=false, source_invalid = false, sample_invalid = false, invalidate_source = false, invalidate_sample = false)::Location
+function get_image_format(path)
+    if endswith(path, ".png")
+        "png"
+    elseif endswith(path, ".jpg")
+        "jpg"
+    else
+        error("Unsupported file format. Must be jpg or png")
+    end
+end
+
+
+function RemoteImageSource(remotepath; shuffled=false, source_invalid = false, sample_invalid = false, invalidate_source = false, invalidate_sample = false)::Location
     RemoteSource(
         remotepath;
         shuffled=shuffled,
@@ -9,20 +20,22 @@ function RemotePNGSource(remotepath; shuffled=false, source_invalid = false, sam
     ) do remotepath, remote_source, remote_sample, shuffled
 
         # Initialize parameters if location is already cached
-        files = isnothing(remote_source) ? [] : remote_source.files
+        files = isnothing(remote_source) ? [] : remote_source.files  # list, serialized generator
         nimages = isnothing(remote_source) ? 0 : remote_source.nimages
         nbytes = isnothing(remote_source) ? 0 : remote_source.nbytes
         ndims = isnothing(remote_source) ? 0 : remote_source.ndims
         datasize = isnothing(remote_source) ? () : remote_source.size
         dataeltype = isnothing(remote_source) ? "" : remote_source.eltype
-        format = isnothing(remote_source) ? "" : remote_source.format
+        format = isnothing(remote_source) ? "" : remote_source.format  # png, jpg
 
+
+        # TODO: I think if the above parameters were cached, they still get
+        # read in again
 
         # Remote path is either a single file path, a list of file paths,
         # or a generator. The file paths can either be S3 or HTTP
         if isa(remotepath, Base.Generator)
-            files = remotepath
-            format = "generator"
+            files_to_read_from = remotepath
         else
 
             if !isa(remotepath, Base.Array)
@@ -37,21 +50,28 @@ function RemotePNGSource(remotepath; shuffled=false, source_invalid = false, sam
                 end
 
                 # Get files to read
-                files = if p_isdir
+                files_to_read_from = if p_isdir
                     [joinpath(remotepath, filep) for filep in Random.shuffle(readdir(p))]
                 elseif p_isfile
-                    [p]
+                    [remotepath]
                 else
                     []
                 end
             else
-                files = remotepath
+                files_to_read_from = remotepath
             end
-            format = "png"
         end
 
+        # Determine nimages
         if isnothing(remote_source)
-            nimages = sum(1 for _ in files)
+            iterator_size = Iterators.IteratorSize(files_to_read_from)
+            if iterator_size == Base.IsInfinite()
+                error("Infinite generators are not supported")
+            elseif iterator_size == Base.SizeUnknown()
+                nimages = sum(1 for _ in files_to_read_from)
+            else  # length can be predetermined
+                nimages = length(files_to_read_from)
+            end
         end
         meta_collected = false
 
@@ -63,18 +83,20 @@ function RemotePNGSource(remotepath; shuffled=false, source_invalid = false, sam
             samplesize = Banyan.get_max_exact_sample_length()
             nbytes_of_sample = 0
 
-            progressbar = Progress(length(files), "Collecting sample from $remotepath")
-            for filep in files
-                with_downloaded_path_for_reading(filep) do filep
+            progressbar = Progress(length(files_to_read_from), "Collecting sample from $remotepath")
+            for filep in files_to_read_from
+                p = download_remote_path(filep)
+                with_downloaded_path_for_reading(p) do pp
 
                     # Load file and collect metadata and sample
-                    image = load(filep)
+                    image = load(pp)
 
                     if isnothing(remote_source) && !meta_collected
                         nbytes = length(image) * sizeof(eltype(image)) * nimages
                         ndims = length(size(image)) + 1 # first dim
                         dataeltype = eltype(image)
                         datasize = (nimages, size(image)...)
+                        format = get_image_format(pp)
                         meta_collected = true
                     end
                     nbytes_of_sample += length(image) * sizeof(eltype(image))
@@ -83,7 +105,7 @@ function RemotePNGSource(remotepath; shuffled=false, source_invalid = false, sam
                         randomsample = []
                     end
                     if length(randomsample) < samplesize
-                        append!(randomsample, image)
+                        push!(randomsample, reshape(image, (1, size(image)...)))  # add first dimension
                     end
 
                     # TODO: Warn about sample being too large
@@ -91,7 +113,7 @@ function RemotePNGSource(remotepath; shuffled=false, source_invalid = false, sam
                 end
 
                 # Stop as soon as we get our sample
-                if (!isnothing(randomsample) && length(randomsample) == samplesize) || samplesize == 0
+                if (!isnothing(randomsample) && size(randomsample)[1] == samplesize) || samplesize == 0
                     break
                 end
 
@@ -101,7 +123,7 @@ function RemotePNGSource(remotepath; shuffled=false, source_invalid = false, sam
 
             if isnothing(remote_source)
                 # Estimate nbytes based on the sample
-                nbytes = (nbytes_of_sample / length(randomsample)) * length(files)
+                nbytes = (nbytes_of_sample / length(randomsample)) * length(files_to_read_from)
             end
 
         elseif isnothing(remote_source)
@@ -109,21 +131,25 @@ function RemotePNGSource(remotepath; shuffled=false, source_invalid = false, sam
             # In this case, read one random file to collect metadata
             # We assume that all files have the same nbytes and ndims
 
-            filep = files[end]
-            with_downloaded_path_for_reading(filep) do filep
+            filep = collect(Iterators.take(Iterators.reverse(files_to_read_from), 1))[1]
+            p = download_remote_path(filep)
+            with_downloaded_path_for_reading(p) do pp
 
                 # Load file and collect metadata and sample
-                image = load(filep)
+                image = load(pp)
 
                 nbytes = length(image) * sizeof(eltype(image)) * nimages
                 ndims = length(size(image)) + 1 # first dim
                 dataeltype = eltype(image)
                 datasize = (nimages, size(image)...)
+                format = get_image_format(pp)
             end
         end
 
         # Serialize generator
-        files = format == "generator" ? Banyan.to_jl_value_contents(files) : files
+        if isnothing(remote_source)
+            files = isa(files_to_read_from, Base.Generator) ? Banyan.to_jl_value_contents(files_to_read_from) : files_to_read_from
+        end
 
         loc_for_reading, metadata_for_reading = if !isnothing(files) && !isempty(files)
             (
@@ -145,6 +171,7 @@ function RemotePNGSource(remotepath; shuffled=false, source_invalid = false, sam
 
         # Get the remote sample
         if isnothing(remote_sample)
+            randomsample = cat(randomsample..., dims=1) # Put to correct shape
             remote_sample = if isnothing(loc_for_reading)
                 Sample()
             elseif length(files) <= Banyan.get_max_exact_sample_length()
@@ -165,7 +192,7 @@ function RemotePNGSource(remotepath; shuffled=false, source_invalid = false, sam
 end
 
 
-function RemotePNGDestination(remotepath; invalidate_source = true, invalidate_sample = true)::Location
+function RemoteImageDestination(remotepath; invalidate_source = true, invalidate_sample = true)::Location
     RemoteDestination(p, invalidate_source = invalidate_source, invalidate_sample = invalidate_sample) do remotepath
         
         # NOTE: Path for writing must be a directory
@@ -175,6 +202,7 @@ function RemotePNGDestination(remotepath; invalidate_source = true, invalidate_s
             "Remote",
             Dict(
                 "path" => remotepath,
+                # TODO: Dynamically determine format
                 "format" => "png"
             )
         )

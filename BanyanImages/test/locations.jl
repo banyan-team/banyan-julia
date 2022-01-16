@@ -1,28 +1,30 @@
-@testset "Remote PNG Source" begin
+@testset "Remote Image Source for $format with source_invalid=$source_invalid and sample_invalid=$sample_invalid" for format in [
+    "png", "jpg"
+], source_invalid in [
+    true, false
+], sample_invalid in [
+    true, false
+]
+    # TODO: Enumerate all cases
+    source_invalid = false
+    sample_invalid = true
     set_job("test_job_id")
-    # Prepare test by writing file to S3
-    s3_bucket = Random.randstring(['a':'z'; '0':'9'], 6)
-    s3_create_bucket(Banyan.get_aws_config(), s3_bucket)
-    rand_image = rand(ImageCore.RGB, 100, 100)
-    save("test_image.png", rand_image)
-    run(`aws s3api put-object --bucket $s3_bucket --key test_image.png --body test_image.png`)
 
-    try
-        s = RemotePNGSource("s3://$s3_bucket/test_image.png")
-        @test s.src_name == "Remote"
-        @test s.src_parameters["nimages"] == 1
-        @test s.src_parameters["format"] == "png"
-        # TODO: test s.total_memory_usage
-        println(s.total_memory_usage)
-        println(length(rand_image) * sizeof(eltype(rand_image)))
-        @test sample(s.sample) == rand_image
-    catch e
-        print("Clearing s3 files")
-        s3_delete(Banyan.get_aws_config(), s3_bucket, "test_image.png")
-        s3_delete_bucket(Banyan.get_aws_config(), s3_bucket)
-        rethrow()
-    end
-    print("Clearing s3 files")
-    s3_delete(Banyan.get_aws_config(), s3_bucket, "test_image.png")
-    s3_delete_bucket(Banyan.get_aws_config(), s3_bucket)
+    # Prepare test by writing file to S3
+    bucket_name = get_cluster_s3_bucket_name(ENV["BANYAN_CLUSTER_NAME"])
+    nimages = 4
+    image_size = 100 * 100
+    path = "https://raw.githubusercontent.com/banyan-team/banyan-julia/cailinw/banyan-images/BanyanImages/test/res/test_image.$format"
+
+    s = RemoteImageSource(path; source_invalid=source_invalid, sample_invalid=sample_invalid)
+    @test s.src_name == "Remote"
+    @test s.nimages == 1
+    @test s.format == format
+    @test s.total_memory_usage == sizeof(ImageCore.RGB{N0f8}) * image_size  # exact sample
+    @test s.nbytes == sizeof(ImageCore.RGB{N0f8}) * image_size
+    @test s.ndims == 3
+    @test s.size == (1, sqrt(image_size), sqrt(image_size))
+    @test s.eltype == ImageCore.RGB{N0f8}
+    @test size(sample(s.sample)) == (1, sqrt(image_size), sqrt(image_size))  # exact sample
+
 end

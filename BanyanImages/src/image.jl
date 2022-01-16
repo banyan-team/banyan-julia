@@ -1,5 +1,5 @@
 function read_png(path; kwargs...)
-    image_loc = RemotePNGSource(path; kwargs...)
+    image_loc = RemoteImageSource(path; kwargs...)
     image_loc.src_name == "Remote" || error("$path does not exist")
     image = Future(;source=image_loc, datatype="Array")
     BanyanArrays.Array{image_loc.eltype,image_loc.ndims}(image, Future(image_loc.size))
@@ -16,4 +16,6 @@ function write_png(image, path; invalidate_source=true, invalidate_sample=true, 
     )
 end
 
-# TODO: Add JPG support
+read_jpg(p; kwargs...) = read_png(p; kwargs...)
+
+write_jpg(img, p; kwargs...) = write_png(img, p; kwargs...)

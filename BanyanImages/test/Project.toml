@@ -1,9 +1,11 @@
 [deps]
 AWSS3 = "1c724243-ef5b-51ab-93f4-b0a88ac62a95"
 Banyan = "706d138b-e922-45b9-a636-baf8ae0d5317"
+Downloads = "f43a241f-c20a-4ad4-852c-f6b1247861c6"
 FileIO = "5789e2e9-d7fb-5bc7-8068-2c6fae9b9549"
 ImageCore = "a09fc81d-aa75-5fe9-8630-4744c3626534"
 ImageIO = "82e4d734-157c-48bb-816b-45c225c6df19"
+JSON = "682c06a0-de6a-54ab-a142-c8b1cf79cde6"
 MPI = "da04e1cc-30fd-572f-bb4f-1f8673147195"
 Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
 ReTest = "e0db7c4e-2690-44b9-bad6-7687da720f89"
