@@ -9,12 +9,13 @@
     job_id_1 = start_session(
         cluster_name=cluster_name,
         nworkers=2,
-        resource_destruction_delay=delay_time
+        resource_release_delay=delay_time
     )
     session_status = get_session_status(job_id_1)
     @test session_status == "running"
 
     end_session(job_id_1)
+    sleep(10)
     session_status = get_session_status(job_id_1)
     @test session_status == "completed"
 
@@ -22,13 +23,14 @@
     job_id_2 = start_session(
         cluster_name=cluster_name,
         nworkers=2,
-        resource_destruction_delay=delay_time
+        resource_release_delay=delay_time
     )
     session_status = get_session_status(job_id_2)
     @test session_status == "running"
     @test job_id_2 == job_id_1
     
     end_session(job_id_2)
+    sleep(10)
     session_status = get_session_status(job_id_2)
     @test session_status == "completed"
 
@@ -37,13 +39,14 @@
     job_id_3 = start_session(
         cluster_name=cluster_name,
         nworkers=3,
-        resource_destruction_delay=delay_time
+        resource_release_delay=delay_time
     )
     session_status = get_session_status(job_id_3)
     @test session_status == "running"
     @test job_id_3 != job_id_1
     
     end_session(job_id_3)
+    sleep(10)
     session_status = get_session_status(job_id_3)
     @test session_status == "completed"
 
@@ -53,7 +56,7 @@
     job_id_4 = start_session(
         cluster_name=cluster_name,
         nworkers=2,
-        resource_destruction_delay=delay_time,
+        resource_release_delay=delay_time,
         nowait=true
     )
     @test job_id_4 != job_id_1
