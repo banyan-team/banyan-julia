@@ -1481,3 +1481,25 @@ function ReadBlockImage(
     images = cat(images..., dims=1)
     images
 end
+
+
+function ReadONNX(
+    src,
+    params,
+    batch_idx::Integer,
+    nbatches::Integer,
+    comm::MPI.Comm,
+    loc_name,
+    loc_params,
+)
+    path = Banyan.getpath(loc_params["path"])
+
+    onnx = nothing
+    root = 0
+    if MPI.Comm_rank(comm) == root
+        onnx = ONNX.load_inference(path)
+    end
+    onnx = MPI.bcast(onnx, root, comm)
+
+    onnx
+end
