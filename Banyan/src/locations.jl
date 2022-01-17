@@ -643,6 +643,58 @@ function get_remote_hdf5_destination(remotepath, datasetpath)
     )
 end
 
+# TODO: Add ``; shuffled=false, source_invalid = false, sample_invalid = false, invalidate_source = false, invalidate_sample = false``
+
+function RemoteONNXSource(remotepath)::Location
+    # RemoteSource(
+    #     remotepath,
+    #     shuffled=shuffled,
+    #     source_invalid = source_invalid,
+    #     sample_invalid,
+    #     invalidate_source = invalidate_source,
+    #     invalidate_sample = invalidate_sample
+    # ) do remotepath, remote_source, remote_sample, shuffled
+
+    # Get the path
+    p = download_remote_path(remotepath)
+    p_exists = isfile(p)
+
+    # isa_onnx = endswith(p, ".onnx")
+    # if !isa_onnx
+    #     error("Expected ONNX file for $remotepath")
+    # end
+
+    loc_for_reading, metadata_for_reading = if p_exists
+        (
+            "Remote",
+            Dict(
+                "path" => remotepath,
+                "format" => "onnx"
+            ),
+        )
+    else
+        ("None", Dict{String,Any}())
+    end
+
+    # Construct sample
+    remote_sample = if isnothing(loc_for_reading)
+        Sample()
+    else
+        with_downloaded_path_for_reading(p) do pp
+            ExactSample(ONNX.load_inference(pp))
+        end
+    end
+
+    # Construct location with metadata
+    LocationSource(
+        loc_for_reading,
+        metadata_for_reading,
+        remote_sample,
+    )
+
+    # end
+end
+
 
 function get_image_format(path)
     if endswith(path, ".png")
@@ -836,55 +888,6 @@ function RemoteImageSource(remotepath, remote_source=nothing, remote_sample=noth
         metadata_for_reading,
         remote_sample,
     )
-end
-
-function RemoteONNXSource(remotepath; shuffled=false, source_invalid = false, sample_invalid = false, invalidate_source = false, invalidate_sample = false)::Location
-    RemoteSource(
-        remotepath,
-        shuffled=shuffled,
-        source_invalid = source_invalid,
-        sample_invalid,
-        invalidate_source = invalidate_source,
-        invalidate_sample = invalidate_sample
-    ) do remotepath, remote_source, remote_sample, shuffled
-
-        # Get the path
-        p = download_remote_path(remotepath)
-
-        isa_onnx = endswith(p, ".onnx")
-        if !isa_onnx
-            error("Expected ONNX file for $remotepath")
-        end
-
-        loc_for_reading, metadata_for_reading = if dataset_to_read_from_exists
-            (
-                "Remote",
-                Dict(
-                    "path" => remotepath,
-                    "format" => "onnx"
-                ),
-            )
-        else
-            ("None", Dict{String,Any}())
-        end
-
-        # Construct sample
-        if isnothing(remote_sample)
-            remote_sample = if isnothing(loc_for_reading)
-                Sample()
-            else
-                ExactSample(ONNX.load_inference(remotepath))
-            end
-        end
-
-        # Construct location with metadata
-        LocationSource(
-            loc_for_reading,
-            metadata_for_reading,
-            remote_sample,
-        )
-
-    end
 end
 
 get_csv_chunks(localfilepathp) = 
