@@ -643,6 +643,250 @@ function get_remote_hdf5_destination(remotepath, datasetpath)
     )
 end
 
+
+function get_image_format(path)
+    if endswith(path, ".png")
+        "png"
+    elseif endswith(path, ".jpg")
+        "jpg"
+    else
+        error("Unsupported file format. Must be jpg or png")
+    end
+end
+
+function RemoteImageSource(remotepath, remote_source=nothing, remote_sample=nothing; shuffled=false)::Location
+
+    # TODO: Add caching
+    # # Initialize parameters if location is already cached
+    # files = isnothing(remote_source) ? [] : remote_source.files  # list, serialized generator
+    # nimages = isnothing(remote_source) ? 0 : remote_source.nimages
+    # nbytes = isnothing(remote_source) ? 0 : remote_source.nbytes
+    # ndims = isnothing(remote_source) ? 0 : remote_source.ndims
+    # datasize = isnothing(remote_source) ? () : remote_source.size
+    # dataeltype = isnothing(remote_source) ? "" : remote_source.eltype
+    # format = isnothing(remote_source) ? "" : remote_source.format  # png, jpg
+    files = nothing
+    nimages = nothing
+    nbytes = nothing
+    ndims = nothing
+    datasize = nothing
+    dataeltype = nothing
+    format = nothing
+
+    # TODO: I think if the above parameters were cached, they still get
+    # read in again
+
+    # Remote path is either a single file path, a list of file paths,
+    # or a generator. The file paths can either be S3 or HTTP
+    if isa(remotepath, Base.Generator)
+        files_to_read_from = remotepath
+    else
+
+        if !isa(remotepath, Base.Array)
+            p = Banyan.download_remote_path(remotepath)
+
+            # Determine if this is a directory
+            p_isfile = isfile(p)
+            newp_if_isdir = endswith(string(p), "/") ? p : (p * "/")
+            p_isdir = !p_isfile && isdir(newp_if_isdir)
+            if p_isdir
+                p = newp_if_isdir
+            end
+
+            # Get files to read
+            files_to_read_from = if p_isdir
+                [joinpath(remotepath, filep) for filep in Random.shuffle(readdir(p))]
+            elseif p_isfile
+                [remotepath]
+            else
+                []
+            end
+        else
+            files_to_read_from = remotepath
+        end
+    end
+
+    # Determine nimages
+    if isnothing(remote_source)
+        iterator_size = Iterators.IteratorSize(files_to_read_from)
+        if iterator_size == Base.IsInfinite()
+            error("Infinite generators are not supported")
+        elseif iterator_size == Base.SizeUnknown()
+            nimages = sum(1 for _ in files_to_read_from)
+        else  # length can be predetermined
+            nimages = length(files_to_read_from)
+        end
+    end
+    meta_collected = false
+
+    # Initialize sample
+    randomsample = nothing
+
+    println("HEREHEHRE: ", isnothing(remote_sample), isnothing(remote_source))
+
+    if isnothing(remote_sample)
+
+        samplesize = Banyan.get_max_exact_sample_length()
+        nbytes_of_sample = 0
+
+        progressbar = Progress(length(files_to_read_from), "Collecting sample from $remotepath")
+        for filep in files_to_read_from
+            println("next file")
+            p = download_remote_path(filep)
+            with_downloaded_path_for_reading(p) do pp
+
+                # Load file and collect metadata and sample
+                image = load(pp)
+
+                if isnothing(remote_source) && !meta_collected
+                    println("collecting meta 1")
+                    nbytes = length(image) * sizeof(eltype(image)) * nimages
+                    ndims = length(size(image)) + 1 # first dim
+                    dataeltype = eltype(image)
+                    datasize = (nimages, size(image)...)
+                    format = get_image_format(pp)
+                    meta_collected = true
+                end
+                nbytes_of_sample += length(image) * sizeof(eltype(image))
+
+                if isnothing(randomsample)
+                    randomsample = []
+                end
+                if length(randomsample) < samplesize
+                    push!(randomsample, reshape(image, (1, size(image)...)))  # add first dimension
+                end
+
+                # TODO: Warn about sample being too large
+
+            end
+
+            # Stop as soon as we get our sample
+            if (!isnothing(randomsample) && size(randomsample)[1] == samplesize) || samplesize == 0
+                break
+            end
+
+            next!(progressbar)
+        end
+        finish!(progressbar)
+
+        if isnothing(remote_source)
+            # Estimate nbytes based on the sample
+            nbytes = (nbytes_of_sample / length(randomsample)) * length(files_to_read_from)
+        end
+
+    elseif isnothing(remote_source)
+        # No location, but has sample
+        # In this case, read one random file to collect metadata
+        # We assume that all files have the same nbytes and ndims
+
+        filep = collect(Iterators.take(Iterators.reverse(files_to_read_from), 1))[1]
+        p = download_remote_path(filep)
+        with_downloaded_path_for_reading(p) do pp
+            println("collecting meta here 2")
+
+            # Load file and collect metadata and sample
+            image = load(pp)
+
+            nbytes = length(image) * sizeof(eltype(image)) * nimages
+            ndims = length(size(image)) + 1 # first dim
+            dataeltype = eltype(image)
+            datasize = (nimages, size(image)...)
+            format = get_image_format(pp)
+        end
+    end
+
+    # Serialize generator
+    if isnothing(remote_source)
+        files = isa(files_to_read_from, Base.Generator) ? Banyan.to_jl_value_contents(files_to_read_from) : files_to_read_from
+    end
+
+    loc_for_reading, metadata_for_reading = if !isnothing(files) && !isempty(files)
+        (
+            "Remote",
+            Dict(
+                "path" => remotepath,
+                "files" => files,  # either a serialized generator or list of filepaths
+                "nimages" => nimages,
+                "nbytes" => nbytes,  # assume all files have same size
+                "ndims" => ndims,
+                "size" => datasize,
+                "eltype" => dataeltype,
+                "format" => format
+            ),
+        )
+    else
+        ("None", Dict{String,Any}())
+    end
+
+    # Get the remote sample
+    if isnothing(remote_sample)
+        randomsample = cat(randomsample..., dims=1) # Put to correct shape
+        remote_sample = if isnothing(loc_for_reading)
+            Sample()
+        elseif length(files) <= Banyan.get_max_exact_sample_length()
+            ExactSample(randomsample)
+        else
+            Sample(randomsample)
+        end
+    end
+
+    # Construct location with metadata
+    LocationSource(
+        loc_for_reading,
+        metadata_for_reading,
+        remote_sample,
+    )
+end
+
+function RemoteONNXSource(remotepath; shuffled=false, source_invalid = false, sample_invalid = false, invalidate_source = false, invalidate_sample = false)::Location
+    RemoteSource(
+        remotepath,
+        shuffled=shuffled,
+        source_invalid = source_invalid,
+        sample_invalid,
+        invalidate_source = invalidate_source,
+        invalidate_sample = invalidate_sample
+    ) do remotepath, remote_source, remote_sample, shuffled
+
+        # Get the path
+        p = download_remote_path(remotepath)
+
+        isa_onnx = endswith(p, ".onnx")
+        if !isa_onnx
+            error("Expected ONNX file for $remotepath")
+        end
+
+        loc_for_reading, metadata_for_reading = if dataset_to_read_from_exists
+            (
+                "Remote",
+                Dict(
+                    "path" => remotepath,
+                    "format" => "onnx"
+                ),
+            )
+        else
+            ("None", Dict{String,Any}())
+        end
+
+        # Construct sample
+        if isnothing(remote_sample)
+            remote_sample = if isnothing(loc_for_reading)
+                Sample()
+            else
+                ExactSample(ONNX.load_inference(remotepath))
+            end
+        end
+
+        # Construct location with metadata
+        LocationSource(
+            loc_for_reading,
+            metadata_for_reading,
+            remote_sample,
+        )
+
+    end
+end
+
 get_csv_chunks(localfilepathp) = 
     try
         CSV.Chunks(localfilepathp)

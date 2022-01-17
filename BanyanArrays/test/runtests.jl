@@ -2,9 +2,13 @@ using ReTest
 using Banyan, BanyanArrays
 using FilePathsBase, AWSS3, HDF5
 using LibGit2
-using Downloads, ONNXRunTime
+using Downloads, FileIO, ImageCore, ImageIO, ONNXRunTime, MPI
+MPI.Init()
 
 global jobs_for_testing = Dict()
+# Create a dummy test job for unit tests
+test_job_id = "test_job_id"
+Banyan.jobs[test_job_id] = Job(ENV["BANYAN_CLUSTER_NAME"], test_job_id, 2, 2)
 
 function destroy_all_jobs_for_testing()
     global jobs_for_testing
@@ -133,6 +137,9 @@ include("sample_computation.jl")
 include("mapreduce.jl")
 include("hdf5.jl")
 include("black_scholes.jl")
+
+include("utils_data.jl")
+include("jpg.jl")
 include("onnx.jl")
 
 try

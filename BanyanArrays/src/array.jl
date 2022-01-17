@@ -209,6 +209,15 @@ function write_hdf5(A, path; invalidate_source=true, invalidate_sample=true, kwa
     )
 end
 
+function read_png(path; kwargs...)
+    image_loc = RemoteImageSource(path; kwargs...)
+    image_loc.src_name == "Remote" || error("$path does not exist")
+    image = Future(source=image_loc)
+    BanyanArrays.Array{image_loc.eltype,image_loc.ndims}(image, Future(image_loc.size))
+end
+
+read_jpg(p; kwargs...) = read_png(p; kwargs...)
+
 function Banyan.write_to_disk(A::Array{T,N}) where {T,N}
     pt(A, Blocked(A) | Replicated())
     partitioned_computation(A, destination=Disk())
