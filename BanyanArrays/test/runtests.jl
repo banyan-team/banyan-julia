@@ -2,6 +2,7 @@ using ReTest
 using Banyan, BanyanArrays
 using FilePathsBase, AWSS3, HDF5
 using LibGit2
+using Downloads, ONNXRunTime
 
 global jobs_for_testing = Dict()
 
@@ -132,6 +133,7 @@ include("sample_computation.jl")
 include("mapreduce.jl")
 include("hdf5.jl")
 include("black_scholes.jl")
+include("onnx.jl")
 
 try
     runtests(Regex.(ARGS)...)
