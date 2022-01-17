@@ -1435,3 +1435,49 @@ function Shuffle(
 
     res
 end
+
+
+function ReadBlockImage(
+    src,
+    params,
+    batch_idx::Integer,
+    nbatches::Integer,
+    comm::MPI.Comm,
+    loc_name,
+    loc_params,
+)
+    # path = Banyan.getpath(loc_params["path"]) ? isa(loc_params["path"], String) : path
+    files = loc_params["files"]
+    ndims = loc_params["ndims"]
+    nbytes = loc_params["nbytes"]
+    nimages = loc_params["nimages"]
+    dataeltype = loc_params["eltype"]
+    file_extension = "." * loc_params["format"]
+
+    # files is either a list of file paths or a serialized generator
+    if !isa(files, Base.Array)
+        files = Banyan.from_jl_value_contents(files)
+        for f in Base.collect(files)
+            println(f)
+        end
+    end
+
+    # Identify the range of indices of files for the batch currently
+    # being processed by this worker
+    filerange = Banyan.split_len(nimages, batch_idx, nbatches, comm)
+
+    if isa(files, Base.Generator)
+        files_sub = Iterators.take(Iterators.drop(files, filerange.start - 1), filerange.stop - filerange.start + 1)
+    else
+        files_sub = view(files, filerange)
+    end
+
+    images = []
+    for f in files  #_sub
+        filepath = Banyan.getpath(f)
+        image = load(filepath)
+        push!(images, reshape(image, (1, size(image)...)))
+    end
+    images = cat(images..., dims=1)
+    images
+end

@@ -134,6 +134,9 @@ export ReturnNull,
     DistributeAndShuffle,
     Shuffle
 
+export read_png, read_jpg, ReadBlockImage, RemoteImageSource
+export load_inference, ReadBlockONNX, RemoteONNXSource
+
 using AWS: _get_ini_value
 using AWSCore
 using AWSS3
@@ -155,6 +158,8 @@ using IterTools
 # TODO: Move locations, samples, and parts of pt_lib.jl and pt_lib_info.json
 # into their respective libraries where they can be specialized
 using HDF5, CSV, Parquet, Arrow, DataFrames
+using ImageIO
+using ONNXRunTime
 
 # For PFs:
 using Serialization, Base64, MPI
