@@ -470,6 +470,7 @@ macro partitioned(ex...)
         unsplatted_variable_names = [$(variable_names...)]
         splatted_variable_names = []
         task = get_task()
+
         # Get code to initialize the unsplatted variable in the code region
         # TODO: Generate code in codegen that puts each code region in a
         # seperate function (where we reuse functions with the hash of the
