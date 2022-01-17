@@ -205,19 +205,19 @@ function write_hdf5(A, path; invalidate_source=true, invalidate_sample=true, kwa
     # # end
     # @partitioned A begin end
     # compute(A)
-    partitioned_with(scaled=df) do
-        pt(A, Blocked(A) | Replicated())
-    end
     partitioned_computation(
         A,
         destination=RemoteHDF5Destination(path; invalidate_source=invalidate_source, invalidate_sample=invalidate_sample, kwargs...),
         new_source=_->RemoteHDF5Source(path)
-    )
+    ) do
+        pt(A, Blocked(A) | Replicated())
+    end
 end
 
 function Banyan.write_to_disk(A::Array{T,N}) where {T,N}
-    pt(A, Blocked(A) | Replicated())
-    partitioned_computation(A, destination=Disk())
+    partitioned_computation(A, destination=Disk()) do
+        pt(A, Blocked(A) | Replicated())
+    end
 end
 
 function fill(v, dims::NTuple{N,Integer}) where {N}

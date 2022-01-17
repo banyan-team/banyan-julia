@@ -203,11 +203,14 @@ function Grouped(
 
     # Create PTs for each key that can be used to group by
     pts::Vector{PartitionType} = []
+    @show by
     for (i, key) in enumerate(first(by, 8))
         # Handle combinations of `balanced` and `filtered_from`/`filtered_to`
         for b in (isnothing(balanced) ? [true, false] : [balanced])
             parameters = Dict("key" => key, "balanced" => b)
             constraints = PartitioningConstraints()
+
+            @show key
 
             # Create `ScaleBy` constraint and also compute `divisions` and
             # `AtMost` constraint if balanced

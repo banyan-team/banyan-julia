@@ -71,24 +71,22 @@ function write_csv(df, path; invalidate_source=true, invalidate_sample=true, kwa
     # compute(df)
     # sourced(df, Remote(path)) # Allow data to be read from this path if needed in the future
     # destined(df, None())
-    partitioned_with(scaled=df) do
-        pt(df, Partitioned(df))
-    end
     partitioned_computation(
         df,
         destination=RemoteTableDestination(path; invalidate_source=invalidate_source, invalidate_sample=invalidate_sample, kwargs...),
         new_source=_->RemoteTableSource(path)
-    )
+    ) do
+        pt(df, Partitioned(df))
+    end
 end
 
 write_parquet(A, p; kwargs...) = write_csv(A, p; kwargs...)
 write_arrow(A, p; kwargs...) = write_csv(A, p; kwargs...)
 
 function Banyan.write_to_disk(df::DataFrame)
-    partitioned_with(scaled=df) do
+    partitioned_computation(df, destination=Disk()) do
         pt(df, Partitioned(df))
     end
-    partitioned_computation(df, destination=Disk())
 end
 
 # TODO: Duplicate above functions for Parquet, Arrow

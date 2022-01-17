@@ -151,7 +151,7 @@ function RemoteHDF5Source(remotepath; shuffled=false, source_invalid = false, sa
 
         # If the sample is a PooledArray or CategoricalArray, convert it to a
         # simple array so we can correctly compute its memory usage.
-        if !isnothing(dset_sample) && !(dset_sample isa Array)
+        if !isnothing(dset_sample) && !(dset_sample isa Base.Array)
             dset_sample = Banyan.convert_to_unpooled(dset_sample)
         end
 
@@ -196,7 +196,7 @@ function RemoteHDF5Source(remotepath; shuffled=false, source_invalid = false, sa
 end
 
 function RemoteHDF5Destination(remotepath; invalidate_source = true, invalidate_sample = true)::Location
-    RemoteDestination(p, invalidate_source = invalidate_source, invalidate_sample = invalidate_sample) do remotepath
+    RemoteDestination(remotepath, invalidate_source = invalidate_source, invalidate_sample = invalidate_sample) do remotepath
         remotepath, datasetpath, isa_hdf5 = extract_dataset_path(remotepath)
 
         if !isa_hdf5

@@ -70,7 +70,11 @@ function keep_all_sample_keys(participants::AbstractFuture...; drifted = false)
     # Take the union of discovered grouping keys. Grouping keys are discovered
     # through calls to `keep_keys` in functions where we know that we need
     # to allow grouping by certain keys such as sorting and join functions.
+    # println("In keep_all_sample_keys")
+    # @show participants
+    # @show [sample(p, :groupingkeys) for p in participants]
     groupingkeys = union([sample(p, :groupingkeys) for p in participants]...)
+    # @show groupingkeys
     statistics = if !drifted
         merge([sample(p, :statistics) for p in participants]...)
     else
@@ -113,6 +117,7 @@ function keep_sample_keys_named(
     participants::Pair{<:AbstractFuture,<:Any}...;
     drifted = false,
 )
+    # println("In keep_sample_keys_named")
     # `participants` maps from futures to lists of key names such that all
     # participating futures have the same sample properties for the keys at
     # same indices in those lists
@@ -120,11 +125,15 @@ function keep_sample_keys_named(
         (participant, Symbol.(to_vector(key_names))) for
         (participant, key_names) in participants
     ]
+    # @show participants
     nkeys = length(first(participants)[2])
     for i = 1:nkeys
         # Copy over allowed grouping keys
         for (p, keys) in participants
             p_key = keys[i]
+            # @show p
+            # @show p_key
+            # @show union(sample(p, :groupingkeys), [p_key])
             setsample!(p, :groupingkeys, union(sample(p, :groupingkeys), [p_key]))
         end
 
@@ -203,14 +212,11 @@ function partitioned_with(
         # that would have been marked by a call to `mutated` that is made in the
         # `Future` constructor.
         curr_delayed_task = get_task()
-        @show scaled
-        @show curr_delayed_task.scaled
-        @show curr_delayed_task.mutation
-        outputs = [f for f in scaled if !any((f.value_id == ff.value_id for ff in values(curr_delayed_task.mutation)))]
-        inputs = [f for f in scaled if !any((f.value_id == ff.value_id for ff in outputs))]
+        outputs = [f for f in curr_delayed_task.scaled if any((f.value_id == ff.value_id for ff in values(curr_delayed_task.mutation)))]
+        inputs = [f for f in curr_delayed_task.scaled if !any((f.value_id == ff.value_id for ff in outputs))]
         grouping_needed = keep_same_keys || !isnothing(keys) || !isnothing(keys_by_future) || renamed
         if grouping_needed
-            grouped = isnothing(grouped) ? outputs : [convert(Future, f) for f in to_vector(grouped)]
+            grouped = isnothing(grouped) ? vcat(inputs, outputs) : [convert(Future, f) for f in to_vector(grouped)]
             outputs_grouped = [f for f in grouped if any((f.value_id == ff.value_id for ff in outputs))]
             inputs_grouped = [f for f in grouped if any((f.value_id == ff.value_id for ff in inputs))]
         end
@@ -223,6 +229,11 @@ function partitioned_with(
                 end
                 keep_all_sample_keys_renamed(inputs_grouped[1], outputs_grouped[1])
             else
+                # @show inputs
+                # @show outputs
+                # @show grouped
+                # @show inputs_grouped
+                # @show outputs_grouped
                 keep_all_sample_keys(vcat(outputs_grouped, inputs_grouped)...; drifted=drifted)
             end
         end
@@ -234,20 +245,22 @@ function partitioned_with(
         end
 
         # Propgate sample rates
-        if keep_same_sample_rate
-            for r in outputs
-                keep_sample_rate(r, first(inputs))
-            end
-            for i in 1:(length(inputs)-1)
-                this_sample_rate = sample(inputs[i], :rate)
-                other_sample_rate = sample(inputs[i+1], :rate)
-                if this_sample_rate != other_sample_rate
-                    @warn "Two inputs have different sample rates ($this_sample_rate, $other_sample_rate)"
+        if !isempty(inputs)
+            if keep_same_sample_rate
+                for r in outputs
+                    keep_sample_rate(r, first(inputs))
                 end
-            end
-        else
-            for r in outputs
-                keep_sample_rate(r, inputs...)
+                for i in 1:(length(inputs)-1)
+                    this_sample_rate = sample(inputs[i], :rate)
+                    other_sample_rate = sample(inputs[i+1], :rate)
+                    if this_sample_rate != other_sample_rate
+                        @warn "Two inputs have different sample rates ($this_sample_rate, $other_sample_rate)"
+                    end
+                end
+            else
+                for r in outputs
+                    keep_sample_rate(r, inputs...)
+                end
             end
         end
 
@@ -598,8 +611,6 @@ macro partitioned(ex...)
 
         # Get the initial memory usage
         for fut in splatted_futures
-            @show fut
-            @show get_location(fut)
             fut_initial_memory_usage = if !isnothing(fut.total_memory_usage)
                 fut.total_memory_usage
             else
@@ -623,7 +634,7 @@ macro partitioned(ex...)
             elseif any(startswith(c.type, "SCALE_TO=") && fut.value_id in c.args for c in task.memory_usage_constraints)
                 for c in task.memory_usage_constraints
                     if startswith(c.type, "SCALE_TO=") && length(c.args) == 1 && c.args[1] == fut.value_id
-                        task.memory_usage[fut.value_id]["final"] = parse(Int32, c.type[length("SCALE_TO=")+1:end])
+                        task.memory_usage[fut.value_id]["final"] = Base.convert(Integer, ceil(parse(Int32, c.type[length("SCALE_TO=")+1:end])))
                     end
                 end
             elseif !any(fut.value_id == f.value_id for f in task.scaled)
@@ -639,15 +650,12 @@ macro partitioned(ex...)
                         factor = parse(Int32, c.type[length("SCALE_BY=")+1:end])
                         relative_to = c.args[2]
                         if haskey(task.memory_usage[relative_to], "final")
-                            task.memory_usage[fut.value_id]["final"] = factor * task.memory_usage[relative_to]["final"]
+                            task.memory_usage[fut.value_id]["final"] = Base.convert(Integer, ceil(factor * task.memory_usage[relative_to]["final"]))
                         end
                     end
                 end
             end
         end
-
-        @show task.memory_usage
-        @show task.scaled
 
         # Default case for determining memory usage
         for fut in splatted_futures
@@ -656,28 +664,35 @@ macro partitioned(ex...)
                     sample(fut, :memory_usage)
                     for fut in task.scaled
                     if task.effects[fut.value_id] == "CONST"
-                ))
+                ), init=0)
                 if task.keep_same_sample_rate && total_sampled_input_memory_usage > 0
-                    # Use the sampels to figure out the rate of change in
-                    # memory usage going from inputs to outputs
-                    factor = sample(fut, :memory_usage) / sum((
-                        sample(fut, :memory_usage)
+                    # This case applies for most computation like `filter` and `groupby`
+
+                    total_input_memory_usage = sum((
+                        task.memory_usage[fut.value_id]["initial"]
                         for fut in task.scaled
                         if task.effects[fut.value_id] == "CONST"
-                    ))
+                    ), init=0)
+
+                    # Use the sampels to figure out the rate of change in
+                    # memory usage going from inputs to outputs
+                    factor = sample(fut, :memory_usage) / total_sampled_input_memory_usage
 
                     # Now we use that rate on the actual initial memory
                     # usage which might have been modified using past memory
                     # usage constraints like ScaleBy and ScaleTo.
-                    @show fut.value_id
-                    @show sample(fut, :memory_usage)
-                    task.memory_usage[fut.value_id]["final"] = ceil(factor * sum((
-                        task.memory_usage[fut.value_id]["initial"]
-                        for fut in task.scaled
-                        if task.effects[fut.value_id] == "CONST"
-                    )))
+                    task.memory_usage[fut.value_id]["final"] = Base.convert(Integer, ceil(factor * total_input_memory_usage))
+                    # @show total_sampled_input_memory_usage factor total_input_memory_usage task.memory_usage[fut.value_id]["final"]
+                elseif task.memory_usage[fut.value_id]["initial"] != 0
+                    # If the input is nonzero then the output is the same
+                    # because we don't support a change in memory usage that
+                    # isn't going from `nothing` to some assigned value.
+                    # This case applies to the very last code region created in
+                    # `partitioned_computation`.
+                    task.memory_usage[fut.value_id]["final"] = task.memory_usage[fut.value_id]["initial"]
                 else
-                    task.memory_usage[fut.value_id]["final"] = ceil(sample(fut, :memory_usage) * sample(fut, :rate))
+                    # This case applies for `fill` and `innerjoin`.
+                    task.memory_usage[fut.value_id]["final"] = Base.convert(Integer, ceil(sample(fut, :memory_usage) * sample(fut, :rate)))
                 end
             end
         end
@@ -688,14 +703,14 @@ macro partitioned(ex...)
             for c in task.additional_memory_usage_constraints
                 if startswith(c.type, "SCALE_TO=") && length(c.args) == 1 && c.args[1] == fut.value_id
                     additional = parse(Int32, c.type[length("SCALE_TO=")+1:end])
-                    additional_memory_usage += additional
+                    additional_memory_usage += Base.convert(Integer, ceil(additional))
                 elseif startswith(c.type, "SCALE_BY=") && length(c.args) == 2 && c.args[1] == fut.value_id
                     arg = c.args[2]
                     factor = parse(Int32, c.type[length("SCALE_BY=")+1:end])
                     additional_memory_usage += factor * task.memory_usage[arg]["final"]
                 end
             end
-            task.memory_usage[fut.value_id]["additional"] = ceil(additional_memory_usage)
+            task.memory_usage[fut.value_id]["additional"] = Base.convert(Integer, ceil(additional_memory_usage))
         end
 
         # Ensure that all the outputs have the same sample rate

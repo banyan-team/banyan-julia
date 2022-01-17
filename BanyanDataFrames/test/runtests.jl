@@ -228,6 +228,10 @@ end
 include("sample_computation.jl")
 include("groupby_filter_indexing.jl")
 
+# Clear caches to ensure that caching behavior is deterministic
+clear_sources()
+clear_samples()
+
 try
     runtests(Regex.(ARGS)...)
 finally

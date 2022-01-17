@@ -342,10 +342,10 @@ function RemoteTableSource(remotepath; shuffled=false, source_invalid = false, s
 
         # If the sample is a PooledArray or CategoricalArray, convert it to a
         # simple array so we can correctly compute its memory usage.
-        for s in [emptysample, randomsample]
+        for s in (isnothing(remote_sample) ? [emptysample, randomsample] : [emptysample, randomsample, remote_sample.value])
             for pn in Base.propertynames(s)
                 sc = s[!, pn]
-                if !(sc isa AbstractArray)
+                if !(sc isa Base.Array)
                     s[!, pn] = Banyan.convert_to_unpooled(sc)
                 end
             end
@@ -360,7 +360,7 @@ function RemoteTableSource(remotepath; shuffled=false, source_invalid = false, s
         # already know from the reused location.
         remote_sample_value = isnothing(remote_sample) ? randomsample : remote_sample.value
         remote_sample_rate = totalnrows > 0 ? totalnrows / nrow(remote_sample_value) : 1.0
-        nbytes = convert(Integer, ceil(total_memory_usage(remote_sample_value) * remote_sample_rate))
+        nbytes = Base.convert(Integer, ceil(total_memory_usage(remote_sample_value) * remote_sample_rate))
 
         # Load metadata for reading
         # If we're not using S3FS, the files might be empty because `readdir`
@@ -425,7 +425,7 @@ function RemoteTableSource(remotepath; shuffled=false, source_invalid = false, s
 end
 
 function RemoteTableDestination(remotepath; invalidate_source = true, invalidate_sample = true)::Location
-    RemoteDestination(p, invalidate_source = invalidate_source, invalidate_sample = invalidate_sample) do remotepath
+    RemoteDestination(remotepath; invalidate_source = invalidate_source, invalidate_sample = invalidate_sample) do remotepath
         # Load metadata for writing
         # NOTE: `remotepath` should end with `.parquet` or `.csv` if Parquet
         # or CSV dataset is desired to be created

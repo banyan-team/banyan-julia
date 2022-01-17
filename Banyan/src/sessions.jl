@@ -123,13 +123,15 @@ function start_session(;
     session_configuration["code_files"] = [basename(f) for f in code_files]
 
     if isnothing(pf_dispatch_table)
-        branch_to_use = get(ENV, "BANYAN_TESTING", "0") == "1" ? BANYAN_JULIA_BRANCH_NAME : get_branch_name()
+        branch_to_use = get(ENV, "BANYAN_TESTING", "0") == "1" ? get_branch_name() : BANYAN_JULIA_BRANCH_NAME
         pf_dispatch_table = [
             "https://raw.githubusercontent.com/banyan-team/banyan-julia/$branch_to_use/$dir/res/pf_dispatch_table.toml"
             for dir in BANYAN_JULIA_PACKAGES
         ]
     end
-    session_configuration["pf_dispatch_table"] = load_toml(pf_dispatch_table)
+    pf_dispatch_table_loaded = load_toml(pf_dispatch_table)
+    @show pf_dispatch_table_loaded
+    session_configuration["pf_dispatch_table"] = pf_dispatch_table_loaded
 
     # Start the session
     @debug "Sending request for session start"
