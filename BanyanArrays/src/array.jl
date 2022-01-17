@@ -418,7 +418,7 @@ function Base.mapslices(f, A::Array{T,N}; dims) where {T,N}
 
     partitioned_with() do
         # Blocked PTs along dimensions _not_ being mapped along
-        bpt = [bpt for bpt in Blocked(A) if !(dims isa Colon) && !(bpt.key in [dims...])]
+        bpt = [bpt for bpt in Blocked(A) if !(collect(dims) isa Colon) && !(bpt.key in [collect(dims)...])]
 
         # balanced
         pt(A, bpt & Balanced())
@@ -434,7 +434,7 @@ function Base.mapslices(f, A::Array{T,N}; dims) where {T,N}
         pt(A, res, res_size, f, dims, Replicated())
     end
 
-    @partitioned f A dims res begin
+    @partitioned f A dims res res_size begin
         res = Base.mapslices(f, A, dims=dims)
         res_size = Base.size(res)
     end
