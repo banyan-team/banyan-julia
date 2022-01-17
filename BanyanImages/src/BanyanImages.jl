@@ -8,8 +8,7 @@ using ProgressMeter, Random
 export read_png, write_png,
     read_jpg, write_jpg
 
-export ReadBlockPNG, WritePNG
-    # ReadBlockJPG, WriteJPG
+export ReadBlockImage, WriteImage
 
 export RemoteImageSource, RemoteImageDestination
 

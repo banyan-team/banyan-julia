@@ -10,10 +10,11 @@ MPI.Init()
 test_job_id = "test_job_id"
 Banyan.jobs[test_job_id] = Job(ENV["BANYAN_CLUSTER_NAME"], test_job_id, 2, 2)
 
+include("utils_data.jl")
 include("locations.jl")
 include("png.jl")
 include("jpg.jl")
-include("utils_data.jl")
+include("pfs.jl")
 
 try
     runtests(Regex.(ARGS)...)
