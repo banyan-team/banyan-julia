@@ -15,31 +15,7 @@
 
     # twice to test caching
     for _ in 1:2
-        path = if src == "Internet"
-            if format == "path"
-                "https://raw.githubusercontent.com/banyan-team/banyan-julia/cailinw/banyan-images/BanyanImages/test/res/test_image.jpg"
-            elseif format == "list of paths"
-                [
-                    "https://gibs.earthdata.nasa.gov/wmts/epsg4326/best/MODIS_Terra_CorrectedReflectance_TrueColor/default/2012-07-09/250m/6/13/1.jpg",
-                    "https://gibs.earthdata.nasa.gov/wmts/epsg4326/best/MODIS_Terra_CorrectedReflectance_TrueColor/default/2012-07-09/250m/6/13/4.jpg",
-                    "https://gibs.earthdata.nasa.gov/wmts/epsg4326/best/MODIS_Terra_CorrectedReflectance_TrueColor/default/2012-07-09/250m/6/13/16.jpg",
-                    "https://gibs.earthdata.nasa.gov/wmts/epsg4326/best/MODIS_Terra_CorrectedReflectance_TrueColor/default/2012-07-09/250m/6/13/32.jpg"
-                ]
-            elseif format == "generator"
-                (
-                    "https://gibs.earthdata.nasa.gov/wmts/epsg4326/best/MODIS_Terra_CorrectedReflectance_TrueColor/default/2012-07-09/250m/6/13/$i.jpg"
-                    for i in 1:nimages  # NOTE: max ~70
-                )
-            end
-        elseif src == "S3"
-            if format == "path"
-                "s3://$bucket_name/test_images_jpg/test_image_1.jpg"
-            elseif format == "directory"
-                "s3://$bucket_name/test_images_jpg/"
-            elseif format == "generator"
-                ("s3://$bucket_name/test_images_jpg/test_image_$idx.jpg" for idx in 1:nimages)
-            end
-        end
+        path = get_test_path(src, format, "jpg")
 
         arr = read_jpg(path)
         arr_size_dim1 = size(arr)[1]

@@ -5,9 +5,6 @@
 ], sample_invalid in [
     true, false
 ]
-    # TODO: Enumerate all cases
-    source_invalid = false
-    sample_invalid = true
     set_job("test_job_id")
 
     # Prepare test by writing file to S3

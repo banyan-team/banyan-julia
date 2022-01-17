@@ -11,10 +11,10 @@ end
 
 function RemoteImageSource(remotepath; shuffled=false, source_invalid = false, sample_invalid = false, invalidate_source = false, invalidate_sample = false)::Location
     RemoteSource(
-        remotepath;
-        shuffled=shuffled,
+        remotepath,
+        shuffled = shuffled,
         source_invalid = source_invalid,
-        sample_invalid,
+        sample_invalid = sample_invalid,
         invalidate_source = invalidate_source,
         invalidate_sample = invalidate_sample
     ) do remotepath, remote_source, remote_sample, shuffled
