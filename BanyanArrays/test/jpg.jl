@@ -115,12 +115,28 @@ end
     use_job_for_testing(scheduling_config_name = "default scheduling") do
         bucket_name = get_cluster_s3_bucket_name(ENV["BANYAN_CLUSTER_NAME"])
         nimages = 4
-        path = get_test_path(src, format, "jpg", nimages, bucket_name)
+        path = get_test_path("Internet", "generator", "jpg", nimages, bucket_name)
 
-        imgs = read_jpg(path)
-        imgs = map(img -> float32.(ImageCore.channelview(img)), imgs)
+        imgs = read_jpg(path; add_channelview=true)
+        imgs = BanyanArrays.map(x -> float(x), imgs)
         imgs_size_dim1 = size(imgs)[1]
+        imgs_ndims = length(size(imgs))
+        imgs_eltype = eltype(imgs)
+
+        res = collect(
+            BanyanArrays.reduce(
+                +,
+                BanyanArrays.map(
+                    x -> x / 100,
+                    imgs
+                )
+            )
+        )
+        println(res)
 
         @test imgs_size_dim1 == nimages
+        @test imgs_ndims == 4
+        @test imgs_eltype == Float32
+        # @test imgs_doubled_ndims == 4
     end
 end

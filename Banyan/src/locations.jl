@@ -742,7 +742,7 @@ function RemoteImageSource(remotepath, remote_source=nothing, remote_sample=noth
             remotepath[2](idx...)
             for idx in remotepath[1]
         )
-    else
+    else  # single path or list of paths
 
         if !isa(remotepath, Base.Array)
             p = Banyan.download_remote_path(remotepath)
