@@ -4,7 +4,7 @@ using Distributions
 @testset "Black Scholes" begin
     #start_time = now()
     #end_time = now()
-    run_with_job("scholes") do job
+    run_with_session("scholes") do job
         size = 512000000  # 256000000
 	price = BanyanArrays.fill(4.0, size)
 	strike = BanyanArrays.fill(4.0, size)

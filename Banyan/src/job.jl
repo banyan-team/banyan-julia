@@ -20,18 +20,3 @@ mutable struct Job
 end
 
 
-# mutable struct Job
-#     job_id::JobId
-#     failed::Bool
-
-#     # function Job(; kwargs...)
-#     #     new_job_id = create_job(; kwargs...)
-#     #     #new_job_id = create_job(;cluster_name="banyancluster", nworkers=2)
-#     #     new_job = new(new_job_id)
-#     #     finalizer(new_job) do j
-#     #         destroy_job(j.job_id)
-#     #     end
-
-#     #     new_job
-#     # end
-# end

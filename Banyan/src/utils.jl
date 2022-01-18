@@ -317,6 +317,12 @@ method_to_string(method) = begin
         "destroy-job"
     elseif method == :describe_jobs
         "describe-jobs"
+    elseif method == :start_session
+        "start-session"
+    elseif method == :end_session
+        "end-session"
+    elseif method == :describe_sessions
+        "describe-sessions"
     elseif method == :evaluate
         "evaluate"
     elseif method == :update_cluster

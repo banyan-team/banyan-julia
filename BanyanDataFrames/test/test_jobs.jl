@@ -17,7 +17,7 @@ IRIS_DOWNLOAD_PATH = "https://raw.githubusercontent.com/banyan-team/banyan-julia
     files = [IRIS_DOWNLOAD_PATH]
 
     # Create job
-    job_id = create_job(
+    job_id = start_session(
         cluster_name = ENV["BANYAN_CLUSTER_NAME"],
         nworkers = 2,
         files = files,
@@ -51,7 +51,7 @@ IRIS_DOWNLOAD_PATH = "https://raw.githubusercontent.com/banyan-team/banyan-julia
     @test res[:, :species] == ["setosa", "versicolor", "virginica"]
 
     # Destroy job
-    destroy_job(job_id)
+    end_session(job_id)
     curr_jobs = get_jobs(ENV["BANYAN_CLUSTER_NAME"], status="running")
     @test !haskey(curr_jobs, job_id)
 end
@@ -67,7 +67,7 @@ end
     using Distributions
 
     # Create a job
-    job_id = create_job(
+    job_id = start_session(
         cluster_name = ENV["BANYAN_CLUSTER_NAME"],
         nworkers = 2,
     )
@@ -82,7 +82,7 @@ end
     @test round(res) == 44254.0
 
     # Destroy job
-    destroy_job(job_id)
+    end_session(job_id)
 end
 
 # @testset "Create job using remote Github environment"

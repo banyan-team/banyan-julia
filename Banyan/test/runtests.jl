@@ -9,7 +9,7 @@ global jobs_for_testing = Dict()
 function destroy_all_jobs_for_testing()
     global jobs_for_testing
     for (job_config_hash, job_id) in jobs_for_testing
-        destroy_job(job_id)
+        end_session(job_id)
         delete!(jobs_for_testing, job_config_hash)
     end
 end
@@ -44,7 +44,7 @@ function use_job_for_testing(
         if haskey(jobs_for_testing, job_config_hash)
             jobs_for_testing[job_config_hash]
         else
-            create_job(
+            start_session(
                 cluster_name = ENV["BANYAN_CLUSTER_NAME"],
                 nworkers = 2,
                 sample_rate = sample_rate,
@@ -194,7 +194,8 @@ include("sample_collection.jl")
 include("sample_computation.jl")
 include("config.jl")
 include("clusters.jl")
-include("jobs.jl")
+# include("jobs.jl")
+include("sessions.jl")
 
 try
     runtests(Regex.(ARGS)...)
