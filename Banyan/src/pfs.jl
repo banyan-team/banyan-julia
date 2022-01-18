@@ -1453,6 +1453,7 @@ function ReadBlockImage(
     nimages = loc_params["nimages"]
     dataeltype = loc_params["eltype"]
     file_extension = "." * loc_params["format"]
+    add_channelview = loc_params["add_channelview"]
 
     # files is either a list of file paths or a serialized generator
     if !isa(files, Base.Array)
@@ -1476,6 +1477,9 @@ function ReadBlockImage(
     for f in files  #_sub
         filepath = Banyan.getpath(f)
         image = load(filepath)
+        if add_channelview
+            image = ImageCore.channelview(image)
+        end
         push!(images, reshape(image, (1, size(image)...)))
     end
     images = cat(images..., dims=1)

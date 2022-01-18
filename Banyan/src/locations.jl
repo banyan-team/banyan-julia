@@ -654,7 +654,7 @@ function get_image_format(path)
     end
 end
 
-function RemoteImageSource(remotepath, remote_source=nothing, remote_sample=nothing; shuffled=false)::Location
+function RemoteImageSource(remotepath, remote_source=nothing, remote_sample=nothing; shuffled=false, add_channelview=false)::Location
 
     # TODO: Add caching
     # # Initialize parameters if location is already cached
@@ -811,7 +811,8 @@ function RemoteImageSource(remotepath, remote_source=nothing, remote_sample=noth
                 "ndims" => ndims,
                 "size" => datasize,
                 "eltype" => dataeltype,
-                "format" => format
+                "format" => format,
+                "add_channelview" => add_channelview
             ),
         )
     else

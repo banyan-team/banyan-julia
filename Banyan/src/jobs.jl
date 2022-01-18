@@ -164,7 +164,6 @@ function create_job(;
     # Create the job
     @debug "Sending request for job creation"
     job_response = send_request_get_response(:create_job, job_configuration)
-    sleep(30)
     job_id = job_response["job_id"]
     @info "Started creating job with ID $job_id on cluster named \"$cluster_name\""
 
