@@ -967,6 +967,24 @@ function Merge(
     src
 end
 
+global onnx_paths = IdDict()
+
+function ReadONNX(
+    src,
+    params,
+    batch_idx::Integer,
+    nbatches::Integer,
+    comm::MPI.Comm,
+    loc_name,
+    loc_params,
+)
+    global onnx_paths
+    model_path = Banyan.getpath(loc_params["path"])
+    model = ONNX.load_inference(model_path)
+    onnx_paths[model] = model_path
+    model
+end
+
 function CopyFrom(
     src,
     params,
@@ -979,9 +997,13 @@ function CopyFrom(
     if loc_name == "Value"
         loc_params["value"]
     elseif loc_name == "Disk"
-        params["key"] = 1
-        res = ReadBlock(src, params, 1, 1, MPI.COMM_SELF, loc_name, loc_params)
-        res
+        onnx_path = getpath(loc_params["path"]) * "_onnx"
+        if isfile(onnx_path)
+            ONNX.load_inference(read(onnx_path, String))
+        else
+            params["key"] = 1
+            ReadBlock(src, params, 1, 1, MPI.COMM_SELF, loc_name, loc_params)
+        end
     elseif loc_name == "Remote"
         params["key"] = 1
         res = ReadBlock(src, params, 1, 1, MPI.COMM_SELF, loc_name, loc_params)
@@ -1018,8 +1040,13 @@ function CopyTo(
             # TODO: Don't rely on ReadBlock, Write in CopyFrom, CopyTo and
             # instead do something more elegant
             if get_partition_idx(batch_idx, nbatches, comm) == 1
-                params["key"] = 1
-                Write(src, part, params, 1, 1, MPI.COMM_SELF, loc_name, loc_params)
+                global model_paths
+                if part in keys(model_paths)
+                    write(getpath(loc_params["path"]) * "_onnx", model_paths[part])
+                else
+                    params["key"] = 1
+                    Write(src, part, params, 1, 1, MPI.COMM_SELF, loc_name, loc_params)
+                end
             end
             # TODO: Remove this barrier if not needed to ensure correctness
             MPI.Barrier(comm)
@@ -1480,26 +1507,4 @@ function ReadBlockImage(
     end
     images = cat(images..., dims=1)
     images
-end
-
-
-function ReadONNX(
-    src,
-    params,
-    batch_idx::Integer,
-    nbatches::Integer,
-    comm::MPI.Comm,
-    loc_name,
-    loc_params,
-)
-    path = Banyan.getpath(loc_params["path"])
-
-    onnx = nothing
-    root = 0
-    if MPI.Comm_rank(comm) == root
-        onnx = ONNX.load_inference(path)
-    end
-    onnx = MPI.bcast(onnx, root, comm)
-
-    onnx
 end

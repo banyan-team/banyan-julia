@@ -44,6 +44,12 @@
             "default": {},
             "location_names": ["Value", "Disk", "Memory"],
             "partition_memory_usage": "all"
+        },
+        "ReadONNX": {
+            "required": {"name": "Replicating", "dividing": false},
+            "default": {},
+            "location_names": ["Remote"],
+            "partition_memory_usage": "all"
         }
     },
     "merges": {
