@@ -980,7 +980,7 @@ function ReadONNX(
 )
     println("Starting to read in ONNX model")
     global onnx_paths
-    model_path = Banyan.getpath(loc_params["path"])
+    model_path = Banyan.getpath(loc_params["path"], comm)
     println("Downloaded model to $model_path")
     model = ONNXRunTime.load_inference(model_path)
     println("Called load_inference")
