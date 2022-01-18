@@ -1484,12 +1484,14 @@ function ReadBlockImage(
     nimages = loc_params["nimages"]
     add_channelview = loc_params["add_channelview"]
 
-    # files is either a list of file paths or a serialized generator
+    # files is either a list of file paths or a serialized tuple containing
+    # information to construct a generator
     if !isa(files, Base.Array)
-        files = Banyan.from_jl_value_contents(files)
-        for f in Base.collect(files)
-            println(f)
-        end
+        iter_info = Banyan.from_jl_value_contents(files)
+        files = (
+            iter_info[2](idx...)
+            for idx in iter_info[1]
+        )
     end
 
     # Identify the range of indices of files for the batch currently
@@ -1501,14 +1503,12 @@ function ReadBlockImage(
     else
         files_sub = view(files, filerange)
     end
-    println("ADD CHANNELVIEW IS: ", add_channelview)
 
     images = []
     for f in files  #_sub
         filepath = Banyan.getpath(f)
         image = load(filepath)
         if add_channelview
-            println("IN HERE")
             image = ImageCore.channelview(image)
         end
         push!(images, reshape(image, (1, size(image)...)))

@@ -158,7 +158,7 @@ using IterTools
 # TODO: Move locations, samples, and parts of pt_lib.jl and pt_lib_info.json
 # into their respective libraries where they can be specialized
 using HDF5, CSV, Parquet, Arrow, DataFrames
-using ImageIO
+using ImageIO, ImageCore
 using ONNXRunTime
 
 # For PFs:
