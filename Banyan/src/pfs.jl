@@ -1477,7 +1477,6 @@ function ReadBlockImage(
     loc_name,
     loc_params,
 )
-    # path = Banyan.getpath(loc_params["path"]) ? isa(loc_params["path"], String) : path
     files = loc_params["files"]
     # ndims = loc_params["ndims"]
     # nbytes = loc_params["nbytes"]
@@ -1505,7 +1504,7 @@ function ReadBlockImage(
     end
 
     images = []
-    for f in files  #_sub
+    for f in files_sub
         filepath = Banyan.getpath(f)
         image = load(filepath)
         if add_channelview
