@@ -1,11 +1,11 @@
 struct InferenceSession <: AbstractFuture
     inference_session::Future
-    dynamic_axis::bool
+    dynamic_axis::Bool
 end
 
-Banyan.convert(Future, is::InferenceSession) = is.inference_session
+Banyan.convert(::Type{Future}, is::InferenceSession) = is.inference_session
 
-function load_inference(path; dynamic_axis::bool=false)
+function load_inference(path; dynamic_axis::Bool=false)
     onnx_loc = RemoteONNXSource(path)
     onnx_loc.src_name == "Remote" || error("$path does not exist")
     # TODO: Use `datatype="ONNX", `

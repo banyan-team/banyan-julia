@@ -38,5 +38,12 @@
         res_size = size(res)
         @test res_size == (120, 1, 1)
         @test res[1] == 6
+
+        data = BanyanArrays.ones(Float32, (120, 2, 3))
+        model = BanyanArrays.load_inference(localpath)
+        res = model(data)
+        res_size = size(res)
+        @test res_size == (120, 2, 3)
+        # TODO: Check that data is doubled
     end
 end

@@ -12,6 +12,6 @@ export read_png, read_jpg
 export load_inference
 
 include("array.jl")
-includ("onnx.jl")
+include("onnx.jl")
 
 end # module
