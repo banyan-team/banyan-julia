@@ -513,7 +513,7 @@ function getpath(path, comm_for_downloading_on_main_node=nothing)
         # TODO: Add option for Internet locations as to whether or not to
         # cache on disk
         hashed_path = string(hash(path))
-        joined_path = "efs/banyan_dataset_" * hashed_path
+        joined_path = "efs/job_$(get_job_id())_dataset_" * hashed_path
         # @info "Downloading $path to $joined_path"
         if !isfile(joined_path)
             # NOTE: Even though we are storing in /tmp, this is
