@@ -740,7 +740,7 @@ function RemoteImageSource(remotepath, remote_source=nothing, remote_sample=noth
         # Create a generator here for sampling
         files_to_read_from = (
             remotepath[2](idx...)
-            for idx in remotepath[1])
+            for idx in remotepath[1]
         )
     else
 
