@@ -1497,12 +1497,14 @@ function ReadBlockImage(
     else
         files_sub = view(files, filerange)
     end
+    println("ADD CHANNELVIEW IS: ", add_channelview)
 
     images = []
     for f in files  #_sub
         filepath = Banyan.getpath(f)
         image = load(filepath)
         if add_channelview
+            println("IN HERE")
             image = ImageCore.channelview(image)
         end
         push!(images, reshape(image, (1, size(image)...)))
