@@ -417,8 +417,7 @@ function Base.mapslices(f, A::Array{T,N}; dims) where {T,N}
 
     f = Future(f)
     res_size = Future()
-    # TODO: Ensure that this usage of Any is correct here and elsewhere
-    res = Array{Any,Any}(Future(), res_size)
+    res = Future()
     dims = Future(dims)
 
     partitioned_using() do
@@ -448,7 +447,7 @@ function Base.mapslices(f, A::Array{T,N}; dims) where {T,N}
         res_size = Base.size(res)
     end
 
-    res
+    Array{eltype(sample(res)),ndims(sample(res))}(res, res_size)
 end
 
 # TODO: Implement reduce and sortslices
