@@ -157,7 +157,7 @@ function create_job(;
     job_configuration["code_files"] = [basename(f) for f in code_files]
 
     if pf_dispatch_table == ""
-        pf_dispatch_table = "https://raw.githubusercontent.com/banyan-team/banyan-julia/v0.1.3/Banyan/res/pf_dispatch_table.json"
+        pf_dispatch_table = "https://raw.githubusercontent.com/banyan-team/banyan-julia/cailinw/images-onnx/Banyan/res/pf_dispatch_table.json"
     end
     job_configuration["pf_dispatch_table"] = load_json(pf_dispatch_table)
 
