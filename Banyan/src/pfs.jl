@@ -981,8 +981,8 @@ function ReadONNX(
     println("Starting to read in ONNX model")
     global onnx_paths
     model_path = Banyan.getpath(loc_params["path"])
-    println("Downloaded model")
-    model = load_inference(model_path)
+    println("Downloaded model to $model_path")
+    model = ONNXRunTime.load_inference(model_path)
     println("Called load_inference")
     onnx_paths[model] = model_path
     println("Finished reading in ONNX model")
@@ -1003,7 +1003,7 @@ function CopyFrom(
     elseif loc_name == "Disk"
         onnx_path = getpath(loc_params["path"]) * "_onnx"
         if isfile(onnx_path)
-            load_inference(read(onnx_path, String))
+            ONNXRunTime.load_inference(read(onnx_path, String))
         else
             params["key"] = 1
             ReadBlock(src, params, 1, 1, MPI.COMM_SELF, loc_name, loc_params)
