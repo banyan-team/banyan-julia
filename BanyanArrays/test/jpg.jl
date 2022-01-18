@@ -110,3 +110,17 @@ end
     @test size(images) == expected_size
 
 end
+
+@testset "Simple operation for Internet generator on JPG" begin
+    use_job_for_testing(scheduling_config_name = "default scheduling") do
+        bucket_name = get_cluster_s3_bucket_name(ENV["BANYAN_CLUSTER_NAME"])
+        nimages = 4
+        path = get_test_path(src, format, "jpg", nimages, bucket_name)
+
+        imgs = read_jpg(path)
+        imgs = map(img -> float32.(ImageCore.channelview(img)), imgs)
+        imgs_size_dim1 = size(imgs)[1]
+
+        @test imgs_size_dim1 == nimages
+    end
+end
