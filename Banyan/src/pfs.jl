@@ -1490,7 +1490,7 @@ function ReadBlockImage(
         iter_info = Banyan.from_jl_value_contents(files)
         files = (
             iter_info[2](idx...)
-            for idx in iter_info[1])
+            for idx in iter_info[1]
         )
     end
 
