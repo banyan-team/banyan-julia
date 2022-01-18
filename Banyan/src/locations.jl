@@ -869,7 +869,6 @@ function RemoteImageSource(remotepath, remote_source=nothing, remote_sample=noth
             # TODO: Change this back to Remote and then have locations in the PF dispatch table entry require the format to be Image
             "RemoteImage",
             Dict(
-                "path" => remotepath,
                 "files" => files,  # either a serialized generator or list of filepaths
                 "nimages" => nimages,
                 "nbytes" => nbytes,  # assume all files have same size

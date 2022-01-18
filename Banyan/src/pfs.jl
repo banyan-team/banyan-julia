@@ -1488,7 +1488,7 @@ function ReadBlockImage(
     if !isa(files, Base.Array)
         iter_info = Banyan.from_jl_value_contents(files)
         files = (
-            iter_info[2](idx...)
+            Base.invokelatest(iter_info[2], (idx...))
             for idx in iter_info[1]
         )
     end
