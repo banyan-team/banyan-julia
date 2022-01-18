@@ -506,14 +506,14 @@ function frombuf(kind, obj)
     end
 end
 
-function getpath(path)
+function getpath(path, comm_for_downloading_on_main_node=nothing)
     if startswith(path, "http://") || startswith(path, "https://")
         # TODO: First check for size of file and only download to
         # disk if it doesn't fit in free memory
         # TODO: Add option for Internet locations as to whether or not to
         # cache on disk
         hashed_path = string(hash(path))
-        joined_path = "efs/banyan_dataset_" * hashed_path
+        joined_path = "efs/job_$(get_job_id())_dataset_" * hashed_path
         # @info "Downloading $path to $joined_path"
         if !isfile(joined_path)
             # NOTE: Even though we are storing in /tmp, this is
@@ -521,7 +521,12 @@ function getpath(path)
             # to a user, a short-term solution is to use a different
             # URL each time (e.g., add a dummy query to the end of the
             # URL)
-            Downloads.download(path, joined_path)
+            if isnothing(comm_for_downloading_on_main_node) || MPI.Comm_rank(comm_for_downloading_on_main_node) == 0
+                Downloads.download(path, joined_path)
+            end
+            if !isnothing(comm_for_downloading_on_main_node)
+                MPI.Barrier(comm_for_downloading_on_main_node)
+            end
         end
         # @show isfile(joined_path)
         joined_path
