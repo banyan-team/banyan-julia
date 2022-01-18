@@ -135,7 +135,7 @@ export ReturnNull,
     Shuffle
 
 export read_png, read_jpg, ReadBlockImage, RemoteImageSource
-export load_inference, ReadBlockONNX, RemoteONNXSource
+export load_inference, ReadONNX, RemoteONNXSource
 
 using AWS: _get_ini_value
 using AWSCore
