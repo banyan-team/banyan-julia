@@ -7,7 +7,7 @@ Banyan.convert(::Type{Future}, is::InferenceSession) = is.inference_session
 
 function load_inference(path; dynamic_axis::Bool=false)
     onnx_loc = RemoteONNXSource(path)
-    onnx_loc.src_name == "Remote" || error("$path does not exist")
+    onnx_loc.src_name == "RemoteONNX" || error("$path does not exist")
     # TODO: Use `datatype="ONNX", `
     InferenceSession(Future(source=onnx_loc), dynamic_axis)
 
@@ -56,7 +56,7 @@ function (is::InferenceSession)(inputs, output_names=nothing)
     end
 
     A = first(values(inputs))
-    input_name = first(keys(inputs))
+    input_name = Future(first(keys(inputs)))
     res = Future()
     output_name = first(output_names)
 
@@ -79,14 +79,14 @@ function (is::InferenceSession)(inputs, output_names=nothing)
         # replicated
         # TODO: Determine why this MatchOn constraint is not propagating
         pt(res_size, ReducingWithKey(quote axis -> (a, b) -> indexapply(+, a, b, index=axis) end), match=A, on="key")
-        pt(A, res, res_size, is, dynamic_axis, Replicated())
+        pt(A, res, res_size, is, dynamic_axis, input_name, Replicated())
     end
 
     @partitioned is dynamic_axis input_name A res res_size begin
         if dynamic_axis
             res = first(values(is(Dict(input_name  => A))))
         else
-            res = Base.mapslices(arr -> first(values(is(arr))), A, dims=collect(2:ndims(A)))
+            res = Base.mapslices(arr -> first(values(is(Dict(input_name => arr)))), A, dims=collect(2:ndims(A)))
         end
         res_size = Base.size(res)
     end

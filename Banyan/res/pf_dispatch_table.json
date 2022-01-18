@@ -11,6 +11,13 @@
             "location_names": ["Remote", "Disk"],
             "partition_memory_usage": "div"
         },
+        "ReadBlockImage": {
+            "expected": ["key"],
+            "required": {"name": "Distributing", "distribution": "blocked", "id": "!"},
+            "default": {},
+            "location_names": ["RemoteImage"],
+            "partition_memory_usage": "div"
+        },
         "ReadGroup": {
             "expected": ["key", "divisions"],
             "required": {"name": "Distributing", "distribution": "grouped", "id": "!"},
@@ -48,7 +55,7 @@
         "ReadONNX": {
             "required": {"name": "Replicating", "dividing": false},
             "default": {},
-            "location_names": ["Remote"],
+            "location_names": ["RemoteONNX"],
             "partition_memory_usage": "all"
         }
     },

@@ -211,7 +211,7 @@ end
 
 function read_png(path; kwargs...)
     image_loc = RemoteImageSource(path; kwargs...)
-    image_loc.src_name == "Remote" || error("$path does not exist")
+    image_loc.src_name == "RemoteImage" || error("$path does not exist")
     image = Future(source=image_loc)
     BanyanArrays.Array{image_loc.eltype,image_loc.ndims}(image, Future(image_loc.size))
 end

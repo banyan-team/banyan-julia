@@ -1475,11 +1475,11 @@ function ReadBlockImage(
 )
     # path = Banyan.getpath(loc_params["path"]) ? isa(loc_params["path"], String) : path
     files = loc_params["files"]
-    ndims = loc_params["ndims"]
-    nbytes = loc_params["nbytes"]
+    # ndims = loc_params["ndims"]
+    # nbytes = loc_params["nbytes"]
     nimages = loc_params["nimages"]
-    dataeltype = loc_params["eltype"]
-    file_extension = "." * loc_params["format"]
+    # dataeltype = loc_params["eltype"]
+    # file_extension = "." * loc_params["format"]
 
     # files is either a list of file paths or a serialized generator
     if !isa(files, Base.Array)

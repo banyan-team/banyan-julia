@@ -666,7 +666,9 @@ function RemoteONNXSource(remotepath)::Location
 
     loc_for_reading, metadata_for_reading = if p_exists
         (
-            "Remote",
+            # TODO: Change back to Remote and then specify locations to specify that format parameter is important in dispatching in the
+            # PF dispatch table entry
+            "RemoteONNX",
             Dict(
                 "path" => remotepath,
                 "format" => "onnx"
@@ -680,9 +682,11 @@ function RemoteONNXSource(remotepath)::Location
     remote_sample = if isnothing(loc_for_reading)
         Sample()
     else
+        s = nothing
         with_downloaded_path_for_reading(p) do pp
-            ExactSample(ONNX.load_inference(pp))
+            s = ExactSample(load_inference(pp))
         end
+        s
     end
 
     # Construct location with metadata
@@ -854,7 +858,8 @@ function RemoteImageSource(remotepath, remote_source=nothing, remote_sample=noth
 
     loc_for_reading, metadata_for_reading = if !isnothing(files) && !isempty(files)
         (
-            "Remote",
+            # TODO: Change this back to Remote and then have locations in the PF dispatch table entry require the format to be Image
+            "RemoteImage",
             Dict(
                 "path" => remotepath,
                 "files" => files,  # either a serialized generator or list of filepaths
