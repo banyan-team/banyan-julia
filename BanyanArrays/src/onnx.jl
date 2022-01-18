@@ -83,11 +83,14 @@ function (is::InferenceSession)(inputs, output_names=nothing)
     end
 
     @partitioned is dynamic_axis input_name A res res_size begin
+        println("Started running ONNX model")
         if dynamic_axis
             res = first(values(is(Dict(input_name  => A))))
         else
+            @show collect(2:ndims(A))
             res = Base.mapslices(arr -> first(values(is(Dict(input_name => arr)))), A, dims=collect(2:ndims(A)))
         end
+        println("Finished running ONNX model")
         res_size = Base.size(res)
     end
 
