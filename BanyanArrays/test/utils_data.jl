@@ -74,8 +74,8 @@ function get_test_path(src, format, filetype, nimages, bucket_name)
                 )
             elseif filetype == "jpg"
                 (
-                    get_satellite_image_path(i)
-                    for i=1:4  # NOTE: max ~70
+                1:4,
+                i -> "https://gibs.earthdata.nasa.gov/wmts/epsg4326/best/MODIS_Terra_CorrectedReflectance_TrueColor/default/2012-07-09/250m/6/13/$i.jpg"
                 )
             end
         end
