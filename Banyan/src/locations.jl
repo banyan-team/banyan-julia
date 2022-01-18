@@ -733,9 +733,15 @@ function RemoteImageSource(remotepath, remote_source=nothing, remote_sample=noth
     # read in again
 
     # Remote path is either a single file path, a list of file paths,
-    # or a generator. The file paths can either be S3 or HTTP
-    if isa(remotepath, Base.Generator)
-        files_to_read_from = remotepath
+    # or a tuple containing a range or Cartesian product of ranges and
+    # an anonymous function that accepts each one and returns a single path.
+    # The file paths can either be S3 or HTTP
+    if isa(remotepath, Tuple)
+        # Create a generator here for sampling
+        files_to_read_from = (
+            remotepath[2](idx...)
+            for idx in remotepath[1])
+        )
     else
 
         if !isa(remotepath, Base.Array)
@@ -778,8 +784,6 @@ function RemoteImageSource(remotepath, remote_source=nothing, remote_sample=noth
     # Initialize sample
     randomsample = nothing
 
-    println("HEREHEHRE: ", isnothing(remote_sample), isnothing(remote_source))
-
     if isnothing(remote_sample)
 
         samplesize = Banyan.get_max_exact_sample_length()
@@ -787,15 +791,16 @@ function RemoteImageSource(remotepath, remote_source=nothing, remote_sample=noth
 
         progressbar = Progress(length(files_to_read_from), "Collecting sample from $remotepath")
         for filep in files_to_read_from
-            println("next file")
             p = download_remote_path(filep)
             with_downloaded_path_for_reading(p) do pp
 
                 # Load file and collect metadata and sample
                 image = load(pp)
+                if add_channelview
+                    image = ImageCore.channelview(image)
+                end
 
                 if isnothing(remote_source) && !meta_collected
-                    println("collecting meta 1")
                     nbytes = length(image) * sizeof(eltype(image)) * nimages
                     ndims = length(size(image)) + 1 # first dim
                     dataeltype = eltype(image)
@@ -842,6 +847,9 @@ function RemoteImageSource(remotepath, remote_source=nothing, remote_sample=noth
 
             # Load file and collect metadata and sample
             image = load(pp)
+            if add_channelview
+                image = ImageCore.channelview(image)
+            end
 
             nbytes = length(image) * sizeof(eltype(image)) * nimages
             ndims = length(size(image)) + 1 # first dim
@@ -853,7 +861,7 @@ function RemoteImageSource(remotepath, remote_source=nothing, remote_sample=noth
 
     # Serialize generator
     if isnothing(remote_source)
-        files = isa(files_to_read_from, Base.Generator) ? Banyan.to_jl_value_contents(files_to_read_from) : files_to_read_from
+        files = isa(remotepath, Tuple) ? Banyan.to_jl_value_contents(remotepath) : files_to_read_from
     end
 
     loc_for_reading, metadata_for_reading = if !isnothing(files) && !isempty(files)
