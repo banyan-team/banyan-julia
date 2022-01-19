@@ -572,7 +572,7 @@ function Rebalance(
     whole_len = MPI.bcast(endidx, nworkers - 1, comm)
     io = IOBuffer()
     nbyteswritten = 0
-    counts::Vector{Int64} = []
+    counts::Base.Vector{Int64} = []
     for partition_idx = 1:npartitions
         # `Banyan.split_len` gives us the range that this partition needs
         partitionrange = Banyan.split_len(whole_len, partition_idx, npartitions)
@@ -707,7 +707,7 @@ function Shuffle(
         # Construct buffer for sending data
         io = IOBuffer()
         nbyteswritten = 0
-        a_counts::Vector{Int64} = []
+        a_counts::Base.Vector{Int64} = []
         for partition_idx = 1:nworkers
             if multidimensional
                 # TODO: If `isbitstype(eltype(e))`, we may want to pass it in

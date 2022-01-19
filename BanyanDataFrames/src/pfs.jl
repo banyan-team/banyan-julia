@@ -119,7 +119,7 @@ ReadBlockCSV, ReadBlockParquet, ReadBlockArrow = [
             # rows for the batch currently being processed by this worker
             nrows = loc_params["nrows"]
             rowrange = Banyan.split_len(nrows, batch_idx, nbatches, comm)
-            dfs::Vector{DataFrames.DataFrame} = []
+            dfs::Base.Vector{DataFrames.DataFrame} = []
             rowsscanned = 0
             for file in sort(loc_params["files"], by = filedict -> filedict["path"])
                 newrowsscanned = rowsscanned + file["nrows"]
@@ -516,7 +516,7 @@ function Rebalance(
     whole_len = MPI.bcast(endidx, nworkers - 1, comm)
     io = IOBuffer()
     nbyteswritten = 0
-    counts::Vector{Int64} = []
+    counts::Base.Vector{Int64} = []
     for partition_idx = 1:npartitions
         # `Banyan.split_len` gives us the range that this partition needs
         partitionrange = Banyan.split_len(whole_len, partition_idx, npartitions)
@@ -644,7 +644,7 @@ function Shuffle(
         # Create buffer for sending dataframe's rows to all the partitions
         io = IOBuffer()
         nbyteswritten = 0
-        df_counts::Vector{Int64} = []
+        df_counts::Base.Vector{Int64} = []
         for partition_idx = 1:nworkers
             Arrow.write(
                 io,
