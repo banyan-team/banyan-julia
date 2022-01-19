@@ -163,7 +163,7 @@ ReadBlockCSV, ReadBlockParquet, ReadBlockArrow = [
                     files_sorted_by_nrow = sort(loc_params["files"], by = filedict -> filedict["nrows"])
                     if isempty(files_sorted_by_nrow)
                         # This should not be empty for disk-spilled data
-                        DataFrame()
+                        DataFrames.DataFrame()
                     else
                         empty(DataFrames.DataFrame(Arrow.Table(Banyan.getpath(first(files_sorted_by_nrow)["path"])), copycols=false))
                     end
@@ -579,7 +579,7 @@ Banyan.Consolidate(part::Union{Nothing, DataFrames.GroupedDataFrame}, src_params
 
 function Banyan.Consolidate(part::AbstractDataFrame, src_params::Dict{String,Any}, dst_params::Dict{String,Any}, comm::MPI.Comm)
     io = IOBuffer()
-    Arrow.write(io, obj)
+    Arrow.write(io, part)
     sendbuf = MPI.Buffer(view(io.data, 1:io.size))
     recvvbuf = Banyan.buftovbuf(sendbuf, comm)
     # TODO: Maybe sometimes use gatherv if all sendbuf's are known to be equally sized
