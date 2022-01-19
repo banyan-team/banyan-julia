@@ -44,7 +44,7 @@ function read_arrow_file(path, header, readrange, filerowrange, dfs)
     rbrowrange = filerowrange.start:(filerowrange.start-1)
     for tbl in Arrow.Stream(path)
         rbrowrange = (rbrowrange.stop+1):(rbrowrange.stop+Tables.rowcount(tbl))
-        if isoverlapping(rbrowrange, rowrange)
+        if Banyan.isoverlapping(rbrowrange, rowrange)
             readrange =
                 max(rowrange.start, rbrowrange.start):min(
                     rowrange.stop,
@@ -126,7 +126,7 @@ ReadBlockCSV, ReadBlockParquet, ReadBlockArrow = [
                 filerowrange = (rowsscanned+1):newrowsscanned
                 # Check if the file corresponds to the range of rows for the batch
                 # currently being processed by this worker
-                if isoverlapping(filerowrange, rowrange)
+                if Banyan.isoverlapping(filerowrange, rowrange)
                     # Deterine path to read from
                     file_path = file["path"]
                     path = Banyan.getpath(file_path)
