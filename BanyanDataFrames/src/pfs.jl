@@ -401,7 +401,7 @@ function Banyan.SplitBlock(
 end
 
 function Banyan.SplitGroup(
-    src::DataFrames.DataFrame,
+    src::AbstractDataFrame,
     params,
     batch_idx::Integer,
     nbatches::Integer,
@@ -577,7 +577,7 @@ end
 # nothing.
 Banyan.Consolidate(part::Union{Nothing, DataFrames.GroupedDataFrame}, src_params::Dict{String,Any}, dst_params::Dict{String,Any}, comm::MPI.Comm) = nothing
 
-function Consolidate(part::DataFrames.DataFrame, src_params::Dict{String,Any}, dst_params::Dict{String,Any}, comm::MPI.Comm)
+function Banyan.Consolidate(part::AbstractDataFrame, src_params::Dict{String,Any}, dst_params::Dict{String,Any}, comm::MPI.Comm)
     io = IOBuffer()
     Arrow.write(io, obj)
     sendbuf = MPI.Buffer(view(io.data, 1:io.size))
@@ -598,7 +598,7 @@ function Consolidate(part::DataFrames.DataFrame, src_params::Dict{String,Any}, d
 end
 
 function Shuffle(
-    part::DataFrames.DataFrame,
+    part::AbstractDataFrame,
     src_params::Dict{String,Any},
     dst_params::Dict{String,Any},
     comm::MPI.Comm;
