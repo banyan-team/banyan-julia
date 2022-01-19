@@ -739,7 +739,7 @@ macro partitioned(ex...)
 
             # Issue destroy request for mutated futures that are no longer
             # going to be used
-            if any((fut.value_id == f.value_id for f in keys(task.mutation)))
+            if any((fut.value_id == f.value_id for f in keys(task.mutation))) && !any((fut.value_id == f.value_id for f in values(task.mutation)))
                 record_request(DestroyRequest(fut.value_id))
             end
         end
