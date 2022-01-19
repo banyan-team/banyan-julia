@@ -217,7 +217,7 @@ SplitGroup(
     store_splitting_divisions = false
 ) = nothing
 
-Consolidate(part, src_params::Dict{String,Any}, dst_params::Dict{String,Any}, comm::MPI.Comm) =
+Consolidate(part::Any, src_params::Dict{String,Any}, dst_params::Dict{String,Any}, comm::MPI.Comm) =
     error("Consolidating $(typeof(part)) not supported")
 
 function Merge(
