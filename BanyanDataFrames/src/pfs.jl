@@ -141,7 +141,7 @@ ReadBlockCSV, ReadBlockParquet, ReadBlockArrow = [
                     # TODO: Scale the memory usage appropriately when splitting with
                     # this and garbage collect if too much memory is used.
                     if endswith(file_path, file_extension)
-                        write_file(path, header, readrange, filerowrange, dfs)
+                        read_file(path, header, readrange, filerowrange, dfs)
                     else
                         error("Expected file with $file_extension extension")
                     end
