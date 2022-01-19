@@ -118,7 +118,7 @@ ReadBlockCSV, ReadBlockParquet, ReadBlockArrow = [
             # Iterate through files and identify which ones correspond to the range of
             # rows for the batch currently being processed by this worker
             nrows = loc_params["nrows"]
-            rowrange = split_len(nrows, batch_idx, nbatches, comm)
+            rowrange = Banyan.split_len(nrows, batch_idx, nbatches, comm)
             dfs::Vector{DataFrames.DataFrame} = []
             rowsscanned = 0
             for file in sort(loc_params["files"], by = filedict -> filedict["path"])
@@ -518,8 +518,8 @@ function Rebalance(
     nbyteswritten = 0
     counts::Vector{Int64} = []
     for partition_idx = 1:npartitions
-        # `split_len` gives us the range that this partition needs
-        partitionrange = split_len(whole_len, partition_idx, npartitions)
+        # `Banyan.split_len` gives us the range that this partition needs
+        partitionrange = Banyan.split_len(whole_len, partition_idx, npartitions)
 
         # Check if the range overlaps with the range owned by this worker
         rangesoverlap =

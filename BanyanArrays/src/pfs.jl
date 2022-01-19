@@ -33,7 +33,7 @@ function ReadBlockHDF5(
     # else
     dim = params["key"]
     dimsize = size(dset, dim)
-    dimrange = split_len(dimsize, batch_idx, nbatches, comm)
+    dimrange = Banyan.split_len(dimsize, batch_idx, nbatches, comm)
     dset = if length(dimrange) == 0
         # If we want to read in an emoty dataset, it's a little tricky to
         # do that with HDF5.jl. But this is how we do it:
@@ -196,7 +196,7 @@ function WriteHDF5(
             dset,
             part,
             [
-                # d == dim ? split_len(whole_size[dim], batch_idx, nbatches, comm) :
+                # d == dim ? Banyan.split_len(whole_size[dim], batch_idx, nbatches, comm) :
                 if d == dim
                     (offset+1):(offset+size(part, dim))
                 else
@@ -362,7 +362,7 @@ function WriteHDF5(
                         else
                             Colon()
                         end
-                        # split_len(whole_size[dim], batch_idx, nbatches, comm) : Colon()
+                        # Banyan.split_len(whole_size[dim], batch_idx, nbatches, comm) : Colon()
                         for d = 1:ndims(dset)
                     ]...,
                 )
@@ -574,8 +574,8 @@ function Rebalance(
     nbyteswritten = 0
     counts::Vector{Int64} = []
     for partition_idx = 1:npartitions
-        # `split_len` gives us the range that this partition needs
-        partitionrange = split_len(whole_len, partition_idx, npartitions)
+        # `Banyan.split_len` gives us the range that this partition needs
+        partitionrange = Banyan.split_len(whole_len, partition_idx, npartitions)
 
         # Check if the range overlaps with the range owned by this worker
         rangesoverlap =

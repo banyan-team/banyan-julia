@@ -381,7 +381,7 @@ function RemoteTableSource(remotepath; shuffled=false, source_invalid = false, s
                     "nrows" => totalnrows,
                     "nbytes" => nbytes,
                     "emptysample" => to_jl_value_contents(empty(randomsample)),
-                    "format" => splitext(remotepath)
+                    "format" => splitext(remotepath)[2][2:end]
                 )
             )
         else
@@ -436,7 +436,7 @@ function RemoteTableDestination(remotepath; invalidate_source = true, invalidate
                 "files" => [],
                 "nrows" => 0,
                 "nbytes" => 0,
-                "format" => splitext(remotepath)
+                "format" => splitext(remotepath)[2][2:end]
             )
         )
 
