@@ -145,7 +145,21 @@ export is_debug_on,
     download_remote_path,
     with_downloaded_path_for_reading,
     configure_scheduling,
-    orderinghash
+    orderinghash,
+    get_worker_idx,
+    get_nworkers,
+    get_partition_idx,
+    split_len,
+    split_on_executor,
+    merge_on_executor,
+    get_partition_idx_from_divisions,
+    isoverlapping,
+    to_jl_value,
+    to_jl_value_contents,
+    from_jl_value_contents,
+    to_vector,
+    get_divisions,
+    getpath
 
 # Partitioning functions for usage in jobs that run on the cluster; dispatched
 # based on `res/pf_dispatch_table.json`.
