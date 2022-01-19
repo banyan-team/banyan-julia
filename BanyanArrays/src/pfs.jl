@@ -416,9 +416,9 @@ function WriteHDF5(
     end
 end
 
-CopyFromHDF5(src, params, batch_idx, nbatches, comm, loc_name, loc_param,) = begin
+CopyFromHDF5(src, params, batch_idx, nbatches, comm, loc_name, loc_params) = begin
     params["key"] = 1
-    ReadBlockHDF5(src, params, 1, 1, MPI.COMM_SELF, loc_name, loc_params)s
+    ReadBlockHDF5(src, params, 1, 1, MPI.COMM_SELF, loc_name, loc_params)
 end
 
 CopyToHDF5(

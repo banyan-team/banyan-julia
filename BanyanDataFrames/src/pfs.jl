@@ -323,19 +323,19 @@ WriteParquet, WriteCSV, WriteArrow = [
     for write_file in [write_parquet_file, write_csv_file, write_arrow_file]
 ]
 
-CopyFromArrow(src, params, batch_idx, nbatches, comm, loc_name, loc_param,) = begin
+CopyFromArrow(src, params, batch_idx, nbatches, comm, loc_name, loc_params) = begin
     params["key"] = 1
-    ReadBlockArrow(src, params, 1, 1, MPI.COMM_SELF, loc_name, loc_params)s
+    ReadBlockArrow(src, params, 1, 1, MPI.COMM_SELF, loc_name, loc_params)
 end
 
-CopyFromCSV(src, params, batch_idx, nbatches, comm, loc_name, loc_param,) = begin
+CopyFromCSV(src, params, batch_idx, nbatches, comm, loc_name, loc_params) = begin
     params["key"] = 1
-    ReadBlockCSV(src, params, 1, 1, MPI.COMM_SELF, loc_name, loc_params)s
+    ReadBlockCSV(src, params, 1, 1, MPI.COMM_SELF, loc_name, loc_params)
 end
 
-CopyFromParquet(src, params, batch_idx, nbatches, comm, loc_name, loc_param,) = begin
+CopyFromParquet(src, params, batch_idx, nbatches, comm, loc_name, loc_params) = begin
     params["key"] = 1
-    ReadBlockParquet(src, params, 1, 1, MPI.COMM_SELF, loc_name, loc_params)s
+    ReadBlockParquet(src, params, 1, 1, MPI.COMM_SELF, loc_name, loc_params)
 end
 
 CopyToCSV(
@@ -378,19 +378,6 @@ CopyToArrow(
 ) = if Banyan.get_partition_idx(batch_idx, nbatches, comm) == 1
     params["key"] = 1
     WriteHDF5(src, part, params, 1, 1, MPI.COMM_SELF, loc_name, loc_params)
-end
-
-function CopyTo(
-    src,
-    part::GroupedDataFrame,
-    params,
-    batch_idx::Integer,
-    nbatches::Integer,
-    comm::MPI.Comm,
-    loc_name,
-    loc_params,
-)
-    src = nothing
 end
 
 function Banyan.SplitBlock(
