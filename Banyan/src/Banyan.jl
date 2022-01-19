@@ -160,7 +160,8 @@ export is_debug_on,
     from_jl_value_contents,
     to_vector,
     get_divisions,
-    getpath
+    getpath,
+    buftovbuf
 
 # Partitioning functions for usage in jobs that run on the cluster; dispatched
 # based on `res/pf_dispatch_table.json`.

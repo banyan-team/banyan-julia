@@ -419,16 +419,16 @@ end
 #     end
 # end
 
-# function buftovbuf(buf::MPI.Buffer, comm::MPI.Comm)::MPI.VBuffer
-#     # This function expects that the given buf has buf.data being an array.
-#     # Basically what it does is it takes the result of a call to tobuf above
-#     # on each process and constructs a VBuffer with the sum of the sizes of the
-#     # buffers on different processes.
-#     sizes = MPI.Allgather(buf.count, comm)
-#     # NOTE: This function should only be used for variably-sized buffers for
-#     # receiving data because the returned buffer contains zeroed-out memory.
-#     VBuffer(similar(buf.data, sum(sizes)), sizes)
-# end
+function buftovbuf(buf::MPI.Buffer, comm::MPI.Comm)::MPI.VBuffer
+    # This function expects that the given buf has buf.data being an array.
+    # Basically what it does is it takes the result of a call to tobuf above
+    # on each process and constructs a VBuffer with the sum of the sizes of the
+    # buffers on different processes.
+    sizes = MPI.Allgather(buf.count, comm)
+    # NOTE: This function should only be used for variably-sized buffers for
+    # receiving data because the returned buffer contains zeroed-out memory.
+    VBuffer(similar(buf.data, sum(sizes)), sizes)
+end
 
 # function bufstosendvbuf(bufs::Vector{MPI.Buffer}, comm::MPI.Comm)::MPI.VBuffer
 #     sizes = [length(buf.data) for buf in bufs]

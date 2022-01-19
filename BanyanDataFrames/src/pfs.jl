@@ -486,7 +486,7 @@ Rebalance(
 ) = nothing
 
 function Rebalance(
-    part::DataFrame,
+    part::AbstractDataFrame,
     src_params::Dict{String,Any},
     dst_params::Dict{String,Any},
     comm::MPI.Comm
