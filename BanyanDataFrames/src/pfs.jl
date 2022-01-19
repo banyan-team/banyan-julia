@@ -351,7 +351,7 @@ CopyToCSV(
     loc_params,
 ) = if Banyan.get_partition_idx(batch_idx, nbatches, comm) == 1
     params["key"] = 1
-    WriteHDF5(src, part, params, 1, 1, MPI.COMM_SELF, loc_name, loc_params)
+    WriteCSV(src, part, params, 1, 1, MPI.COMM_SELF, loc_name, loc_params)
 end
 
 CopyToParquet(
@@ -365,7 +365,7 @@ CopyToParquet(
     loc_params,
 ) = if Banyan.get_partition_idx(batch_idx, nbatches, comm) == 1
     params["key"] = 1
-    WriteHDF5(src, part, params, 1, 1, MPI.COMM_SELF, loc_name, loc_params)
+    WriteParquet(src, part, params, 1, 1, MPI.COMM_SELF, loc_name, loc_params)
 end
 
 CopyToArrow(
@@ -379,7 +379,7 @@ CopyToArrow(
     loc_params,
 ) = if Banyan.get_partition_idx(batch_idx, nbatches, comm) == 1
     params["key"] = 1
-    WriteHDF5(src, part, params, 1, 1, MPI.COMM_SELF, loc_name, loc_params)
+    WriteArrow(src, part, params, 1, 1, MPI.COMM_SELF, loc_name, loc_params)
 end
 
 function Banyan.SplitBlock(
