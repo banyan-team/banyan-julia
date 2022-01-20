@@ -716,15 +716,17 @@ macro partitioned(ex...)
         # Ensure that all the outputs have the same sample rate
         output_sample_rate = nothing
         output_sample_rate_from_scaled = false
+        is_anything_mutated = false
         for fut in splatted_futures
             is_fut_mutated = task.effects[fut.value_id] == "MUT"
             is_fut_scaled = any(fut.value_id == f.value_id for f in task.scaled)
+            is_anything_mutated = is_anything_mutated || is_fut_mutated
             if !output_sample_rate_from_scaled && is_fut_mutated
                 output_sample_rate = sample(fut, :rate)
                 output_sample_rate_from_scaled = is_fut_scaled
             end
         end
-        !isnothing(output_sample_rate) || error("Failed to compute output sample rate")
+        !isnothing(output_sample_rate) || !is_anything_mutated || error("Failed to compute output sample rate")
         for fut in splatted_futures
             is_fut_mutated = task.effects[fut.value_id] == "MUT"
             is_fut_scaled = any(fut.value_id == f.value_id for f in task.scaled)

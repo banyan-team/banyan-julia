@@ -70,7 +70,8 @@ export ReadBlockCSV,
     SplitGroup,
     Rebalance,
     Consolidate,
-    Shuffle
+    Shuffle,
+    ReturnNullGrouping
 
 export RemoteTableSource, RemoteTableDestination
 
