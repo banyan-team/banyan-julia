@@ -78,7 +78,8 @@ export Job,
 # Session management
 export start_session,
     end_session,
-    get_session_status
+    get_session_status,
+    wait_for_session
 
 # Futures
 export AbstractFuture, Future, partitioned_computation, write_to_disk, collect
