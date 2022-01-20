@@ -157,7 +157,7 @@ function end_session(job_id::JobId = get_job_id(); failed = false, force = false
     global current_job_id
 
     @info "Ending session with ID $job_id"
-    request_params = Dict{String,Any}("job_id" => job_id, "failed" => failed)
+    request_params = Dict{String,Any}("job_id" => job_id, "failed" => failed, "force" => force)
     if !isnothing(resource_release_delay)
         request_params["resource_release_delay"] = resource_release_delay
     end
