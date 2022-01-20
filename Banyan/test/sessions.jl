@@ -3,7 +3,7 @@
 @testset "Start and end multiple sessions"
     Pkg.activate("envs/DataAnalysisProject/")
     cluster_name = ENV["BANYAN_CLUSTER_NAME"]
-    delay_time = 3
+    delay_time = 4
 
     # Start a session and end it
     job_id_1 = start_session(
@@ -15,7 +15,7 @@
     @test session_status == "running"
 
     end_session(job_id_1)
-    sleep(10)
+    sleep(30)
     session_status = get_session_status(job_id_1)
     @test session_status == "completed"
 
@@ -30,7 +30,7 @@
     @test job_id_2 == job_id_1
     
     end_session(job_id_2)
-    sleep(10)
+    sleep(30)
     session_status = get_session_status(job_id_2)
     @test session_status == "completed"
 
@@ -46,7 +46,7 @@
     @test job_id_3 != job_id_1
     
     end_session(job_id_3)
-    sleep(10)
+    sleep(30)
     session_status = get_session_status(job_id_3)
     @test session_status == "completed"
 
