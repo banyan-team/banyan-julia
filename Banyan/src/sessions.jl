@@ -24,7 +24,7 @@ function start_session(;
     force_install::Union{Bool,Nothing} = false,
     force_restart::Union{Bool,Nothing} = false,
     nowait::Bool=false,
-    email_address::String=nothing,
+    email_when_ready::Union{Bool,Nothing}=nothing,
     kwargs...,
 )::JobId  # TODO: This should return a session ID
 
@@ -59,7 +59,7 @@ function start_session(;
         "main_modules" => get_loaded_packages(),
         "using_modules" => using_modules,
         "force_restart" => force_restart,
-        "email_address" => email_address,
+        "email_when_ready" => email_when_ready,
     )
     if !isnothing(session_name)
         session_configuration["session_name"] = session_name
