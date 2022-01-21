@@ -425,7 +425,7 @@ function buftovbuf(buf::MPI.Buffer, comm::MPI.Comm)::MPI.VBuffer
     # on each process and constructs a VBuffer with the sum of the sizes of the
     # buffers on different processes.
     sizes = MPI.Allgather(buf.count, comm)
-    println("In buftovbuf with buf.count=$(buf.count) size=$sizes")
+    println("In buftovbuf with buf.count=$(buf.count) sizes=$sizes, typeof(buf.data)=$(typeof(buf.data))")
     # NOTE: This function should only be used for variably-sized buffers for
     # receiving data because the returned buffer contains zeroed-out memory.
     VBuffer(similar(buf.data, sum(sizes)), sizes)

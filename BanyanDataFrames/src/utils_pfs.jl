@@ -14,7 +14,7 @@ Banyan.split_on_executor(
 ) = nothing
 
 # If this is a dataframe then we ignore the grouping key
-function merge_on_executor(obj::Vararg{DataFrame,M}; key = nothing) where {M}
+function merge_on_executor(obj::Vararg{AbstractDataFrame,M}; key = nothing) where {M}
     if length(obj) == 1
         obj[1]
     else
