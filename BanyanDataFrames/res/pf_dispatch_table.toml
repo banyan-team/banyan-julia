@@ -53,7 +53,7 @@ scale_by = 6
 views = false
 required = { name = "Distributing", distribution = "grouped", id = "!" }
 default = { rev = false }
-locations = [ { name = "Remote", format = "arrow" }, { name = "Disk", format = "DataFrame" } ]
+locations = [ { name = "Remote", format = "arrow" }, { name = "Disk", datatype = "DataFrame" } ]
 
 [splits.CopyFromCSV]
 partition_memory_usage = "all"
@@ -77,7 +77,7 @@ partition_memory_usage = "all"
 scale_by = 3
 views = false
 required = { name = "Replicating", dividing = false }
-locations = [ { name = "Remote", format = "arrow" }, { name = "Disk", format = "DataFrame" } ]
+locations = [ { name = "Remote", format = "arrow" }, { name = "Disk", datatype = "DataFrame" } ]
 
 [merges.ReturnNullGrouping]
 partition_memory_usage = "none"
@@ -104,7 +104,7 @@ partition_memory_usage = "part"
 scale_by = 0
 views = false
 required = { name = "Distributing" }
-locations = [ { name = "Remote", format = "arrow" }, { name = "Disk", format = "DataFrame" } ]
+locations = [ { name = "Remote", format = "arrow" }, { name = "Disk", datatype = "DataFrame" } ]
 
 [merges.CopyToCSV]
 partition_memory_usage = "all"
@@ -125,6 +125,6 @@ partition_memory_usage = "all"
 scale_by = 0
 views = false
 required = { name = "Replicating", replication = "all" }
-locations = [ { name = "Remote", format = "arrow" }, { name = "Disk", format = "DataFrame" } ]
+locations = [ { name = "Remote", format = "arrow" }, { name = "Disk", datatype = "DataFrame" } ]
 
 casts = { }
