@@ -599,7 +599,7 @@ function Banyan.Consolidate(part::AbstractDataFrame, src_params::Dict{String,Any
         ]...;
         key = 1
     )
-    println("In end of Consolidate with $(nrow(res)) rows")
+    println("In end of Consolidate with $(nrow(res)) rows and io.size=$(io.size), Banyan.get_nworkers(comm)=$(Banyan.get_nworkers(comm)), recvvbuf.counts=$(recvvbuf.counts), recvvbuf.displs=$(recvvbuf.displs)")
     res
 end
 
