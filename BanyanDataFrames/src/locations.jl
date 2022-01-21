@@ -106,7 +106,7 @@ function RemoteTableSource(remotepath; shuffled=false, source_invalid = false, s
                     chunks = if endswith(localfilepathp, ".csv")
                         get_csv_chunks(localfilepathp)
                     elseif endswith(localfilepathp, ".parquet")
-                        Tables.partitions(read_parquet(localfilepathp))
+                        Tables.partitions(Parquet.read_parquet(localfilepathp))
                     elseif endswith(localfilepathp, ".arrow")
                         Arrow.Stream(localfilepathp)
                     else
@@ -232,7 +232,7 @@ function RemoteTableSource(remotepath; shuffled=false, source_invalid = false, s
                     chunks = if endswith(localfilepathp, ".csv")
                         get_csv_chunks(localfilepathp)
                     elseif endswith(localfilepathp, ".parquet")
-                        Tables.partitions(read_parquet(localfilepathp))
+                        Tables.partitions(Parquet.read_parquet(localfilepathp))
                     elseif endswith(localfilepathp, ".arrow")
                         Arrow.Stream(localfilepathp)
                     else

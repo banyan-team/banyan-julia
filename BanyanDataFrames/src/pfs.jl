@@ -22,7 +22,7 @@ ReturnNullGrouping(
     src
 end
 
-function read_csv_file(path, header, readrange, filerowrange, dfs)
+function read_csv_file(path, header, rowrange, readrange, filerowrange, dfs)
     f = CSV.File(
         path,
         header = header,
@@ -32,7 +32,7 @@ function read_csv_file(path, header, readrange, filerowrange, dfs)
     push!(dfs, DataFrames.DataFrame(f, copycols=false))
 end
 
-function read_parquet_file(path, header, readrange, filerowrange, dfs)
+function read_parquet_file(path, header, rowrange, readrange, filerowrange, dfs)
     f = Parquet.read_parquet(
         path,
         rows = (readrange.start-filerowrange.start+1):(readrange.stop-filerowrange.start+1),
@@ -40,7 +40,7 @@ function read_parquet_file(path, header, readrange, filerowrange, dfs)
     push!(dfs, DataFrames.DataFrame(f, copycols=false))
 end
 
-function read_arrow_file(path, header, readrange, filerowrange, dfs)
+function read_arrow_file(path, header, rowrange, readrange, filerowrange, dfs)
     rbrowrange = filerowrange.start:(filerowrange.start-1)
     for tbl in Arrow.Stream(path)
         rbrowrange = (rbrowrange.stop+1):(rbrowrange.stop+Tables.rowcount(tbl))
@@ -141,7 +141,7 @@ ReadBlockCSV, ReadBlockParquet, ReadBlockArrow = [
                     # TODO: Scale the memory usage appropriately when splitting with
                     # this and garbage collect if too much memory is used.
                     if endswith(file_path, file_extension)
-                        read_file(path, header, readrange, filerowrange, dfs)
+                        read_file(path, header, rowrange, readrange, filerowrange, dfs)
                     else
                         error("Expected file with $file_extension extension")
                     end
@@ -589,6 +589,15 @@ function Banyan.Consolidate(part::AbstractDataFrame, src_params::Dict{String,Any
     # TODO: Maybe sometimes use gatherv if all sendbuf's are known to be equally sized
 
     MPI.Allgatherv!(sendbuf, recvvbuf, comm)
+    results = [
+        view(
+            recvvbuf.data,
+            (recvvbuf.displs[i]+1):(recvvbuf.displs[i]+recvvbuf.counts[i])
+        ) |> IOBuffer |> Arrow.Table |> DataFrames.DataFrame
+        for i in 1:Banyan.get_nworkers(comm)
+    ]
+    @show length(results)
+    @show nrow.(results)
     res = merge_on_executor(
         [
             view(
@@ -599,7 +608,7 @@ function Banyan.Consolidate(part::AbstractDataFrame, src_params::Dict{String,Any
         ]...;
         key = 1
     )
-    println("In end of Consolidate with $(nrow(res)) rows and io.size=$(io.size), Banyan.get_nworkers(comm)=$(Banyan.get_nworkers(comm)), recvvbuf.counts=$(recvvbuf.counts), recvvbuf.displs=$(recvvbuf.displs)")
+    println("In end of Consolidate with $(nrow(res)) rows and io.size=$(io.size), Banyan.get_nworkers(comm)=$(Banyan.get_nworkers(comm)), recvvbuf.counts=$(recvvbuf.counts), recvvbuf.displs=$(recvvbuf.displs), typeof(recvvbuf.data)=$(typeof(recvvbuf.data))")
     res
 end
 
