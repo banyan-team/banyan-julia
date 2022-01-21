@@ -155,7 +155,7 @@ ReadBlockCSV, ReadBlockParquet, ReadBlockArrow = [
             # guaranteed to have its ndims correct) and so if a split/merge/cast
             # function requires the schema (for example for grouping) then it must be
             # sure to take that account
-            if isempty(dfs)
+            res = if isempty(dfs)
                 # Note that if we are reading disk-spilled Arrow data, we would have
                 # files for each of the workers that wrote that data. So there should
                 # be files but they might be empty.
@@ -177,6 +177,8 @@ ReadBlockCSV, ReadBlockParquet, ReadBlockArrow = [
             else
                 vcat(dfs...)
             end
+            println("In ReadBlockCSV with $(nrow(res)) rows")
+            res
         end
         ReadBlock
     end
@@ -350,6 +352,7 @@ CopyToCSV(
     loc_name,
     loc_params,
 ) = if Banyan.get_partition_idx(batch_idx, nbatches, comm) == 1
+    println("In CopyToCSV with $(nrow(part)) rows")
     params["key"] = 1
     WriteCSV(src, part, params, 1, 1, MPI.COMM_SELF, loc_name, loc_params)
 end
@@ -578,6 +581,7 @@ end
 Banyan.Consolidate(part::Union{Nothing, DataFrames.GroupedDataFrame}, src_params::Dict{String,Any}, dst_params::Dict{String,Any}, comm::MPI.Comm) = nothing
 
 function Banyan.Consolidate(part::AbstractDataFrame, src_params::Dict{String,Any}, dst_params::Dict{String,Any}, comm::MPI.Comm)
+    println("In start of Consolidate with $(nrow(part)) rows")
     io = IOBuffer()
     Arrow.write(io, part)
     sendbuf = MPI.Buffer(view(io.data, 1:io.size))
@@ -585,7 +589,7 @@ function Banyan.Consolidate(part::AbstractDataFrame, src_params::Dict{String,Any
     # TODO: Maybe sometimes use gatherv if all sendbuf's are known to be equally sized
 
     MPI.Allgatherv!(sendbuf, recvvbuf, comm)
-    merge_on_executor(
+    res = merge_on_executor(
         [
             view(
                 recvvbuf.data,
@@ -595,6 +599,8 @@ function Banyan.Consolidate(part::AbstractDataFrame, src_params::Dict{String,Any
         ]...;
         key = 1
     )
+    println("In end of Consolidate with $(nrow(res)) rows")
+    res
 end
 
 function Shuffle(

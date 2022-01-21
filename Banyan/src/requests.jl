@@ -47,14 +47,12 @@ function partitioned_computation(handler, fut::AbstractFuture; destination, new_
         # TODO: Check to ensure that `fut` is annotated
         # This creates an empty final task that ensures that the future
         # will be scheduled to get sent to its destination.
-        @show fut.value_id get_location(fut)
         destined(fut, destination)
         mutated(fut)
         partitioned_with(scaled=fut) do
             handler()
         end
         @partitioned fut begin end
-        @show fut.value_id get_location(fut)
 
         # Get all tasks to be recorded in this call to `compute`
         tasks = [req.task for req in job.pending_requests if req isa RecordTaskRequest]
@@ -143,8 +141,6 @@ function partitioned_computation(handler, fut::AbstractFuture; destination, new_
             end
         end
 
-        @show fut.value_id get_location(fut)
-
         # Switch back to a new task for next code region
         finish_task()
 
@@ -178,7 +174,6 @@ function partitioned_computation(handler, fut::AbstractFuture; destination, new_
     
         # Destroy everything that is to be destroyed in this task
         for req in job.pending_requests
-            @show fut.value_id get_location(fut)
             # Don't destroy stuff where a `DestroyRequest` was produced just
             # because of a `mutated(old, new)`
             if req isa DestroyRequest && !any(req.value_id in values(t.mutation) for t in tasks)
@@ -197,13 +192,9 @@ function partitioned_computation(handler, fut::AbstractFuture; destination, new_
     
                 # Remove information about the value's location including the
                 # sample taken from it
-                @show req.value_id
                 delete!(job.locations, req.value_id)
             end
-            @show fut.value_id get_location(fut)
         end
-
-        @show fut.value_id get_location(fut)
     
         # Send evaluation request
         is_merged_to_disk = false
@@ -271,7 +262,6 @@ function partitioned_computation(handler, fut::AbstractFuture; destination, new_
 
         # Update `mutated` and `stale` for the future that is being evaluated
         fut.mutated = false
-        @show fut.value_id get_location(fut)
         # TODO: See if there are more cases where you a `compute` call on a future
         # makes it no longer stale
         if get_dst_name(fut) == "Client"

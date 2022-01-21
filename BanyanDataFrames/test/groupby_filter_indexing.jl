@@ -98,6 +98,8 @@
                     sub4 = read_file(sub4_save_path)
                 end
 
+                @show i sub4_save_path
+
                 # Collect results
                 sub4_nrow = nrow(sub4)
 
