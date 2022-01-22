@@ -26,7 +26,7 @@ partition_memory_usage = "part"
 scale_by = 3
 views = false
 required = { name = "Distributing", distribution = "blocked", id = "!" }
-locations = [ { name = "Remote", format = "parquet" }, { name = "Disk", datatype = "DataFrame" } ]
+locations = [ { name = "Remote", format = "arrow" }, { name = "Disk", datatype = "DataFrame" } ]
 
 [splits.ReadGroupCSV]
 expected = [ "key", "divisions" ]
