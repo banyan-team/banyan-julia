@@ -481,14 +481,14 @@ end
 # be merged to become nothing.
 # Grouped data frames can be block-partitioned but we will have to
 # redo the groupby if we try to do any sort of merging/splitting on it.
-Rebalance(
+Banyan.Rebalance(
     part::Union{Nothing,GroupedDataFrame},
     src_params::Dict{String,Any},
     dst_params::Dict{String,Any},
     comm::MPI.Comm
 ) = nothing
 
-function Rebalance(
+function Banyan.Rebalance(
     part::AbstractDataFrame,
     src_params::Dict{String,Any},
     dst_params::Dict{String,Any},

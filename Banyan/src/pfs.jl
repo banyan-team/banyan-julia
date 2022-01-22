@@ -488,6 +488,13 @@ end
 
 ReduceWithKey = Reduce
 
+Banyan.Rebalance(
+    part::Any,
+    src_params::Dict{String,Any},
+    dst_params::Dict{String,Any},
+    comm::MPI.Comm
+) = error("Rebalancing $(typeof(part)) not supported")
+
 function Distribute(part::T, src_params::Dict{String,Any}, dst_params::Dict{String,Any}, comm::MPI.Comm) where {T}
     # TODO: Determine whether copy is needed
     copy(SplitBlock(part, dst_params, 1, 1, comm, "Memory", Dict{String,Any}()))

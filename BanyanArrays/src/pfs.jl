@@ -539,7 +539,7 @@ function Banyan.SplitGroup(
     res
 end
 
-function Rebalance(
+function Banyan.Rebalance(
     part::AbstractArray,
     src_params::Dict{String,Any},
     dst_params::Dict{String,Any},
