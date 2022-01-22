@@ -33,9 +33,9 @@ split_len(src_len, batch_idx::Integer, nbatches::Integer, comm::MPI.Comm) = spli
     get_npartitions(nbatches, comm),
 )
 
-split_on_executor(src, d, i) = error("Splitting $(typeof(src)) not supported")
+Banyan.split_on_executor(src, d, i) = error("Splitting $(typeof(src)) not supported")
 
-split_on_executor(
+Banyan.split_on_executor(
     src::T,
     dim::Integer,
     batch_idx::Integer,
@@ -44,7 +44,7 @@ split_on_executor(
 ) where {T} = begin
     npartitions = get_npartitions(nbatches, comm)
     if npartitions > 1
-        split_on_executor(
+        Banyan.split_on_executor(
             src,
             dim,
             split_len(
@@ -58,7 +58,7 @@ split_on_executor(
     end
 end
 
-merge_on_executor(obj; key = nothing) = error("Merging $(typeof(obj)) not supported")
+Banyan.merge_on_executor(obj::Any; key = nothing) = error("Merging $(typeof(obj)) not supported")
 
 # # TODO: Make `merge_on_executor` and `tobuf` and `frombuf`
 # # dispatch based on the `kind` so we only have to precompile Arrow if we are
