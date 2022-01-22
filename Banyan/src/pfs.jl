@@ -232,7 +232,11 @@ function Merge(
 )
     # TODO: Ensure we can merge grouped dataframes if computing them
 
+    print("In Merge before get_splitting_divisions")
+
     splitting_divisions = get_splitting_divisions()
+
+    print("In Merge after get_splitting_divisions")
 
     # TODO: To allow for mutation of a value, we may want to remove this
     # condition
@@ -253,18 +257,21 @@ function Merge(
         # Concatenate across batches
         src = merge_on_executor(src.pieces...; key = key)
 
+        print("In Merge after merge_on_executor")
+
         # Concatenate across workers
         nworkers = get_nworkers(comm)
         if nworkers > 1
             src = Consolidate(src, params, Dict{String,Any}(), comm)
         end
+        print("In Merge after Consolidate")
     end
 
     src
 end
 
 Merge(
-    src,
+    src::Any,
     part,
     params::Dict{String,Any},
     batch_idx::Integer,
@@ -317,7 +324,10 @@ CopyFromJulia(
     comm::MPI.Comm,
     loc_name,
     loc_params,
-) = isfile(getpath(loc_params["path"])) ? deserialize(path) : nothing
+) = begin
+    path = getpath(loc_params["path"])
+    isfile(path) ? deserialize(path) : nothing
+end
 
 function CopyTo(
     src,
@@ -361,7 +371,7 @@ CopyToJulia(
     # if isa_gdf(part)
     #     part = nothing
     # end
-    serialize(path, part)
+    serialize(path, getpath(loc_params["path"]))
 end
 
 function get_op!(params::Dict{String,Any})
@@ -401,17 +411,21 @@ function ReduceAndCopyToJulia(
     # Merge reductions from batches
     op = get_op!(params)
     # TODO: Ensure that we handle reductions that can produce nothing
+    print("In ReduceAndCopyToJulia")
     src = reduce_in_memory(src, part, op)
+    print("In ReduceAndCopyToJulia after reduce_in_memory")
 
     # Merge reductions across workers
     if batch_idx == nbatches
         src = Reduce(src, params, Dict{String,Any}(), comm)
+        print("In ReduceAndCopyToJulia after Reduce")
 
         if loc_name != "Memory"
             # We use 1 here so that it is as if we are copying from the head
             # node
             CopyToJulia(src, src, params, 1, nbatches, comm, loc_name, loc_params)
         end
+        print("In ReduceAndCopyToJulia after CopyToJulia")
     end
 
     # TODO: Ensure we don't have issues where with batched execution we are

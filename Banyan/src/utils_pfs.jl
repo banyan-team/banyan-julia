@@ -42,6 +42,7 @@ split_on_executor(
     nbatches::Integer,
     comm::MPI.Comm,
 ) where {T} = begin
+    print("In split_on_executor")
     npartitions = get_npartitions(nbatches, comm)
     if npartitions > 1
         Banyan.split_on_executor(
