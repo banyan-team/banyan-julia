@@ -232,11 +232,11 @@ function Merge(
 )
     # TODO: Ensure we can merge grouped dataframes if computing them
 
-    print("In Merge before get_splitting_divisions")
+    println("In Merge before get_splitting_divisions")
 
     splitting_divisions = get_splitting_divisions()
 
-    print("In Merge after get_splitting_divisions")
+    println("In Merge after get_splitting_divisions")
 
     # TODO: To allow for mutation of a value, we may want to remove this
     # condition
@@ -257,14 +257,14 @@ function Merge(
         # Concatenate across batches
         src = merge_on_executor(src.pieces...; key = key)
 
-        print("In Merge after merge_on_executor")
+        println("In Merge after merge_on_executor")
 
         # Concatenate across workers
         nworkers = get_nworkers(comm)
         if nworkers > 1
             src = Consolidate(src, params, Dict{String,Any}(), comm)
         end
-        print("In Merge after Consolidate")
+        println("In Merge after Consolidate")
     end
 
     src
@@ -411,21 +411,21 @@ function ReduceAndCopyToJulia(
     # Merge reductions from batches
     op = get_op!(params)
     # TODO: Ensure that we handle reductions that can produce nothing
-    print("In ReduceAndCopyToJulia")
+    println("In ReduceAndCopyToJulia")
     src = reduce_in_memory(src, part, op)
-    print("In ReduceAndCopyToJulia after reduce_in_memory")
+    println("In ReduceAndCopyToJulia after reduce_in_memory")
 
     # Merge reductions across workers
     if batch_idx == nbatches
         src = Reduce(src, params, Dict{String,Any}(), comm)
-        print("In ReduceAndCopyToJulia after Reduce")
+        println("In ReduceAndCopyToJulia after Reduce")
 
         if loc_name != "Memory"
             # We use 1 here so that it is as if we are copying from the head
             # node
             CopyToJulia(src, src, params, 1, nbatches, comm, loc_name, loc_params)
         end
-        print("In ReduceAndCopyToJulia after CopyToJulia")
+        println("In ReduceAndCopyToJulia after CopyToJulia")
     end
 
     # TODO: Ensure we don't have issues where with batched execution we are

@@ -220,6 +220,7 @@ WriteParquet, WriteCSV, WriteArrow = [
             loc_name,
             loc_params,
         )
+            println("In Write at start")
             # Get rid of splitting divisions if they were used to split this data into
             # groups
             splitting_divisions = Banyan.get_splitting_divisions()
@@ -319,6 +320,7 @@ WriteParquet, WriteCSV, WriteArrow = [
                 end
                 MPI.Barrier(comm)
             end
+            println("In Write at end")
             src
             # TODO: Delete all other part* files for this value if others exist
         end
