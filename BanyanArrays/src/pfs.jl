@@ -272,7 +272,7 @@ function WriteHDF5(
 
         # Each worker then writes their partition to a separate dataset
         # in parallel
-        partdsets[worker_idx][fill(Colon(), ndims(part))...] = part
+        partdsets[worker_idx][Base.fill(Colon(), ndims(part))...] = part
 
         # Close (flush) all the intermediate datasets that we have created
         # TODO: Try removing this barrier
@@ -344,7 +344,7 @@ function WriteHDF5(
 
                 # Write
                 group = group_prefix * "_part$idx" * "_dim=$dim"
-                partdset_reading = partdset[fill(Colon(), ndims(dset))...]
+                partdset_reading = partdset[Base.fill(Colon(), ndims(dset))...]
 
                 # # println("In writing worker_idx=$worker_idx, batch_idx=$batch_idx/$nbatches: after reading batch $batch_i with available memory: $(Banyan.format_available_memory())")
                 setindex!(
@@ -586,7 +586,7 @@ function Banyan.Rebalance(
             io,
             view(
                 part,
-                fill(:, dim - 1)...,
+                Base.fill(:, dim - 1)...,
                 if rangesoverlap
                     max(1, partitionrange.start - startidx + 1):min(
                         size(part, dim),
@@ -596,7 +596,7 @@ function Banyan.Rebalance(
                     # Return zero length for this dimension
                     1:0
                 end,
-                fill(:, ndims(part) - dim)...,
+                Base.fill(:, ndims(part) - dim)...,
             ),
         )
 

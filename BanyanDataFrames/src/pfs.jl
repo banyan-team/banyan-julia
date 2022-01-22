@@ -533,7 +533,7 @@ function Banyan.Rebalance(
             io,
             view(
                 part,
-                fill(:, dim - 1)...,
+                Base.fill(:, dim - 1)...,
                 if rangesoverlap
                     max(1, partitionrange.start - startidx + 1):min(
                         size(part, dim),
@@ -543,7 +543,7 @@ function Banyan.Rebalance(
                     # Return zero length for this dimension
                     1:0
                 end,
-                fill(:, ndims(part) - dim)...,
+                Base.fill(:, ndims(part) - dim)...,
             ),
         )
 

@@ -38,7 +38,7 @@ format_available_memory() =
 function sortablestring(val, maxval)
     s = string(val)
     maxs = string(maxval)
-    res = fill('0', length(maxs))
+    res = Base.fill('0', length(maxs))
     res[length(res)-length(s)+1:length(res)] .= collect(s)
     join(res)
 end
