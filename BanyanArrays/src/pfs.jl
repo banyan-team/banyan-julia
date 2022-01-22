@@ -117,7 +117,7 @@ function WriteHDF5(
     # of an unsupported HDF5 data type.
     # TODO: Support missing values in the array for locations that use
     # Julia serialized objects
-    part = DataFrames.disallowmissing(part)
+    part = Missings.disallowmissing(part)
 
     dim = params["key"]
     # TODO: Ensure that wherever we are using MPI for reduction or
