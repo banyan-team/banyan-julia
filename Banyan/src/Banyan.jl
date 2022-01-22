@@ -183,6 +183,7 @@ export ReturnNull,
     Divide,
     Reduce,
     ReduceWithKey,
+    Rebalance,
     Distribute,
     DistributeAndShuffle
 

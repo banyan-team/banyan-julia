@@ -488,7 +488,7 @@ end
 
 ReduceWithKey = Reduce
 
-Banyan.Rebalance(
+Rebalance(
     part::Any,
     src_params::Dict{String,Any},
     dst_params::Dict{String,Any},
