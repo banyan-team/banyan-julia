@@ -219,7 +219,6 @@ WriteParquet, WriteCSV, WriteArrow = [
             loc_name,
             loc_params,
         )
-            println("In Write at start")
             # Get rid of splitting divisions if they were used to split this data into
             # groups
             splitting_divisions = Banyan.get_splitting_divisions()
@@ -296,6 +295,7 @@ WriteParquet, WriteCSV, WriteArrow = [
             nrows = size(part, 1)
             sortableidx = Banyan.sortablestring(idx, get_npartitions(nbatches, comm))
             write_file(part, path, sortableidx, nrows)
+            println("In Write writing to path=$path with nrows=$nrows")
             MPI.Barrier(comm)
             if nbatches > 1 && batch_idx == nbatches
                 tmpdir = readdir(path)
@@ -311,6 +311,7 @@ WriteParquet, WriteCSV, WriteArrow = [
                         tmpsrc = joinpath(path, tmpdir[tmpdir_idx])
                         actualdst = joinpath(actualpath, tmpdir[tmpdir_idx])
                         cp(tmpsrc, actualdst, force=true)
+                        println("In Write copying from tmpsrc=$tmpsrc to actualdst=$actualdst")
                     end
                 end
                 MPI.Barrier(comm)
@@ -319,7 +320,6 @@ WriteParquet, WriteCSV, WriteArrow = [
                 end
                 MPI.Barrier(comm)
             end
-            println("In Write at end")
             src
             # TODO: Delete all other part* files for this value if others exist
         end
