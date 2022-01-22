@@ -13,7 +13,8 @@ function ReadBlockHDF5(
     path = Banyan.getpath(loc_params["path"])
     if !((loc_name == "Remote" && (occursin(".h5", loc_params["path"]) || occursin(".hdf5", loc_params["path"]))) ||
         (loc_name == "Disk" && HDF5.ishdf5(path)))
-        error("Expected HDF5 file to read in")
+        println("In ReadBlockHDF5 with loc_params=$loc_params, loc_name=$loc_name")
+        error("Expected HDF5 file to read in; failed to read from $path")
     end
        
     # @show isfile(path)
@@ -103,6 +104,8 @@ function WriteHDF5(
         # Prepend "efs/" for local paths
         path = Banyan.getpath(path)
     end
+
+    println("In WriteHDF5 with loc_params=$loc_params, loc_name=$loc_name, path=$path")
 
     worker_idx = Banyan.get_worker_idx(comm)
     idx = Banyan.get_partition_idx(batch_idx, nbatches, comm)
@@ -414,6 +417,8 @@ function WriteHDF5(
             MPI.Barrier(comm)
         end
     end
+
+    println("In WriteHDF5 at end with path=$path")
 end
 
 CopyFromHDF5(src, params, batch_idx, nbatches, comm, loc_name, loc_params) = begin
