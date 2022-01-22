@@ -371,7 +371,7 @@ CopyToJulia(
     # if isa_gdf(part)
     #     part = nothing
     # end
-    serialize(path, getpath(loc_params["path"]))
+    serialize(getpath(loc_params["path"]), part)
 end
 
 function get_op!(params::Dict{String,Any})
