@@ -75,8 +75,6 @@ ReadBlockCSV, ReadBlockParquet, ReadBlockArrow = [
             # TODO: Implement a Read for balanced=false where we can avoid duplicate
             # reading of the same range in different reads
 
-            @show loc_params
-            @show loc_name
             path = Banyan.getpath(loc_params["path"])
 
             # Handle multi-file tabular datasets
@@ -93,6 +91,7 @@ ReadBlockCSV, ReadBlockParquet, ReadBlockArrow = [
                 if isdir(name_path)
                     files = []
                     nrows = 0
+                    println("In ReadBlock for Disk with loc_params=$loc_params and name_path=$name_path and readdir(name_path)=$(readdir(name_path))")
                     for partfilename in readdir(name_path)
                         part_nrows = parse(
                             Int64,

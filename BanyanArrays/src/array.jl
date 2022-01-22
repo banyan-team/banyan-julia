@@ -413,7 +413,7 @@ function Base.reduce(op, A::Array{T,N}; dims=:, kwargs...) where {T,N}
 
     op = Future(op)
     res_size = Future()
-    res = dims isa Colon ? Future(datatype="Array") : Array{Any,Any}(Future(datatype="Array"), res_size)
+    res = dims isa Colon ? Future() : Array{Any,Any}(Future(datatype="Array"), res_size)
     dims = Future(dims)
     kwargs = Future(kwargs)
 
