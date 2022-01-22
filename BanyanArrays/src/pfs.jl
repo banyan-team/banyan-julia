@@ -110,10 +110,6 @@ function WriteHDF5(
     worker_idx = Banyan.get_worker_idx(comm)
     idx = Banyan.get_partition_idx(batch_idx, nbatches, comm)
 
-    if !hasmethod(HDF5.datatype, (eltype(part),))
-        error("Unable to write array with element type $(eltype(part)) to HDF5 dataset at $(loc_params["path"])")
-    end
-
     # TODO: Use Julia serialization to write arrays as well as other
     # objects to disk. This way, we won't trip up when we come across
     # a distributed array that we want to write to disk but can't because
@@ -121,6 +117,10 @@ function WriteHDF5(
     # TODO: Support missing values in the array for locations that use
     # Julia serialized objects
     part = Missings.disallowmissing(part)
+
+    if !hasmethod(HDF5.datatype, (eltype(part),))
+        error("Unable to write array with element type $(eltype(part)) to HDF5 dataset at $(loc_params["path"])")
+    end
 
     dim = params["key"]
     # TODO: Ensure that wherever we are using MPI for reduction or
