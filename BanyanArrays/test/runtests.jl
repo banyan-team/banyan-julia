@@ -47,6 +47,7 @@ function use_job_for_testing(
                     "banyan-julia/Banyan",
                     "banyan-julia/BanyanArrays"
                 ],
+                code_files=["file://foo.jl"],
                 # BANYAN_REUSE_RESOURCES should be 1 when the compute resources
                 # for sessions being run can be reused; i.e., there is no
                 # forced pulling, cloning, or installation going on. When it is

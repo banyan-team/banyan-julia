@@ -339,6 +339,7 @@ function CopyTo(
     loc_name,
     loc_params,
 )
+    println("In CopyTo with part=$part")
     src = part
 end
 
@@ -352,6 +353,7 @@ CopyToClient(
     loc_name,
     loc_params,
 ) =  if get_partition_idx(batch_idx, nbatches, comm) == 1
+    println("In CopyToClient with part=$part")
     send_to_client(loc_params["value_id"], part)
 end
 

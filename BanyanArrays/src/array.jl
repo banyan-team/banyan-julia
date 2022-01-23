@@ -68,7 +68,9 @@ end
 const Vector{T} = Array{T,1}
 const Matrix{T} = Array{T,2}
 
-Base.convert(::Type{Array{T,N}}, A::AbstractArray{T,N}) where {T,N} = Array{T,N}(Future(A), Future(size(A)))
+Base.convert(::Type{Array{T}}, A::AbstractArray{T,N}) where {T,N} = Array{T,N}(Future(A), Future(size(A)))
+Base.convert(::Type{Array}, arr::AbstractArray{T}) where {T} = convert(Array{T}, arr)
+Base.convert(::Type{Vector{T}}, arr::AbstractVector) where {T} = convert(Array{T}, arr)
 
 Banyan.convert(::Type{Future}, A::Array{T,N}) where {T,N} = A.data
 
@@ -339,6 +341,27 @@ function Base.map(f, c::Array{T,N}...; force_parallelism=false) where {T,N}
 
     # TODO: Determine whether array operations need to use mutated_from or mutated_to
 
+    if force_parallelism
+        # If we are forcing parallelism, we have an empty code region to
+        # allow for copying from sources like client side and then casting
+        # from replicated partitioning to distributed partitioning
+        partitioned_with(scaled=[res, c...]) do
+            # balanced
+            pt(first(c), Blocked(first(c), balanced=true))
+            pt(c[2:end]..., Blocked() & Balanced(), match=first(c), on=["key", "id"])
+    
+            # unbalanced
+            pt(first(c), Blocked(first(c), balanced=false, scaled_by_same_as=res))
+            pt(c[2:end]..., Unbalanced(scaled_by_same_as=first(c)), match=first(c))
+
+            # replicated
+            pt(c..., Replicated())
+        end
+
+        @partitioned c begin end
+    end
+        
+
     partitioned_with(scaled=[res, c...]) do
         # balanced
         pt(first(c), Blocked(first(c), balanced=true))
@@ -349,10 +372,10 @@ function Base.map(f, c::Array{T,N}...; force_parallelism=false) where {T,N}
         pt(c[2:end]..., res, Unbalanced(scaled_by_same_as=first(c)), match=first(c))
 
         # replicated
-        if !force_parallelism
-            pt(c..., res, f, Replicated())
-        else
+        if force_parallelism
             pt(f, Replicated())
+        else
+            pt(c..., res, f, Replicated())
         end
     end
 
@@ -364,6 +387,7 @@ function Base.map(f, c::Array{T,N}...; force_parallelism=false) where {T,N}
         # @show res
         # @show typeof(res)
         # @show eltype(res)
+        println("Result of map is res=$res")
     end
 
     # @show sample(res)

@@ -162,7 +162,8 @@ export is_debug_on,
     get_divisions,
     getpath,
     buftovbuf,
-    indexapply
+    indexapply,
+    PartiallyMerged
 
 # Partitioning functions for usage in jobs that run on the cluster; dispatched
 # based on `res/pf_dispatch_table.json`.

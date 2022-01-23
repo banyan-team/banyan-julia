@@ -5,7 +5,7 @@ struct DataFrame <: AbstractFuture
     # offset::Future
 end
 
-Base.convert(::Type{DataFrame}, df::AbstractDataFrame) where {T,N} = DataFrame(Future(df), Future(nrow(df)))
+Base.convert(::Type{DataFrame}, df::AbstractDataFrame) = DataFrame(Future(df), Future(nrow(df)))
 
 Banyan.convert(::Type{Future}, df::DataFrame) = df.data
 

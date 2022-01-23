@@ -1,3 +1,4 @@
+include("foo.jl")
 
 @testset "Filling with $scheduling_config for map-reduce" for scheduling_config in [
     "default scheduling",
@@ -221,10 +222,6 @@ end
     end
 end
 
-struct Foo
-    x::String
-end
-
 @testset "Communicating between client and executor with $scheduling_config for map-reduce" for scheduling_config in [
     "default scheduling",
     "parallelism encouraged",
@@ -232,14 +229,14 @@ end
 ]
     use_job_for_testing(scheduling_config_name = scheduling_config) do
 
-        x1 = convert(BanyanArray, [Foo(string(i)) for i in 1:100])
-        xx = map(f -> parse(Int64, f.x), xx)
+        x1 = convert(BanyanArrays.Array, [Foo(string(i)) for i in 1:100])
+        xx = map(f -> parse(Int64, f.x), x1)
 
         @test first(collect(x1)).x == "1"
-        @test first(collect(xx)).x == 1
+        @test first(collect(xx)) == 1
 
-        xx = map(f -> parse(Int64, f.x), xx; force_parallelism=true)
-        @test first(collect(xx)).x == 1
+        xx = map(f -> parse(Int64, f.x), x1; force_parallelism=true)
+        @test first(collect(xx)) == 1
     end
 end
 
