@@ -126,7 +126,7 @@ function ReadBlockJuliaArray(
         actual_size = indexapply(_ -> nrows, sample_size; index=dim)
         actual_part_size = indexapply(_ -> 0, actual_size; index=dim_partitioning)
         eltype = metadata["eltype"]
-        Array{eltype}(undef, actual_part_size)
+        Base.Array{eltype}(undef, actual_part_size)
     elseif length(dfs) == 1
         dfs[1]
     else
