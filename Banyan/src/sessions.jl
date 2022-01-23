@@ -24,7 +24,7 @@ function start_session(;
     force_install::Union{Bool,Nothing} = false,
     force_restart::Union{Bool,Nothing} = false,
     nowait::Bool=false,
-    email_when_ready::Union{Bool,Nothing}=nothing,
+    email_when_ready::Union{Bool,Nothing}=nothing, 
     kwargs...,
 )::JobId  # TODO: This should return a session ID
 
