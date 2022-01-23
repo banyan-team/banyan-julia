@@ -1,12 +1,12 @@
 Banyan.split_on_executor(src::AbstractDataFrame, d::Integer, i) = @view src[i, :]
-Banyan.split_on_executor(src::GroupedDataFrame, d::Integer, i) = nothing
+Banyan.split_on_executor(src::DataFrames.GroupedDataFrame, d::Integer, i) = nothing
 
 # In case we are trying to `Distribute` a grouped data frame,
 # we can't do that so we will simply return nothing so that the groupby
 # partitioned computation will redo the groupby.
 
 Banyan.split_on_executor(
-    src::Union{Nothing,GroupedDataFrame},
+    src::Union{Nothing,DataFrames.GroupedDataFrame},
     dim::Integer,
     batch_idx::Integer,
     nbatches::Integer,
@@ -22,5 +22,5 @@ function Banyan.merge_on_executor(obj::Vararg{AbstractDataFrame,M}; key = nothin
     end
 end
 
-Banyan.merge_on_executor(obj::Vararg{GroupedDataFrame{<:AbstractDataFrame},M}; key = nothing) where {M} = nothing
+Banyan.merge_on_executor(obj::Vararg{DataFrames.GroupedDataFrame{<:AbstractDataFrame},M}; key = nothing) where {M} = nothing
 Banyan.merge_on_executor(obj::Vararg{T,M}; key = nothing) where {T,M} = first(obj)

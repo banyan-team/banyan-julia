@@ -483,7 +483,7 @@ end
 # Grouped data frames can be block-partitioned but we will have to
 # redo the groupby if we try to do any sort of merging/splitting on it.
 Banyan.Rebalance(
-    part::Union{Nothing,GroupedDataFrame},
+    part::Union{Nothing,DataFrames.GroupedDataFrame},
     src_params::Dict{String,Any},
     dst_params::Dict{String,Any},
     comm::MPI.Comm
