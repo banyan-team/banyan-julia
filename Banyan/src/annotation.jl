@@ -387,7 +387,7 @@ function apply_mutation(mutation::Dict{Future,Future})
 
             # Swap (1) references in `futures_on_client` if either side of the
             # mutation is on the client
-            futures_on_client = get_job().futures_on_client
+            futures_on_client = get_session().futures_on_client
             if old.value_id in keys(futures_on_client) &&
                new.value_id in keys(futures_on_client)
                 futures_on_client[new.value_id], futures_on_client[old.value_id] =
@@ -401,7 +401,7 @@ function apply_mutation(mutation::Dict{Future,Future})
             end
 
             # Swap (2) other fields of the `Future`s and (3) their locations
-            job_locations = get_job().locations
+            session_locations = get_session().locations
             (
                 old.value,
                 new.value,
@@ -413,8 +413,8 @@ function apply_mutation(mutation::Dict{Future,Future})
                 new.stale,
                 old.total_memory_usage,
                 new.total_memory_usage,
-                job_locations[old.value_id],
-                job_locations[new.value_id],
+                session_locations[old.value_id],
+                session_locations[new.value_id],
             ) = (
                 new.value,
                 old.value,
@@ -426,8 +426,8 @@ function apply_mutation(mutation::Dict{Future,Future})
                 old.stale,
                 new.total_memory_usage,
                 old.total_memory_usage,
-                job_locations[new.value_id],
-                job_locations[old.value_id],
+                session_locations[new.value_id],
+                session_locations[old.value_id],
             )
         end
     end
@@ -506,7 +506,7 @@ macro partitioned(ex...)
 
         # If any sample computation fails, before we rethrow
         # the error (so that it is displayed in a notebook or crashes a
-        # script/Lambda function that is running the job) we ensure that
+        # script/Lambda function that is running the session) we ensure that
         # we haven't recorded a faulty task or messed up the state in any way.
 
         # Fill in task with code and value names pulled using the macror

@@ -311,12 +311,6 @@ method_to_string(method) = begin
         "destroy-cluster"
     elseif method == :describe_clusters
         "describe-clusters"
-    elseif method == :create_job
-        "create-job"
-    elseif method == :destroy_job
-        "destroy-job"
-    elseif method == :describe_jobs
-        "describe-jobs"
     elseif method == :start_session
         "start-session"
     elseif method == :end_session
@@ -420,18 +414,6 @@ function send_request_get_response_using_http(method, content::Dict)
             end
             if e.response.status != 504
                 throw(ErrorException(String(take!(IOBuffer(e.response.body)))))
-            # elseif method == :create_cluster
-            #     # println(
-            #     #     "Cluster creation in progress. Please check dashboard to view status.",
-            #     # )
-            # elseif method == :create_job
-            #     # println(
-            #     #     "Job creation in progress. Please check dashboard to view status.",
-            #     # )
-            # elseif method == :evaluate
-            #     # println(
-            #     #     "Evaluation is in progress. Please check dashboard to view status.",
-            #     # )
             end
             rethrow()
         else

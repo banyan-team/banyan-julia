@@ -175,7 +175,7 @@ function rmdir_on_nfs(actualpath)
     end
     # TODO: Also try to remove the directory itself right away although there
     # might still be .nfs files in it. This isn't too much of a problem since we _do_ try
-    # to remove all directories at the end of the job.
+    # to remove all directories at the end of the session.
 end
 
 mutable struct PartiallyMerged
