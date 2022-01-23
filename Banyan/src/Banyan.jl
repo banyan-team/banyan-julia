@@ -1,5 +1,5 @@
 # The Banyan client for Julia has 5 key parts:
-# - Job
+# - Session
 # - Future
 # - Location, src, dst, loc
 # - pt, pc
@@ -60,26 +60,19 @@ export Cluster,
     wait_for_cluster,
     upload_to_s3
 
-# Job management
-export Job,
-    with_job,
-    create_job,
-    destroy_job,
-    destroy_all_jobs,
-    set_job,
-    get_jobs,
-    get_job,
-    get_job_id,
-    get_job_status,
-    get_cluster_name,
-    get_running_jobs,
-    wait_for_job
-
 # Session management
-export start_session,
+export Session,
+    start_session,
     end_session,
+    end_all_sessions,
     get_session_status,
-    wait_for_session
+    get_session,
+    get_session_id,
+    get_sessions,
+    get_running_sessions,
+    get_cluster_name,
+    wait_for_session,
+    with_session
 
 # Futures
 export AbstractFuture, Future, partitioned_computation, write_to_disk, collect
@@ -166,7 +159,7 @@ export is_debug_on,
     indexapply,
     PartiallyMerged
 
-# Partitioning functions for usage in jobs that run on the cluster; dispatched
+# Partitioning functions for usage in sessions that run on the cluster; dispatched
 # based on `res/pf_dispatch_table.json`.
 export ReturnNull,
     ReadGroup,
@@ -200,10 +193,10 @@ include("utils_queues.jl")
 include("queues.jl")
 
 # Banyan.jl is intended both for usage as a client library and also for
-# inclusion in the environment that is used for jobs that run on the cluster.
+# inclusion in the environment that is used for sessions that run on the cluster.
 # When running on the cluster, partitioning functions define how to split,
 # merge, and cast data between different kinds of partitioning. Partitioning
-# functions get defined in Banyan.jl and included in jobs that run on clusters
+# functions get defined in Banyan.jl and included in sessions that run on clusters
 # and functions get dispatched based on the `pf_dispatch_table.json`
 # (originally called `pt_lib_info.json`) which is used by the scheduler behind
 # the scenes.
@@ -211,11 +204,10 @@ include("utils.jl")
 include("utils_pfs.jl")
 include("pfs.jl")
 
-# Jobs
+# Sessions
 include("utils_abstract_types.jl")
 include("utils_s3fs.jl")
 include("clusters.jl")
-include("jobs.jl")
 include("sessions.jl")
 
 # Futures
@@ -233,8 +225,8 @@ include("annotation.jl")
 # Utilities
 include("requests.jl")
 
-# Job (using locations and futures)
-include("job.jl")
+# Session
+include("session.jl")
 
 function __init__()
     # The user must provide the following for authentication:
