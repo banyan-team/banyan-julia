@@ -20,7 +20,12 @@ export ndims, size, length, eltype
 export fill, zeros, ones, trues, falses
 export map, mapslices, reduce, sort, sortlices
 
-export ReadBlockHDF5,
+export ReadBlockJuliaArray,
+    ReadGroupJuliaArray,
+    WriteJuliaArray,
+    CopyFromJuliaArray,
+    CopyToJuliaArray,
+    ReadBlockHDF5,
     ReadGroupHDF5,
     WriteHDF5,
     CopyFromHDF5,
