@@ -78,7 +78,7 @@ function ReadBlockJuliaArray(
         metadata["sample_size"][dim_partitioning]
     end
     rowrange = Banyan.split_len(nrows, batch_idx, nbatches, comm)
-    dfs::Base.Vector{DataFrames.DataFrame} = []
+    dfs = AbstractArray[]
     rowsscanned = 0
     for file in sort(loc_params["files"], by = filedict -> filedict["path"])
         newrowsscanned = rowsscanned + file["nrows"]
