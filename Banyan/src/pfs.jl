@@ -473,40 +473,40 @@ function Divide(
 end
 
 function DivideFromValue(
-    src::Tuple,
+    src::T,
     params::Dict{String,Any},
     batch_idx::Integer,
     nbatches::Integer,
     comm::MPI.Comm,
     loc_name::String,
     loc_params::Dict{String,Any},
-)
+) where {T}
     part = CopyFromValue(src, params, batch_idx, nbatches, comm, loc_name, loc_params)
     Divide(part, params, batch_idx, nbatches, comm, loc_name, loc_params)
 end
 
 function DivideFromDisk(
-    src::Tuple,
+    src::T,
     params::Dict{String,Any},
     batch_idx::Integer,
     nbatches::Integer,
     comm::MPI.Comm,
     loc_name::String,
     loc_params::Dict{String,Any},
-)
+) where {T}
     part = CopyFromJulia(src, params, batch_idx, nbatches, comm, loc_name, loc_params)
     Divide(part, params, batch_idx, nbatches, comm, loc_name, loc_params)
 end
 
 function DivideFromClient(
-    src::Tuple,
+    src::T,
     params::Dict{String,Any},
     batch_idx::Integer,
     nbatches::Integer,
     comm::MPI.Comm,
     loc_name::String,
     loc_params::Dict{String,Any},
-)
+) where {T}
     part = CopyFromClient(src, params, batch_idx, nbatches, comm, loc_name, loc_params)
     Divide(part, params, batch_idx, nbatches, comm, loc_name, loc_params)
 end
