@@ -88,7 +88,7 @@ function ReadBlockJuliaArray(
         filerowrange = (rowsscanned+1):newrowsscanned
         # Check if the file corresponds to the range of rows for the batch
         # currently being processed by this worker
-        if !partitioned_on_dim || Banyan.isoverlapping(filerowrange, rowrange) : true
+        if !partitioned_on_dim || Banyan.isoverlapping(filerowrange, rowrange)
             # Deterine path to read from
             file_path = file["path"]
             path = Banyan.getpath(file_path)

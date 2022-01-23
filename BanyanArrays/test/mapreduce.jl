@@ -221,6 +221,28 @@ end
     end
 end
 
+struct Foo
+    x::String
+end
+
+@testset "Communicating between client and executor with $scheduling_config for map-reduce" for scheduling_config in [
+    "default scheduling",
+    "parallelism encouraged",
+    "parallelism and batches encouraged",
+]
+    use_job_for_testing(scheduling_config_name = scheduling_config) do
+
+        x1 = convert(BanyanArray, [Foo(string(i)) for i in 1:100])
+        xx = map(f -> parse(Int64, f.x), xx)
+
+        @test first(collect(x1)).x == "1"
+        @test first(collect(xx)).x == 1
+
+        xx = map(f -> parse(Int64, f.x), xx; force_parallelism=true)
+        @test first(collect(xx)).x == 1
+    end
+end
+
 # TODO: Re-enable this test once we ensure that we can write out small
 # enough datasets without unnecessary batching
 # @testset "String arrays with $scheduling_config" for scheduling_config in [
