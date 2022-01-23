@@ -236,6 +236,7 @@ end
         @test first(collect(xx)) == 1
 
         xx = map(f -> parse(Int64, f.x), x1; force_parallelism=true)
+        @show typeof(xx) xx collect(xx)
         @test first(collect(xx)) == 1
     end
 end

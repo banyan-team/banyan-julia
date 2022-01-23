@@ -331,9 +331,6 @@ end
 # Array operations
 
 function Base.map(f, c::Array{T,N}...; force_parallelism=false) where {T,N}
-    f = Future(f)
-    res = Future(datatype="Array")
-
     # We shouldn't need to keep sample keys since we are only allowing data
     # to be blocked for now. The sample rate is kept because it might be
     # smaller if this is a column of the result of a join operation.
@@ -345,13 +342,13 @@ function Base.map(f, c::Array{T,N}...; force_parallelism=false) where {T,N}
         # If we are forcing parallelism, we have an empty code region to
         # allow for copying from sources like client side and then casting
         # from replicated partitioning to distributed partitioning
-        partitioned_with(scaled=[res, c...]) do
+        partitioned_with(scaled=[c...]) do
             # balanced
             pt(first(c), Blocked(first(c), balanced=true))
             pt(c[2:end]..., Blocked() & Balanced(), match=first(c), on=["key", "id"])
     
             # unbalanced
-            pt(first(c), Blocked(first(c), balanced=false, scaled_by_same_as=res))
+            pt(first(c), Blocked(first(c), balanced=false))
             pt(c[2:end]..., Unbalanced(scaled_by_same_as=first(c)), match=first(c))
 
             # replicated
@@ -360,7 +357,9 @@ function Base.map(f, c::Array{T,N}...; force_parallelism=false) where {T,N}
 
         @partitioned c begin end
     end
-        
+
+    f = Future(f)
+    res = Future(datatype="Array")    
 
     partitioned_with(scaled=[res, c...]) do
         # balanced

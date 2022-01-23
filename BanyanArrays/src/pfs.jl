@@ -785,7 +785,7 @@ function Banyan.SplitGroup(
 
     # Get the divisions to apply
     key = params["key"]
-    rev = params["rev"]
+    rev = get(params, "rev", false)
     if rev
         reverse!(divisions_by_partition)
     end
@@ -968,7 +968,7 @@ function Banyan.Shuffle(
 
     # Get the divisions to apply
     key = dst_params["key"]
-    rev = dst_params["rev"]
+    rev = get(dst_params, "rev", false)
     worker_idx, nworkers = Banyan.get_worker_idx(comm), Banyan.get_nworkers(comm)
     divisions_by_worker = if haskey(dst_params, "divisions_by_worker")
         dst_params["divisions_by_worker"] # list of min-max tuples

@@ -223,6 +223,7 @@ function partitioned_computation(handler, fut::AbstractFuture; destination, new_
             message_type = message["kind"]
             if message_type == "JOB_READY"
                 # @debug "Job $job_id is ready"
+            @show message
             elseif message_type == "SCATTER_REQUEST"
                 # Send scatter
                 value_id = message["value_id"]
@@ -248,6 +249,7 @@ function partitioned_computation(handler, fut::AbstractFuture; destination, new_
                     value = from_jl_value_contents(message["contents"])
                     f::Future = job.futures_on_client[value_id]
                     f.value = value
+                    println("In GATHER with value=$value")
                     # @debug "Received $(f.value)"
                     # TODO: Update stale/mutated here to avoid costly
                     # call to `send_evaluation`

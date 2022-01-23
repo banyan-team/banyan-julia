@@ -31,7 +31,7 @@ locations = [ { name = "Disk", datatype = "Array" } ]
 
 [merges.CopyToJuliaArray]
 partition_memory_usage = "all"
-scale_by = 0
+scale_by = 1
 views = false
 required = { name = "Replicating", replication = "all" }
 locations = [ { name = "Disk", datatype = "Array" } ]
@@ -69,7 +69,7 @@ locations = [ {name = "Remote", format = "hdf5"} ]
 
 [merges.CopyToHDF5]
 partition_memory_usage = "all"
-scale_by = 0
+scale_by = 1
 views = false
 required = { name = "Replicating", replication = "all" }
 locations = [ {name = "Remote", format = "hdf5"} ]

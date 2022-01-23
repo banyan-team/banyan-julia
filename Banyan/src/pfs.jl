@@ -66,7 +66,7 @@ ReadGroup(ReadBlock) = begin
         # Get information needed to read in the appropriate group
         divisions = params["divisions"]
         key = params["key"]
-        rev = params["rev"] # Passed in ReadBlock
+        rev = get(params, "rev", false) # Passed in ReadBlock
         nworkers = get_nworkers(comm)
         npartitions = nworkers * nbatches
         partition_divisions = get_divisions(divisions, npartitions)
