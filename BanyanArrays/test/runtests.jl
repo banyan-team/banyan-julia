@@ -4,7 +4,7 @@ using FilePathsBase, AWSS3, HDF5
 
 global jobs_for_testing = Dict()
 
-function destroy_all_sessions_for_testing()
+function destroy_all_jobs_for_testing()
     global jobs_for_testing
     for (job_config_hash, job_id) in jobs_for_testing
         end_session(job_id)

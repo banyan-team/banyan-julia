@@ -451,7 +451,8 @@ function Divide(
     loc_params::Dict{String,Any},
 )
     dim = params["key"]
-    part = CopyFrom(src, params, batch_idx, nbatches, comm, loc_name, loc_params)
+    part = src
+    # part = CopyFrom(src, params, batch_idx, nbatches, comm, loc_name, loc_params)
     newpartdim = length(split_len(part[dim], batch_idx, nbatches, comm))
     indexapply(_ -> newpartdim, part, index = dim)
 end
@@ -466,8 +467,48 @@ function Divide(
     loc_params::Dict{String,Any},
 )
     dim = params["key"]
-    part = CopyFrom(src, params, batch_idx, nbatches, comm, loc_name, loc_params)
+    part = src
+    # part = CopyFrom(src, params, batch_idx, nbatches, comm, loc_name, loc_params)
     length(split_len(part[dim], batch_idx, nbatches, comm))
+end
+
+function DivideFromValue(
+    src::Tuple,
+    params::Dict{String,Any},
+    batch_idx::Integer,
+    nbatches::Integer,
+    comm::MPI.Comm,
+    loc_name::String,
+    loc_params::Dict{String,Any},
+)
+    part = CopyFromValue(src, params, batch_idx, nbatches, comm, loc_name, loc_params)
+    Divide(part, params, batch_idx, nbatches, comm, loc_name, loc_params)
+end
+
+function DivideFromDisk(
+    src::Tuple,
+    params::Dict{String,Any},
+    batch_idx::Integer,
+    nbatches::Integer,
+    comm::MPI.Comm,
+    loc_name::String,
+    loc_params::Dict{String,Any},
+)
+    part = CopyFromJulia(src, params, batch_idx, nbatches, comm, loc_name, loc_params)
+    Divide(part, params, batch_idx, nbatches, comm, loc_name, loc_params)
+end
+
+function DivideFromClient(
+    src::Tuple,
+    params::Dict{String,Any},
+    batch_idx::Integer,
+    nbatches::Integer,
+    comm::MPI.Comm,
+    loc_name::String,
+    loc_params::Dict{String,Any},
+)
+    part = CopyFromClient(src, params, batch_idx, nbatches, comm, loc_name, loc_params)
+    Divide(part, params, batch_idx, nbatches, comm, loc_name, loc_params)
 end
 
 #####################

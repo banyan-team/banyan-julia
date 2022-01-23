@@ -49,7 +49,31 @@ locations = [ { name = "Disk" } ]
 
 [splits.Divide]
 expected = [ "key" ]
-location_names = [ "Value", "Disk", "Memory" ]
+location_names = [ "Memory" ]
+partition_memory_usage = "all"
+scale_by = 1
+views = false
+required = { name = "Replicating", dividing = true }
+
+[splits.DivideFromValue]
+expected = [ "key" ]
+location_names = [ "Value" ]
+partition_memory_usage = "all"
+scale_by = 1
+views = false
+required = { name = "Replicating", dividing = true }
+
+[splits.DivideFromJulia]
+expected = [ "key" ]
+location_names = [ "Disk" ]
+partition_memory_usage = "all"
+scale_by = 1
+views = false
+required = { name = "Replicating", dividing = true }
+
+[splits.DivideFromClient]
+expected = [ "key" ]
+location_names = [ "Client" ]
 partition_memory_usage = "all"
 scale_by = 1
 views = false
