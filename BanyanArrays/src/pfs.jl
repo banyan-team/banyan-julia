@@ -249,7 +249,7 @@ function WriteJuliaArray(
         MPI.Barrier(comm)
         for batch_i = 1:nbatches
             idx = Banyan.get_partition_idx(batch_i, nbatches, worker_idx)
-            tmpdir_idx = findfirst(fn -> startswith(fn, "part$idx"), tmpdir)
+            tmpdir_idx = findfirst(fn -> contains(fn, "part$idx"), tmpdir)
             if !isnothing(tmpdir_idx)
                 tmpsrc = joinpath(path, tmpdir[tmpdir_idx])
                 actualdst = joinpath(actualpath, tmpdir[tmpdir_idx])
