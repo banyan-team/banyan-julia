@@ -22,5 +22,5 @@ function Banyan.merge_on_executor(obj::Vararg{AbstractDataFrame,M}; key = nothin
     end
 end
 
-Banyan.merge_on_executor(obj::Vararg{GroupedDataFrame,M}; key = nothing) where {M} = nothing
+Banyan.merge_on_executor(obj::Vararg{GroupedDataFrame{<:AbstractDataFrame},M}; key = nothing) where {M} = nothing
 Banyan.merge_on_executor(obj::Vararg{T,M}; key = nothing) where {T,M} = first(obj)
