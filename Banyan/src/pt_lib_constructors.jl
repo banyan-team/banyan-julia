@@ -21,7 +21,7 @@
 # that introduce data skew and in other operations that explicitly don't
 
 Replicating() = PartitionType("name" => "Replicating", f->Scale(f, by=1.0))
-Replicated() = Replicating() & PartitionType("replication" => "all", "reducer" => nothing)
+Replicated() = Replicating() & PartitionType("replication" => "all")
 # TODO: Add Replicating(f) to the below if needed for reducing operations on
 # large objects such as unique(df::DataFrame)
 
