@@ -613,7 +613,7 @@ function Banyan.Consolidate(part::AbstractDataFrame, src_params::Dict{String,Any
     res
 end
 
-function Shuffle(
+function Banyan.Shuffle(
     part::AbstractDataFrame,
     src_params::Dict{String,Any},
     dst_params::Dict{String,Any},

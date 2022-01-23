@@ -660,7 +660,7 @@ function Banyan.Consolidate(part::AbstractArray, src_params::Dict{String,Any}, d
     )
 end
 
-function Shuffle(
+function Banyan.Shuffle(
     part::AbstractArray,
     src_params::Dict{String,Any},
     dst_params::Dict{String,Any},

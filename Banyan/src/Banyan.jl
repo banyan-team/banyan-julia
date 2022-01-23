@@ -167,6 +167,7 @@ export is_debug_on,
 # based on `res/pf_dispatch_table.json`.
 export ReturnNull,
     ReadGroup,
+    Shuffle,
     SplitBlock,
     SplitGroup,
     Consolidate,
