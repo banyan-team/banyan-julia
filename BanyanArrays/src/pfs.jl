@@ -49,6 +49,7 @@ function ReadBlockJuliaArray(
     for partfilename in readdir(name_path)
         if partfilename != "_metadata"
             if dim == -1
+                println("In ReadBlockJuliaArray and discovering that dim=$dim for partfilename=$partfilename")
                 dim = parse(Int64, partfilename[5:findfirst("_", partfilename).start-1])
             end
             part_nrows = parse(
@@ -62,6 +63,8 @@ function ReadBlockJuliaArray(
             nrows += part_nrows
         end
     end
+    println("In ReadBlockJuliaArray with readdir(name_path)=$(readdir(name_path)) at name_path=$name_path")
+    dim > 0 || error("Unable to find dimension of Julia-serialized array stored in directory $name_path")
     partitioned_on_dim = dim == dim_partitioning
     loc_params["files"] = files
     loc_params["nrows"] = nrows
