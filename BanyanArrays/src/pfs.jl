@@ -141,6 +141,17 @@ function write_file_julia_array(part, path, dim, sortableidx, nrows)
     )
 end
 
+function write_metadata_for_julia_array(actualpath, part)
+    println("In write_metadata_for_julia_array with actualpath=$actualpath, joinpath(actualpath, \"_metadata\")=$(joinpath(actualpath, "_metadata")), size(part)=$(size(part)), eltype(part)=$(eltype(part))")
+    serialize(
+        joinpath(actualpath, "_metadata"),
+        Dict(
+            "sample_size" => size(part),
+            "eltype" => eltype(part)
+        )
+    )
+end
+
 function WriteJuliaArray(
     src,
     part,
@@ -213,6 +224,10 @@ function WriteJuliaArray(
             Banyan.rmdir_on_nfs(path)
             mkpath(path)
         end
+
+        if nbatches == 1
+            write_metadata_for_julia_array(actualpath, part)
+        end
     end
     MPI.Barrier(comm)
 
@@ -242,17 +257,11 @@ function WriteJuliaArray(
         MPI.Barrier(comm)
         if worker_idx == 1
             Banyan.rmdir_on_nfs(path)
+            write_metadata_for_julia_array(actualpath, part)
         end
         MPI.Barrier(comm)
     end
     # TODO: Store the number of rows per file here with some MPI gathering
-    serialize(
-        joinpath(actualpath, "_metadata"),
-        Dict(
-            "sample_size" => size(part),
-            "eltype" => eltype(part)
-        )
-    )
     src
     # TODO: Delete all other part* files for this value if others exist
 end
