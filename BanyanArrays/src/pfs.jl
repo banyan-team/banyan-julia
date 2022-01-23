@@ -1,3 +1,281 @@
+function read_julia_array_file(path, header, rowrange, readrange, filerowrange, dfs, dim)
+    let arr = deserialize(path)
+        arr[
+            [
+                if i == dim
+                    Colon()
+                else
+                    (readrange.start-filerowrange.start+1):(readrange.stop-filerowrange.start+1)
+                end
+                for i in 1:ndims(arr)
+            ]...
+        ]
+    end
+end
+
+function ReadBlockJuliaArray(
+    src,
+    params,
+    batch_idx::Integer,
+    nbatches::Integer,
+    comm::MPI.Comm,
+    loc_name,
+    loc_params,
+)
+    # TODO: Implement a Read for balanced=false where we can avoid duplicate
+    # reading of the same range in different reads
+
+    path = Banyan.getpath(loc_params["path"])
+
+    # Handle multi-file tabular datasets
+
+    # Handle None location by finding all files in directory used for spilling
+    # this value to disk
+    loc_name == "Disk" || error("Reading from Julia-serialized arrays is only supported for local disk storage")
+        
+    # TODO: Only collect files and nrows info for this location associated
+    # with a unique name corresponding to the value ID - only if this is
+    # the first batch or loop iteration.
+    name = loc_params["path"]
+    name_path = Banyan.getpath(name)
+    # TODO: isdir might not work for S3FS
+    isdir(name_path) || error("Expected $path to be a directory containing files of Julia-serialized arrays")
+
+    files = []
+    nrows = 0
+    dim_partitioning = params["key"]
+    dim = -1
+    println("In ReadBlock for Disk with loc_params=$loc_params and name_path=$name_path and readdir(name_path)=$(readdir(name_path))")
+    for partfilename in readdir(name_path)
+        if partfilename != "_metadata"
+            if dim == -1
+                dim = parse(Int64, partfilename[5:findfirst("_", partfilename).start-1])
+            end
+            part_nrows = parse(
+                Int64,
+                split(partfilename, "_nslices=")[end],
+            )
+            push!(
+                files,
+                Dict("nrows" => part_nrows, "path" => joinpath(name, partfilename)),
+            )
+            nrows += part_nrows
+        end
+    end
+    partitioned_on_dim = dim == dim_partitioning
+    loc_params["files"] = files
+    loc_params["nrows"] = nrows
+
+    # Iterate through files and identify which ones correspond to the range of
+    # rows for the batch currently being processed by this worker
+    metadata = nothing
+    nrows = if partitioned_on_dim
+        loc_params["nrows"]
+    else
+        metadata = deserialize(
+            joinpath(name_path, "_metadata")
+        )
+        metadata["sample_size"][dim_partitioning]
+    end
+    rowrange = Banyan.split_len(nrows, batch_idx, nbatches, comm)
+    dfs::Base.Vector{DataFrames.DataFrame} = []
+    rowsscanned = 0
+    for file in sort(loc_params["files"], by = filedict -> filedict["path"])
+        newrowsscanned = rowsscanned + file["nrows"]
+        filerowrange = (rowsscanned+1):newrowsscanned
+        # Check if the file corresponds to the range of rows for the batch
+        # currently being processed by this worker
+        if !partitioned_on_dim || Banyan.isoverlapping(filerowrange, rowrange) : true
+            # Deterine path to read from
+            file_path = file["path"]
+            path = Banyan.getpath(file_path)
+
+            # Read from location depending on data format
+            readrange = if partitioned_on_dim
+                max(rowrange.start, filerowrange.start):min(
+                    rowrange.stop,
+                    filerowrange.stop,
+                )
+            else
+                rowrange
+            end
+            header = 1
+            # TODO: Scale the memory usage appropriately when splitting with
+            # this and garbage collect if too much memory is used.
+            read_julia_array_file(path, header, rowrange, readrange, filerowrange, dfs, dim)
+        end
+        rowsscanned = newrowsscanned
+    end
+
+    # Concatenate and return
+    # NOTE: If this partition is empty, it is possible that the result is
+    # schemaless (unlike the case with HDF5 where the resulting array is
+    # guaranteed to have its ndims correct) and so if a split/merge/cast
+    # function requires the schema (for example for grouping) then it must be
+    # sure to take that account
+    res = if isempty(dfs)
+        if isnothing(metadata)
+            metadata = deserialize(
+                joinpath(name_path, "_metadata")
+            )
+        end
+        sample_size = metadata["sample_size"]
+        actual_size = indexapply(_ -> nrows, sample_size; index=dim)
+        actual_part_size = indexapply(_ -> 0, actual_size; index=dim_partitioning)
+        eltype = metadata["eltype"]
+        Array{eltype}(undef, actual_part_size)
+    elseif length(dfs) == 1
+        dfs[1]
+    else
+        cat(dfs...; dims=dim_partitioning)
+    end
+    res
+end
+
+ReadGroupJuliaArray = Banyan.ReadGroup(ReadBlockJuliaArray)
+
+function write_file_julia_array(part, path, dim, sortableidx, nrows)
+    serialize(
+        joinpath(path, "dim=$dim" * "_part$sortableidx" * "_nslices=$nrows"),
+        part
+    )
+end
+
+function WriteJuliaArray(
+    src,
+    part,
+    params,
+    batch_idx::Integer,
+    nbatches::Integer,
+    comm::MPI.Comm,
+    loc_name,
+    loc_params,
+)
+    # Get rid of splitting divisions if they were used to split this data into
+    # groups
+    splitting_divisions = Banyan.get_splitting_divisions()
+    delete!(splitting_divisions, part)
+
+    # Get path of directory to write to
+    path = loc_params["path"]
+    if startswith(path, "http://") || startswith(path, "https://")
+        error("Writing to http(s):// is not supported")
+    elseif startswith(path, "s3://")
+        path = Banyan.getpath(path)
+        # NOTE: We expect that the ParallelCluster instance was set up
+        # to have the S3 filesystem mounted at ~/s3fs/<bucket name>
+    else
+        # Prepend "efs/" for local paths
+        path = Banyan.getpath(path)
+    end
+
+    # Write file for this partition
+    worker_idx = Banyan.get_worker_idx(comm)
+    idx = Banyan.get_partition_idx(batch_idx, nbatches, comm)
+    actualpath = deepcopy(path)
+    if nbatches > 1
+        # Add _tmp to the end of the path
+        path = path * "_tmp"
+    end
+
+    # TODO: Delete existing files that might be in the directory but first
+    # finish writing to a path*"_new" directory and then linking ... or 
+    # something like that. Basically we need to handle the case where we
+    # have batching in the first PT and we are reading from and writing to
+    # the same directory.
+    # 1. Write all output to a new directory
+    # 2. On the last partition, do a barrier (or a gather) and then delete
+    # the old directory
+    # 3. Do another barrier on the last batch and delete the old directory
+    # and link to the new one
+
+    # NOTE: This is only needed because we might be writing to the same
+    # place we are reading from. And so we want to make sure we finish
+    # reading before we write the last batch
+    if batch_idx == nbatches
+        MPI.Barrier(comm)
+    end
+
+    if worker_idx == 1
+        if nbatches == 1
+            # If there is no batching we can delete the original directory
+            # right away. Otherwise, we must delete the original directory
+            # only at the end.
+            # TODO: When refactoring the locations, think about how to allow
+            # stuff in the directory
+            Banyan.rmdir_on_nfs(actualpath)
+        end
+
+        # Create directory if it doesn't exist
+        # TODO: Avoid this and other filesystem operations that would be costly
+        # since S3FS is being used
+        if batch_idx == 1
+            Banyan.rmdir_on_nfs(path)
+            mkpath(path)
+        end
+    end
+    MPI.Barrier(comm)
+
+    dim = params["key"]
+    nrows = size(part, dim)
+    sortableidx = Banyan.sortablestring(idx, get_npartitions(nbatches, comm))
+    write_file_julia_array(part, path, dim, sortableidx, nrows)
+    println("In Write writing to path=$path with nrows=$nrows")
+    MPI.Barrier(comm)
+    if nbatches > 1 && batch_idx == nbatches
+        tmpdir = readdir(path)
+        if worker_idx == 1
+            Banyan.rmdir_on_nfs(actualpath)
+            mkpath(actualpath)
+        end
+        MPI.Barrier(comm)
+        for batch_i = 1:nbatches
+            idx = Banyan.get_partition_idx(batch_i, nbatches, worker_idx)
+            tmpdir_idx = findfirst(fn -> startswith(fn, "part$idx"), tmpdir)
+            if !isnothing(tmpdir_idx)
+                tmpsrc = joinpath(path, tmpdir[tmpdir_idx])
+                actualdst = joinpath(actualpath, tmpdir[tmpdir_idx])
+                cp(tmpsrc, actualdst, force=true)
+                println("In Write copying from tmpsrc=$tmpsrc to actualdst=$actualdst")
+            end
+        end
+        MPI.Barrier(comm)
+        if worker_idx == 1
+            Banyan.rmdir_on_nfs(path)
+        end
+        MPI.Barrier(comm)
+    end
+    # TODO: Store the number of rows per file here with some MPI gathering
+    serialize(
+        joinpath(actualpath, "_metadata"),
+        Dict(
+            "sample_size" => size(part),
+            "eltype" => eltype(part)
+        )
+    )
+    src
+    # TODO: Delete all other part* files for this value if others exist
+end
+
+CopyFromJuliaArray(src, params, batch_idx, nbatches, comm, loc_name, loc_params) = begin
+    params["key"] = 1
+    ReadBlockJuliaArray(src, params, 1, 1, MPI.COMM_SELF, loc_name, loc_params)
+end
+
+CopyToJuliaArray(
+    src,
+    part,
+    params,
+    batch_idx::Integer,
+    nbatches::Integer,
+    comm::MPI.Comm,
+    loc_name,
+    loc_params,
+) = if Banyan.get_partition_idx(batch_idx, nbatches, comm) == 1
+    params["key"] = 1
+    WriteJuliaArray(src, part, params, 1, 1, MPI.COMM_SELF, loc_name, loc_params)
+end
+
 function ReadBlockHDF5(
     src,
     params,
