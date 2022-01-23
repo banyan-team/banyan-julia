@@ -51,7 +51,7 @@ function Future(;source::Location = None(), mutate_from::Union{<:AbstractFuture,
 end
 
 function Future(value::Any)
-    location = if Base.summarysize(value) ≤ 4 * 1024
+    location = if total_memory_usage(value) ≤ 4 * 1024
         Value(value)
     else
         # TODO: Store values in S3 instead so that we can read from there

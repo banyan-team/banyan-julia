@@ -68,6 +68,8 @@ end
 const Vector{T} = Array{T,1}
 const Matrix{T} = Array{T,2}
 
+Base.convert(::Type{Array{T,N}}, A::AbstractArray{T,N}) where {T,N} = Array{T,N}(Future(A), Future(size(A)))
+
 Banyan.convert(::Type{Future}, A::Array{T,N}) where {T,N} = A.data
 
 # Array sample
