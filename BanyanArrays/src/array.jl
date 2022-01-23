@@ -328,7 +328,7 @@ end
 
 # Array operations
 
-function Base.map(f, c::Array{T,N}...) where {T,N}
+function Base.map(f, c::Array{T,N}...; force_parallelism=false) where {T,N}
     f = Future(f)
     res = Future(datatype="Array")
 
@@ -349,7 +349,7 @@ function Base.map(f, c::Array{T,N}...) where {T,N}
         pt(c[2:end]..., res, Unbalanced(scaled_by_same_as=first(c)), match=first(c))
 
         # replicated
-        if !is_debug_on()
+        if !force_parallelism
             pt(c..., res, f, Replicated())
         else
             pt(f, Replicated())
