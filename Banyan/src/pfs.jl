@@ -517,7 +517,7 @@ end
 DistributeAndShuffle(part::T, src_params::Dict{String,Any}, dst_params::Dict{String,Any}, comm::MPI.Comm) where {T} =
     SplitGroup(part, dst_params, 1, 1, comm, "Memory", Dict{String,Any}(), store_splitting_divisions = true)
 
-Banyan.Shuffle(
+Shuffle(
     part::Any,
     src_params::Dict{String,Any},
     dst_params::Dict{String,Any},
