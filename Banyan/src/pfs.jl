@@ -376,6 +376,7 @@ end
 
 function get_op!(params::Dict{String,Any})
     op = params["reducer"]
+    println("In get_op! at start with params=$params, op=$op")
     if params["with_key"]
         key = params["key"]
         if !haskey(params, "reducer_with_key")
@@ -392,6 +393,7 @@ function get_op!(params::Dict{String,Any})
             end
         end
     end
+    println("In get_op! at end with params=$params, op=$op")
     op
 end
 
