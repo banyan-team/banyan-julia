@@ -1,16 +1,19 @@
 function read_julia_array_file(path, header, rowrange, readrange, filerowrange, dfs, dim)
-    let arr = deserialize(path)
-        arr[
-            [
-                if i == dim
-                    Colon()
-                else
-                    (readrange.start-filerowrange.start+1):(readrange.stop-filerowrange.start+1)
-                end
-                for i in 1:ndims(arr)
-            ]...
-        ]
-    end
+    push!(
+        dfs,
+        let arr = deserialize(path)
+            arr[
+                [
+                    if i == dim
+                        Colon()
+                    else
+                        (readrange.start-filerowrange.start+1):(readrange.stop-filerowrange.start+1)
+                    end
+                    for i in 1:ndims(arr)
+                ]...
+            ]
+        end
+    )
 end
 
 function ReadBlockJuliaArray(
@@ -116,6 +119,7 @@ function ReadBlockJuliaArray(
     # guaranteed to have its ndims correct) and so if a split/merge/cast
     # function requires the schema (for example for grouping) then it must be
     # sure to take that account
+    println("In ReadBlockJuliaArray with length(dfs)=$(length(dfs)), ")
     res = if isempty(dfs)
         if isnothing(metadata)
             metadata = deserialize(
