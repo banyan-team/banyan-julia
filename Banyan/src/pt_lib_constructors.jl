@@ -20,14 +20,13 @@
 # TODO: Generate AtMost and ScaledBy constraints in handling filters and joins
 # that introduce data skew and in other operations that explicitly don't
 
-Replicating() = PartitionType("name" => "Replicating", f->ScaleBy(f, 1.0))
-Replicated() = Replicating() & PartitionType("replication" => "all", "reducer" => nothing)
+Replicating() = PartitionType("name" => "Replicating", f->Scale(f, by=1.0))
+Replicated() = Replicating() & PartitionType("replication" => "all")
 # TODO: Add Replicating(f) to the below if needed for reducing operations on
 # large objects such as unique(df::DataFrame)
 
 # TODO: Determine whether the `"reducer" => nothing` should be there
 Divided() = Replicating() & PartitionType("dividing" => true)
-Syncing() = Replicating() & PartitionType("replication" => "one", "reducer" => nothing) # TODO: Determine whether this is really needed
 Reducing(op) = Replicating() & PartitionType("replication" => nothing, "reducer" => to_jl_value(op), "with_key" => false)
 ReducingWithKey(op) = Replicating() & PartitionType("replication" => nothing, "reducer" => to_jl_value(op), "with_key" => true)
 # TODO: Maybe replace banyan_reduce_size_by_key with an anonymous function since that actually _can_ be ser/de-ed
@@ -49,10 +48,10 @@ Grouped() = PartitionType("name" => "Distributing", "distribution" => "grouped")
 # Blocked(;balanced) = PartitionType("name" => "Distributing", "distribution" => "blocked", "balanced" => balanced)
 # Grouped(;balanced) = PartitionType("name" => "Distributing", "distribution" => "grouped", "balanced" => balanced)
 
-ScaledBySame(;as) = PartitionType(f -> ScaleBy(f, 1.0, as))
+ScaledBySame(;as) = PartitionType(f -> Scale(f, by=1.0, relative_to=as))
 Drifted() = Distributing() & PartitionType("id" => "!")
 Balanced() =
-    Distributing() & PartitionType("balanced" => true, f -> ScaleBy(f, 1.0))
+    Distributing() & PartitionType("balanced" => true, f -> Scale(f, by=1.0))
 Unbalanced(; scaled_by_same_as = nothing) =
     if isnothing(scaled_by_same_as)
         Distributing() & PartitionType("balanced" => false)
@@ -112,7 +111,7 @@ function Blocked(
 
             # Create `ScaleBy` constraints
             if b
-                push!(constraints.constraints, ScaleBy(f, 1.0))
+                push!(constraints.constraints, Scale(f, by=1.0))
                 # TODO: Add an AtMost constraint in the case that there are very few rows.
                 # That AtMost constraint would only go here in Blocked
             else
@@ -138,7 +137,7 @@ function Blocked(
                     # balanced, we might try to use its divisions - which would
                     # be empty - for other PTs and think that they to are balanced).
                     if factor != Inf && factor != NaN
-                        push!(constraints.constraints, ScaleBy(f, factor, from))
+                        push!(constraints.constraints, Scale(f, by=factor, relative_to=from))
                     end
                 elseif !isnothing(filtered_to)
                     filtered_to = to_vector(filtered_to)
@@ -155,10 +154,10 @@ function Blocked(
                     # balanced, we might try to use its divisions - which would
                     # be empty - for other PTs and think that they to are balanced).
                     if factor != Inf && factor != NaN
-                        push!(constraints.constraints, ScaleBy(f, factor, to))
+                        push!(constraints.constraints, Scale(f, by=factor, relative_to=to))
                     end
                 elseif !isnothing(scaled_by_same_as)
-                    push!(constraints.constraints, ScaleBy(f, 1.0, scaled_by_same_as))
+                    push!(constraints.constraints, Scale(f, by=1.0, relative_to=scaled_by_same_as))
                 end
             end
 
@@ -237,7 +236,7 @@ function Grouped(
                 # of highly selective filtering, we will filter from some data
                 # that _is_ balanced.
                 push!(constraints.constraints, AtMost(max_ngroups, f))
-                push!(constraints.constraints, ScaleBy(f, 1.0))
+                push!(constraints.constraints, Scale(f, by=1.0))
 
                 # TODO: Make AtMost only accept a value (we can support PT references in the future if needed)
                 # TODO: Make scheduler check that the values in AtMost or ScaledBy are actually present to ensure
@@ -285,7 +284,7 @@ function Grouped(
                     # factor will be infinity. In that case, we shouldn't be
                     # creating a ScaleBy constraint.
                     if factor != Inf
-                        push!(constraints.constraints, ScaleBy(f, factor, from))
+                        push!(constraints.constraints, Scale(f, by=factor, relative_to=from))
                     end
                 elseif !isnothing(filtered_to)
                     filtered_to = to_vector(filtered_to)
@@ -313,10 +312,10 @@ function Grouped(
                     # factor will be infinity. In that case, we shouldn't be
                     # creating a ScaleBy constraint.
                     if factor != Inf
-                        push!(constraints.constraints, ScaleBy(f, factor, to))
+                        push!(constraints.constraints, Scale(f, by=factor, relative_to=to))
                     end
                 elseif !isnothing(scaled_by_same_as)
-                    push!(constraints.constraints, ScaleBy(f, 1.0, scaled_by_same_as))
+                    push!(constraints.constraints, Scale(f, by=1.0, relative_to=scaled_by_same_as))
                 end
             end
 

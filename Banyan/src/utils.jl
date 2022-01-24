@@ -311,12 +311,12 @@ method_to_string(method) = begin
         "destroy-cluster"
     elseif method == :describe_clusters
         "describe-clusters"
-    elseif method == :create_job
-        "create-job"
-    elseif method == :destroy_job
-        "destroy-job"
-    elseif method == :describe_jobs
-        "describe-jobs"
+    elseif method == :start_session
+        "start-session"
+    elseif method == :end_session
+        "end-session"
+    elseif method == :describe_sessions
+        "describe-sessions"
     elseif method == :evaluate
         "evaluate"
     elseif method == :update_cluster
@@ -414,18 +414,6 @@ function send_request_get_response_using_http(method, content::Dict)
             end
             if e.response.status != 504
                 throw(ErrorException(String(take!(IOBuffer(e.response.body)))))
-            # elseif method == :create_cluster
-            #     # println(
-            #     #     "Cluster creation in progress. Please check dashboard to view status.",
-            #     # )
-            # elseif method == :create_job
-            #     # println(
-            #     #     "Job creation in progress. Please check dashboard to view status.",
-            #     # )
-            # elseif method == :evaluate
-            #     # println(
-            #     #     "Evaluation is in progress. Please check dashboard to view status.",
-            #     # )
             end
             rethrow()
         else
@@ -454,6 +442,30 @@ function load_json(path::String)
     end
 end
 
+function load_toml(path::String)
+    if startswith(path, "file://")
+        if !isfile(path[8:end])
+            error("File $path does not exist")
+        end
+        TOML.parsefile(path[8:end])
+    elseif startswith(path, "s3://")
+        error("S3 path not currently supported")
+        # JSON.parsefile(S3Path(path, config=get_aws_config()))
+    elseif startswith(path, "http://") || startswith(path, "https://")
+	    TOML.parse(String(HTTP.get(path).body))
+    else
+        error("Path $path must start with \"file://\", \"s3://\", or \"http(s)://\"")
+    end
+end
+
+function load_json(paths::Vector{String})
+    # Each file should have merges, splits, and casts. So we need to take those
+    # and merge them.
+    mergewith(merge, [load_json(p) for p in paths]...)
+end
+
+load_toml(paths::Vector{String}) = mergewith(merge, [load_toml(p) for p in paths]...)
+
 # Loads file into String and returns
 function load_file(path::String)
     if startswith(path, "file://")
@@ -481,10 +493,13 @@ function get_julia_version()
 end
 
 function get_loaded_packages()
+    # for m in names(Main, imported=true)
+    #     @show try Main.eval(m) catch nothing end isa Module && !(m in [:Main, :Base, :Core, :InteractiveUtils, :IJulia])
+    # end
     modules = map(
         m -> string(m),
         filter(
-            m -> Main.eval(m) isa Module && !(m in [:Main, :Base, :Core, :InteractiveUtils, :IJulia]),
+            m -> try Main.eval(m) catch nothing end isa Module && !(m in [:Main, :Base, :Core, :InteractiveUtils, :IJulia]),
             names(Main, imported=true)
         )
     )
@@ -507,4 +522,67 @@ function format_bytes(bytes, decimals = 2)
     sizes = ["Bytes", "KB", "MB", "GB", "TB", "PB", "EB", "ZB", "YB"]
     i = Base.convert(Int, floor(log(bytes) / log(k)))
     return string(round((bytes / ^(k, i)), digits = dm)) * " " * sizes[i+1]
+end
+
+byte_sizes = Dict(
+    "kB" => 10 ^ 3,
+    "MB" => 10 ^ 6,
+    "GB" => 10 ^ 9,
+    "TB" => 10 ^ 12,
+    "PB" => 10 ^ 15,
+    "KiB" => 2 ^ 10,
+    "MiB" => 2 ^ 20,
+    "GiB" => 2 ^ 30,
+    "TiB" => 2 ^ 40,
+    "PiB" => 2 ^ 50,
+    "B" => 1,
+    "" => 1,
+)
+
+byte_sizes = Dict(lowercase(k) => v for (k, v) in byte_sizes)
+merge!(byte_sizes, Dict(string(k[1]) => v for (k, v) in byte_sizes if !isempty(k) && !occursin("i", k)))
+merge!(byte_sizes, Dict(k[1:end-1] => v for (k, v) in byte_sizes if !isempty(k) && occursin("i", k)))
+
+parse_bytes(r::Real) = r
+
+function parse_bytes(s::String)
+    s = replace(s, " " => "")
+    if !any([isdigit(char) for char in s])
+        s = "1" * s
+    end
+
+    index = -1
+    for i in length(s):-1:0
+        if !isletter(s[i])
+            index = i + 1
+            break
+        end
+    end
+
+    prefix = s[1:index-1]
+    suffix = s[index:end]
+
+    n = -1
+    try
+        n = parse(Float32, prefix)
+    catch
+        throw(ArgumentError("Could not interpret '$prefix' as a number"))
+    end
+
+    multiplier = -1
+    try
+        multiplier = byte_sizes[lowercase(suffix)]
+    catch
+        throw(ArgumentError("Could not interpret '$suffix' as a byte unit"))
+    end
+
+    result = n * multiplier
+    result
+end
+
+function get_branch_name()
+    prepo = LibGit2.GitRepo(realpath(joinpath(@__DIR__, "../..")))
+    phead = LibGit2.head(prepo)
+    branchname = LibGit2.shortname(phead)
+    branchname
 end

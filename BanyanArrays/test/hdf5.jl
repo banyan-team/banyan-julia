@@ -4,7 +4,7 @@
     "parallelism and batches encouraged",
 ],
 src in ["Internet", "S3"]
-    use_job_for_testing(scheduling_config_name = scheduling_config) do
+    use_session_for_testing(scheduling_config_name = scheduling_config) do
         use_data()
 
         for _ in 1:2
@@ -35,7 +35,7 @@ end
     ],
     src in ["Internet", "S3"]
 
-    use_job_for_testing(scheduling_config_name = scheduling_config) do
+    use_session_for_testing(scheduling_config_name = scheduling_config) do
         use_data(src)
 
         # Determine where to read from

@@ -1,5 +1,5 @@
 @testset "MapReduce-style computation" begin
-    run_with_job("Filling") do job
+    run_with_session("Filling") do session
         println(typeof(Base.fill(1.0, 2048)))
         x = BanyanArrays.fill(10.0, 2048)
         println(typeof(x))
@@ -12,7 +12,7 @@
         @test res == 2048
     end
 
-    run_with_job("Multiple evaluations apart") do job
+    run_with_session("Multiple evaluations apart") do session
         x = BanyanArrays.fill(10.0, 2048)
         x = map(e -> e / 10, x)
         res1 = collect(sum(x)) # Note: failed here with "key :val_6HTGdt08_idx_0 not found"
@@ -24,7 +24,7 @@
         @test res2 == 1.0
     end
 
-    run_with_job("Multiple evaluations together") do job
+    run_with_session("Multiple evaluations together") do session
         x = BanyanArrays.fill(10.0, 2048)
         x = map(e -> e / 10, x)
         res1 = sum(x)
@@ -38,7 +38,7 @@
         @test res2 == 1.0
     end
 
-    run_with_job("Simple computing") do job
+    run_with_session("Simple computing") do session
         for _ in 1:8
             # NOTE: This also tests simple writing to and reading from local disk
             x = BanyanArrays.fill(10.0, 2048)
@@ -51,14 +51,14 @@
             @show typeof(x)
             # NOTE: The only reason why we're not putting `collect(x)` inside the
             # the `@test` is because `@test` will catch exceptions and prevent the
-            # job from getting destroyed when an exception occurs and we can't keep
-            # running this test if the job ends
+            # session from getting destroyed when an exception occurs and we can't keep
+            # running this test if the session ends
             x_collect = collect(x)
             @test x_collect == Base.fill(10.0, 2048)
         end
     end
 
-    run_with_job("Computing") do job
+    run_with_session("Computing") do session
         # NOTE: This also tests simple writing to and reading from local disk
         x = BanyanArrays.fill(10.0, 2048)
         x = map(e -> e / 10, x)
@@ -68,8 +68,8 @@
         @show typeof(x)
         # NOTE: The only reason why we're not putting `collect(x)` inside the
         # the `@test` is because `@test` will catch exceptions and prevent the
-        # job from getting destroyed when an exception occurs and we can't keep
-        # running this test if the job ends
+        # session from getting destroyed when an exception occurs and we can't keep
+        # running this test if the session ends
         x_collect = collect(x)
         @test x_collect == Base.fill(1.0, 2048)
         @show typeof(x)
@@ -80,7 +80,7 @@
         @test x_collect == Base.fill(1.0, 2048)
     end
 
-    run_with_job("Re-computing") do job
+    run_with_session("Re-computing") do session
         x = BanyanArrays.fill(10.0, 2048)
         x_sum = reduce(+, x)
         x = map(e -> e / 10, x)
@@ -97,7 +97,7 @@
         @test x_sum_collect == 10.0 * 2048
     end
 
-    run_with_job("Map with multiple values") do job
+    run_with_session("Map with multiple values") do session
         a = BanyanArrays.fill(10.0, 2048)
         b = BanyanArrays.fill(10.0, 2048)
         c = a + b
@@ -105,7 +105,7 @@
         @test c_sum_collect == 2048 * 10.0 * 2
     end
 
-    run_with_job("Complex dependency graphs") do job
+    run_with_session("Complex dependency graphs") do session
         # Here we test more complex dependency graphs where some values are destroyed
 
         x = BanyanArrays.fill(10.0, 2048)
@@ -128,7 +128,7 @@
         @test x_sum_collect == 2048 * 10.0 * 3
     end
 
-    run_with_job("Multiple arrays") do job
+    run_with_session("Multiple arrays") do session
         x1 = BanyanArrays.fill(10.0, 2048)
         x2 = BanyanArrays.fill(10.0, 2048)
         res = map((a, b) ->  a * b, x1, x2)
@@ -139,7 +139,7 @@
         @test res_minimum_collect == 100.0
     end
 
-    run_with_job("2D arrays") do job
+    run_with_session("2D arrays") do session
         x1 = BanyanArrays.fill(1.0, (2048, 2048))
         x2 = BanyanArrays.fill(2.0, (2048, 2048))
         res = map((a, b) ->  a * b, x1, x2) 
@@ -153,7 +153,7 @@
 
     # TODO: Re-enable this test once we ensure that we can write out small
     # enough datasets without unnecessary batching
-    # run_with_job("String arrays") do job
+    # run_with_session("String arrays") do session
     #     x1 = BanyanArrays.fill("hello\n", 2048)
     #     x2 = deepcopy(x1)
     #     x3 = BanyanArrays.fill("world\n", 2048)

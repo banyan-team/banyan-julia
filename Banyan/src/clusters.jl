@@ -96,10 +96,9 @@ function create_cluster(;
 
     # Cache info
     global clusters
-    cl = Cluster(name, get_cluster_status(name), "", 0, s3_bucket_arn)
-    clusters[name] = cl
+    get_cluster(name)
 
-    return cl
+    return clusters[name]
 end
 
 function destroy_cluster(name::String; kwargs...)
@@ -139,7 +138,6 @@ struct Cluster
     name::String
     status::Symbol
     status_explanation::String
-    num_jobs_running::Int32
     s3_bucket_arn::String
 end
 
@@ -179,7 +177,6 @@ function get_clusters(cluster_name=nothing; kwargs...)
             name,
             parsestatus(c["status"]),
             haskey(c, "status_explanation") ? c["status_explanation"] : "",
-            c["num_jobs"],
             c["s3_read_write_resource"],
         ) for (name, c) in response["clusters"]
     )
