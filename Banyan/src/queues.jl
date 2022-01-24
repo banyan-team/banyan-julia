@@ -4,7 +4,7 @@
 
 
 
-function get_scatter_queue(resource_id::ResourceId=nothing)
+function get_scatter_queue(resource_id::Union{ResourceId,Nothing}=nothing)
     if isnothing(resource_id)
         resource_id = get_session().resource_id
     end
@@ -14,7 +14,7 @@ function get_scatter_queue(resource_id::ResourceId=nothing)
     )
 end
 
-function get_gather_queue(resource_id::ResourceId=nothing)
+function get_gather_queue(resource_id::Union{ResourceId,Nothing}=nothing)
     if isnothing(resource_id)
         resource_id = get_session().resource_id
     end
@@ -24,7 +24,7 @@ function get_gather_queue(resource_id::ResourceId=nothing)
     )
 end
 
-function get_execution_queue(resource_id::ResourceId=nothing)
+function get_execution_queue(resource_id::Union{ResourceId,Nothing}=nothing)
     if isnothing(resource_id)
         resource_id = get_session().resource_id
     end
