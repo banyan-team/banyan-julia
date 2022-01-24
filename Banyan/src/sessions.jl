@@ -61,6 +61,7 @@ function start_session(;
     force_pull::Union{Bool,Nothing} = false,
     force_install::Union{Bool,Nothing} = false,
     nowait::Bool=false,
+    email_when_ready::Union{Bool,Nothing}=nothing,
     kwargs...,
 )::SessionId
 
@@ -101,6 +102,9 @@ function start_session(;
     )
     if !isnothing(session_name)
         session_configuration["session_name"] = session_name
+    end
+    if !isnothing(email_when_ready)
+        session_configuration["email_when_ready"] = email_when_ready
     end
 
     s3_bucket_name = get_cluster_s3_bucket_name(cluster_name)
