@@ -945,7 +945,7 @@ function Banyan.Consolidate(part::AbstractArray, src_params::Dict{String,Any}, d
     merge_on_executor(
         [
             begin
-                chunk = view(vbuf.data, (vbuf.displs[i]+1):(vbuf.displs[i]+vbuf.counts[i]))
+                chunk = view(recvvbuf.data, (recvvbuf.displs[i]+1):(recvvbuf.displs[i]+recvvbuf.counts[i]))
                 is_buffer_type ? chunk : deserialize(IOBuffer(chunk))
             end
             for i in 1:Banyan.get_nworkers(comm)

@@ -68,7 +68,7 @@ end
 const Vector{T} = Array{T,1}
 const Matrix{T} = Array{T,2}
 
-Base.convert(::Type{Array{T}}, A::AbstractArray{T,N}) where {T,N} = Array{T,N}(Future(A), Future(size(A)))
+Base.convert(::Type{Array{T}}, A::AbstractArray{T,N}) where {T,N} = Array{T,N}(Future(A, datatype="Array"), Future(size(A)))
 Base.convert(::Type{Array}, arr::AbstractArray{T}) where {T} = convert(Array{T}, arr)
 Base.convert(::Type{Vector{T}}, arr::AbstractVector) where {T} = convert(Array{T}, arr)
 

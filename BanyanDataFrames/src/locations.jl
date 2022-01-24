@@ -312,7 +312,7 @@ function RemoteTableSource(remotepath; shuffled=false, source_invalid = false, s
         elseif isnothing(emptysample)
             # If there were no partitions, we never would have set `emptysample`
             # and so we default to an empty schema-less data frame.
-            emptysample = DataFrame()
+            emptysample = DataFrames.DataFrame()
         end
         # Hopefully there were some partitions and `emptysample` is a
         # schema-ful (having the schema of the first partition) data frame.

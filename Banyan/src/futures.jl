@@ -50,7 +50,7 @@ function Future(;source::Location = None(), mutate_from::Union{<:AbstractFuture,
     new_future
 end
 
-function Future(value::Any)
+function Future(value::Any; datatype="Any")
     location = if total_memory_usage(value) ≤ 4 * 1024
         Value(value)
     else
@@ -59,7 +59,7 @@ function Future(value::Any)
     end
 
     # Create future, store value, and return
-    Future(source=location)
+    Future(source=location, datatype=datatype)
 end
 
 """
@@ -96,7 +96,7 @@ function Future(fut::AbstractFuture; mutation::Function=identity)
 
         new_future
     else
-        Future()
+        Future(datatype=fut.datatype)
     end
 end
 
