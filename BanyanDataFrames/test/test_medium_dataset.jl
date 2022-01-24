@@ -7,7 +7,7 @@ function upload_tripdata_to_s3(bucket_name)
 end
 
 @testset "Complex usage of BanyanDataFrames on medium dataset" begin
-    run_with_session("Filter groupby") do job
+    run_with_session("Filter groupby") do session
         bucket = get_cluster_s3_bucket_name(get_cluster_name())
         upload_tripdata_to_s3(bucket)
         tripdata = read_csv("s3://$(bucket)/tripdata.csv")
@@ -40,7 +40,7 @@ end
               [3.631, 3.725, 3.729, 5.296, 6.328, 7.15, 8.195, 8.276, 12.091, 19.087]
     end
 
-    run_with_session("Operations on DateTime") do job
+    run_with_session("Operations on DateTime") do session
         bucket = get_cluster_s3_bucket_name(get_cluster_name())
         upload_tripdata_to_s3(bucket)
         tripdata = read_csv("s3://$(bucket)/tripdata.csv")
@@ -139,7 +139,7 @@ end
         @test pickup_res[163593] == "2016-01-31 23:57:26"
     end
 
-    run_with_session("Groups and joins") do job
+    run_with_session("Groups and joins") do session
         bucket = get_cluster_s3_bucket_name(get_cluster_name())
         upload_tripdata_to_s3(bucket)
         tripdata = read_csv("s3://$(bucket)/tripdata.csv")
@@ -180,7 +180,7 @@ end
               [0.0, 0.0, 0.0, 0.013, 0.021, 0.031, 0.042, 0.112, 0.146, 0.181]
     end
 
-    run_with_session("Select and subset") do job
+    run_with_session("Select and subset") do session
         bucket = get_cluster_s3_bucket_name(get_cluster_name())
         upload_tripdata_to_s3(bucket)
         tripdata = read_csv("s3://$(bucket)/tripdata.csv")

@@ -147,8 +147,8 @@ function RemoteTableSource(remotepath; shuffled=false, source_invalid = false, s
                         end
 
                         # Append to randomsample
-                        # chunksampleindices = map(rand() < 1 / get_job().sample_rate, 1:chunknrows)
-                        chunksampleindices = randsubseq(1:chunknrows, 1 / get_job().sample_rate)
+                        # chunksampleindices = map(rand() < 1 / get_session().sample_rate, 1:chunknrows)
+                        chunksampleindices = randsubseq(1:chunknrows, 1 / get_session().sample_rate)
                         # if any(chunksampleindices)
                         if !isempty(chunkdf) && !isempty(chunksampleindices)
                             append!(randomsample, @view chunkdf[chunksampleindices, :])
@@ -169,7 +169,7 @@ function RemoteTableSource(remotepath; shuffled=false, source_invalid = false, s
                         free_memory = Sys.free_memory()
                         if memory_used_in_sampling_total > cld(free_memory, 4)
                             if !already_warned_about_too_large_sample
-                                @warn "Sample of $remotepath is too large ($(Banyan.format_bytes(memory_used_in_sampling_total))/$(Banyan.format_bytes(free_memory)) used so far). Try re-creating this job with a greater `sample_rate` than $(get_job().sample_rate)."
+                                @warn "Sample of $remotepath is too large ($(Banyan.format_bytes(memory_used_in_sampling_total))/$(Banyan.format_bytes(free_memory)) used so far). Try re-starting this session with a greater `sample_rate` than $(get_session().sample_rate)."
                                 already_warned_about_too_large_sample = true
                             end
                             GC.gc()
@@ -270,7 +270,7 @@ function RemoteTableSource(remotepath; shuffled=false, source_invalid = false, s
                         free_memory = Sys.free_memory()
                         if memory_used_in_sampling_total > cld(free_memory, 4)
                             if !already_warned_about_too_large_sample
-                                @warn "Sample of $remotepath is too large ($(Banyan.format_bytes(memory_used_in_sampling_total))/$(Banyan.format_bytes(free_memory)) used so far). Try re-creating this job with a greater `sample_rate` than $(get_job().sample_rate)."
+                                @warn "Sample of $remotepath is too large ($(Banyan.format_bytes(memory_used_in_sampling_total))/$(Banyan.format_bytes(free_memory)) used so far). Try re-starting this session with a greater `sample_rate` than $(get_session().sample_rate)."
                                 already_warned_about_too_large_sample = true
                             end
                             GC.gc()

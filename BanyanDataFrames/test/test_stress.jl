@@ -28,7 +28,7 @@ function upload_tripdata_large_to_s3(bucket_name)
 end
 
 @testset "Stress test of BanyanDataFrames on a large dataset" begin
-    run_with_session("Stress test on multi-file dataset") do job
+    run_with_session("Stress test on multi-file dataset") do session
         bucket = get_cluster_s3_bucket_name(get_cluster_name())
         upload_tripdata_large_to_s3(bucket)
         tripdata_large = read_csv("s3://$(bucket)/tripdata_large")

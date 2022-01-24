@@ -4,7 +4,7 @@
     "parallelism encouraged",
     "parallelism and batches encouraged",
 ]
-    use_job_for_testing(scheduling_config_name = scheduling_config) do
+    use_session_for_testing(scheduling_config_name = scheduling_config) do
         use_basic_data()
 
         bucket = get_cluster_s3_bucket_name()
@@ -162,7 +162,7 @@ end
     "parallelism encouraged",
     "parallelism and batches encouraged",
 ]
-    use_job_for_testing(scheduling_config_name = scheduling_config) do
+    use_session_for_testing(scheduling_config_name = scheduling_config) do
         use_basic_data()
 
         bucket = get_cluster_s3_bucket_name()
@@ -215,7 +215,7 @@ end
     "parallelism encouraged",
     "parallelism and batches encouraged",
 ]
-    use_job_for_testing(scheduling_config_name = scheduling_config) do
+    use_session_for_testing(scheduling_config_name = scheduling_config) do
         use_basic_data()
 
         bucket = get_cluster_s3_bucket_name()
@@ -402,7 +402,7 @@ end
     "parallelism encouraged",
     "parallelism and batches encouraged",
 ]
-    use_job_for_testing(scheduling_config_name = scheduling_config) do
+    use_session_for_testing(scheduling_config_name = scheduling_config) do
         use_stress_data()
 
         bucket = get_cluster_s3_bucket_name()
@@ -471,7 +471,7 @@ end
     "arrow",
     "directory"
 ]
-    use_job_for_testing(scheduling_config_name = scheduling_config) do
+    use_session_for_testing(scheduling_config_name = scheduling_config) do
         use_empty_data()
 
         bucket = get_cluster_s3_bucket_name()
@@ -560,7 +560,7 @@ end
     "filter",
     "subset"
 ]
-    use_job_for_testing(scheduling_config_name = scheduling_config) do
+    use_session_for_testing(scheduling_config_name = scheduling_config) do
         use_basic_data()
 
         bucket = get_cluster_s3_bucket_name()
@@ -648,7 +648,7 @@ end
     filetype = "arrow"
     filter_type = "filter"
 
-    use_job_for_testing(scheduling_config_name = scheduling_config) do
+    use_session_for_testing(scheduling_config_name = scheduling_config) do
         use_basic_data()
 
         bucket = get_cluster_s3_bucket_name()
@@ -692,7 +692,7 @@ end
     ("arrow", "no header"),
     ("directory", "no header"),
 ]
-    use_job_for_testing(scheduling_config_name = scheduling_config) do
+    use_session_for_testing(scheduling_config_name = scheduling_config) do
         use_empty_data()
 
         bucket = get_cluster_s3_bucket_name()
@@ -758,7 +758,7 @@ end
 
 @testset "NYC Taxi Stress Test" begin
     using Statistics
-    use_job_for_testing(scheduling_config_name = "default scheduling", sample_rate=1024) do
+    use_session_for_testing(scheduling_config_name = "default scheduling", sample_rate=1024) do
         s3_bucket_name = get_cluster_s3_bucket_name()
         df = read_csv(
             "s3://$s3_bucket_name/nyc_tripdata.csv",

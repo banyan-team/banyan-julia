@@ -98,7 +98,7 @@ function RemoteHDF5Source(remotepath; shuffled=false, source_invalid = false, sa
                     memory_used_in_sampling = datalength == 0 ? 0 : (nbytes * Banyan.getsamplenrows(datalength) / datalength)
                     free_memory = Sys.free_memory()
                     if memory_used_in_sampling > cld(free_memory, 4)
-                        @warn "Sample of $remotepath is too large (up to $(format_bytes(memory_used_in_sampling))/$(Banyan.format_bytes(free_memory)) to be used). Try re-creating this job with a greater `sample_rate` than $(get_job().sample_rate)."
+                        @warn "Sample of $remotepath is too large (up to $(format_bytes(memory_used_in_sampling))/$(Banyan.format_bytes(free_memory)) to be used). Try re-starting this session with a greater `sample_rate` than $(get_session().sample_rate)."
                         GC.gc()
                     end
 
@@ -112,7 +112,7 @@ function RemoteHDF5Source(remotepath; shuffled=false, source_invalid = false, sa
                         # If the data is already shuffled or if we just want to
                         # take an exact sample, we don't need to randomly sample here.
                         if datalength > Banyan.get_max_exact_sample_length() && !shuffled
-                            sampleindices = randsubseq(1:datalength, 1 / get_job().sample_rate)
+                            sampleindices = randsubseq(1:datalength, 1 / get_session().sample_rate)
                             # sample = dset[sampleindices, remainingcolons...]
                             if !isempty(sampleindices)
                                 dset_sample = vcat([dset[sampleindex, remainingcolons...] for sampleindex in sampleindices]...)
