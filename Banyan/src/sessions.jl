@@ -60,6 +60,7 @@ function start_session(;
     force_clone::Union{Bool,Nothing} = false,
     force_pull::Union{Bool,Nothing} = false,
     force_install::Union{Bool,Nothing} = false,
+    estimate_available_memory::Union{Bool,Nothing} = true,
     nowait::Bool=false,
     email_when_ready::Union{Bool,Nothing}=nothing,
     kwargs...,
@@ -99,6 +100,7 @@ function start_session(;
         "main_modules" => get_loaded_packages(),
         "using_modules" => using_modules,
         "reuse_resources" => !force_update_files,
+        "estimate_available_memory" => estimate_available_memory
     )
     if !isnothing(session_name)
         session_configuration["session_name"] = session_name

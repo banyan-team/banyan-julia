@@ -196,10 +196,6 @@ function partitioned_computation(handler, fut::AbstractFuture; destination, new_
                 delete!(session.locations, req.value_id)
             end
         end
-
-        # Get queues for moving data between client and cluster
-        scatter_queue = get_scatter_queue(job_id)
-        gather_queue = get_gather_queue(job_id)
     
         # Send evaluation request
         is_merged_to_disk = false
