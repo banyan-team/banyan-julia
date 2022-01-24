@@ -204,7 +204,7 @@ function partitioned_computation(handler, fut::AbstractFuture; destination, new_
         # Send evaluation request
         is_merged_to_disk = false
         try
-            response = send_evaluation(fut.value_id, _id)
+            response = send_evaluation(fut.value_id, session_id)
             is_merged_to_disk = response["is_merged_to_disk"]
         catch
             end_session(failed=true)
