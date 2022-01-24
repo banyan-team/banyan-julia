@@ -384,7 +384,7 @@ function send_evaluation(value_id::ValueId, session_id::SessionId)
     response
 end
 
-function Base.collect(fut::AbstractFuture)
+function compute(fut::AbstractFuture)
     fut = convert(Future, fut)
 
     # NOTE: We might be in the middle of an annotation when this is called so

@@ -39,7 +39,7 @@ using Distributions
 
         call_sum = sum(call)
         call = nothing
-        res = collect(call_sum)
+        res = compute(call_sum)
 	    # println(res)
         @show res
         #res = collect(res)
@@ -94,7 +94,7 @@ end
         )
 
         call_sum = Base.sum(call)
-        res = Base.collect(call_sum)
+        res = compute(call_sum)
         println(res)
         # @test typeof(res) == Base.Vector{Float64}
         # @test all(v->v==3.999999985812889, res)
@@ -119,7 +119,7 @@ end
         call = (cdf.(Normal(), d1) .* price) - (cdf.(Normal(), d2) .* strike .* exp.(-rate .* t))
 
         call_sum = Base.sum(call)
-        res = Base.collect(call_sum)
+        res = compute(call_sum)
         println(res)
 
     end

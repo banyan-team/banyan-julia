@@ -46,7 +46,7 @@ IRIS_DOWNLOAD_PATH = "https://raw.githubusercontent.com/banyan-team/banyan-julia
     df = read_csv("s3://$(bucket_name)/iris.csv")
     gdf = groupby(df, :species)
     pl_means = combine(gdf, :petal_length => mean)
-    res = collect(pl_means)
+    res = compute(pl_means)
     @test res[:, :petal_length_mean] == [1.464, 4.26, 5.552]
     @test res[:, :species] == ["setosa", "versicolor", "virginica"]
 
@@ -78,7 +78,7 @@ end
         t -> cdf(Normal(), t),
         x
     )
-    res = collect(sum(y))
+    res = compute(sum(y))
     @test round(res) == 44254.0
 
     # Destroy job

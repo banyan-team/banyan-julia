@@ -283,8 +283,8 @@ falses(args...; kwargs...) where {T} = fill(false, args...; kwargs...)
 # Array properties
 
 Base.ndims(A::Array{T,N}) where {T,N} = ndims(sample(A))
-Base.size(A::Array{T,N}) where {T,N} = collect(A.size)
-Base.length(V::Array{T,N}) where {T,N} = prod(collect(V.size))
+Base.size(A::Array{T,N}) where {T,N} = compute(A.size)
+Base.length(V::Array{T,N}) where {T,N} = prod(compute(V.size))
 Base.eltype(A::Array{T,N}) where {T,N} = eltype(sample(A))
 
 function pts_for_copying(A, res)
@@ -456,12 +456,12 @@ function Base.reduce(op, A::Array{T,N}; dims=:, kwargs...) where {T,N}
 
         for bpt in Blocked(A)
             pt(A, bpt)
-            if collect(dims) isa Colon || bpt.key in [collect(dims)...]
+            if compute(dims) isa Colon || bpt.key in [compute(dims)...]
                 # NOTE: Be careful about trying to serialize things that would
                 # require serializing the whole Banyan module. For example, if
                 # this where Reducing(op) or if we tried Future(op) where op
                 # could refer to a + function overloaded by BanyanArrays.
-                pt(res, Reducing(collect(op)))
+                pt(res, Reducing(compute(op)))
             else
                 pt(res, bpt.balanced ? Balanced() : Unbalanced(scaled_by_same_as=A), match=A)
             end
