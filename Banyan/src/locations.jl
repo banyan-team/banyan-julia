@@ -86,7 +86,7 @@ function to_jl(lt::Location)
         "dst_parameters" => lt.dst_parameters,
         # NOTE: sample.properties[:rate] is always set in the Sample
         # constructor to the configured sample rate (default 1/nworkers) for
-        # this job
+        # this session
         # TODO: Instead of computing the total memory usage here, compute it
         # at the end of each `@partitioned`. That way we will count twice for
         # mutation
@@ -188,7 +188,7 @@ function apply_sourced_or_destined_funcs(fut)
 end
 
 function located(fut, location::Location)
-    job = get_job()
+    session = get_session()
     fut = convert(Future, fut)
     value_id = fut.value_id
 
@@ -198,14 +198,14 @@ function located(fut, location::Location)
     location.dst_parameters["datatype"] = fut.datatype
 
     if location.src_name == "Client" || location.dst_name == "Client"
-        job.futures_on_client[value_id] = fut
+        session.futures_on_client[value_id] = fut
     else
         # TODO: Set loc of all Futures with Client loc to None at end of
         # evaluate and ensure that this is proper way to handle Client
-        delete!(job.futures_on_client, value_id)
+        delete!(session.futures_on_client, value_id)
     end
 
-    job.locations[value_id] = location
+    session.locations[value_id] = location
     record_request(RecordLocationRequest(value_id, location))
     # @debug size(location.sample.value)
 end
@@ -301,7 +301,7 @@ Disk() = Location("None", Dict{String,Any}()) # The scheduler intelligently dete
 
 # NOTE: Sampling may be the source of weird and annoying bugs for users.
 # Different values tracked by Banyan might have different sampling rates
-# where one is the job's set sampling rate and the other has a sampling rate
+# where one is the session's set sampling rate and the other has a sampling rate
 # of 1. If it is expected for both the values to have the same size or be
 # equivalent in some way, this won't be the case. The samples will have
 # differerent size.
@@ -326,7 +326,7 @@ getsamplenrows(totalnrows) =
         totalnrows
     else
         # Must have at least 1 row
-        cld(totalnrows, get_job().sample_rate)
+        cld(totalnrows, get_session().sample_rate)
     end
 
 # We maintain a cache of locations and a cache of samples. Locations contain
@@ -444,7 +444,7 @@ function get_remote_source_cached(get_remote_source, remotepath; remote_source=n
 
     # This is so that we can make sure that any random selection fo rows is
     # deterministic. Might not be needed...
-    Random.seed!(hash(get_job_id()))
+    Random.seed!(hash(get_session_id()))
 
     get_remote_source(remotepath, remote_source, remote_sample, shuffled)
 end

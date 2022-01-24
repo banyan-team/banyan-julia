@@ -11,7 +11,7 @@ mutable struct Sample
     function Sample(
         value::Any = nothing;
         properties::Dict{Symbol,Any} = Dict{Symbol,Any}(),
-        sample_rate=get_job().sample_rate,
+        sample_rate=get_session().sample_rate,
         total_memory_usage=nothing
     )
         newsample = new(value, properties)
@@ -113,7 +113,7 @@ sample(as::Any, properties...) =
             # This is the default but the `Sample` constructor overrides this
             # before-hand to allow some samples to be "exact" with a sample
             # rate of 1
-            get_job().sample_rate
+            get_session().sample_rate
         elseif first(properties) == :keys
             sample_keys(as)
         elseif first(properties) == :axes

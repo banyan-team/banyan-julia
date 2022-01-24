@@ -1,4 +1,5 @@
-const JobId = String
+const SessionId = String
+const ResourceId = String
 const ValueId = String
 const MessageId = String
 

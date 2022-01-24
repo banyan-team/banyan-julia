@@ -103,5 +103,5 @@ end
 # convert(::Type{Future}, value::Any) = Future(value)
 convert(::Type{Future}, fut::Future) = fut
 
-get_location(value_id::ValueId) = get(get_job().locations, value_id, nothing)
+get_location(value_id::ValueId) = get(get_session().locations, value_id, nothing)
 get_location(fut::AbstractFuture) = get_location(convert(Future, fut).value_id)

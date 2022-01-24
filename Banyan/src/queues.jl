@@ -4,24 +4,33 @@
 
 
 
-function get_scatter_queue(job_id::JobId=get_job_id())
+function get_scatter_queue(resource_id::Union{ResourceId,Nothing}=nothing)
+    if isnothing(resource_id)
+        resource_id = get_session().resource_id
+    end
     return sqs_get_queue_with_retries(
         get_aws_config(),
-        string("banyan_", job_id, "_scatter.fifo"),
+        string("banyan_", resource_id, "_scatter.fifo"),
     )
 end
 
-function get_gather_queue(job_id::JobId=get_job_id())
+function get_gather_queue(resource_id::Union{ResourceId,Nothing}=nothing)
+    if isnothing(resource_id)
+        resource_id = get_session().resource_id
+    end
     return sqs_get_queue_with_retries(
         get_aws_config(),
-        string("banyan_", job_id, "_gather.fifo"),
+        string("banyan_", resource_id, "_gather.fifo"),
     )
 end
 
-function get_execution_queue(job_id::JobId=get_job_id())
+function get_execution_queue(resource_id::Union{ResourceId,Nothing}=nothing)
+    if isnothing(resource_id)
+        resource_id = get_session().resource_id
+    end
     return sqs_get_queue_with_retries(
         get_aws_config(),
-        string("banyan_", job_id, "_execution.fifo"),
+        string("banyan_", resource_id, "_execution.fifo"),
     )
 end
 
@@ -57,8 +66,8 @@ function receive_next_message(queue_name, p=nothing)
             "kind" => "EVALUATION_END",
             "end" => endswith(content, "MESSAGE_END")
         )
-        # Print out logs that were outputed by job on cluster. Will be empty if
-        # `print_logs=false` for the job. Remove "EVALUATION_END" at start and
+        # Print out logs that were outputed by session on cluster. Will be empty if
+        # `print_logs=false` for the session. Remove "EVALUATION_END" at start and
         #  chop off "MESSAGE_END" at the end
         if !isnothing(p) && !p.done
             finish!(p)
@@ -70,23 +79,23 @@ function receive_next_message(queue_name, p=nothing)
         if !isnothing(p) && !p.done
             finish!(p, spinner='✗')
         end
-        # @debug "Job failed"
-        # Print job logs. Will be empty if `print_logs=false` for the job. Remove
+        # @debug "Session failed"
+        # Print session logs. Will be empty if `print_logs=false` for the session. Remove
         # "JOB_FAILURE" and "JOB_END" from the message content. Note that logs
         # are streamed in multiple parts, due to SQS message limits.
         tail = endswith(content, "MESSAGE_END") ? 11 : 0
         head_len = startswith(content, "JOB_FAILURE") ? 11 : 15
         println(chop(content, head=head_len, tail=tail))
-        # Destroy job when last part of log is received.
+        # End session when last part of log is received.
         if endswith(content, "MESSAGE_END")
-            # We have to destroy the job here because we could be receiving
+            # We have to end the session here because we could be receiving
             # this message as a result of the executor actually crashing. So a
-            # new job entirely will have to be launched. Fortunately, the
+            # new session entirely will have to be launched. Fortunately, the
             # provisioned nodes should stick around for a bit so it should
-            # only be a couple of minutes before the job is back up and
+            # only be a couple of minutes before the session is back up and
             # running.
-            end_session(failed=true) # This will reset the `current_job_id` and delete from `jobs`
-            error("Job failed; see preceding output")
+            end_session(failed=true, force=startswith(content, "JOB_FAILURE")) # This will reset the `current_session_id` and delete from `sessions`
+            error("Session failed; see preceding output")
         end
         Dict{String,Any}("kind" => "SESSION_FAILURE")
     else

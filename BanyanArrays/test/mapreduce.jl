@@ -5,7 +5,7 @@ include("foo.jl")
     "parallelism encouraged",
     "parallelism and batches encouraged",
 ]
-    use_job_for_testing(scheduling_config_name = scheduling_config) do
+    use_session_for_testing(scheduling_config_name = scheduling_config) do
 
         println(typeof(Base.fill(1.0, 2048)))
         x = BanyanArrays.fill(10.0, 2048)
@@ -25,7 +25,7 @@ end
     "parallelism encouraged",
     "parallelism and batches encouraged",
 ]
-    use_job_for_testing(scheduling_config_name = scheduling_config) do
+    use_session_for_testing(scheduling_config_name = scheduling_config) do
 
         x = BanyanArrays.fill(10.0, 2048)
         x = map(e -> e / 10, x)
@@ -44,7 +44,7 @@ end
     "parallelism encouraged",
     "parallelism and batches encouraged",
 ]
-    use_job_for_testing(scheduling_config_name = scheduling_config) do
+    use_session_for_testing(scheduling_config_name = scheduling_config) do
 
         x = BanyanArrays.fill(10.0, 2048)
         x = map(e -> e / 10, x)
@@ -65,7 +65,7 @@ end
     "parallelism encouraged",
     "parallelism and batches encouraged",
 ]
-    use_job_for_testing(scheduling_config_name = scheduling_config) do
+    use_session_for_testing(scheduling_config_name = scheduling_config) do
 
         for _ = 1:8
             # NOTE: This also tests simple writing to and reading from local disk
@@ -79,8 +79,8 @@ end
             @show typeof(x)
             # NOTE: The only reason why we're not putting `collect(x)` inside the
             # the `@test` is because `@test` will catch exceptions and prevent the
-            # job from getting destroyed when an exception occurs and we can't keep
-            # running this test if the job ends
+            # session from getting destroyed when an exception occurs and we can't keep
+            # running this test if the session ends
             x_collect = collect(x)
             @test x_collect == Base.fill(10.0, 2048)
         end
@@ -92,7 +92,7 @@ end
     "parallelism encouraged",
     "parallelism and batches encouraged",
 ]
-    use_job_for_testing(scheduling_config_name = scheduling_config) do
+    use_session_for_testing(scheduling_config_name = scheduling_config) do
 
         # NOTE: This also tests simple writing to and reading from local disk
         x = BanyanArrays.fill(10.0, 2048)
@@ -103,8 +103,8 @@ end
         @show typeof(x)
         # NOTE: The only reason why we're not putting `collect(x)` inside the
         # the `@test` is because `@test` will catch exceptions and prevent the
-        # job from getting destroyed when an exception occurs and we can't keep
-        # running this test if the job ends
+        # session from getting destroyed when an exception occurs and we can't keep
+        # running this test if the session ends
         x_collect = collect(x)
         @test x_collect == Base.fill(1.0, 2048)
         @show typeof(x)
@@ -121,7 +121,7 @@ end
     "parallelism encouraged",
     "parallelism and batches encouraged",
 ]
-    use_job_for_testing(scheduling_config_name = scheduling_config) do
+    use_session_for_testing(scheduling_config_name = scheduling_config) do
 
         x = BanyanArrays.fill(10.0, 2048)
         x_sum = reduce(+, x)
@@ -145,7 +145,7 @@ end
     "parallelism encouraged",
     "parallelism and batches encouraged",
 ]
-    use_job_for_testing(scheduling_config_name = scheduling_config) do
+    use_session_for_testing(scheduling_config_name = scheduling_config) do
 
         a = BanyanArrays.fill(10.0, 2048)
         b = BanyanArrays.fill(10.0, 2048)
@@ -160,7 +160,7 @@ end
     "parallelism encouraged",
     "parallelism and batches encouraged",
 ]
-    use_job_for_testing(scheduling_config_name = scheduling_config) do
+    use_session_for_testing(scheduling_config_name = scheduling_config) do
 
         # Here we test more complex dependency graphs where some values are destroyed
 
@@ -190,7 +190,7 @@ end
     "parallelism encouraged",
     "parallelism and batches encouraged",
 ]
-    use_job_for_testing(scheduling_config_name = scheduling_config) do
+    use_session_for_testing(scheduling_config_name = scheduling_config) do
 
         x1 = BanyanArrays.fill(10.0, 2048)
         x2 = BanyanArrays.fill(10.0, 2048)
@@ -208,7 +208,7 @@ end
     "parallelism encouraged",
     "parallelism and batches encouraged",
 ]
-    use_job_for_testing(scheduling_config_name = scheduling_config) do
+    use_session_for_testing(scheduling_config_name = scheduling_config) do
 
         x1 = BanyanArrays.fill(1.0, (2048, 2048))
         x2 = BanyanArrays.fill(2.0, (2048, 2048))
@@ -227,7 +227,7 @@ end
     # "parallelism encouraged",
     # "parallelism and batches encouraged",
 ], (force_parallelism, with_parallelism) in [(true, "with"), (false, "without")]
-    use_job_for_testing(scheduling_config_name = scheduling_config) do
+    use_session_for_testing(scheduling_config_name = scheduling_config) do
 
         # Using x1
 

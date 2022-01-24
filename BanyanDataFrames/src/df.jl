@@ -196,7 +196,7 @@ Base.propertynames(df::DataFrame) = propertynames(sample(df))
 # Grouped(future, job) returns key, gpt, max_ngroups
 # GroupedBy(future, key|keys, job) returns key, gpt, max_ngroups
 # NotGroupedBy(future, key|keys, job) returns key, gpt, max_ngroups
-# GroupedWith(future, key|keys, get_job())
+# GroupedWith(future, key|keys, get_session())
 # Balanced(dim=1)
 # Distributing() for other cases
 # Shuffled() for ID change

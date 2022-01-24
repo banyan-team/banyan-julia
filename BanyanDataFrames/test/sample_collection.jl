@@ -26,8 +26,8 @@
     reusing in ["nothing", "sample", "location", "sample and location"],
     with_or_without_s3fs in ["with", "without"]
 
-    # Use job with appropriate sample collection configuration
-    use_job_for_testing(
+    # Use session with appropriate sample collection configuration
+    use_session_for_testing(
         sample_rate = 2,
         max_exact_sample_length = exact_or_inexact == "Exact" ? 1_024_000 : 0,
         with_s3fs = with_or_without_s3fs == "with",

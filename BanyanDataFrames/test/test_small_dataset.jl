@@ -23,7 +23,7 @@ end
 
 
 @testset "Basic data analytics on a small dataset" begin
-    run_with_session"Indexing small dataset") do job
+    run_with_session("Indexing small dataset") do session
         bucket = get_cluster_s3_bucket_name(get_cluster_name())
         # upload_iris_to_s3(bucket)
         iris = read_csv("s3://$(bucket)/iris_large.csv")
@@ -54,7 +54,7 @@ end
         @test collect(res_row_2) == [4.1, 1.0]
     end
 
-    run_with_session"Filtering small dataset") do job
+    run_with_session("Filtering small dataset") do session
         bucket = get_cluster_s3_bucket_name(get_cluster_name())
         # upload_iris_to_s3(bucket)
         iris = read_csv("s3://$(bucket)/iris_large.csv")
@@ -139,7 +139,7 @@ end
         #@test last(iris_cleaned)[:petal_width] == 2.3
     end
 
-    run_with_session"Sorting small dataset") do job
+    run_with_session("Sorting small dataset") do session
         bucket = get_cluster_s3_bucket_name(get_cluster_name())
         # upload_iris_to_s3(bucket)
         iris = read_csv("s3://$(bucket)/iris_large.csv")
@@ -159,7 +159,7 @@ end
         ] == DataFrames.DataFrame(:sepal_width => [4.4, 3.5, 2.0], :petal_length => [1.5, 1.3, 3.5])
     end
 
-    run_with_session"Join and group-by-aggregate small dataset") do job
+    run_with_session("Join and group-by-aggregate small dataset") do session
         # Join and groupby aggregration
         bucket = get_cluster_s3_bucket_name(get_cluster_name())
         # upload_iris_to_s3(bucket)
@@ -212,7 +212,7 @@ end
         @test counts_species[:, :nrow] == counts_region[:, :nrow] == Base.fill(50, 18)
     end
 
-    run_with_session"Group and map over small dataset") do job
+    run_with_session("Group and map over small dataset") do session
         bucket = get_cluster_s3_bucket_name(get_cluster_name())
         # upload_iris_to_s3(bucket)
         iris = read_csv("s3://$(bucket)/iris_large.csv")
@@ -373,7 +373,7 @@ end
         ]
     end
 
-    run_with_session"Simple group-by aggregation on small dataset") do job
+    run_with_session("Simple group-by aggregation on small dataset") do session
         bucket = get_cluster_s3_bucket_name(get_cluster_name())
         # upload_iris_to_s3(bucket)
         iris = read_csv("s3://$(bucket)/iris_large.csv")
@@ -408,7 +408,7 @@ end
         @test counts[:, :nrow] == Base.fill(50, 18)
     end
 
-    run_with_session"Inner Join") do job
+    run_with_session("Inner Join") do session
         bucket = get_cluster_s3_bucket_name(get_cluster_name())
         # upload_iris_to_s3(bucket)
         iris = read_csv("s3://$(bucket)/iris_large.csv")
@@ -465,7 +465,7 @@ end
 end
 
 @testset "Complex data analytics on a small dataset" begin
-    run_with_session"Multiple evaluations together (test 1) on small dataset") do job
+    run_with_session("Multiple evaluations together (test 1) on small dataset") do session
         bucket = get_cluster_s3_bucket_name(get_cluster_name())
         # upload_iris_to_s3(bucket)
         iris = read_csv("s3://$(bucket)/iris_large.csv")
@@ -513,7 +513,7 @@ end
               1.0
     end
 
-    run_with_session"Multiple evaluations together (test 2) on small dataset") do job
+    run_with_session("Multiple evaluations together (test 2) on small dataset") do session
         bucket = get_cluster_s3_bucket_name(get_cluster_name())
         # upload_iris_to_s3(bucket)
         iris = read_csv("s3://$(bucket)/iris_large.csv")
@@ -539,7 +539,7 @@ end
         @test res[:, :sepal_length_rounded] == [4.0, 8.0, 7.0, 5.0, 6.0]
     end
 
-    run_with_session"Multiple evaluations apart on small dataset") do job
+    run_with_session("Multiple evaluations apart on small dataset") do session
         bucket = get_cluster_s3_bucket_name(get_cluster_name())
         # upload_iris_to_s3(bucket)
         iris = read_csv("s3://$(bucket)/iris_large.csv")

@@ -1,10 +1,48 @@
-# Functions for starting and ending sessions
+# Functions for managing sessions
 
+# Process-local dictionary mapping from session IDs to instances of `Session`
+global sessions = Dict()
+
+# TODO: Allow for different threads to use different session by making this
+# thread-local. For now, we only allow a single `Session` for each process
+# and no sharing between threads; i.e., the burden is on the user to make
+# sure they are synchronizing access to the `Session` if using the same one from
+# different threads.
+# TODO: Allow for different threads to use the same session by wrapping each
+# `Session` in `sessions` in a mutex to allow only one to use it at a time. Further
+# modifications would be required to make sharing a session between threads
+# ergonomic.
+global current_session_id = nothing
+
+function set_session(session_id::Union{SessionId,Nothing})
+    global current_session_id
+    current_session_id = session_id
+end
+
+function get_session_id()::SessionId
+    global current_session_id
+    if isnothing(current_session_id)
+        error(
+            "No session selected using `start_session` or `with_session` or `set_session`. The current session may have been destroyed or no session started yet.",
+        )
+    end
+    current_session_id
+end
+
+function get_session(session_id=get_session_id())::Session
+    global sessions
+    if !haskey(sessions, session_id)
+        error("The selected session does not have any information; if it was created by this process, it has either failed or been destroyed.")
+    end
+    sessions[session_id]
+end
+
+get_cluster_name() = get_session().cluster_name
 
 function start_session(;
     cluster_name::Union{String,Nothing} = nothing,
     nworkers::Union{Integer,Nothing} = 16,
-    resource_release_delay::Integer = 20,
+    release_resources_after::Union{Integer,Nothing} = 20,
     print_logs::Union{Bool,Nothing} = false,
     store_logs_in_s3::Union{Bool,Nothing} = true,
     store_logs_on_cluster::Union{Bool,Nothing} = false,
@@ -22,15 +60,16 @@ function start_session(;
     force_clone::Union{Bool,Nothing} = false,
     force_pull::Union{Bool,Nothing} = false,
     force_install::Union{Bool,Nothing} = false,
-    force_restart::Union{Bool,Nothing} = false,
     nowait::Bool=false,
+    email_when_ready::Union{Bool,Nothing}=nothing,
     kwargs...,
-)::JobId  # TODO: This should return a session ID
+)::SessionId
+
     global BANYAN_JULIA_BRANCH_NAME
     global BANYAN_JULIA_PACKAGES
 
-    global jobs
-    global current_job_id
+    global sessions
+    global current_session_id
 
     # Configure
     configure(; kwargs...)
@@ -51,7 +90,7 @@ function start_session(;
     session_configuration = Dict{String,Any}(
         "cluster_name" => cluster_name,
         "num_workers" => nworkers,
-        "resource_release_delay" => resource_release_delay,
+        "release_resources_after" => release_resources_after,
         "return_logs" => print_logs,
         "store_logs_in_s3" => store_logs_in_s3,
         "store_logs_on_cluster" => store_logs_on_cluster,
@@ -59,10 +98,13 @@ function start_session(;
         "benchmark" => get(ENV, "BANYAN_BENCHMARK", "0") == "1",
         "main_modules" => get_loaded_packages(),
         "using_modules" => using_modules,
-        "force_restart" => force_restart,
+        "reuse_resources" => !force_update_files,
     )
     if !isnothing(session_name)
         session_configuration["session_name"] = session_name
+    end
+    if !isnothing(email_when_ready)
+        session_configuration["email_when_ready"] = email_when_ready
     end
 
     s3_bucket_name = get_cluster_s3_bucket_name(cluster_name)
@@ -135,31 +177,32 @@ function start_session(;
     # Start the session
     @debug "Sending request for session start"
     response = send_request_get_response(:start_session, session_configuration)
-    job_id = response["job_id"]
-    @info "Starting session with ID $job_id on cluster named \"$cluster_name\""
+    session_id = response["session_id"]
+    resource_id = response["resource_id"]
+    @info "Starting session with ID $session_id on cluster named \"$cluster_name\""
 
     # Store in global state
-    current_job_id = job_id
-    jobs[current_job_id] = Job(cluster_name, current_job_id, nworkers, sample_rate)
+    current_session_id = session_id
+    sessions[current_session_id] = Session(cluster_name, current_session_id, resource_id, nworkers, sample_rate)
 
     wait_for_cluster(cluster_name)
 
     if !nowait
-        wait_for_session(job_id)
+        wait_for_session(session_id)
     end
 
-    @debug "Finished starting session $job_id"
-    job_id
+    @debug "Finished starting session $session_id"
+    session_id
 end
 
-function end_session(job_id::JobId = get_job_id(); failed = false, force = false, resource_release_delay = nothing, kwargs...)
-    global jobs
-    global current_job_id
+function end_session(session_id::SessionId = get_session_id(); failed = false, release_resources_now = false, release_resources_after = nothing, kwargs...)
+    global sessions
+    global current_session_id
 
-    @info "Ending session with ID $job_id"
-    request_params = Dict{String,Any}("job_id" => job_id, "failed" => failed)
-    if !isnothing(resource_release_delay)
-        request_params["resource_release_delay"] = resource_release_delay
+    @info "Ending session with ID $session_id"
+    request_params = Dict{String,Any}("session_id" => session_id, "failed" => failed, "release_resources_now" => release_resources_now)
+    if !isnothing(release_resources_after)
+        request_params["release_resources_after"] = release_resources_after
     end
     send_request_get_response(
         :end_session,
@@ -167,9 +210,9 @@ function end_session(job_id::JobId = get_job_id(); failed = false, force = false
     )
 
     # Remove from global state
-    set_job(nothing)
-    delete!(jobs, job_id)
-    job_id
+    set_session(nothing)
+    delete!(sessions, session_id)
+    session_id
 end
 
 function get_sessions(cluster_name = nothing; status = nothing, kwargs...)
@@ -214,59 +257,57 @@ end
 
 get_running_sessions(args...; kwargs...) = get_sessions(args...; status="running", kwargs...)
 
-function download_session_logs(job_id::JobId, cluster_name::String, filename::String=nothing; kwargs...)
+function download_session_logs(session_id::SessionId, cluster_name::String, filename::String=nothing; kwargs...)
     @debug "Downloading logs for session"
     configure(; kwargs...)
     s3_bucket_name = get_cluster_s3_bucket_name(cluster_name)
-    log_file_name = "banyan-log-for-job-$(job_id)"
+    log_file_name = "banyan-log-for-session-$(session_id)"
     filename = !isnothing(filename) ? filename : joinpath(homedir(), ".banyan", "logs")
     s3_get_file(get_aws_config(), s3_bucket_name, log_file_name, filename)
-    @info "Downloaded logs for session with ID $job_id to $filename"
+    @info "Downloaded logs for session with ID $session_id to $filename"
 end
 
-function end_all_sessions(cluster_name::String; kwargs...)
+function end_all_sessions(cluster_name::String; release_resources_now = false, release_resources_after = nothing, kwargs...)
     @info "Ending all running sessions for cluster named $cluster_name"
     configure(; kwargs...)
     sessions = get_sessions(cluster_name, status=["creating", "running"])
-    for (job_id, session) in sessions
-        if session["status"] == "running"
-            end_session(job_id, kwargs...)
-        end
+    for (session_id, session) in sessions
+        end_session(session_id, release_resources_now=release_resources_now, release_resources_after=release_resources_after, kwargs...)
     end
 end
 
-function get_session_status(job_id::String=get_job_id(); kwargs...)
+function get_session_status(session_id::String=get_session_id(); kwargs...)
     configure(; kwargs...)
-    filters = Dict("job_id" => job_id)
+    filters = Dict("session_id" => session_id)
     response = send_request_get_response(:describe_sessions, Dict{String,Any}("filters"=>filters))
-    session_status = response["sessions"][job_id]["status"]
+    session_status = response["sessions"][session_id]["status"]
     if session_status == "failed"
         # We don't immediately fail - we're just explaining. It's only later on
-        # where it's like we're actually using this job do we set the status.
-        @error response["sessions"][job_id]["status_explanation"]
+        # where it's like we're actually using this session do we set the status.
+        @error response["sessions"][session_id]["status_explanation"]
     end
     session_status
 end
 
-function wait_for_session(job_id::JobId=get_job_id(), kwargs...)
+function wait_for_session(session_id::SessionId=get_session_id(), kwargs...)
     t = 5
-    session_status = get_session_status(job_id; kwargs)
-    p = ProgressUnknown("Preparing session with ID $job_id", spinner=true)
+    session_status = get_session_status(session_id; kwargs)
+    p = ProgressUnknown("Preparing session with ID $session_id", spinner=true)
     while session_status == "creating"
         sleep(t)
         next!(p)
         if t < 80
             t *= 2
         end
-        session_status = get_session_status(job_id; kwargs)
+        session_status = get_session_status(session_id; kwargs)
     end
     finish!(p, spinner = session_status == "running" ? '✓' : '✗')
     if session_status == "running"
-        @debug "Session with ID $job_id is ready"
+        @debug "Session with ID $session_id is ready"
     elseif session_status == "completed"
-        error("Session with ID $job_id has already completed")
+        error("Session with ID $session_id has already completed")
     elseif session_status == "failed"
-        error("Session with ID $job_id has failed")
+        error("Session with ID $session_id has failed")
     else
         error("Unknown session status $session_status")
     end
@@ -281,11 +322,11 @@ function with_session(f::Function; kwargs...)
     j = use_existing_session ? kwargs[:session] : start_session(; kwargs...)
     destroyed = false # because of weird catch/finally stuff
     try
-        set_job(j)
+        set_session(j)
         f(j)
     catch
-        # If there is an error we definitely destroy the job
-        # TODO: Cache the job so that even if there is a failure we can still
+        # If there is an error we definitely destroy the session
+        # TODO: Cache the session so that even if there is a failure we can still
         # reuse it
         if end_session_on_error
             end_session(j)
@@ -293,8 +334,8 @@ function with_session(f::Function; kwargs...)
         end
         rethrow()
     finally
-        # We only destroy the job if it hasn't already been destroyed because
-        # of an error and if we don't intend to reuse a job
+        # We only end the session if it hasn't already been end because
+        # of an error and if we don't intend to reuse a session
         if end_session_on_exit && !destroyed
             end_session(j)
         end
