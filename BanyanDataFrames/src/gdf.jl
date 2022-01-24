@@ -15,7 +15,7 @@ Banyan.isview(gdf::GroupedDataFrame) = true
 Banyan.sample_memory_usage(gdf::DataFrames.GroupedDataFrame) =
     total_memory_usage(gdf) - total_memory_usage(parent(gdf))
 
-Base.length(gdf::GroupedDataFrame) = collect(gdf.length)
+Base.length(gdf::GroupedDataFrame) = compute(gdf.length)
 Base.size(gdf::GroupedDataFrame) = Tuple(length(gdf))
 Base.ndims(gdf::GroupedDataFrame) = 1
 DataFrames.groupcols(gdf::GroupedDataFrame) = groupcols(sample(gdf))
@@ -46,7 +46,7 @@ function DataFrames.groupby(df::DataFrame, cols; kwargs...)::GroupedDataFrame
     # partition(gdf, Replicated())
     # partition(gdf_length, Replicated())
 
-    groupingkeys = Symbol.(names(sample(df), collect(cols)))
+    groupingkeys = Symbol.(names(sample(df), compute(cols)))
 
     partitioned_with(scaled=[df, gdf], modules="DataFrames") do
         pt(df, Grouped(df, by=groupingkeys, scaled_by_same_as=gdf))
@@ -128,9 +128,9 @@ function DataFrames.select(gdf::GroupedDataFrame, args...; kwargs...)
     args = Future(args)
     kwargs = Future(kwargs)
 
-    groupingkeys = Symbol.(names(sample(gdf_parent), collect(groupcols)))
+    groupingkeys = Symbol.(names(sample(gdf_parent), compute(groupcols)))
 
-    partitioned_with(scaled=[gdf_parent, gdf, res], grouped=[gdf_parent, res], keys=get(collect(kwargs), :keepkeys, true) ? groupingkeys : [], drifted=true, modules="DataFrames") do
+    partitioned_with(scaled=[gdf_parent, gdf, res], grouped=[gdf_parent, res], keys=get(compute(kwargs), :keepkeys, true) ? groupingkeys : [], drifted=true, modules="DataFrames") do
         pt(gdf_parent, Grouped(gdf_parent, by=groupingkeys, scaled_by_same_as=res), match=res)
         pt(gdf, Blocked(along=1) & ScaledBySame(as=res))
         pt(res, ScaledBySame(as=gdf_parent))
@@ -206,13 +206,13 @@ function DataFrames.transform(gdf::GroupedDataFrame, args...; kwargs...)
     kwargs = Future(kwargs)
 
     # TODO: Put groupingkeys in GroupedDataFrame
-    groupingkeys = Symbol.(names(sample(gdf_parent), collect(groupcols)))
+    groupingkeys = Symbol.(names(sample(gdf_parent), compute(groupcols)))
 
     # TODO: Maybe automatically infer sample properties (set with
     # `partitioned_using`) by looking at the actual annotations in
     # `partitioned_with`
 
-    partitioned_with(scaled=[gdf_parent, gdf, res], grouped=[gdf_parent, res], keys=get(collect(kwargs), :keepkeys, true) ? groupingkeys : [], drifted=true, modules="DataFrames") do
+    partitioned_with(scaled=[gdf_parent, gdf, res], grouped=[gdf_parent, res], keys=get(compute(kwargs), :keepkeys, true) ? groupingkeys : [], drifted=true, modules="DataFrames") do
         pt(gdf_parent, Grouped(gdf_parent, by=groupingkeys, scaled_by_same_as=res), match=res)
         pt(gdf, Blocked(along=1) & ScaledBySame(as=res))
         pt(res, ScaledBySame(as=gdf_parent))
@@ -243,9 +243,9 @@ function DataFrames.combine(gdf::GroupedDataFrame, args...; kwargs...)
     kwargs = Future(kwargs)
 
     # TODO: Put groupingkeys in GroupedDataFrame
-    groupingkeys = Symbol.(names(sample(gdf_parent), collect(groupcols)))
+    groupingkeys = Symbol.(names(sample(gdf_parent), compute(groupcols)))
 
-    partitioned_with(scaled=[gdf_parent, gdf, res], grouped=[gdf_parent, res], keys=get(collect(kwargs), :keepkeys, true) ? groupingkeys : [], drifted=true, modules="DataFrames") do
+    partitioned_with(scaled=[gdf_parent, gdf, res], grouped=[gdf_parent, res], keys=get(compute(kwargs), :keepkeys, true) ? groupingkeys : [], drifted=true, modules="DataFrames") do
         # TODO: If we want to support `keepkeys=false`, we need to make the
         # result be Blocked and `filtered_from` the input
         pts_for_filtering(gdf_parent, res, with=Grouped, by=groupingkeys)
@@ -280,9 +280,9 @@ function DataFrames.subset(gdf::GroupedDataFrame, args...; kwargs...)
     kwargs = Future(kwargs)
 
     # TODO: Put groupingkeys in GroupedDataFrame
-    groupingkeys = Symbol.(names(sample(gdf_parent), collect(groupcols)))
+    groupingkeys = Symbol.(names(sample(gdf_parent), compute(groupcols)))
 
-    partitioned_with(scaled=[gdf_parent, gdf, res], grouped=[gdf_parent, res], keys=get(collect(kwargs), :keepkeys, true) ? groupingkeys : [], drifted=true, modules="DataFrames") do
+    partitioned_with(scaled=[gdf_parent, gdf, res], grouped=[gdf_parent, res], keys=get(compute(kwargs), :keepkeys, true) ? groupingkeys : [], drifted=true, modules="DataFrames") do
         pts_for_filtering(gdf_parent, res, with=Grouped, by=groupingkeys)
         pt(gdf, Blocked(along=1) & ScaledBySame(as=gdf_parent))
         pt(res_nrows, Reducing(quote (a, b) -> a .+ b end))

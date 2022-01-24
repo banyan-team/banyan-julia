@@ -7,7 +7,7 @@
         println(typeof(x))
         res = sum(x)
 
-        res = collect(res)
+        res = compute(res)
         @test typeof(res) == Float64
         @test res == 2048
     end
@@ -15,8 +15,8 @@
     run_with_session("Multiple evaluations apart") do session
         x = BanyanArrays.fill(10.0, 2048)
         x = map(e -> e / 10, x)
-        res1 = collect(sum(x)) # Note: failed here with "key :val_6HTGdt08_idx_0 not found"
-        res2 = collect(minimum(x))
+        res1 = compute(sum(x)) # Note: failed here with "key :val_6HTGdt08_idx_0 not found"
+        res2 = compute(minimum(x))
 
         @test typeof(res1) == Float64
         @test res1 == 2048
@@ -30,8 +30,8 @@
         res1 = sum(x)
         res2 = minimum(x)
 
-        res1 = collect(res1)
-        res2 = collect(res2)
+        res1 = compute(res1)
+        res2 = compute(res2)
         @test typeof(res1) == Float64
         @test res1 == 2048
         @test typeof(res2) == Float64
@@ -53,7 +53,7 @@
             # the `@test` is because `@test` will catch exceptions and prevent the
             # session from getting destroyed when an exception occurs and we can't keep
             # running this test if the session ends
-            x_collect = collect(x)
+            x_collect = compute(x)
             @test x_collect == Base.fill(10.0, 2048)
         end
     end
@@ -70,13 +70,13 @@
         # the `@test` is because `@test` will catch exceptions and prevent the
         # session from getting destroyed when an exception occurs and we can't keep
         # running this test if the session ends
-        x_collect = collect(x)
+        x_collect = compute(x)
         @test x_collect == Base.fill(1.0, 2048)
         @show typeof(x)
         write_to_disk(x)
-        x_collect = collect(x)
+        x_collect = compute(x)
         @test x_collect == Base.fill(1.0, 2048)
-        x_collect = collect(x)
+        x_collect = compute(x)
         @test x_collect == Base.fill(1.0, 2048)
     end
 
@@ -86,14 +86,14 @@
         x = map(e -> e / 10, x)
         write_to_disk(x)
         write_to_disk(x_sum)
-        x_sum_collect = collect(x_sum)
+        x_sum_collect = compute(x_sum)
         @test x_sum_collect == 10.0 * 2048
         write_to_disk(x_sum)
-        x_collect = collect(x)
+        x_collect = compute(x)
         @show length(x_collect)
         @test x_collect == Base.fill(1.0, 2048)
-        collect(x_sum)
-        x_sum_collect = collect(x_sum)
+        compute(x_sum)
+        x_sum_collect = compute(x_sum)
         @test x_sum_collect == 10.0 * 2048
     end
 
@@ -101,7 +101,7 @@
         a = BanyanArrays.fill(10.0, 2048)
         b = BanyanArrays.fill(10.0, 2048)
         c = a + b
-        c_sum_collect = collect(sum(c))
+        c_sum_collect = compute(sum(c))
         @test c_sum_collect == 2048 * 10.0 * 2
     end
 
@@ -113,18 +113,18 @@
         a = BanyanArrays.fill(10.0, 2048)
         x += y
         x += a
-        y_sum_collect = collect(sum(y))
+        y_sum_collect = compute(sum(y))
         @test y_sum_collect == 2048 * 10.0
         a = nothing
-        x_sum_collect = collect(sum(x))
+        x_sum_collect = compute(sum(x))
         @test x_sum_collect == 2048 * 10.0 * 3
         y = nothing
         z = x + x
-        z_sum_collect = collect(sum(z))
+        z_sum_collect = compute(sum(z))
         @test z_sum_collect == 2048 * 10.0 * 6
         x_sum = sum(x)
         x=nothing
-        x_sum_collect = collect(x_sum)
+        x_sum_collect = compute(x_sum)
         @test x_sum_collect == 2048 * 10.0 * 3
     end
 
@@ -133,9 +133,9 @@
         x2 = BanyanArrays.fill(10.0, 2048)
         res = map((a, b) ->  a * b, x1, x2)
 
-        res_sum_collect = collect(sum(res))
+        res_sum_collect = compute(sum(res))
         @test res_sum_collect == 204_800.0
-        res_minimum_collect = collect(minimum(res))
+        res_minimum_collect = compute(minimum(res))
         @test res_minimum_collect == 100.0
     end
 
@@ -145,9 +145,9 @@
         res = map((a, b) ->  a * b, x1, x2) 
         res += BanyanArrays.ones((2048, 2048))
 
-        res_sum_collect = collect(sum(res))
+        res_sum_collect = compute(sum(res))
         @test res_sum_collect == 3.0 * 2048 * 2048
-        res_maximum_collect = collect(maximum(res))
+        res_maximum_collect = compute(maximum(res))
         @test res_maximum_collect == 3.0
     end
 

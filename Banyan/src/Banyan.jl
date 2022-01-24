@@ -76,7 +76,7 @@ export Session,
     with_session
 
 # Futures
-export AbstractFuture, Future, partitioned_computation, write_to_disk, collect
+export AbstractFuture, Future, partitioned_computation, write_to_disk, compute
 
 # Samples
 export Sample, ExactSample, sample, setsample!
