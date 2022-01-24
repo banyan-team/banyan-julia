@@ -17,7 +17,7 @@
 # Basic methods for futures #
 #############################
 
-function partitioned_computation(fut::AbstractFuture; destination, new_source=nothing)
+function partitioned_computation(handler, fut::AbstractFuture; destination, new_source=nothing)
     if isview(fut)
         error("Computing a view (such as a GroupedDataFrame) is not currently supported")
     end
@@ -37,11 +37,12 @@ function partitioned_computation(fut::AbstractFuture; destination, new_source=no
     # we should modify the way we schedule the final merging stage to not
     # require the last value to be merged simply because it is being evaluated.
 
-    global jobs
+    global sessions
 
     fut = convert(Future, fut)
-    job_id = get_job_id()
-    job = get_job()
+    session_id = get_session_id()
+    session = get_session()
+    resource_id = session.resource_id
 
     if fut.mutated || (destination.dst_name == "Client" && fut.stale) || destination.dst_name == "Remote"
         # TODO: Check to ensure that `fut` is annotated
@@ -49,10 +50,13 @@ function partitioned_computation(fut::AbstractFuture; destination, new_source=no
         # will be scheduled to get sent to its destination.
         destined(fut, destination)
         mutated(fut)
+        partitioned_with(scaled=fut) do
+            handler()
+        end
         @partitioned fut begin end
 
         # Get all tasks to be recorded in this call to `compute`
-        tasks = [req.task for req in job.pending_requests if req isa RecordTaskRequest]
+        tasks = [req.task for req in session.pending_requests if req isa RecordTaskRequest]
 
         # Call `partitioned_using_func`s in 2 passes - forwards and backwards.
         # This allows sample properties to propagate in both directions. We
@@ -61,12 +65,14 @@ function partitioned_computation(fut::AbstractFuture; destination, new_source=no
             apply_mutation(invert(t.mutation))
         end
         for t in tasks
+            set_task(t)
             if !isnothing(t.partitioned_using_func)
                 t.partitioned_using_func()
             end
             apply_mutation(t.mutation)
         end
         for t in Iterators.reverse(tasks)
+            set_task(t)
             apply_mutation(invert(t.mutation))
             if !isnothing(t.partitioned_using_func)
                 t.partitioned_using_func()
@@ -153,13 +159,22 @@ function partitioned_computation(fut::AbstractFuture; destination, new_source=no
 
             # Handle 
             empty!(t.mutation) # Drop references to `Future`s here as well
+
+            # @show statements for displaying info about each task
+            # @show t.memory_usage
+            # @show t.inputs
+            # @show t.outputs
+            # @show t.code
+            # @show t.value_names
+            # @show t.effects
+            # @show t.pa_union
         end
 
         # Finalize (destroy) all `Future`s that can be destroyed
         GC.gc()
     
         # Destroy everything that is to be destroyed in this task
-        for req in job.pending_requests
+        for req in session.pending_requests
             # Don't destroy stuff where a `DestroyRequest` was produced just
             # because of a `mutated(old, new)`
             if req isa DestroyRequest && !any(req.value_id in values(t.mutation) for t in tasks)
@@ -172,20 +187,20 @@ function partitioned_computation(fut::AbstractFuture; destination, new_source=no
                 # `collect` we will be using `partitioned_computation` to
                 # communicate with the executor and fill in the value for that
                 # future as needed and then return `the_future.value`.
-                if req.value_id in keys(job.futures_on_client)
-                    delete!(job.futures_on_client, req.value_id)
+                if req.value_id in keys(session.futures_on_client)
+                    delete!(session.futures_on_client, req.value_id)
                 end
     
                 # Remove information about the value's location including the
                 # sample taken from it
-                delete!(job.locations, req.value_id)
+                delete!(session.locations, req.value_id)
             end
         end
     
         # Send evaluation request
         is_merged_to_disk = false
         try
-            response = send_evaluation(fut.value_id, job_id)
+            response = send_evaluation(fut.value_id, session_id)
             is_merged_to_disk = response["is_merged_to_disk"]
         catch
             end_session(failed=true)
@@ -193,26 +208,26 @@ function partitioned_computation(fut::AbstractFuture; destination, new_source=no
         end
     
         # Get queues for moving data between client and cluster
-        scatter_queue = get_scatter_queue(job_id)
-        gather_queue = get_gather_queue(job_id)
+        scatter_queue = get_scatter_queue(resource_id)
+        gather_queue = get_gather_queue(resource_id)
     
         # Read instructions from gather queue
         # @info "Computing result with ID $(fut.value_id)"
-        @debug "Waiting on running job $job_id, listening on $gather_queue, and computing value with ID $(fut.value_id)"
+        @debug "Waiting on running session $session_id, listening on $gather_queue, and computing value with ID $(fut.value_id)"
         p = ProgressUnknown("Computing value with ID $(fut.value_id)", spinner=true)
-        if get_job_status(job_id) != "running"
-            wait_for_session(job_id)
+        if get_session_status(session_id) != "running"
+            wait_for_session(session_id)
         end
         while true
             # TODO: Use to_jl_value and from_jl_value to support Client
             message = receive_next_message(gather_queue, p)
             message_type = message["kind"]
             if message_type == "JOB_READY"
-                # @debug "Job $job_id is ready"
+                # @debug "Session $session_id is ready"
             elseif message_type == "SCATTER_REQUEST"
                 # Send scatter
                 value_id = message["value_id"]
-                f = job.futures_on_client[value_id]
+                f = session.futures_on_client[value_id]
                 # @debug "Received scatter request for value with ID $value_id and value $(f.value) with location $(get_location(f))"
                 send_message(
                     scatter_queue,
@@ -230,10 +245,11 @@ function partitioned_computation(fut::AbstractFuture; destination, new_source=no
                 # Receive gather
                 value_id = message["value_id"]
                 # @debug "Received gather request for $value_id"
-                if value_id in keys(job.futures_on_client)
+                if value_id in keys(session.futures_on_client)
                     value = from_jl_value_contents(message["contents"])
-                    f::Future = job.futures_on_client[value_id]
+                    f::Future = session.futures_on_client[value_id]
                     f.value = value
+                    println("In GATHER with value=$value")
                     # @debug "Received $(f.value)"
                     # TODO: Update stale/mutated here to avoid costly
                     # call to `send_evaluation`
@@ -321,28 +337,28 @@ function configure_scheduling(;kwargs...)
     end
 end
 
-function send_evaluation(value_id::ValueId, job_id::JobId)
+function send_evaluation(value_id::ValueId, session_id::SessionId)
     global encourage_parallelism
     global encourage_parallelism_with_batches
     global exaggurate_size
 
-    # Note that we do not need to check if the job is running here, because
-    # `evaluate` will check if the job has failed. If the job is still creating,
+    # Note that we do not need to check if the session is running here, because
+    # `evaluate` will check if the session has failed. If the session is still creating,
     # we will proceed with the eval request, but the client side will wait
-    # for the job to be ready when reading from the queue.
+    # for the session to be ready when reading from the queue.
 
     @debug "Sending evaluation request"
 
     # Get list of the modules used in the code regions here
-    used_packages = union(vcat([req.task.used_modules for req in get_job().pending_requests if req isa RecordTaskRequest]...))
+    used_packages = union(vcat([req.task.used_modules for req in get_session().pending_requests if req isa RecordTaskRequest]...))
 
     # Submit evaluation request
     response = send_request_get_response(
         :evaluate,
         Dict{String,Any}(
             "value_id" => value_id,
-            "job_id" => job_id,
-            "requests" => [to_jl(req) for req in get_job().pending_requests],
+            "session_id" => session_id,
+            "requests" => [to_jl(req) for req in get_session().pending_requests],
             "options" => Dict(
                 "report_schedule" => report_schedule,
                 "encourage_parallelism" => encourage_parallelism,
@@ -363,7 +379,7 @@ function send_evaluation(value_id::ValueId, job_id::JobId)
     set_num_bang_values_issued(response["num_bang_values_issued"])
 
     # Clear global state and return response
-    empty!(get_job().pending_requests)
+    empty!(get_session().pending_requests)
     response
 end
 
@@ -407,8 +423,9 @@ function Base.collect(fut::AbstractFuture)
     # `Client()` and the sample won't change at all. Also, we should already
     # have a sample since we are merging it to the client.
 
-    pt(fut, Replicated())
-    partitioned_computation(fut, destination=Client(), new_source=Client(nothing))
+    partitioned_computation(fut, destination=Client(), new_source=Client(nothing)) do 
+        pt(fut, Replicated())
+    end
 
     # NOTE: We can't use `new_source=fut->Client(fut.value)` because
     # `new_source` is for locations that require expensive sample collection
@@ -425,8 +442,9 @@ end
 function write_to_disk(fut::AbstractFuture)
     fut = convert(Future, fut)
 
-    pt(fut, Replicated())
-    partitioned_computation(fut, destination=Disk())
+    partitioned_computation(fut, destination=Disk()) do
+        pt(fut, Replicated())
+    end
 end
 
 ###############################################################
@@ -460,5 +478,5 @@ to_jl(req::RecordLocationRequest) =
 to_jl(req::DestroyRequest) = Dict("type" => "DESTROY", "value_id" => req.value_id)
 
 function record_request(request::Request)
-    push!(get_job().pending_requests, request)
+    push!(get_session().pending_requests, request)
 end

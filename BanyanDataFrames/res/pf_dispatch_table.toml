@@ -1,0 +1,130 @@
+[splits.ReturnNullGrouping]
+partition_memory_usage = "none"
+scale_by = 0
+views = false
+locations = [ { datatype = "GroupedDataFrame" } ]
+
+[splits.ReadBlockCSV]
+expected = [ "key" ]
+partition_memory_usage = "part"
+scale_by = 3
+views = false
+required = { name = "Distributing", distribution = "blocked", id = "!" }
+locations = [ { name = "Remote", format = "csv" } ]
+
+[splits.ReadBlockParquet]
+expected = [ "key" ]
+partition_memory_usage = "part"
+scale_by = 3
+views = false
+required = { name = "Distributing", distribution = "blocked", id = "!" }
+locations = [ { name = "Remote", format = "parquet" } ]
+
+[splits.ReadBlockArrow]
+expected = [ "key" ]
+partition_memory_usage = "part"
+scale_by = 3
+views = false
+required = { name = "Distributing", distribution = "blocked", id = "!" }
+locations = [ { name = "Remote", format = "arrow" }, { name = "Disk", datatype = "DataFrame" } ]
+
+[splits.ReadGroupCSV]
+expected = [ "key", "divisions" ]
+partition_memory_usage = "part"
+scale_by = 6
+views = false
+required = { name = "Distributing", distribution = "grouped", id = "!" }
+default = { rev = false }
+locations = [ { name = "Remote", format = "csv" } ]
+
+[splits.ReadGroupParquet]
+expected = [ "key", "divisions" ]
+scale_by_num_partitions = false
+scale_by = 6
+views = false
+required = { name = "Distributing", distribution = "grouped", id = "!" }
+default = { rev = false }
+locations = [ { name = "Remote", format = "parquet" } ]
+
+[splits.ReadGroupArrow]
+expected = [ "key", "divisions" ]
+scale_by_num_partitions = false
+scale_by = 6
+views = false
+required = { name = "Distributing", distribution = "grouped", id = "!" }
+default = { rev = false }
+locations = [ { name = "Remote", format = "arrow" }, { name = "Disk", datatype = "DataFrame" } ]
+
+[splits.CopyFromCSV]
+partition_memory_usage = "all"
+scale_by = 3
+views = false
+required = { name = "Replicating", dividing = false }
+locations = [ { name = "Remote", format = "csv" } ]
+
+[splits.CopyFromParquet]
+partition_memory_usage = "all"
+scale_by = 3
+views = false
+required = { name = "Replicating", dividing = false }
+
+  [[splits.CopyFromParquet.locations]]
+  name = "Remote"
+  format = "parquet"
+
+[splits.CopyFromArrow]
+partition_memory_usage = "all"
+scale_by = 3
+views = false
+required = { name = "Replicating", dividing = false }
+locations = [ { name = "Remote", format = "arrow" }, { name = "Disk", datatype = "DataFrame" } ]
+
+[merges.ReturnNullGrouping]
+partition_memory_usage = "none"
+scale_by = 0
+views = false
+locations = [ { datatype = "GroupedDataFrame" } ]
+
+[merges.WriteCSV]
+partition_memory_usage = "part"
+scale_by = 0
+views = false
+required = { name = "Distributing" }
+locations = [ { name = "Remote", format = "csv" } ]
+
+[merges.WriteParquet]
+partition_memory_usage = "part"
+scale_by = 0
+views = false
+required = { name = "Distributing" }
+locations = [ { name = "Remote", format = "parquet" } ]
+
+[merges.WriteArrow]
+partition_memory_usage = "part"
+scale_by = 0
+views = false
+required = { name = "Distributing" }
+locations = [ { name = "Remote", format = "arrow" }, { name = "Disk", datatype = "DataFrame" } ]
+
+[merges.CopyToCSV]
+partition_memory_usage = "all"
+scale_by = 0
+views = false
+required = { name = "Replicating", replication = "all" }
+locations = [ { name = "Remote", format = "csv" } ]
+
+[merges.CopyToParquet]
+partition_memory_usage = "all"
+scale_by = 0
+views = false
+required = { name = "Replicating", replication = "all" }
+locations = [ { name = "Remote", format = "parquet" } ]
+
+[merges.CopyToArrow]
+partition_memory_usage = "all"
+scale_by = 0
+views = false
+required = { name = "Replicating", replication = "all" }
+locations = [ { name = "Remote", format = "arrow" }, { name = "Disk", datatype = "DataFrame" } ]
+
+casts = { }

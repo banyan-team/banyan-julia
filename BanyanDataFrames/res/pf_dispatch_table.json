@@ -1,0 +1,148 @@
+{
+    "splits": {
+        "ReturnNullGrouping": {
+            "locations": [{"datatype": "GroupedDataFrame"}],
+            "partition_memory_usage": "none",
+            "scale_by": 0,
+            "views": false
+        },
+        "ReadBlockCSV": {
+            "expected": ["key"],
+            "required": {"name": "Distributing", "distribution": "blocked", "id": "!"},
+            "locations": [{"name": "Remote", "format": "CSV"}],
+            "partition_memory_usage": "part",
+            "scale_by": 3,
+            "views": false
+        },
+        "ReadBlockParquet": {
+            "expected": ["key"],
+            "required": {"name": "Distributing", "distribution": "blocked", "id": "!"},
+            "locations": [{"name": "Remote", "format": "Parquet"}],
+            "partition_memory_usage": "part",
+            "scale_by": 3,
+            "views": false
+        },
+        "ReadBlockArrow": {
+            "expected": ["key"],
+            "required": {"name": "Distributing", "distribution": "blocked", "id": "!"},
+            "locations": [
+                {"name": "Remote", "format": "Arrow"},
+                {"name": "Disk", "datatype": "DataFrame"}
+            ],
+            "partition_memory_usage": "part",
+            "scale_by": 3,
+            "views": false
+        },
+        "ReadGroupCSV": {
+            "expected": ["key", "divisions"],
+            "required": {"name": "Distributing", "distribution": "grouped", "id": "!"},
+            "default": {"rev": false},
+            "locations": [{"name": "Remote", "format": "CSV"}],
+            "partition_memory_usage": "part",
+            "scale_by": 6,
+            "views": false
+        },
+        "ReadGroupParquet": {
+            "expected": ["key", "divisions"],
+            "required": {"name": "Distributing", "distribution": "grouped", "id": "!"},
+            "default": {"rev": false},
+            "locations": [{"name": "Remote", "format": "Parquet"}],
+            "scale_by_num_partitions": false,
+            "scale_by": 6,
+            "views": false
+        },
+        "ReadGroupArrow": {
+            "expected": ["key", "divisions"],
+            "required": {"name": "Distributing", "distribution": "grouped", "id": "!"},
+            "default": {"rev": false},
+            "locations": [
+                {"name": "Remote", "format": "Arrow"},
+                {"name": "Disk", "datatype": "DataFrame"}
+            ],
+            "scale_by_num_partitions": false,
+            "scale_by": 6,
+            "views": false
+        },
+        "CopyFromCSV": {
+            "required": {"name": "Replicating", "dividing": false},
+            "locations": [{"name": "Remote", "format": "CSV"}],
+            "partition_memory_usage": "all",
+            "scale_by": 3,
+            "views": false
+        },
+        "CopyFromParquet": {
+            "required": {"name": "Replicating", "dividing": false},
+            "locations": [{"name": "Remote", "format": "Parquet"}],
+            "partition_memory_usage": "all",
+            "scale_by": 3,
+            "views": false
+        },
+        "CopyFromArrow": {
+            "required": {"name": "Replicating", "dividing": false},
+            "locations": [
+                {"name": "Remote", "format": "Arrow"},
+                {"name": "Disk", "datatype": "DataFrame"}
+            ],
+            "partition_memory_usage": "all",
+            "scale_by": 3,
+            "views": false
+        }
+    },
+    "merges": {
+        "ReturnNullGrouping": {
+            "locations": [{"datatype": "GroupedDataFrame"}],
+            "partition_memory_usage": "none",
+            "scale_by": 0,
+            "views": false
+        },
+        "WriteCSV": {
+            "required": {"name": "Distributing"},
+            "locations": [{"name": "Remote", "format": "CSV"}],
+            "partition_memory_usage": "part",
+            "scale_by": 0,
+            "views": false
+        },
+        "WriteParquet": {
+            "required": {"name": "Distributing"},
+            "locations": [{"name": "Remote", "format": "Parquet"}],
+            "partition_memory_usage": "part",
+            "scale_by": 0,
+            "views": false
+        },
+        "WriteArrow": {
+            "required": {"name": "Distributing"},
+            "locations": [
+                {"name": "Remote", "format": "Arrow"},
+                {"name": "Disk", "datatype": "DataFrame"}
+            ],
+            "partition_memory_usage": "part",
+            "scale_by": 0,
+            "views": false
+        },
+        "CopyToCSV": {
+            "required": {"name": "Replicating", "replication": "all"},
+            "locations": [{"name": "Remote", "format": "CSV"}],
+            "partition_memory_usage": "all",
+            "scale_by": 0,
+            "views": false
+        },
+        "CopyToParquet": {
+            "required": {"name": "Replicating", "replication": "all"},
+            "locations": [{"name": "Remote", "format": "Parquet"}],
+            "partition_memory_usage": "all",
+            "scale_by": 0,
+            "views": false
+        },
+        "CopyToArrow": {
+            "required": {"name": "Replicating", "replication": "all"},
+            "locations": [
+                {"name": "Remote", "format": "Arrow"},
+                {"name": "Disk", "datatype": "DataFrame"}
+            ],
+            "partition_memory_usage": "all",
+            "scale_by": 0,
+            "views": false
+        }
+    },
+    "casts": {}
+}

@@ -13,8 +13,10 @@ function Base.copy(fut::AbstractFuture)
     # copying anything  
     # pt(fut, PartitionType())
     # pt(res, PartitionType(), match=fut)
-    pt(fut, Replicating())
-    pt(res, Replicating(), match=fut)
+    partitioned_with(scaled=[fut, res]) do
+        pt(fut, Replicating())
+        pt(res, Replicating(), match=fut)
+    end
 
     @partitioned fut res begin
         res = Base.copy(fut)
@@ -38,8 +40,10 @@ function Base.deepcopy(fut::AbstractFuture)
     # copying anything  
     # pt(fut, PartitionType())
     # pt(res, PartitionType(), match=fut)
-    pt(fut, Replicating())
-    pt(res, Replicating(), match=fut)
+    partitioned_with(scaled=[fut, res]) do
+        pt(fut, Replicating())
+        pt(res, Replicating(), match=fut)
+    end
 
     @partitioned fut res begin
         res = Base.deepcopy(fut)
@@ -56,13 +60,17 @@ struct Array{T,N} <: AbstractFuture where {T,N}
     # TODO: Add offset for indexing
     # offset::Future
 
-    Array{T,N}() where {T,N} = new(Future(), Future())
-    Array{T,N}(A::Array{T,N}) where {T,N} = new(Future(), Future(A.size))
+    Array{T,N}() where {T,N} = new(Future(datatype="Array"), Future())
+    Array{T,N}(A::Array{T,N}) where {T,N} = new(Future(datatype="Array"), Future(A.size))
     Array{T,N}(data::Future, size::Future) where {T,N} = new(data, size)
 end
 
 const Vector{T} = Array{T,1}
 const Matrix{T} = Array{T,2}
+
+Base.convert(::Type{Array{T}}, A::AbstractArray{T,N}) where {T,N} = Array{T,N}(Future(A, datatype="Array"), Future(size(A)))
+Base.convert(::Type{Array}, arr::AbstractArray{T}) where {T} = convert(Array{T}, arr)
+Base.convert(::Type{Vector{T}}, arr::AbstractVector) where {T} = convert(Array{T}, arr)
 
 Banyan.convert(::Type{Future}, A::Array{T,N}) where {T,N} = A.data
 
@@ -172,13 +180,13 @@ Banyan.sample_max(A::U, key) where U <: Base.AbstractArray{T,N} where {T,N} = is
 # Array creation
 
 function read_hdf5(path; kwargs...)
-    A_loc = RemoteSource(path; kwargs...)
+    A_loc = RemoteHDF5Source(path; kwargs...)
     A_loc.src_name == "Remote" || error("$path does not exist")
     if is_debug_on()
         # @show A_loc.src_parameters
         # @show A_loc.size
     end
-    A = Future(source=A_loc)
+    A = Future(datatype="Array", source=A_loc)
     Array{A_loc.eltype,A_loc.ndims}(A, Future(A_loc.size))
 end
 
@@ -201,22 +209,24 @@ function write_hdf5(A, path; invalidate_source=true, invalidate_sample=true, kwa
     # # end
     # @partitioned A begin end
     # compute(A)
-    pt(A, Blocked(A) | Replicated())
     partitioned_computation(
         A,
-        destination=RemoteDestination(path; invalidate_source=invalidate_source, invalidate_sample=invalidate_sample, kwargs...),
-        new_source=_->RemoteSource(path)
-    )
+        destination=RemoteHDF5Destination(path; invalidate_source=invalidate_source, invalidate_sample=invalidate_sample, kwargs...),
+        new_source=_->RemoteHDF5Source(path)
+    ) do
+        pt(A, Blocked(A) | Replicated())
+    end
 end
 
 function Banyan.write_to_disk(A::Array{T,N}) where {T,N}
-    pt(A, Blocked(A) | Replicated())
-    partitioned_computation(A, destination=Disk())
+    partitioned_computation(A, destination=Disk()) do
+        pt(A, Blocked(A) | Replicated())
+    end
 end
 
 function fill(v, dims::NTuple{N,Integer}) where {N}
     fillingdims = Future(source=Size(dims))
-    A = Array{typeof(v),N}(Future(), Future(dims))
+    A = Array{typeof(v),N}(Future(datatype="Array"), Future(dims))
     v = Future(v)
     dims = Future(dims)
 
@@ -238,7 +248,7 @@ function fill(v, dims::NTuple{N,Integer}) where {N}
     # We use `partitioned_with` here to ensure that a sample of A is produced
     # first so that we can use the Blocked PT constructor which depends on A
     # having its sample taken
-    partitioned_with() do
+    partitioned_with(scaled=A) do
         # blocked
         # TODO: Ensure that we are properly creating new PAs
         pt(A, Blocked(A))
@@ -254,14 +264,8 @@ function fill(v, dims::NTuple{N,Integer}) where {N}
     #     println(v)
     #     A = fill(v, fillingdims)
     # end end)
-    if is_debug_on()
-        @partitioned A v fillingdims begin
-            A = Base.fill(v, fillingdims)
-        end
-    else
-        @partitioned A v fillingdims begin
-            A = Base.fill(v, fillingdims)
-        end
+    @partitioned A v fillingdims begin
+        A = Base.fill(v, fillingdims)
     end
 
     A
@@ -297,14 +301,9 @@ function pts_for_copying(A, res)
 end
 
 function Base.copy(A::Array{T,N})::Array{T,N} where {T,N}
-    res = Future()
+    res = Future(datatype="Array")
 
-    partitioned_using() do
-        keep_all_sample_keys(res, A)
-        keep_sample_rate(res, A)
-    end
-
-    partitioned_with() do
+    partitioned_with(scaled=[A, res], keep_same_keys=true) do
         pts_for_copying(A, res)
     end
 
@@ -316,14 +315,9 @@ function Base.copy(A::Array{T,N})::Array{T,N} where {T,N}
 end
 
 function Base.deepcopy(A::Array{T,N})::Array{T,N} where {T,N}
-    res = Future()
+    res = Future(datatype="Array")
 
-    partitioned_using() do
-        keep_all_sample_keys(res, A)
-        keep_sample_rate(res, A)
-    end
-
-    partitioned_with() do
+    partitioned_with(scaled=[A, res], keep_same_keys=true) do
         pts_for_copying(A, res)
     end
 
@@ -336,21 +330,43 @@ end
 
 # Array operations
 
-function Base.map(f, c::Array{T,N}...) where {T,N}
-    f = Future(f)
-    res = Future()
-
-    partitioned_using() do
-        # We shouldn't need to keep sample keys since we are only allowing data
-        # to be blocked for now. The sample rate is kept because it might be
-        # smaller if this is a column of the result of a join operation.
-        # keep_all_sample_keys(res, fut)
-        keep_sample_rate(res, first(c))
-    end
+function Base.map(f, c::Array{T,N}...; force_parallelism=false) where {T,N}
+    # We shouldn't need to keep sample keys since we are only allowing data
+    # to be blocked for now. The sample rate is kept because it might be
+    # smaller if this is a column of the result of a join operation.
+    # keep_all_sample_keys(res, fut)
 
     # TODO: Determine whether array operations need to use mutated_from or mutated_to
 
-    partitioned_with() do
+    if force_parallelism
+        # If we are forcing parallelism, we have an empty code region to
+        # allow for copying from sources like client side and then casting
+        # from replicated partitioning to distributed partitioning
+
+        for c_arg in c
+            mutated(c_arg)
+        end
+
+        partitioned_with(scaled=[c...]) do
+            # balanced
+            pt(first(c), Blocked(first(c), balanced=true))
+            pt(c[2:end]..., Blocked() & Balanced(), match=first(c), on=["key", "id"])
+    
+            # unbalanced
+            pt(first(c), Blocked(first(c), balanced=false))
+            pt(c[2:end]..., Unbalanced(scaled_by_same_as=first(c)), match=first(c))
+
+            # replicated
+            pt(c..., Replicated())
+        end
+
+        @partitioned c begin end
+    end
+
+    f = Future(f)
+    res = Future(datatype="Array")    
+
+    partitioned_with(scaled=[res, c...]) do
         # balanced
         pt(first(c), Blocked(first(c), balanced=true))
         pt(c[2:end]..., res, Blocked() & Balanced(), match=first(c), on=["key", "id"])
@@ -360,10 +376,10 @@ function Base.map(f, c::Array{T,N}...) where {T,N}
         pt(c[2:end]..., res, Unbalanced(scaled_by_same_as=first(c)), match=first(c))
 
         # replicated
-        if !is_debug_on()
-            pt(c..., res, f, Replicated())
-        else
+        if force_parallelism
             pt(f, Replicated())
+        else
+            pt(c..., res, f, Replicated())
         end
     end
 
@@ -375,6 +391,7 @@ function Base.map(f, c::Array{T,N}...) where {T,N}
         # @show res
         # @show typeof(res)
         # @show eltype(res)
+        println("Result of map is res=$res")
     end
 
     # @show sample(res)
@@ -384,39 +401,16 @@ function Base.map(f, c::Array{T,N}...) where {T,N}
     Array{eltype(sample(res)),N}(res, deepcopy(first(c).size))
 end
 
-# NOTE: This function is shared between the client library and the PT library
-function indexapply(op, objs...; index::Integer=1)
-    lists = [obj for obj in objs if (obj isa AbstractVector || obj isa Tuple)]
-    length(lists) > 0 || throw(ArgumentError("Expected at least one tuple as input"))
-    index = index isa Colon ? length(first(lists)) : index
-    operands = [((obj isa AbstractVector || obj isa Tuple) ? obj[index] : obj) for obj in objs]
-    indexres = op(operands...)
-    res = first(lists)
-    if first(lists) isa Tuple
-        res = [res...]
-        res[index] = indexres
-        Tuple(res)
-    else
-        res = copy(res)
-        res[index] = indexres
-        res
-    end
-end
-
 function Base.mapslices(f, A::Array{T,N}; dims) where {T,N}
     if isempty(dims) return map(f, A) end
 
     f = Future(f)
     res_size = Future()
     # TODO: Ensure that this usage of Any is correct here and elsewhere
-    res = Array{Any,Any}(Future(), res_size)
+    res = Array{Any,Any}(Future(datatype="Array"), res_size)
     dims = Future(dims)
 
-    partitioned_using() do
-        keep_sample_rate(res, A)
-    end
-
-    partitioned_with() do
+    partitioned_with(scaled=[A, res]) do
         # Blocked PTs along dimensions _not_ being mapped along
         bpt = [bpt for bpt in Blocked(A) if !(dims isa Colon) && !(bpt.key in [dims...])]
 
@@ -430,7 +424,7 @@ function Base.mapslices(f, A::Array{T,N}; dims) where {T,N}
 
         # replicated
         # TODO: Determine why this MatchOn constraint is not propagating
-        pt(res_size, ReducingWithKey(quote axis -> (a, b) -> indexapply(+, a, b, index=axis) end), match=A, on="key")
+        pt(res_size, ReducingWithKey(quote axis -> (a, b) -> Banyan.indexapply(+, a, b, index=axis) end), match=A, on="key")
         pt(A, res, res_size, f, dims, Replicated())
     end
 
@@ -449,18 +443,11 @@ function Base.reduce(op, A::Array{T,N}; dims=:, kwargs...) where {T,N}
 
     op = Future(op)
     res_size = Future()
-    res = dims isa Colon ? Future() : Array{Any,Any}(Future(), res_size)
-    if is_debug_on()
-        # @show dims # TODO: Ensure this isn't a function
-    end
+    res = dims isa Colon ? Future() : Array{Any,Any}(Future(datatype="Array"), res_size)
     dims = Future(dims)
     kwargs = Future(kwargs)
 
-    partitioned_using() do
-        keep_sample_rate(res, A)
-    end
-
-    partitioned_with() do
+    partitioned_with(scaled=[A, res]) do
         # TODO: Duplicate annotations to handle the balanced and unbalanced cases
         # seperately
         # TODO: Have a better API where duplicating to handle balanced and unbalanced
@@ -480,7 +467,7 @@ function Base.reduce(op, A::Array{T,N}; dims=:, kwargs...) where {T,N}
                 pt(res, bpt.balanced ? Balanced() : Unbalanced(scaled_by_same_as=A), match=A)
             end
         end
-        pt(res_size, ReducingWithKey(quote axis -> (a, b) -> indexapply(+, a, b, index=axis) end), match=A, on="key")
+        pt(res_size, ReducingWithKey(quote axis -> (a, b) -> Banyan.indexapply(+, a, b, index=axis) end), match=A, on="key")
         # TODO: Allow replication
         if !is_debug_on()
             pt(A, res, res_size, dims, kwargs, op, Replicated())
@@ -511,15 +498,11 @@ function Base.sortslices(A::Array{T,N}, dims; kwargs...) where {T,N}
     sortingdim = dims isa Colon ? 1 : first(dims)
     isreversed = get(kwargs, :rev, false)
 
-    res = Future()
+    res = Future(datatype="Array")
     dims = Future(dims)
     kwargs = Future(kwargs)
 
-    partitioned_using() do
-        keep_sample_rate(res, A)
-    end
-
-    partitioned_with() do
+    partitioned_with(scaled=[A, res], keys=sortingdim) do
         # unbalanced -> unbalanced
         pt(A, Grouped(A, by=sortingdim, rev=isreversed, scaled_by_same_as=res, balanced=false))
         pt(res, Blocked() & Unbalanced(scaled_by_same_as=A), match=A, on=["key", "divisions", "id"])

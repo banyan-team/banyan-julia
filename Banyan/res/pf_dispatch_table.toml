@@ -1,0 +1,177 @@
+[splits.ReturnNull]
+location_names = [ "None" ]
+partition_memory_usage = "none"
+scale_by = 0
+
+[splits.SplitBlock]
+expected = [ "key" ]
+location_names = [ "Memory" ]
+partition_memory_usage = "part"
+scale_by = 0
+views = true
+required = { name = "Distributing", distribution = "blocked", id = "!" }
+
+[splits.SplitGroup]
+expected = [ "key" ]
+location_names = [ "Memory" ]
+partition_memory_usage = "part"
+scale_by = 1
+views = false
+required = { name = "Distributing", distribution = "grouped", id = "!" }
+
+[splits.CopyFrom]
+location_names = [ "Memory" ]
+partition_memory_usage = "all"
+scale_by = 0
+views = true
+required = { name = "Replicating", dividing = false }
+
+[splits.CopyFromValue]
+location_names = [ "Value" ]
+partition_memory_usage = "all"
+scale_by = 0
+views = true
+required = { name = "Replicating", dividing = false }
+
+[splits.CopyFromClient]
+location_names = [ "Client" ]
+partition_memory_usage = "all"
+scale_by = 2
+views = false
+required = { name = "Replicating", dividing = false }
+
+[splits.CopyFromJulia]
+partition_memory_usage = "all"
+scale_by = 2
+views = false
+required = { name = "Replicating", dividing = false }
+locations = [ { name = "Disk" } ]
+
+[splits.Divide]
+expected = [ "key" ]
+location_names = [ "Memory" ]
+partition_memory_usage = "all"
+scale_by = 1
+views = false
+required = { name = "Replicating", dividing = true }
+
+[splits.DivideFromValue]
+expected = [ "key" ]
+location_names = [ "Value" ]
+partition_memory_usage = "all"
+scale_by = 1
+views = false
+required = { name = "Replicating", dividing = true }
+
+[splits.DivideFromJulia]
+expected = [ "key" ]
+location_names = [ "Disk" ]
+partition_memory_usage = "all"
+scale_by = 1
+views = false
+required = { name = "Replicating", dividing = true }
+
+[splits.DivideFromClient]
+expected = [ "key" ]
+location_names = [ "Client" ]
+partition_memory_usage = "all"
+scale_by = 1
+views = false
+required = { name = "Replicating", dividing = true }
+
+[merges.ReturnNull]
+location_names = [ "None" ]
+partition_memory_usage = "none"
+scale_by = 0
+views = false
+
+[merges.Merge]
+expected = [ "key" ]
+location_names = [ "Memory" ]
+partition_memory_usage = "part"
+scale_by = 1
+views = false
+required = { name = "Distributing" }
+
+[merges.CopyTo]
+location_names = [ "Memory" ]
+partition_memory_usage = "all"
+scale_by = 0
+views = true
+required = { name = "Replicating", replication = "all" }
+
+[merges.CopyToClient]
+location_names = [ "Client" ]
+partition_memory_usage = "all"
+scale_by = 1
+views = false
+required = { name = "Replicating", replication = "all" }
+
+[merges.CopyToJulia]
+partition_memory_usage = "all"
+scale_by = 0
+views = false
+required = { name = "Replicating", replication = "all" }
+locations = [ { name = "Disk" } ]
+
+[merges.ReduceAndCopyToJulia]
+expected = [ "reducer" ]
+location_names = [ "Memory", "Disk" ]
+partition_memory_usage = "all"
+scale_by = 1
+views = false
+required = { name = "Replicating", with_key = false }
+
+[merges.ReduceWithKeyAndCopyToJulia]
+expected = [ "key", "reducer" ]
+location_names = [ "Memory", "Disk" ]
+partition_memory_usage = "all"
+scale_by = 1
+views = false
+required = { name = "Replicating", with_key = true }
+
+[casts.Reduce]
+src_expected = [ "reducer" ]
+scale_by_dst = 1
+src_required = { name = "Replicating", with_key = false }
+dst_required = { name = "Replicating", replication = "all" }
+
+[casts.ReduceWithKey]
+src_expected = [ "reducer", "key" ]
+scale_by_dst = 1
+src_required = { name = "Replicating", with_key = true }
+dst_required = { name = "Replicating", replication = "all" }
+
+[casts.Rebalance]
+scale_by_src = 1
+scale_by_dst = 3
+src_required = { name = "Distributing" }
+dst_required = { name = "Distributing", distribution = "blocked", balanced = true, id = "!" }
+
+[casts.Distribute]
+dst_expected = [ "key" ]
+scale_by_dst = 1
+src_required = { name = "Replicating", replication = "all" }
+dst_required = { name = "Distributing", distribution = "blocked", id = "!" }
+
+[casts.Consolidate]
+src_expected = [ "key" ]
+scale_by_src = 1
+scale_by_dst = 3
+src_required = { name = "Distributing" }
+dst_required = { name = "Replicating", replication = "all" }
+
+[casts.Shuffle]
+dst_expected = [ "key", "divisions" ]
+scale_by_src = 3
+scale_by_dst = 3
+src_required = { name = "Distributing" }
+dst_required = { name = "Distributing", distribution = "grouped", id = "!" }
+dst_default = { rev = false }
+
+[casts.DistributeAndShuffle]
+dst_expected = [ "key", "divisions" ]
+scale_by_dst = 1
+src_required = { name = "Replicating", replication = "all" }
+dst_required = { name = "Distributing", distribution = "grouped", id = "!" }
+dst_default = { rev = false }

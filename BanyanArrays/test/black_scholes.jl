@@ -4,7 +4,7 @@ using Distributions
 #start_time = now()
 #end_time = now()
 @testset "Black Scholes with Banyan with size=$size" for size in [128_000_000, 256_000_000, 512_000_000]
-    use_job_for_testing(sample_rate = 128) do
+    use_session_for_testing(sample_rate = 128) do
 
         # NOTE: 64M works but 128M doesn't (and also doesn't batch the I/O)
         price = BanyanArrays.fill(4.0, size)
@@ -51,7 +51,7 @@ end
 
 
 @testset "Black Scholes without Banyan with size=$size" for size in [128_000, 128_000_000, 512_000_000]
-    use_job_for_testing(sample_rate = 128) do
+    use_session_for_testing(sample_rate = 128) do
 
         price = Base.fill(4.0, size)
         strike = Base.fill(4.0, size)
@@ -94,7 +94,7 @@ end
     128_000_000,
     512_000_000,
 ]
-    use_job_for_testing(sample_rate = 128) do
+    use_session_for_testing(sample_rate = 128) do
 
         price = Base.fill(4.0, size)
         strike = Base.fill(4.0, size)

@@ -12,8 +12,6 @@
         "Inexact",
     ],
     (file_extension, single_file, on, src_nrows) in [
-        ("h5", true, "S3", 10),
-        ("h5", true, "Internet", 10),
         ("csv", true, "S3", 150),
         ("parquet", true, "S3", 150),
         ("arrow", true, "S3", 150),
@@ -28,8 +26,8 @@
     reusing in ["nothing", "sample", "location", "sample and location"],
     with_or_without_s3fs in ["with", "without"]
 
-    # Use job with appropriate sample collection configuration
-    use_job_for_testing(
+    # Use session with appropriate sample collection configuration
+    use_session_for_testing(
         sample_rate = 2,
         max_exact_sample_length = exact_or_inexact == "Exact" ? 1_024_000 : 0,
         with_s3fs = with_or_without_s3fs == "with",
@@ -42,7 +40,7 @@
         if reusing != "nothing"
             Remote(src_name, source_invalid = true, sample_invalid = true)
         end
-        remote_source = Remote(
+        remote_source = RemoteTableSource(
             src_name,
             source_invalid = (reusing == "nothing" || reusing == "sample"),
             sample_invalid = (reusing == "nothing" || reusing == "location"),
