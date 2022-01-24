@@ -60,7 +60,7 @@ function start_session(;
     force_clone::Union{Bool,Nothing} = false,
     force_pull::Union{Bool,Nothing} = false,
     force_install::Union{Bool,Nothing} = false,
-    estimate_available_memory::Union{Bool,Nothing} = false,
+    estimate_available_memory::Union{Bool,Nothing} = true,
     nowait::Bool=false,
     email_when_ready::Union{Bool,Nothing}=nothing,
     kwargs...,
