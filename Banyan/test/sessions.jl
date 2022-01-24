@@ -9,8 +9,9 @@
         force_pull = get(ENV, "BANYAN_FORCE_CLONE", "0") == "0",
         force_clone = get(ENV, "BANYAN_FORCE_CLONE", "0") == "1",
         force_install = get(ENV, "BANYAN_FORCE_INSTALL", "0") == "1",
-        store_logs_on_cluster=get(ENV, "BANYAN_STORE_LOGS_ON_CLUSTER", "0") == "1"
+        store_logs_on_cluster=get(ENV, "BANYAN_STORE_LOGS_ON_CLUSTER", "0") == "1",
     )
+    println("JOB ID: ", get_session().resource_id)
 end
 
 # @testset "Get sessions" begin
@@ -27,97 +28,135 @@ end
 #     @test any(j -> (j[1] == session_id && j[2]["status"] == "completed"), sessions)
 # end
 
-# # Test that starting a second session after one has been ended
-# # reuses the same job, if the parameters match.
-# @testset "Start and end multiple sessions"
-#     Pkg.activate("envs/DataAnalysisProject/")
-#     cluster_name = ENV["BANYAN_CLUSTER_NAME"]
-#     delay_time = 4
+# Test that starting a second session after one has been ended
+# reuses the same job, if the parameters match.
+@testset "Start and end multiple sessions" begin
+    Pkg.activate("envs/DataAnalysisProject/")
+    cluster_name = ENV["BANYAN_CLUSTER_NAME"]
+    delay_time = 5
 
-#     # Start a session and end it
-#     job_id_1 = start_session(
-#         cluster_name=cluster_name,
-#         nworkers=2,
-#         resource_release_delay=delay_time
-#     )
-#     session_status = get_session_status(job_id_1)
-#     @test session_status == "running"
+    # Start a session and end it
+    session_id_1 = start_session(
+        cluster_name = ENV["BANYAN_CLUSTER_NAME"],
+        nworkers = 2,
+        print_logs = true,
+        url = "https://github.com/banyan-team/banyan-julia.git",
+        branch = get(ENV, "BANYAN_JULIA_BRANCH", get_branch_name()),
+        directory = "banyan-julia/Banyan/test",
+        dev_paths = ["banyan-julia/Banyan"],
+        store_logs_on_cluster=get(ENV, "BANYAN_STORE_LOGS_ON_CLUSTER", "0") == "1",
+        release_resources_after=delay_time
+    )
+    println("SESSION_ID: ", session_id_1)
+    println("JOB ID :", get_session().resource_id)
+    # resource_id_1 = get_session().resource_id
+    # session_status = get_session_status(session_id_1)
+    # @test session_status == "running"
 
-#     end_session(job_id_1)
-#     sleep(30)
-#     session_status = get_session_status(job_id_1)
-#     @test session_status == "completed"
+    end_session(session_id_1)
+    # sleep(60)
+    # session_status = get_session_status(session_id_1)
+    # @test session_status == "completed"
 
-#     # Start another session with same nworkers and verify the job ID matches
-#     job_id_2 = start_session(
-#         cluster_name=cluster_name,
-#         nworkers=2,
-#         resource_release_delay=delay_time
-#     )
-#     session_status = get_session_status(job_id_2)
-#     @test session_status == "running"
-#     @test job_id_2 == job_id_1
+    # # Start another session with same nworkers and verify the job ID matches
+    # session_id_2 = start_session(
+    #     cluster_name = ENV["BANYAN_CLUSTER_NAME"],
+    #     nworkers = 2,
+    #     print_logs = true,
+    #     url = "https://github.com/banyan-team/banyan-julia.git",
+    #     branch = get(ENV, "BANYAN_JULIA_BRANCH", get_branch_name()),
+    #     directory = "banyan-julia/Banyan/test",
+    #     dev_paths = ["banyan-julia/Banyan"],
+    #     store_logs_on_cluster=get(ENV, "BANYAN_STORE_LOGS_ON_CLUSTER", "0") == "1",
+    #     release_resources_after=delay_time
+    # )
+    # resource_id_2 = get_session().resource_id
+    # session_status = get_session_status(session_id_2)
+    # @test session_status == "running"
+    # @test resource_id_2 == resource_id_1
     
-#     end_session(job_id_2)
-#     sleep(30)
-#     session_status = get_session_status(job_id_2)
-#     @test session_status == "completed"
+    # end_session(session_id_2)
+    # sleep(60)
+    # session_status = get_session_status(session_id_2)
+    # @test session_status == "completed"
 
-#     # Start another session with different nworkers and verify the job ID
-#     # is different
-#     job_id_3 = start_session(
-#         cluster_name=cluster_name,
-#         nworkers=3,
-#         resource_release_delay=delay_time
-#     )
-#     session_status = get_session_status(job_id_3)
-#     @test session_status == "running"
-#     @test job_id_3 != job_id_1
+    # # Start another session with different nworkers and verify the job ID
+    # # is different
+    # session_id_3 = start_session(
+    #     cluster_name = ENV["BANYAN_CLUSTER_NAME"],
+    #     nworkers = 2,
+    #     print_logs = true,
+    #     url = "https://github.com/banyan-team/banyan-julia.git",
+    #     branch = get(ENV, "BANYAN_JULIA_BRANCH", get_branch_name()),
+    #     directory = "banyan-julia/Banyan/test",
+    #     dev_paths = ["banyan-julia/Banyan"],
+    #     store_logs_on_cluster=get(ENV, "BANYAN_STORE_LOGS_ON_CLUSTER", "0") == "1",
+    #     release_resources_after=delay_time
+    # )
+    # resource_id_3 = get_session().resource_id
+    # session_status = get_session_status(session_id_3)
+    # @test session_status == "running"
+    # @test resource_id_3 != resource_id_1
     
-#     end_session(job_id_3)
-#     sleep(30)
-#     session_status = get_session_status(job_id_3)
-#     @test session_status == "completed"
+    # end_session(session_id_3)
+    # sleep(60)
+    # session_status = get_session_status(session_id_3)
+    # @test session_status == "completed"
 
-#     # Sleep for the delay_time and check that the sessions are completed
-#     # by creating a new session
-#     sleep(delay_time * 60)
-#     job_id_4 = start_session(
-#         cluster_name=cluster_name,
-#         nworkers=2,
-#         resource_release_delay=delay_time,
-#         nowait=true
-#     )
-#     @test job_id_4 != job_id_1
+    # # Sleep for the delay_time and check that the sessions are completed
+    # # by creating a new session
+    # sleep(delay_time * 60)
+    # session_id_4 = start_session(
+    #     cluster_name = ENV["BANYAN_CLUSTER_NAME"],
+    #     nworkers = 2,
+    #     print_logs = true,
+    #     url = "https://github.com/banyan-team/banyan-julia.git",
+    #     branch = get(ENV, "BANYAN_JULIA_BRANCH", get_branch_name()),
+    #     directory = "banyan-julia/Banyan/test",
+    #     dev_paths = ["banyan-julia/Banyan"],
+    #     store_logs_on_cluster=get(ENV, "BANYAN_STORE_LOGS_ON_CLUSTER", "0") == "1",
+    #     release_resources_after=delay_time,
+    #     nowait=true
+    # )
+    # resource_id_4 = get_session().resource_id
+    # @test resource_id_4 != resource_id_1
     
-#     end_session(job_id_4)
-# end
+    # end_session(session_id_4)
+end
 
-# @testset "Create sessions with nowait=$nowait" for
-#         nowait in [true, false]
-#     Pkg.activate("envs/DataAnalysisProject/")
-#     cluster_name = ENV["BANYAN_CLUSTER_NAME"]
+@testset "Create sessions with nowait=$nowait" for
+        nowait in [true, false]
+    Pkg.activate("envs/DataAnalysisProject/")
+    cluster_name = ENV["BANYAN_CLUSTER_NAME"]
 
-#     job_id = start_session(
-#         cluster_name=cluster_name,
-#         nworkers=2,
-#         nowait=nowait
-#     )
+    session_id = start_session(
+        cluster_name = ENV["BANYAN_CLUSTER_NAME"],
+        nworkers = 2,
+        print_logs = true,
+        url = "https://github.com/banyan-team/banyan-julia.git",
+        branch = get(ENV, "BANYAN_JULIA_BRANCH", get_branch_name()),
+        directory = "banyan-julia/Banyan",
+        force_pull = get(ENV, "BANYAN_FORCE_CLONE", "0") == "0",
+        force_clone = get(ENV, "BANYAN_FORCE_CLONE", "0") == "1",
+        force_install = get(ENV, "BANYAN_FORCE_INSTALL", "0") == "1",
+        store_logs_on_cluster=get(ENV, "BANYAN_STORE_LOGS_ON_CLUSTER", "0") == "1",
+        nowait=nowait
+    )
 
-#     session_status = get_session_status(job_id)
-#     if !nowait
-#         @test session_status == "running"
-#     else
-#         @test session_status == "creating"
-#         while session_status == "creating"
-#             sleep(20)
-#             session_status = get_session_status(job_id)
-#         end
-#         @test session_status == "running"
-#     end
+    session_status = get_session_status(session_id)
+    if !nowait
+        @test session_status == "running"
+    else
+        @test session_status == "creating"
+        while session_status == "creating"
+            sleep(20)
+            session_status = get_session_status(session_id)
+        end
+        @test session_status == "running"
+    end
 
-#     end_session(job_id)
-# end
+    end_session(session_id, force=true)
+end
 
 # @testset "Create sessions where store_logs_in_s3=$store_logs_in_s3" for 
 #         store_logs_in_s3 in [true, false]
