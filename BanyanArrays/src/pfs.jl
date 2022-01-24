@@ -932,11 +932,9 @@ function Banyan.Consolidate(part::AbstractArray, src_params::Dict{String,Any}, d
     sendbuf = if is_buffer_type
         MPI.Buffer(part)
     else
-        begin
-            io = IOBuffer()
-            serialize(io, obj)
-            MPI.Buffer(view(io.data, 1:io.size))
-        end
+        io = IOBuffer()
+        serialize(io, part)
+        MPI.Buffer(view(io.data, 1:io.size))
     end
     recvvbuf = Banyan.buftovbuf(sendbuf, comm)
     # TODO: Maybe sometimes use gatherv if all sendbuf's are known to be equally sized

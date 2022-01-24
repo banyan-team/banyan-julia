@@ -342,6 +342,11 @@ function Base.map(f, c::Array{T,N}...; force_parallelism=false) where {T,N}
         # If we are forcing parallelism, we have an empty code region to
         # allow for copying from sources like client side and then casting
         # from replicated partitioning to distributed partitioning
+
+        for c_arg in c
+            mutated(c_arg)
+        end
+
         partitioned_with(scaled=[c...]) do
             # balanced
             pt(first(c), Blocked(first(c), balanced=true))
