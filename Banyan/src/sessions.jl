@@ -42,7 +42,7 @@ get_cluster_name() = get_session().cluster_name
 function start_session(;
     cluster_name::Union{String,Nothing} = nothing,
     nworkers::Union{Integer,Nothing} = 16,
-    resource_release_delay::Integer = 20,
+    release_resources_after::Union{Integer,Nothing} = 20,
     print_logs::Union{Bool,Nothing} = false,
     store_logs_in_s3::Union{Bool,Nothing} = true,
     store_logs_on_cluster::Union{Bool,Nothing} = false,
@@ -60,7 +60,6 @@ function start_session(;
     force_clone::Union{Bool,Nothing} = false,
     force_pull::Union{Bool,Nothing} = false,
     force_install::Union{Bool,Nothing} = false,
-    force_restart::Union{Bool,Nothing} = false,
     nowait::Bool=false,
     kwargs...,
 )::SessionId
@@ -90,7 +89,7 @@ function start_session(;
     session_configuration = Dict{String,Any}(
         "cluster_name" => cluster_name,
         "num_workers" => nworkers,
-        "resource_release_delay" => resource_release_delay,
+        "release_resources_after" => release_resources_after,
         "return_logs" => print_logs,
         "store_logs_in_s3" => store_logs_in_s3,
         "store_logs_on_cluster" => store_logs_on_cluster,
@@ -98,7 +97,7 @@ function start_session(;
         "benchmark" => get(ENV, "BANYAN_BENCHMARK", "0") == "1",
         "main_modules" => get_loaded_packages(),
         "using_modules" => using_modules,
-        "force_restart" => force_restart,
+        "reuse_resources" => !force_update_files,
     )
     if !isnothing(session_name)
         session_configuration["session_name"] = session_name
@@ -193,14 +192,14 @@ function start_session(;
     session_id
 end
 
-function end_session(session_id::SessionId = get_session_id(); failed = false, force = false, resource_release_delay = nothing, kwargs...)
+function end_session(session_id::SessionId = get_session_id(); failed = false, release_resources_now = false, release_resources_after = nothing, kwargs...)
     global sessions
     global current_session_id
 
     @info "Ending session with ID $session_id"
-    request_params = Dict{String,Any}("session_id" => session_id, "failed" => failed, "force" => force)
-    if !isnothing(resource_release_delay)
-        request_params["resource_release_delay"] = resource_release_delay
+    request_params = Dict{String,Any}("session_id" => session_id, "failed" => failed, "release_resources_now" => release_resources_now)
+    if !isnothing(release_resources_after)
+        request_params["release_resources_after"] = release_resources_after
     end
     send_request_get_response(
         :end_session,
@@ -265,12 +264,12 @@ function download_session_logs(session_id::SessionId, cluster_name::String, file
     @info "Downloaded logs for session with ID $session_id to $filename"
 end
 
-function end_all_sessions(cluster_name::String; kwargs...)
+function end_all_sessions(cluster_name::String; release_resources_now = false, release_resources_after = nothing, kwargs...)
     @info "Ending all running sessions for cluster named $cluster_name"
     configure(; kwargs...)
     sessions = get_sessions(cluster_name, status=["creating", "running"])
     for (session_id, session) in sessions
-        end_session(session_id, kwargs...)
+        end_session(session_id, release_resources_now=release_resources_now, release_resources_after=release_resources_after kwargs...)
     end
 end
 
