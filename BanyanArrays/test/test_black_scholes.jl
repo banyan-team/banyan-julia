@@ -4,7 +4,7 @@ using Distributions
 @testset "Black Scholes" begin
     #start_time = now()
     #end_time = now()
-    run_with_session("Black Scholes with Banyan") do job
+    run_with_session("Black Scholes with Banyan") do session
         # size = 256_000_000  ##512000000  # 256000000
         size = 128_000_000
         # NOTE: 64M works but 128M doesn't (and also doesn't batch the I/O)
@@ -53,7 +53,7 @@ end
 
 
 @testset "Black Scholes" begin
-    run_without_session("Black Scholes without Banyan") do job
+    run_without_session("Black Scholes without Banyan") do session
         size = 128  #256000000
         price = Base.fill(4.0, size)
         strike = Base.fill(4.0, size)
@@ -103,7 +103,7 @@ end
 
 
 @testset "Black Scholes" begin
-    run_without_session("Black Scholes without Banyan vectorized") do job
+    run_without_session("Black Scholes without Banyan vectorized") do session
         size = 128  #256000000
         price = Base.fill(4.0, size)
         strike = Base.fill(4.0, size)

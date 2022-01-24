@@ -268,7 +268,7 @@ function end_all_sessions(cluster_name::String; release_resources_now = false, r
     configure(; kwargs...)
     sessions = get_sessions(cluster_name, status=["creating", "running"])
     for (session_id, session) in sessions
-        end_session(session_id, release_resources_now=release_resources_now, release_resources_after=release_resources_after kwargs...)
+        end_session(session_id, release_resources_now=release_resources_now, release_resources_after=release_resources_after, kwargs...)
     end
 end
 
