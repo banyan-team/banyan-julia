@@ -17,7 +17,7 @@
 # Basic methods for futures #
 #############################
 
-function partitioned_computation(fut::AbstractFuture; destination, new_source=nothing)
+function partitioned_computation(handler, fut::AbstractFuture; destination, new_source=nothing)
     if isview(fut)
         error("Computing a view (such as a GroupedDataFrame) is not currently supported")
     end
@@ -49,6 +49,9 @@ function partitioned_computation(fut::AbstractFuture; destination, new_source=no
         # will be scheduled to get sent to its destination.
         destined(fut, destination)
         mutated(fut)
+        partitioned_with(scaled=fut) do
+            handler()
+        end
         @partitioned fut begin end
 
         # Get all tasks to be recorded in this call to `compute`
@@ -61,12 +64,14 @@ function partitioned_computation(fut::AbstractFuture; destination, new_source=no
             apply_mutation(invert(t.mutation))
         end
         for t in tasks
+            set_task(t)
             if !isnothing(t.partitioned_using_func)
                 t.partitioned_using_func()
             end
             apply_mutation(t.mutation)
         end
         for t in Iterators.reverse(tasks)
+            set_task(t)
             apply_mutation(invert(t.mutation))
             if !isnothing(t.partitioned_using_func)
                 t.partitioned_using_func()
@@ -153,6 +158,15 @@ function partitioned_computation(fut::AbstractFuture; destination, new_source=no
 
             # Handle 
             empty!(t.mutation) # Drop references to `Future`s here as well
+
+            # @show statements for displaying info about each task
+            # @show t.memory_usage
+            # @show t.inputs
+            # @show t.outputs
+            # @show t.code
+            # @show t.value_names
+            # @show t.effects
+            # @show t.pa_union
         end
 
         # Finalize (destroy) all `Future`s that can be destroyed
@@ -192,7 +206,7 @@ function partitioned_computation(fut::AbstractFuture; destination, new_source=no
             response = send_evaluation(fut.value_id, job_id)
             is_merged_to_disk = response["is_merged_to_disk"]
         catch
-            destroy_job(failed=true)
+            end_session(failed=true)
             rethrow()
         end
     
@@ -200,8 +214,8 @@ function partitioned_computation(fut::AbstractFuture; destination, new_source=no
         # @info "Computing result with ID $(fut.value_id)"
         @debug "Waiting on running job $job_id, listening on $gather_queue, and computing value with ID $(fut.value_id)"
         p = ProgressUnknown("Computing value with ID $(fut.value_id)", spinner=true)
-        if get_job_status(job_id) != "running"
-            wait_for_job(job_id)
+        if get_session_status(job_id) != "running"
+            wait_for_session(job_id)
         end
         while true
             # TODO: Use to_jl_value and from_jl_value to support Client
@@ -405,8 +419,9 @@ function Base.collect(fut::AbstractFuture)
     # `Client()` and the sample won't change at all. Also, we should already
     # have a sample since we are merging it to the client.
 
-    pt(fut, Replicated())
-    partitioned_computation(fut, destination=Client(), new_source=Client(nothing))
+    partitioned_computation(fut, destination=Client(), new_source=Client(nothing)) do 
+        pt(fut, Replicated())
+    end
 
     # NOTE: We can't use `new_source=fut->Client(fut.value)` because
     # `new_source` is for locations that require expensive sample collection
@@ -423,8 +438,9 @@ end
 function write_to_disk(fut::AbstractFuture)
     fut = convert(Future, fut)
 
-    pt(fut, Replicated())
-    partitioned_computation(fut, destination=Disk())
+    partitioned_computation(fut, destination=Disk()) do
+        pt(fut, Replicated())
+    end
 end
 
 ###############################################################

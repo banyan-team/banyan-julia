@@ -9,8 +9,37 @@ __precompile__()
 
 module Banyan
 
+global BANYAN_JULIA_BRANCH_NAME = "v21.12.19"
+global BANYAN_JULIA_PACKAGES = ["Banyan", "BanyanArrays", "BanyanDataFrames"]
+
 using FilePathsBase: joinpath, isempty
 using Base: notnothing, env_project_file
+
+using AWS: _get_ini_value
+using AWSCore
+using AWSS3
+using AWSSQS
+using Base64
+using Downloads
+using HTTP
+using JSON
+using Random
+using Serialization
+using TOML
+
+using FileIO
+using FilePathsBase
+using IniFile
+
+# For PFs:
+using Serialization, Base64, MPI
+
+# For loading
+using ProgressMeter
+
+# For testing utils
+using LibGit2
+
 global BANYAN_API_ENDPOINT
 
 # Account management
@@ -45,6 +74,11 @@ export Job,
     get_cluster_name,
     get_running_jobs,
     wait_for_job
+
+# Session management
+export start_session,
+    end_session,
+    get_session_status
 
 # Futures
 export AbstractFuture, Future, partitioned_computation, write_to_disk, collect
@@ -92,7 +126,7 @@ export Any,
     Partitioned
 
 # Partitioning constraints
-export Co, Cross, Equal, Sequential, Match, MatchOn, AtMost, ScaleBy
+export Co, Cross, Equal, Sequential, Match, MatchOn, AtMost, Scale
 
 # Annotations
 export partitioned_using,
@@ -104,63 +138,60 @@ export partitioned_using,
     keep_sample_rate,
     partitioned_using_modules
 
-# Debugging
+# Debugging, PFs
 export is_debug_on,
     get_s3fs_bucket_path,
     get_s3_bucket_path,
+    download_remote_path,
     with_downloaded_path_for_reading,
     configure_scheduling,
-    orderinghash
+    orderinghash,
+    get_worker_idx,
+    get_nworkers,
+    get_partition_idx,
+    get_npartitions,
+    split_len,
+    split_on_executor,
+    merge_on_executor,
+    get_partition_idx_from_divisions,
+    isoverlapping,
+    to_jl_value,
+    to_jl_value_contents,
+    from_jl_value_contents,
+    to_vector,
+    get_divisions,
+    getpath,
+    buftovbuf,
+    indexapply,
+    PartiallyMerged
 
 # Partitioning functions for usage in jobs that run on the cluster; dispatched
 # based on `res/pf_dispatch_table.json`.
 export ReturnNull,
-    ReadBlock,
     ReadGroup,
-    Write,
+    Shuffle,
     SplitBlock,
     SplitGroup,
+    Consolidate,
     Merge,
     CopyFrom,
+    CopyFromValue,
+    CopyFromClient,
+    CopyFromJulia,
     CopyTo,
-    ReduceAndCopyTo,
-    ReduceWithKeyAndCopyTo,
+    CopyToClient,
+    CopyToJulia,
+    ReduceAndCopyToJulia,
+    ReduceWithKeyAndCopyToJulia,
     Divide,
+    DivideFromValue,
+    DivideFromDisk,
+    DivideFromClient,
     Reduce,
     ReduceWithKey,
     Rebalance,
     Distribute,
-    Consolidate,
-    DistributeAndShuffle,
-    Shuffle
-
-using AWS: _get_ini_value
-using AWSCore
-using AWSS3
-using AWSSQS
-using Base64
-using Downloads
-using HTTP
-using JSON
-using Random
-using Serialization
-using TOML
-
-using FileIO
-using FilePathsBase
-using IniFile
-
-using IterTools
-
-# TODO: Move locations, samples, and parts of pt_lib.jl and pt_lib_info.json
-# into their respective libraries where they can be specialized
-using HDF5, CSV, Parquet, Arrow, DataFrames
-
-# For PFs:
-using Serialization, Base64, MPI
-
-# For loading
-using ProgressMeter
+    DistributeAndShuffle
 
 # Helpers
 include("id.jl")
@@ -184,6 +215,7 @@ include("utils_abstract_types.jl")
 include("utils_s3fs.jl")
 include("clusters.jl")
 include("jobs.jl")
+include("sessions.jl")
 
 # Futures
 include("future.jl")

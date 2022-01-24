@@ -1,9 +1,8 @@
-using BanyanDataFrames
-using BanyanArrays
 using Banyan
+using BanyanArrays
+using BanyanDataFrames
 using ReTest
 using FilePathsBase, AWSS3, DataFrames, CSV, Parquet, Arrow
-using LibGit2
 using Random
 
 global jobs_for_testing = Dict()
@@ -11,17 +10,9 @@ global jobs_for_testing = Dict()
 function destroy_all_jobs_for_testing()
     global jobs_for_testing
     for (job_config_hash, job_id) in jobs_for_testing
-        destroy_job(job_id)
+        end_session(job_id)
         delete!(jobs_for_testing, job_config_hash)
     end
-end
-
-function get_branch_name()
-    prepo = LibGit2.GitRepo(realpath(joinpath(@__DIR__, "../..")))
-    phead = LibGit2.head(prepo)
-    branchname = LibGit2.shortname(phead)
-    @info "Running tests with banyan-julia repository checked out to branch $branchname"
-    branchname
 end
 
 function use_job_for_testing(
@@ -47,19 +38,30 @@ function use_job_for_testing(
         if haskey(jobs_for_testing, job_config_hash)
             jobs_for_testing[job_config_hash]
         else
-            create_job(
+            start_session(
                 cluster_name = ENV["BANYAN_CLUSTER_NAME"],
                 nworkers = 2,
                 sample_rate = sample_rate,
                 print_logs = true,
                 url = "https://github.com/banyan-team/banyan-julia.git",
-                branch = get(ENV, "BANYAN_JULIA_BRANCH", get_branch_name()),
+                branch = get(ENV, "BANYAN_JULIA_BRANCH", Banyan.get_branch_name()),
                 directory = "banyan-julia/BanyanDataFrames/test",
                 dev_paths = [
                     "banyan-julia/Banyan",
                     "banyan-julia/BanyanArrays",
                     "banyan-julia/BanyanDataFrames"
                 ],
+                # BANYAN_REUSE_RESOURCES should be 1 when the compute resources
+                # for sessions being run can be reused; i.e., there is no
+                # forced pulling, cloning, or installation going on. When it is
+                # set to 1, we will reuse the same job for each session. When
+                # set to 0, we will use a different job for each session but
+                # each session will immediately release its resources so that
+                # it can be used for the next session instead of giving up
+                # TODO: Make it so that sessions that can't reuse existing jobs
+                # will instead destroy jobs so that when it creates a new job
+                # it can reuse the existing underlying resources.
+                resource_release_delay = get(ENV, "BANYAN_REUSE_RESOURCES", "0") == "1" ? 20 : 0,
                 force_pull = get(ENV, "BANYAN_FORCE_PULL", "1") == "1",
                 force_clone = get(ENV, "BANYAN_FORCE_CLONE", "0") == "1",
                 force_install = get(ENV, "BANYAN_FORCE_INSTALL", "0") == "1",
@@ -225,6 +227,10 @@ end
 
 include("sample_computation.jl")
 include("groupby_filter_indexing.jl")
+
+# Clear caches to ensure that caching behavior is deterministic
+clear_sources()
+clear_samples()
 
 try
     runtests(Regex.(ARGS)...)

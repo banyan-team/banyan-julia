@@ -12,8 +12,6 @@
         "Inexact",
     ],
     (file_extension, single_file, on, src_nrows) in [
-        ("h5", true, "S3", 10),
-        ("h5", true, "Internet", 10),
         ("csv", true, "S3", 150),
         ("parquet", true, "S3", 150),
         ("arrow", true, "S3", 150),
@@ -42,7 +40,7 @@
         if reusing != "nothing"
             Remote(src_name, source_invalid = true, sample_invalid = true)
         end
-        remote_source = Remote(
+        remote_source = RemoteTableSource(
             src_name,
             source_invalid = (reusing == "nothing" || reusing == "sample"),
             sample_invalid = (reusing == "nothing" || reusing == "location"),

@@ -1,3 +1,4 @@
+include("foo.jl")
 
 @testset "Filling with $scheduling_config for map-reduce" for scheduling_config in [
     "default scheduling",
@@ -218,6 +219,45 @@ end
         @test res_sum_collect == 3.0 * 2048 * 2048
         res_maximum_collect = collect(maximum(res))
         @test res_maximum_collect == 3.0
+    end
+end
+
+@testset "Communicating between client and executor with $scheduling_config for map-reduce and $with_parallelism parallelism" for scheduling_config in [
+    "default scheduling",
+    # "parallelism encouraged",
+    # "parallelism and batches encouraged",
+], (force_parallelism, with_parallelism) in [(true, "with"), (false, "without")]
+    use_job_for_testing(scheduling_config_name = scheduling_config) do
+
+        # Using x1
+
+        x1 = convert(BanyanArrays.Array, [Foo(string(i)) for i in 1:100])
+        x_ints = map(f -> parse(Int64, f.x), x1; force_parallelism=force_parallelism)
+
+        @test first(collect(x1)).x == "1"
+        @test first(collect(x_ints)) == 1
+
+        x_foos = map(f -> Foo(f.x * "100"), x1; force_parallelism=force_parallelism)
+        @test first(collect(x_foos)).x == "1100"
+
+        x_new_foos = map(new_foo, x1; force_parallelism=force_parallelism)
+        @test first(collect(x_new_foos)).x == "1100"
+
+        # Making new "x"s
+
+        x2 = convert(BanyanArrays.Array, [Foo(string(i)) for i in 1:100])
+        x2_ints = map(f -> parse(Int64, f.x), x2; force_parallelism=force_parallelism)
+
+        @test first(collect(x2_ints)) == 1
+        @test first(collect(x2)).x == "1"
+
+        x3 = convert(BanyanArrays.Array, [Foo(string(i)) for i in 1:100])
+        x3_foos = map(f -> Foo(f.x * "100"), x3; force_parallelism=force_parallelism)
+        @test first(collect(x3_foos)).x == "1100"
+
+        x4 = convert(BanyanArrays.Array, [Foo(string(i)) for i in 1:100])
+        x4_new_foos = map(new_foo, x4; force_parallelism=force_parallelism)
+        @test first(collect(x4_new_foos)).x == "1100"
     end
 end
 

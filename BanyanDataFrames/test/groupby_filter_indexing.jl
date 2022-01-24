@@ -98,6 +98,8 @@
                     sub4 = read_file(sub4_save_path)
                 end
 
+                @show i sub4_save_path
+
                 # Collect results
                 sub4_nrow = nrow(sub4)
 
@@ -771,7 +773,7 @@ end
         # Filter all trips with distance longer than 1.0. Group by passenger count
         # and get the average trip distance for each group.
         long_trips = filter(
-            row -> row.trip_distance > 1.0,
+            row -> row.trip_distance < 1.0,
             df
         )
         println("Finished filtering to long_trips")

@@ -1,0 +1,77 @@
+[splits.ReadBlockJuliaArray]
+expected = [ "key" ]
+partition_memory_usage = "part"
+scale_by = 2
+views = false
+required = { name = "Distributing", distribution = "blocked", id = "!" }
+locations = [ { name = "Disk", datatype = "Array" } ]
+
+[splits.ReadGroupJuliaArray]
+expected = [ "key", "divisions" ]
+partition_memory_usage = "part"
+scale_by = 9
+views = false
+required = { name = "Distributing", distribution = "grouped", id = "!" }
+default = { rev = false }
+locations = [ { name = "Disk", datatype = "Array" } ]
+
+[splits.CopyFromJuliaArray]
+partition_memory_usage = "all"
+scale_by = 2
+views = false
+required = { name = "Replicating", dividing = false }
+locations = [ { name = "Disk", datatype = "Array" } ]
+
+[merges.WriteJuliaArray]
+partition_memory_usage = "part"
+scale_by = 1
+views = false
+required = { name = "Distributing" }
+locations = [ { name = "Disk", datatype = "Array" } ]
+
+[merges.CopyToJuliaArray]
+partition_memory_usage = "all"
+scale_by = 1
+views = false
+required = { name = "Replicating", replication = "all" }
+locations = [ { name = "Disk", datatype = "Array" } ]
+
+[splits.ReadBlockHDF5]
+expected = [ "key" ]
+partition_memory_usage = "part"
+scale_by = 2
+views = false
+required = { name = "Distributing", distribution = "blocked", id = "!" }
+locations = [ {name = "Remote", format = "hdf5"} ]
+
+[splits.ReadGroupHDF5]
+expected = [ "key", "divisions" ]
+partition_memory_usage = "part"
+scale_by = 9
+views = false
+required = { name = "Distributing", distribution = "grouped", id = "!" }
+default = { rev = false }
+locations = [ {name = "Remote", format = "hdf5"} ]
+
+[splits.CopyFromHDF5]
+partition_memory_usage = "all"
+scale_by = 2
+views = false
+required = { name = "Replicating", dividing = false }
+locations = [ {name = "Remote", format = "hdf5"} ]
+
+[merges.WriteHDF5]
+partition_memory_usage = "part"
+scale_by = 1
+views = false
+required = { name = "Distributing" }
+locations = [ {name = "Remote", format = "hdf5"} ]
+
+[merges.CopyToHDF5]
+partition_memory_usage = "all"
+scale_by = 1
+views = false
+required = { name = "Replicating", replication = "all" }
+locations = [ {name = "Remote", format = "hdf5"} ]
+
+casts = { }

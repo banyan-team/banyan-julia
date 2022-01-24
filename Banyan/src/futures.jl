@@ -3,7 +3,9 @@
 ###########
 
 # Every future does have a location assigned to it: both a source and a
-# location.
+# location. If the future is created from some remote location, the
+# location will have a memory usage that will tell the future how much memory
+# is used.
 
 """
     Future()
@@ -11,14 +13,14 @@
     Future(location::Location)
     Future(; kwargs...)
 
-Constructs a new future, representing a value that has not yet been evaluated.
+Constructs a new future, representing a value that has not yet been computed.
 """
-function Future(;source::Location = None(), mutate_from::Union{<:AbstractFuture,Nothing}=nothing)
+function Future(;source::Location = None(), mutate_from::Union{<:AbstractFuture,Nothing}=nothing, datatype="Any")
     # Generate new value id
     value_id = generate_value_id()
 
     # Create new Future and assign a location to it
-    new_future = Future(nothing, value_id, false, true)
+    new_future = Future(datatype, nothing, value_id, false, true)
     sourced(new_future, source)
     destined(new_future, None())
 
@@ -48,15 +50,16 @@ function Future(;source::Location = None(), mutate_from::Union{<:AbstractFuture,
     new_future
 end
 
-function Future(value::Any)
-    location = if Base.summarysize(value) ≤ 4 * 1024
+function Future(value::Any; datatype="Any")
+    location = if total_memory_usage(value) ≤ 4 * 1024
         Value(value)
     else
+        # TODO: Store values in S3 instead so that we can read from there
         Client(value)
     end
 
     # Create future, store value, and return
-    Future(source=location)
+    Future(source=location, datatype=datatype)
 end
 
 """
@@ -79,6 +82,7 @@ function Future(fut::AbstractFuture; mutation::Function=identity)
     if !fut.stale
         # Copy over value
         new_future = Future(
+            fut.datatype,
             deepcopy(mutation(fut.value)),
             generate_value_id(),
             # If the future is not stale, it is not mutated in a way where
@@ -92,7 +96,7 @@ function Future(fut::AbstractFuture; mutation::Function=identity)
 
         new_future
     else
-        Future()
+        Future(datatype=fut.datatype)
     end
 end
 

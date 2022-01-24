@@ -70,7 +70,11 @@ function keep_all_sample_keys(participants::AbstractFuture...; drifted = false)
     # Take the union of discovered grouping keys. Grouping keys are discovered
     # through calls to `keep_keys` in functions where we know that we need
     # to allow grouping by certain keys such as sorting and join functions.
+    # println("In keep_all_sample_keys")
+    # @show participants
+    # @show [sample(p, :groupingkeys) for p in participants]
     groupingkeys = union([sample(p, :groupingkeys) for p in participants]...)
+    # @show groupingkeys
     statistics = if !drifted
         merge([sample(p, :statistics) for p in participants]...)
     else
@@ -113,6 +117,7 @@ function keep_sample_keys_named(
     participants::Pair{<:AbstractFuture,<:Any}...;
     drifted = false,
 )
+    # println("In keep_sample_keys_named")
     # `participants` maps from futures to lists of key names such that all
     # participating futures have the same sample properties for the keys at
     # same indices in those lists
@@ -120,11 +125,15 @@ function keep_sample_keys_named(
         (participant, Symbol.(to_vector(key_names))) for
         (participant, key_names) in participants
     ]
+    # @show participants
     nkeys = length(first(participants)[2])
     for i = 1:nkeys
         # Copy over allowed grouping keys
         for (p, keys) in participants
             p_key = keys[i]
+            # @show p
+            # @show p_key
+            # @show union(sample(p, :groupingkeys), [p_key])
             setsample!(p, :groupingkeys, union(sample(p, :groupingkeys), [p_key]))
         end
 
@@ -150,6 +159,7 @@ end
 
 # This is useful for workloads that involve joins where the sample rate is
 # diminished quadratically for each joinv
+# TODO: Make _this_ more accurate for `innerjoin``
 keep_sample_rate(fut::AbstractFuture, relative_to::AbstractFuture...) =
     setsample!(fut, :rate, prod([sample(r, :rate) for r in relative_to]))
 
@@ -157,11 +167,107 @@ keep_sample_rate(fut::AbstractFuture, relative_to::AbstractFuture...) =
 # Using samples to assign PTs #
 ###############################
 
-function partitioned_with(handler::Function)
-    # NOTE: `partitioned_with` should mainly include calls to `partition`;
-    # calls to `mut` should be made outside
-    global curr_delayed_task
+function partitioned_with(
+    handler::Function;
+    # Memory usage, sampling
+    # `scaled` is the set of futures with memory usage that can potentially be
+    # scaled to larger sizes if the amount of data at a location changes.
+    # Non-scaled data has fixed memory usage regardless of its sample rate.
+    scaled::Union{AbstractFuture,Vector{<:AbstractFuture}} = AbstractFuture[],
+    keep_same_sample_rate::Bool = true,
+    memory_usage::Vector{PartitioningConstraint} = PartitioningConstraint[],
+    additional_memory_usage::Vector{PartitioningConstraint} = PartitioningConstraint[],
+    # Keys (not relevant if you never use grouped partitioning).
+    grouped::Union{Nothing,AbstractFuture,Vector{<:AbstractFuture}} = nothing,
+    keep_same_keys::Bool = false,
+    keys::Union{AbstractVector,Nothing} = nothing,
+    keys_by_future = nothing,
+    renamed::Bool = false,
+    # Asserts that output has a unique partitioning compared to inputs
+    # (not relevant if you never have unbalanced partitioning)
+    drifted::Bool = false,
+    # For generating import statements
+    modules::Union{String,AbstractVector{String},Nothing} = nothing
+)
+    curr_delayed_task = get_task()
+
+    if !isnothing(modules)
+        modules = to_vector(modules)
+        partitioned_using_modules(modules...)
+    end
+
+    scaled = [convert(Future, f) for f in to_vector(scaled)]
+    curr_delayed_task.scaled = scaled
     curr_delayed_task.partitioned_with_func = handler
+    curr_delayed_task.keep_same_sample_rate = keep_same_sample_rate
+    curr_delayed_task.memory_usage_constraints = memory_usage
+    curr_delayed_task.additional_memory_usage_constraints = additional_memory_usage
+
+    # TODO: Ensure partitioned_using is able to capture updates to the task when mutating
+
+    partitioned_using() do
+        # Categorize the futures. We determine whether a future is an input by
+        # checking if it's not in the values of the task's mutation. All
+        # outputs would require mutation for the future to be an output. And
+        # that would have been marked by a call to `mutated` that is made in the
+        # `Future` constructor.
+        curr_delayed_task = get_task()
+        outputs = [f for f in curr_delayed_task.scaled if any((f.value_id == ff.value_id for ff in values(curr_delayed_task.mutation)))]
+        inputs = [f for f in curr_delayed_task.scaled if !any((f.value_id == ff.value_id for ff in outputs))]
+        grouping_needed = keep_same_keys || !isnothing(keys) || !isnothing(keys_by_future) || renamed
+        if grouping_needed
+            grouped = isnothing(grouped) ? vcat(inputs, outputs) : [convert(Future, f) for f in to_vector(grouped)]
+            outputs_grouped = [f for f in grouped if any((f.value_id == ff.value_id for ff in outputs))]
+            inputs_grouped = [f for f in grouped if any((f.value_id == ff.value_id for ff in inputs))]
+        end
+
+        # Propagate information about keys that can be used for grouping
+        if keep_same_keys
+            if renamed
+                if length(inputs_grouped) != 1 || length(outputs_grouped) != 1
+                    error("Only 1 argument can be renamed to 1 result at once")
+                end
+                keep_all_sample_keys_renamed(inputs_grouped[1], outputs_grouped[1])
+            else
+                # @show inputs
+                # @show outputs
+                # @show grouped
+                # @show inputs_grouped
+                # @show outputs_grouped
+                keep_all_sample_keys(vcat(outputs_grouped, inputs_grouped)...; drifted=drifted)
+            end
+        end
+        if !isnothing(keys)
+            keep_sample_keys(keys, vcat(outputs_grouped, inputs_grouped)...; drifted=drifted)
+        end
+        if !isnothing(keys_by_future)
+            keep_sample_keys_named(keys_by_future...; drifted=drifted)
+        end
+
+        # Propgate sample rates
+        if !isempty(inputs)
+            if keep_same_sample_rate
+                for r in outputs
+                    keep_sample_rate(r, first(inputs))
+                end
+                for i in 1:(length(inputs)-1)
+                    this_sample_rate = sample(inputs[i], :rate)
+                    other_sample_rate = sample(inputs[i+1], :rate)
+                    if this_sample_rate != other_sample_rate
+                        @warn "Two inputs have different sample rates ($this_sample_rate, $other_sample_rate)"
+                    end
+                end
+            else
+                for r in outputs
+                    keep_sample_rate(r, inputs...)
+                end
+            end
+        end
+
+        # Store the important inputs and outputs for scaling memory usage
+        curr_delayed_task.inputs = inputs
+        curr_delayed_task.outputs = outputs
+    end
 end
 
 function pt(
@@ -279,7 +385,7 @@ function apply_mutation(mutation::Dict{Future,Future})
             # the old future as if it were mutated but it will be having a
             # different value ID.
 
-            # Swap references in `futures_on_client` if either side of the
+            # Swap (1) references in `futures_on_client` if either side of the
             # mutation is on the client
             futures_on_client = get_job().futures_on_client
             if old.value_id in keys(futures_on_client) &&
@@ -294,27 +400,35 @@ function apply_mutation(mutation::Dict{Future,Future})
                 delete!(futures_on_client, new.value_id)
             end
 
-            # Swap other fields of the `Future`s and their locations
+            # Swap (2) other fields of the `Future`s and (3) their locations
             job_locations = get_job().locations
-            old.value,
-            old.value_id,
-            old.mutated,
-            old.stale,
-            job_locations[old.value_id],
-            new.value,
-            new.value_id,
-            new.mutated,
-            new.stale,
-            job_locations[new.value_id] = new.value,
-            new.value_id,
-            new.mutated,
-            new.stale,
-            job_locations[new.value_id],
-            old.value,
-            old.value_id,
-            old.mutated,
-            old.stale,
-            job_locations[old.value_id]
+            (
+                old.value,
+                new.value,
+                old.value_id,
+                new.value_id,
+                old.mutated,
+                new.mutated,
+                old.stale,
+                new.stale,
+                old.total_memory_usage,
+                new.total_memory_usage,
+                job_locations[old.value_id],
+                job_locations[new.value_id],
+            ) = (
+                new.value,
+                old.value,
+                new.value_id,
+                old.value_id,
+                new.mutated,
+                old.mutated,
+                new.stale,
+                old.stale,
+                new.total_memory_usage,
+                old.total_memory_usage,
+                job_locations[new.value_id],
+                job_locations[old.value_id],
+            )
         end
     end
 end
@@ -334,75 +448,17 @@ macro partitioned(ex...)
     variable_names = [string(e) for e in ex[1:end-1]]
     code = ex[end]
 
-    # # Expand splatted variables
-    # # if any(endswith(name, "...") for name in variable_names)
-    # if true
-    #     new_variables = []
-    #     new_variable_names = []
-
-    #     # Iterate through variables specified through the annotation
-    #     for (variable, name) in zip(variables, variable_names)
-    #         splatted = Meta.parse(name)
-    #         println(__module__.eval(quote $variable end))
-    #         # println(eval(quote $(variable) end))
-    #     end
-
-    #     # Iterate through variables specified through the annotation
-    #     for (variable, name) in zip(variables, variable_names)
-    #         # Variables with names ending with ... need to be expanded
-    #         if endswith(name, "...")
-    #             # Get information about the variable being splatted
-    #             expanded_expr = Meta.parse(name[1:end-3])
-    #             println(typeof(expanded_expr))
-    #             println(:([$(esc(ex[2]))]))
-    #             println(Base.eval(__module__, :([$(esc(ex[2]))])))
-    #             expanded::Vector{AbstractFuture} = Base.eval(__module__, esc(expanded_expr))
-
-    #             # Append to the variables and variable names to be loaded
-    #             # into the string
-    #             expanded_variables = []
-    #             for (i, e) in enumerate(expanded)
-    #                 # Appemnd to the variables and variable names to be used.
-    #                 # We use a randomly-suffixed name for each variable in the
-    #                 # expansion.
-    #                 new_variable_name = name[1:end-3] * "_" * randstring(4)
-    #                 new_variable = Meta.parse(new_variable_name)
-    #                 push!(new_variable_names, new_variable_name)
-    #                 push!(expanded_variables, new_variable)
-
-    #                 # Then, in the code that this macro compiles to, we
-    #                 # construct these randomly-suffixed variables to reference
-    #                 # the appropriate future.
-    #                 res = quote
-    #                     $res
-    #                     $new_variable = $expanded_expr[$i]
-    #                 end
-    #             end
-    #             append!(new_variables, expanded_variables)
-
-    #             # Append to the code so that the variable can be used as-is in
-    #             # the code regiony
-    #             code = quote
-    #                 $expanded_expr = [$(expanded_variables...)]
-    #                 $code
-    #             end
-    #         else
-    #             push!(new_variables, variable)
-    #             push!(new_variable_names, name)
-    #         end
-    #     end
-    #     variables = new_variables
-    #     variables_names = new_variable_names
-    # end
+    # What are splatted futures? This is basically the concept that you might
+    # have a variable-length list of futures that you need to pass into an
+    # annotated code region. We handle this by alowing you to pass in a `Vector{Future}`
+    # in the "arguments" of @partitioned. We will then splat the futures into an array
+    # with variable names generated according to the index of the future in
+    # the list of futures they came from.
 
     # Assign samples to variables used in annotated code
     assigning_samples = [
         quote
             unsplatted_future = unsplatted_futures[$i]
-            # println(get_job().locations)
-            # println(typeof(unsplatted_future))
-            # unsplatted_variable_names = [$(variable_names...)]
-            # println(unsplatted_variable_names[$i])
             $variable =
                 unsplatted_future isa Tuple ? sample.(unsplatted_future) :
                 sample(unsplatted_future)
@@ -424,11 +480,6 @@ macro partitioned(ex...)
 
         # Convert arguments to `Future`s if they aren't already
         unsplatted_futures = [$(variables...)]
-        # [unsplatted_future isa Base.Vector ? convert.(Future, unsplatted_future : convert(Future))]
-        # for unsplatted_future in unsplatted_futures
-        #     println(unsplatted_future)
-        #     println(typeof(unsplatted_future))
-        # end
         splatted_futures::Vector{Future} = []
         for unsplatted_future in unsplatted_futures
             if unsplatted_future isa Tuple
@@ -439,14 +490,6 @@ macro partitioned(ex...)
                 push!(splatted_futures, convert(Future, unsplatted_future))
             end
         end
-        # splatted_futures::Vector{Future} = [
-        #     (
-        #         unsplatted_future isa Tuple ?
-        #         Tuple([convert(Future, uf) for uf in unsplatted_future]) :
-        #         convert(Future, unsplatted_future)
-        #     ) for unsplatted_future in unsplatted_futures
-        # ]
-        # splatted_futures::Vector{AbstractFuture} = vcat(unsplatted_futures...) .|> x->convert.(Future,x)
 
         # TODO: Allow for any Julia object (even stuff that can't be converted
         # to `Future`s) to be passed into an @partitioned and by default have
@@ -494,23 +537,8 @@ macro partitioned(ex...)
         task.code *= $(string(code))
         task.value_names = [
             (fut.value_id, var_name) for (fut, var_name) in
-            # zip(futures, [$(variable_names...)])
             zip(splatted_futures, splatted_variable_names)
         ]
-        # task = DelayedTask(
-        #     ,
-        #     ,
-        #     # Dict(
-        #     #     fut.value_id =>
-        #     #         if get_mutated(fut.value_id)
-        #     #             "MUT"
-        #     #         else
-        #     #             "CONST"
-        #     #         end for fut in futures
-        #     # ),
-        #     Dict(),
-        #     get_pa_union(),
-        # )
 
         # Set `mutated` field of the `Future`s that have been mutated. This is
         # to ensure that future calls to `evaluate` on those `Future`s with
@@ -528,29 +556,7 @@ macro partitioned(ex...)
         # of the old value and the new future of the new
 
         # Perform computation on samples
-        # begin
-        $(assigning_samples...)
-        # y=10
-        # x= (5,6,7,8,y,y)
-        # # Store samples in variables
-        # # let $(variables...) = [f isa Vector ? sample.(f) : sample(f) for f in unsplatted_futures]
-        # # TODO: Generate code ro store smaples in varibles
-        # samples = [(f isa Vector ? sample.(f) : sample(f)) for f in unsplatted_futures]
-        # ($(variables...)) = samples
-
-        # Run the actual code. We don't have to do any splatting here
-        # because the variables already each contain either a single
-        # future or a list of them.
-        # TODO: Fix error 
-        # MethodError: Cannot `convert` an object of type Int32 to an object of type Symbol
-        # Closest candidates are:
-        #   convert(::Type{T}, ::PropertyDicts.PropertyDict) where T at /home/calebwin/.julia/packages/PropertyDicts/6Kqy6/src/PropertyDicts.jl:24
-        #   convert(::Type{T}, ::LazyJSON.Object) where T at /home/calebwin/.julia/packages/LazyJSON/LpIGF/src/AbstractDict.jl:80
-        #   convert(::Type{T}, ::T) where T at essentials.jl:205
-        #   ...
-        # Stacktrace:
-        #   [1] merge(a::NamedTuple{(:dims,), Tuple{Colon}}, itr::Int32)
-        #     @ Base ./namedtuple.jl:281      
+        $(assigning_samples...)      
         try
             $(esc(code))
         catch
@@ -581,10 +587,6 @@ macro partitioned(ex...)
             apply_sourced_or_destined_funcs(splatted_future)
         end
 
-        # Record request to record task in backend's dependency graph and reset
-        record_request(RecordTaskRequest(task))
-        finish_task()
-
         # Move results from variables back into the samples. Also, update the
         # memory usage accordingly.
         # TODO: Determine if other sample properties need to be invalidated (or
@@ -600,8 +602,153 @@ macro partitioned(ex...)
                 setsample!(f, :memory_usage, sample_memory_usage(value))
             end
         end
-        # end
-        # end
+
+        # Look at mutation, inputs, outputs, and constraints to determine
+        # initial/final/additional memory usage and also to issue destroy
+        # requests for all mutated values. Maybe also set to nothing and
+        # assign new value here for mutation. Also set new future's total
+        # memory usage.
+
+        # Get the initial memory usage
+        for fut in splatted_futures
+            fut_initial_memory_usage = if !isnothing(fut.total_memory_usage)
+                fut.total_memory_usage
+            else
+                get_location(fut).total_memory_usage
+            end
+            !isnothing(fut_initial_memory_usage) || error("Future with value ID $(fut.value_id) has no initial memory usage even in location with source name $(get_location(fut).src_name)")
+            task.memory_usage[fut.value_id] = Dict("initial" => fut_initial_memory_usage)
+        end
+
+        # Get the final memory usage if it is not dependent on a constraint or other sample rates
+        for fut in splatted_futures
+            # Figure out if the future is mutated by this code region
+            is_fut_mutated = task.effects[fut.value_id] == "MUT"
+
+            # Get the final memory usage
+            fut_final_memory_usage = if !is_fut_mutated
+                # For non-mutated data, we will only look at the initial
+                # memory usage (in the scheduler) so it's fine to set the final
+                # memory usage to the initial memory usage.
+                task.memory_usage[fut.value_id]["final"] = task.memory_usage[fut.value_id]["initial"]
+            elseif any(startswith(c.type, "SCALE_TO=") && fut.value_id in c.args for c in task.memory_usage_constraints)
+                for c in task.memory_usage_constraints
+                    if startswith(c.type, "SCALE_TO=") && length(c.args) == 1 && c.args[1] == fut.value_id
+                        task.memory_usage[fut.value_id]["final"] = Base.convert(Integer, ceil(parse(Int32, c.type[length("SCALE_TO=")+1:end])))
+                    end
+                end
+            elseif !any(fut.value_id == f.value_id for f in task.scaled)
+                task.memory_usage[fut.value_id]["final"] = sample(fut, :memory_usage)
+            end
+        end
+
+        # Apply SCALE_BY constraints to determine final memory usage
+        for fut in splatted_futures
+            if !haskey(task.memory_usage[fut.value_id], "final")
+                for c in task.memory_usage_constraints
+                    if startswith(c.type, "SCALE_BY=") && length(c.args) == 2 && c.args[1] == fut.value_id
+                        factor = parse(Int32, c.type[length("SCALE_BY=")+1:end])
+                        relative_to = c.args[2]
+                        if haskey(task.memory_usage[relative_to], "final")
+                            task.memory_usage[fut.value_id]["final"] = Base.convert(Integer, ceil(factor * task.memory_usage[relative_to]["final"]))
+                        end
+                    end
+                end
+            end
+        end
+
+        # Default case for determining memory usage
+        for fut in splatted_futures
+            if !haskey(task.memory_usage[fut.value_id], "final")
+                total_sampled_input_memory_usage = sum((
+                    sample(fut, :memory_usage)
+                    for fut in task.scaled
+                    if task.effects[fut.value_id] == "CONST"
+                ), init=0)
+                if task.keep_same_sample_rate && total_sampled_input_memory_usage > 0
+                    # This case applies for most computation like `filter` and `groupby`
+
+                    total_input_memory_usage = sum((
+                        task.memory_usage[fut.value_id]["initial"]
+                        for fut in task.scaled
+                        if task.effects[fut.value_id] == "CONST"
+                    ), init=0)
+
+                    # Use the sampels to figure out the rate of change in
+                    # memory usage going from inputs to outputs
+                    factor = sample(fut, :memory_usage) / total_sampled_input_memory_usage
+
+                    # Now we use that rate on the actual initial memory
+                    # usage which might have been modified using past memory
+                    # usage constraints like ScaleBy and ScaleTo.
+                    task.memory_usage[fut.value_id]["final"] = Base.convert(Integer, ceil(factor * total_input_memory_usage))
+                    # @show total_sampled_input_memory_usage factor total_input_memory_usage task.memory_usage[fut.value_id]["final"]
+                elseif task.memory_usage[fut.value_id]["initial"] != 0
+                    # If the input is nonzero then the output is the same
+                    # because we don't support a change in memory usage that
+                    # isn't going from `nothing` to some assigned value.
+                    # This case applies to the very last code region created in
+                    # `partitioned_computation`.
+                    task.memory_usage[fut.value_id]["final"] = task.memory_usage[fut.value_id]["initial"]
+                else
+                    # This case applies for `fill` and `innerjoin`.
+                    task.memory_usage[fut.value_id]["final"] = Base.convert(Integer, ceil(sample(fut, :memory_usage) * sample(fut, :rate)))
+                end
+            end
+        end
+
+        # Compute additional memory usage
+        for fut in splatted_futures
+            additional_memory_usage = 0
+            for c in task.additional_memory_usage_constraints
+                if startswith(c.type, "SCALE_TO=") && length(c.args) == 1 && c.args[1] == fut.value_id
+                    additional = parse(Int32, c.type[length("SCALE_TO=")+1:end])
+                    additional_memory_usage += Base.convert(Integer, ceil(additional))
+                elseif startswith(c.type, "SCALE_BY=") && length(c.args) == 2 && c.args[1] == fut.value_id
+                    arg = c.args[2]
+                    factor = parse(Int32, c.type[length("SCALE_BY=")+1:end])
+                    additional_memory_usage += factor * task.memory_usage[arg]["final"]
+                end
+            end
+            task.memory_usage[fut.value_id]["additional"] = Base.convert(Integer, ceil(additional_memory_usage))
+        end
+
+        # Ensure that all the outputs have the same sample rate
+        output_sample_rate = nothing
+        output_sample_rate_from_scaled = false
+        is_anything_mutated = false
+        for fut in splatted_futures
+            is_fut_mutated = task.effects[fut.value_id] == "MUT"
+            is_fut_scaled = any(fut.value_id == f.value_id for f in task.scaled)
+            is_anything_mutated = is_anything_mutated || is_fut_mutated
+            if !output_sample_rate_from_scaled && is_fut_mutated
+                output_sample_rate = sample(fut, :rate)
+                output_sample_rate_from_scaled = is_fut_scaled
+            end
+        end
+        !isnothing(output_sample_rate) || !is_anything_mutated || error("Failed to compute output sample rate")
+        for fut in splatted_futures
+            is_fut_mutated = task.effects[fut.value_id] == "MUT"
+            is_fut_scaled = any(fut.value_id == f.value_id for f in task.scaled)
+            if is_fut_mutated && !is_fut_scaled
+                setsample!(fut, :rate, output_sample_rate)
+            end
+        end
+
+        # Destroy value IDs that are no longer needed because of mutation
+        for fut in splatted_futures
+            fut.total_memory_usage = task.memory_usage[fut.value_id]["final"]
+
+            # Issue destroy request for mutated futures that are no longer
+            # going to be used
+            if any((fut.value_id == f.value_id for f in keys(task.mutation))) && !any((fut.value_id == f.value_id for f in values(task.mutation)))
+                record_request(DestroyRequest(fut.value_id))
+            end
+        end
+
+        # Record request to record task in backend's dependency graph and reset
+        record_request(RecordTaskRequest(task))
+        finish_task()
 
         # This basically undoes `$(assigning_samples...)`.
         $(reassigning_futures...)
