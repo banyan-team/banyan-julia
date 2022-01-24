@@ -391,7 +391,6 @@ function Base.map(f, c::Array{T,N}...; force_parallelism=false) where {T,N}
         # @show res
         # @show typeof(res)
         # @show eltype(res)
-        println("Result of map is res=$res")
     end
 
     # @show sample(res)

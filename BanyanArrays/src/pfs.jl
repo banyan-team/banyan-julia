@@ -48,11 +48,9 @@ function ReadBlockJuliaArray(
     nrows = 0
     dim_partitioning = params["key"]
     dim = -1
-    println("In ReadBlock for Disk with loc_params=$loc_params and name_path=$name_path and readdir(name_path)=$(readdir(name_path))")
     for partfilename in readdir(name_path)
         if partfilename != "_metadata"
             if dim == -1
-                println("In ReadBlockJuliaArray and discovering that dim=$dim for partfilename=$partfilename")
                 dim = parse(Int64, partfilename[5:findfirst("_", partfilename).start-1])
             end
             part_nrows = parse(
@@ -66,7 +64,6 @@ function ReadBlockJuliaArray(
             nrows += part_nrows
         end
     end
-    println("In ReadBlockJuliaArray with readdir(name_path)=$(readdir(name_path)) at name_path=$name_path")
     dim > 0 || error("Unable to find dimension of Julia-serialized array stored in directory $name_path")
     partitioned_on_dim = dim == dim_partitioning
     loc_params["files"] = files
@@ -119,7 +116,6 @@ function ReadBlockJuliaArray(
     # guaranteed to have its ndims correct) and so if a split/merge/cast
     # function requires the schema (for example for grouping) then it must be
     # sure to take that account
-    println("In ReadBlockJuliaArray with length(dfs)=$(length(dfs)), ")
     res = if isempty(dfs)
         if isnothing(metadata)
             metadata = deserialize(
@@ -149,7 +145,6 @@ function write_file_julia_array(part, path, dim, sortableidx, nrows)
 end
 
 function write_metadata_for_julia_array(actualpath, part)
-    println("In write_metadata_for_julia_array with actualpath=$actualpath, joinpath(actualpath, \"_metadata\")=$(joinpath(actualpath, "_metadata")), size(part)=$(size(part)), eltype(part)=$(eltype(part))")
     serialize(
         joinpath(actualpath, "_metadata"),
         Dict(
@@ -242,7 +237,6 @@ function WriteJuliaArray(
     nrows = size(part, dim)
     sortableidx = Banyan.sortablestring(idx, get_npartitions(nbatches, comm))
     write_file_julia_array(part, path, dim, sortableidx, nrows)
-    println("In Write writing to path=$path with nrows=$nrows")
     MPI.Barrier(comm)
     if nbatches > 1 && batch_idx == nbatches
         tmpdir = readdir(path)
@@ -258,7 +252,6 @@ function WriteJuliaArray(
                 tmpsrc = joinpath(path, tmpdir[tmpdir_idx])
                 actualdst = joinpath(actualpath, tmpdir[tmpdir_idx])
                 cp(tmpsrc, actualdst, force=true)
-                println("In Write copying from tmpsrc=$tmpsrc to actualdst=$actualdst")
             end
         end
         MPI.Barrier(comm)
@@ -307,7 +300,6 @@ function ReadBlockHDF5(
     path = Banyan.getpath(loc_params["path"])
     if !((loc_name == "Remote" && (occursin(".h5", loc_params["path"]) || occursin(".hdf5", loc_params["path"]))) ||
         (loc_name == "Disk" && HDF5.ishdf5(path)))
-        println("In ReadBlockHDF5 with loc_params=$loc_params, loc_name=$loc_name")
         error("Expected HDF5 file to read in; failed to read from $path")
     end
        
@@ -398,8 +390,6 @@ function WriteHDF5(
         # Prepend "efs/" for local paths
         path = Banyan.getpath(path)
     end
-
-    println("In WriteHDF5 with loc_params=$loc_params, loc_name=$loc_name, path=$path")
 
     worker_idx = Banyan.get_worker_idx(comm)
     idx = Banyan.get_partition_idx(batch_idx, nbatches, comm)
@@ -711,8 +701,6 @@ function WriteHDF5(
             MPI.Barrier(comm)
         end
     end
-
-    println("In WriteHDF5 at end with path=$path")
 end
 
 CopyFromHDF5(src, params, batch_idx, nbatches, comm, loc_name, loc_params) = begin

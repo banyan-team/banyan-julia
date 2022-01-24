@@ -230,13 +230,7 @@ function Merge(
     loc_name::String,
     loc_params::Dict{String,Any},
 )
-    # TODO: Ensure we can merge grouped dataframes if computing them
-
-    println("In Merge before get_splitting_divisions")
-
     splitting_divisions = get_splitting_divisions()
-
-    println("In Merge after get_splitting_divisions")
 
     # TODO: To allow for mutation of a value, we may want to remove this
     # condition
@@ -257,14 +251,11 @@ function Merge(
         # Concatenate across batches
         src = merge_on_executor(src.pieces...; key = key)
 
-        println("In Merge after merge_on_executor")
-
         # Concatenate across workers
         nworkers = get_nworkers(comm)
         if nworkers > 1
             src = Consolidate(src, params, Dict{String,Any}(), comm)
         end
-        println("In Merge after Consolidate")
     end
 
     src
@@ -339,7 +330,6 @@ function CopyTo(
     loc_name,
     loc_params,
 )
-    println("In CopyTo with part=$part")
     src = part
 end
 
@@ -353,7 +343,6 @@ CopyToClient(
     loc_name,
     loc_params,
 ) =  if get_partition_idx(batch_idx, nbatches, comm) == 1
-    println("In CopyToClient with part=$part")
     send_to_client(loc_params["value_id"], part)
 end
 
@@ -378,7 +367,6 @@ end
 
 function get_op!(params::Dict{String,Any})
     op = params["reducer"]
-    println("In get_op! at start with params=$params, op=$op")
     if params["with_key"]
         key = params["key"]
         if !haskey(params, "reducer_with_key")
@@ -395,7 +383,6 @@ function get_op!(params::Dict{String,Any})
             end
         end
     end
-    println("In get_op! at end with params=$params, op=$op")
     op
 end
 
@@ -415,21 +402,17 @@ function ReduceAndCopyToJulia(
     # Merge reductions from batches
     op = get_op!(params)
     # TODO: Ensure that we handle reductions that can produce nothing
-    println("In ReduceAndCopyToJulia")
     src = reduce_in_memory(src, part, op)
-    println("In ReduceAndCopyToJulia after reduce_in_memory")
 
     # Merge reductions across workers
     if batch_idx == nbatches
         src = Reduce(src, params, Dict{String,Any}(), comm)
-        println("In ReduceAndCopyToJulia after Reduce")
 
         if loc_name != "Memory"
             # We use 1 here so that it is as if we are copying from the head
             # node
             CopyToJulia(src, src, params, 1, nbatches, comm, loc_name, loc_params)
         end
-        println("In ReduceAndCopyToJulia after CopyToJulia")
     end
 
     # TODO: Ensure we don't have issues where with batched execution we are

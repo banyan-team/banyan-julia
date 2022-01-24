@@ -91,7 +91,6 @@ ReadBlockCSV, ReadBlockParquet, ReadBlockArrow = [
                 if isdir(name_path)
                     files = []
                     nrows = 0
-                    println("In ReadBlock for Disk with loc_params=$loc_params and name_path=$name_path and readdir(name_path)=$(readdir(name_path))")
                     for partfilename in readdir(name_path)
                         part_nrows = parse(
                             Int64,
@@ -176,7 +175,6 @@ ReadBlockCSV, ReadBlockParquet, ReadBlockArrow = [
             else
                 vcat(dfs...)
             end
-            println("In ReadBlockCSV with $(nrow(res)) rows")
             res
         end
         ReadBlock
@@ -295,7 +293,6 @@ WriteParquet, WriteCSV, WriteArrow = [
             nrows = size(part, 1)
             sortableidx = Banyan.sortablestring(idx, get_npartitions(nbatches, comm))
             write_file(part, path, sortableidx, nrows)
-            println("In Write writing to path=$path with nrows=$nrows")
             MPI.Barrier(comm)
             if nbatches > 1 && batch_idx == nbatches
                 tmpdir = readdir(path)
@@ -311,7 +308,6 @@ WriteParquet, WriteCSV, WriteArrow = [
                         tmpsrc = joinpath(path, tmpdir[tmpdir_idx])
                         actualdst = joinpath(actualpath, tmpdir[tmpdir_idx])
                         cp(tmpsrc, actualdst, force=true)
-                        println("In Write copying from tmpsrc=$tmpsrc to actualdst=$actualdst")
                     end
                 end
                 MPI.Barrier(comm)
@@ -353,7 +349,6 @@ CopyToCSV(
     loc_name,
     loc_params,
 ) = if Banyan.get_partition_idx(batch_idx, nbatches, comm) == 1
-    println("In CopyToCSV with $(nrow(part)) rows")
     params["key"] = 1
     WriteCSV(src, part, params, 1, 1, MPI.COMM_SELF, loc_name, loc_params)
 end
@@ -582,7 +577,6 @@ end
 Banyan.Consolidate(part::Union{Nothing, DataFrames.GroupedDataFrame}, src_params::Dict{String,Any}, dst_params::Dict{String,Any}, comm::MPI.Comm) = nothing
 
 function Banyan.Consolidate(part::AbstractDataFrame, src_params::Dict{String,Any}, dst_params::Dict{String,Any}, comm::MPI.Comm)
-    println("In start of Consolidate with $(nrow(part)) rows")
     io = IOBuffer()
     Arrow.write(io, part)
     sendbuf = MPI.Buffer(view(io.data, 1:io.size))
@@ -609,7 +603,6 @@ function Banyan.Consolidate(part::AbstractDataFrame, src_params::Dict{String,Any
         ]...;
         key = 1
     )
-    println("In end of Consolidate with $(nrow(res)) rows and io.size=$(io.size), Banyan.get_nworkers(comm)=$(Banyan.get_nworkers(comm)), recvvbuf.counts=$(recvvbuf.counts), recvvbuf.displs=$(recvvbuf.displs), typeof(recvvbuf.data)=$(typeof(recvvbuf.data))")
     res
 end
 

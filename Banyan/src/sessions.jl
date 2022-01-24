@@ -130,7 +130,6 @@ function start_session(;
         ]
     end
     pf_dispatch_table_loaded = load_toml(pf_dispatch_table)
-    @show pf_dispatch_table_loaded
     session_configuration["pf_dispatch_table"] = pf_dispatch_table_loaded
 
     # Start the session
