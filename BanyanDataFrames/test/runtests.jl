@@ -61,7 +61,7 @@ function use_session_for_testing(
                 # TODO: Make it so that sessions that can't reuse existing jobs
                 # will instead destroy jobs so that when it creates a new job
                 # it can reuse the existing underlying resources.
-                resource_release_delay = get(ENV, "BANYAN_REUSE_RESOURCES", "0") == "1" ? 20 : 0,
+                release_resources_after = get(ENV, "BANYAN_REUSE_RESOURCES", "0") == "1" ? 20 : 0,
                 force_pull = get(ENV, "BANYAN_FORCE_PULL", "1") == "1",
                 force_clone = get(ENV, "BANYAN_FORCE_CLONE", "0") == "1",
                 force_install = get(ENV, "BANYAN_FORCE_INSTALL", "0") == "1",

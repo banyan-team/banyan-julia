@@ -57,7 +57,7 @@ function use_session_for_testing(
                 # TODO: Make it so that sessions that can't reuse existing sessions
                 # will instead destroy sessions so that when it creates a new session
                 # it can reuse the existing underlying resources.
-                resource_release_delay = get(ENV, "BANYAN_REUSE_RESOURCES", "0") == "1" ? 20 : 0,
+                release_resources_after = get(ENV, "BANYAN_REUSE_RESOURCES", "0") == "1" ? 20 : 0,
                 force_pull=true,
                 store_logs_on_cluster=get(ENV, "BANYAN_STORE_LOGS_ON_CLUSTER", "0") == "1"
             )
