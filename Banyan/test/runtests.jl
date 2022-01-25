@@ -193,12 +193,13 @@ function use_data(file_extension, remote_kind, single_file)
     end
 end
 
-include("sample_collection.jl")
+# include("sample_collection.jl")
 include("sample_computation.jl")
 include("config.jl")
 include("clusters.jl")
 # include("jobs.jl")
 include("sessions.jl")
+include("offloaded.jl")
 
 try
     runtests(Regex.(ARGS)...)

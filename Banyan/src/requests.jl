@@ -16,6 +16,7 @@
 #############################
 # Basic methods for futures #
 #############################
+using Banyan
 
 function partitioned_computation(handler, fut::AbstractFuture; destination, new_source=nothing)
     if isview(fut)
@@ -453,14 +454,14 @@ end
 #     job_id, num_bang_values_issued, main_modules, and benchmark 
 #     when calling evaluate (see send_evaluate) and value_id -1
 function offloaded(given_function)
-    serialized = to_jl_value_contents(given_functions)
+    serialized = to_jl_value_contents(given_function)
 
     # Submit evaluation request
     response = send_request_get_response(
         :evaluate,
         Dict{String,Any}(
             "value_id" => -1,
-            "job_id" => get_job_id(),
+            "session_id" => Banyan.get_session_id(),
             "options" => Dict( ),
             "num_bang_values_issued" => get_num_bang_values_issued(),
             "main_modules" => get_loaded_packages(),
@@ -473,7 +474,7 @@ function offloaded(given_function)
         throw(ErrorException("The evaluation request has failed. Please contact support"))
     end
 
-    job_id = get_job_id()
+    job_id = Banyan.get_job_id()
     p = ProgressUnknown("Computing value with ID $(fut.value_id)", spinner=true)
     gather_queue = get_gather_queue(job_id)
     while true
@@ -485,7 +486,7 @@ function offloaded(given_function)
             if (value_id == -1)
                 stored_message = from_jl_value_contents(message["contents"])
             end
-        else if (message_type == "EVALUATION_END")
+        elseif (message_type == "EVALUATION_END")
             return stored_message
         end
     end

@@ -6,16 +6,17 @@
 
 @testset "Offload Function" begin
     Pkg.activate("./")
-    cluster_name = ENV["BANYAN_CLUSTER_NAME"]
+    # cluster_name = ENV["BANYAN_CLUSTER_NAME"]
+    use_session_for_testing() do
+        res = offloaded() do
+            return -1
+        end
 
-    res = offloaded() do
-        return -1
+        res2 = offloaded(()->-1)
+
+        @test res == -1
+        @test res2 == -1
     end
-
-    res2 = offloaded(()->-1)
-
-    @test res == -1
-    @test res2 == -1
 end
 
 
