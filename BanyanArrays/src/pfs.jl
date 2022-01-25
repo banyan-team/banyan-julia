@@ -40,7 +40,7 @@ function ReadBlockJuliaArray(
     # with a unique name corresponding to the value ID - only if this is
     # the first batch or loop iteration.
     name = loc_params["path"]
-    name_path = Banyan.getpath(name)
+    name_path = path
     # TODO: isdir might not work for S3FS
     isdir(name_path) || error("Expected $path to be a directory containing files of Julia-serialized arrays")
 

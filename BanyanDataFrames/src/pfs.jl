@@ -86,7 +86,7 @@ ReadBlockCSV, ReadBlockParquet, ReadBlockArrow = [
                 # with a unique name corresponding to the value ID - only if this is
                 # the first batch or loop iteration.
                 name = loc_params["path"]
-                name_path = Banyan.getpath(name)
+                name_path = path
                 # TODO: isdir might not work for S3FS
                 if isdir(name_path)
                     files = []
