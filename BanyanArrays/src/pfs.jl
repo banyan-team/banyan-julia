@@ -5,9 +5,9 @@ function read_julia_array_file(path, header, rowrange, readrange, filerowrange, 
             arr[
                 [
                     if i == dim
-                        Colon()
-                    else
                         (readrange.start-filerowrange.start+1):(readrange.stop-filerowrange.start+1)
+                    else
+                        Colon()
                     end
                     for i in 1:ndims(arr)
                 ]...
