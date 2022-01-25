@@ -106,6 +106,7 @@ function ReadBlockJuliaArray(
             # TODO: Scale the memory usage appropriately when splitting with
             # this and garbage collect if too much memory is used.
             read_julia_array_file(path, header, rowrange, readrange, filerowrange, dfs, dim)
+            println("In ReadBlockJuliaArray with path=$path with rowrange=$rowrange, readrange=$readrange, filerowrange=$filerowrange")
         end
         rowsscanned = newrowsscanned
     end
@@ -132,6 +133,7 @@ function ReadBlockJuliaArray(
     else
         cat(dfs...; dims=dim_partitioning)
     end
+    println("In ReadBlockJuliaArray with size(res)=$(size(res)), length(dfs)=$(length(dfs)), loc_params=$loc_params, dim_partitioning=$dim_partitioning, dim=$dim, partitioned_on_dim=$partitioned_on_dim, size.(dfs)=$(size.(dfs))")
     res
 end
 
@@ -237,6 +239,7 @@ function WriteJuliaArray(
     nrows = size(part, dim)
     sortableidx = Banyan.sortablestring(idx, get_npartitions(nbatches, comm))
     write_file_julia_array(part, path, dim, sortableidx, nrows)
+    println("In WriteJuliaArray with size(part)=$(size(part)), path=$path, dim=$dim")
     MPI.Barrier(comm)
     if nbatches > 1 && batch_idx == nbatches
         tmpdir = readdir(path)
@@ -247,11 +250,13 @@ function WriteJuliaArray(
         MPI.Barrier(comm)
         for batch_i = 1:nbatches
             idx = Banyan.get_partition_idx(batch_i, nbatches, worker_idx)
+            sortableidx = Banyan.sortablestring(idx, get_npartitions(nbatches, comm))
             tmpdir_idx = findfirst(fn -> contains(fn, "part$idx"), tmpdir)
             if !isnothing(tmpdir_idx)
                 tmpsrc = joinpath(path, tmpdir[tmpdir_idx])
                 actualdst = joinpath(actualpath, tmpdir[tmpdir_idx])
                 cp(tmpsrc, actualdst, force=true)
+                println("In WriteJuliaArray copying from tmpsrc=$tmpsrc to actualdst=$actualdst with tmpdir=$tmpdir")
             end
         end
         MPI.Barrier(comm)
@@ -362,7 +367,7 @@ function ReadBlockHDF5(
         ]...]
     end
     close(f)
-    println("In ReadBlockHDF5 at end")
+    println("In ReadBlockHDF5 at end with size(dset)=$(size(dset)), dimrange=$dimrange")
     dset
 end
 

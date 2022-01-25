@@ -303,7 +303,8 @@ WriteParquet, WriteCSV, WriteArrow = [
                 MPI.Barrier(comm)
                 for batch_i = 1:nbatches
                     idx = Banyan.get_partition_idx(batch_i, nbatches, worker_idx)
-                    tmpdir_idx = findfirst(fn -> startswith(fn, "part$idx"), tmpdir)
+                    sortableidx = Banyan.sortablestring(idx, get_npartitions(nbatches, comm))
+                    tmpdir_idx = findfirst(fn -> startswith(fn, "part$sortableidx"), tmpdir)
                     if !isnothing(tmpdir_idx)
                         tmpsrc = joinpath(path, tmpdir[tmpdir_idx])
                         actualdst = joinpath(actualpath, tmpdir[tmpdir_idx])
