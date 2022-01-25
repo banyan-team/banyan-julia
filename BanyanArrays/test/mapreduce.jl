@@ -226,7 +226,7 @@ end
     "default scheduling",
     # "parallelism encouraged",
     # "parallelism and batches encouraged",
-], (force_parallelism, with_parallelism) in [(true, "with"), (false, "without")]
+], (force_parallelism, with_parallelism) in [(true, "with"), (false, "without"), (true, "with")]
     use_session_for_testing(scheduling_config_name = scheduling_config) do
 
         # Using x1

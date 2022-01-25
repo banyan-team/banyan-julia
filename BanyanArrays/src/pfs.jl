@@ -298,13 +298,17 @@ function ReadBlockHDF5(
     # We check if it's a file because for items on disk, files are HDF5
     # datasets while directories contain Parquet, CSV, or Arrow datasets
     path = Banyan.getpath(loc_params["path"])
+    println("In ReadBlockHDF5 with path=$path, loc_name=$loc_name, isfile(path)=$(isfile(path))")
     if !((loc_name == "Remote" && (occursin(".h5", loc_params["path"]) || occursin(".hdf5", loc_params["path"]))) ||
         (loc_name == "Disk" && HDF5.ishdf5(path)))
         error("Expected HDF5 file to read in; failed to read from $path")
     end
+
+    println("In ReadBlockHDF5 with HDF5.ishdf5(path)=$(HDF5.ishdf5(path))")
        
     # @show isfile(path)
     f = h5open(path, "r")
+    println("In ReadBlockHDF5 after h5open")
     dset = loc_name == "Disk" ? f["part"] : f[loc_params["subpath"]]
 
     ismapping = false
@@ -358,6 +362,7 @@ function ReadBlockHDF5(
         ]...]
     end
     close(f)
+    println("In ReadBlockHDF5 at end")
     dset
 end
 
