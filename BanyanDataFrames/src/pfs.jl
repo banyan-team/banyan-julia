@@ -75,7 +75,7 @@ ReadBlockCSV, ReadBlockParquet, ReadBlockArrow = [
             # TODO: Implement a Read for balanced=false where we can avoid duplicate
             # reading of the same range in different reads
 
-            path = Banyan.getpath(loc_params["path"])
+            path = Banyan.getpath(loc_params["path"], comm)
 
             # Handle multi-file tabular datasets
 
@@ -127,7 +127,7 @@ ReadBlockCSV, ReadBlockParquet, ReadBlockArrow = [
                 if Banyan.isoverlapping(filerowrange, rowrange)
                     # Deterine path to read from
                     file_path = file["path"]
-                    path = Banyan.getpath(file_path)
+                    path = Banyan.getpath(file_path, comm)
 
                     # Read from location depending on data format
                     readrange =
@@ -163,7 +163,7 @@ ReadBlockCSV, ReadBlockParquet, ReadBlockArrow = [
                         # This should not be empty for disk-spilled data
                         DataFrames.DataFrame()
                     else
-                        empty(DataFrames.DataFrame(Arrow.Table(Banyan.getpath(first(files_sorted_by_nrow)["path"])), copycols=false))
+                        empty(DataFrames.DataFrame(Arrow.Table(Banyan.getpath(first(files_sorted_by_nrow)["path"], comm)), copycols=false))
                     end
                 else
                     # When we construct the location, we store an empty data frame with The
@@ -227,12 +227,12 @@ WriteParquet, WriteCSV, WriteArrow = [
             if startswith(path, "http://") || startswith(path, "https://")
                 error("Writing to http(s):// is not supported")
             elseif startswith(path, "s3://")
-                path = Banyan.getpath(path)
+                path = Banyan.getpath(path, comm)
                 # NOTE: We expect that the ParallelCluster instance was set up
                 # to have the S3 filesystem mounted at ~/s3fs/<bucket name>
             else
                 # Prepend "efs/" for local paths
-                path = Banyan.getpath(path)
+                path = Banyan.getpath(path, comm)
             end
 
             # Write file for this partition

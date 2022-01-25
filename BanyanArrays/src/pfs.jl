@@ -28,7 +28,7 @@ function ReadBlockJuliaArray(
     # TODO: Implement a Read for balanced=false where we can avoid duplicate
     # reading of the same range in different reads
 
-    path = Banyan.getpath(loc_params["path"])
+    path = Banyan.getpath(loc_params["path"], comm)
 
     # Handle multi-file tabular datasets
 
@@ -91,7 +91,7 @@ function ReadBlockJuliaArray(
         if !partitioned_on_dim || Banyan.isoverlapping(filerowrange, rowrange)
             # Deterine path to read from
             file_path = file["path"]
-            path = Banyan.getpath(file_path)
+            path = Banyan.getpath(file_path, comm)
 
             # Read from location depending on data format
             readrange = if partitioned_on_dim
@@ -174,12 +174,12 @@ function WriteJuliaArray(
     if startswith(path, "http://") || startswith(path, "https://")
         error("Writing to http(s):// is not supported")
     elseif startswith(path, "s3://")
-        path = Banyan.getpath(path)
+        path = Banyan.getpath(path, comm)
         # NOTE: We expect that the ParallelCluster instance was set up
         # to have the S3 filesystem mounted at ~/s3fs/<bucket name>
     else
         # Prepend "efs/" for local paths
-        path = Banyan.getpath(path)
+        path = Banyan.getpath(path, comm)
     end
 
     # Write file for this partition
@@ -297,7 +297,7 @@ function ReadBlockHDF5(
     # Handle single-file nd-arrays
     # We check if it's a file because for items on disk, files are HDF5
     # datasets while directories contain Parquet, CSV, or Arrow datasets
-    path = Banyan.getpath(loc_params["path"])
+    path = Banyan.getpath(loc_params["path"], comm)
     println("In ReadBlockHDF5 with path=$path, loc_name=$loc_name, isfile(path)=$(isfile(path))")
     if !((loc_name == "Remote" && (occursin(".h5", loc_params["path"]) || occursin(".hdf5", loc_params["path"]))) ||
         (loc_name == "Disk" && HDF5.ishdf5(path)))
@@ -388,12 +388,12 @@ function WriteHDF5(
     if startswith(path, "http://") || startswith(path, "https://")
         error("Writing to http(s):// is not supported")
     elseif startswith(path, "s3://")
-        path = Banyan.getpath(path)
+        path = Banyan.getpath(path, comm)
         # NOTE: We expect that the ParallelCluster instance was set up
         # to have the S3 filesystem mounted at ~/s3fs/<bucket name>
     else
         # Prepend "efs/" for local paths
-        path = Banyan.getpath(path)
+        path = Banyan.getpath(path, comm)
     end
 
     worker_idx = Banyan.get_worker_idx(comm)
