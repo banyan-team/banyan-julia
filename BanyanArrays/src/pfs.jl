@@ -133,7 +133,7 @@ function ReadBlockJuliaArray(
     else
         cat(dfs...; dims=dim_partitioning)
     end
-    println("In ReadBlockJuliaArray with size(res)=$(size(res)), sum(res)=$(sum(res)), length(dfs)=$(length(dfs)), loc_params=$loc_params, dim_partitioning=$dim_partitioning, dim=$dim, partitioned_on_dim=$partitioned_on_dim, size.(dfs)=$(size.(dfs))")
+    println("In ReadBlockJuliaArray with size(res)=$(size(res)), length(dfs)=$(length(dfs)), loc_params=$loc_params, dim_partitioning=$dim_partitioning, dim=$dim, partitioned_on_dim=$partitioned_on_dim, size.(dfs)=$(size.(dfs))")
     res
 end
 
@@ -239,7 +239,7 @@ function WriteJuliaArray(
     nrows = size(part, dim)
     sortableidx = Banyan.sortablestring(idx, get_npartitions(nbatches, comm))
     write_file_julia_array(part, path, dim, sortableidx, nrows)
-    println("In WriteJuliaArray with size(part)=$(size(part)), sum(part)=$(sum(part)), path=$path, dim=$dim")
+    println("In WriteJuliaArray with size(part)=$(size(part)), path=$path, dim=$dim")
     MPI.Barrier(comm)
     if nbatches > 1 && batch_idx == nbatches
         tmpdir = readdir(path)
@@ -367,7 +367,7 @@ function ReadBlockHDF5(
         ]...]
     end
     close(f)
-    println("In ReadBlockHDF5 at end with size(dset)=$(size(dset)), sum(dset)=$(sum(dset)), dimrange=$dimrange")
+    println("In ReadBlockHDF5 at end with size(dset)=$(size(dset)), dimrange=$dimrange")
     dset
 end
 
