@@ -1,207 +1,207 @@
 include("foo.jl")
 
-@testset "Filling with $scheduling_config for map-reduce" for scheduling_config in [
-    "default scheduling",
-    "parallelism encouraged",
-    "parallelism and batches encouraged",
-]
-    use_session_for_testing(scheduling_config_name = scheduling_config) do
+# @testset "Filling with $scheduling_config for map-reduce" for scheduling_config in [
+#     "default scheduling",
+#     "parallelism encouraged",
+#     "parallelism and batches encouraged",
+# ]
+#     use_session_for_testing(scheduling_config_name = scheduling_config) do
 
-        println(typeof(Base.fill(1.0, 2048)))
-        x = BanyanArrays.fill(10.0, 2048)
-        println(typeof(x))
-        x = map(e -> e / 10, x)
-        println(typeof(x))
-        res = sum(x)
+#         println(typeof(Base.fill(1.0, 2048)))
+#         x = BanyanArrays.fill(10.0, 2048)
+#         println(typeof(x))
+#         x = map(e -> e / 10, x)
+#         println(typeof(x))
+#         res = sum(x)
 
-        res = compute(res)
-        @test typeof(res) == Float64
-        @test res == 2048
-    end
-end
+#         res = compute(res)
+#         @test typeof(res) == Float64
+#         @test res == 2048
+#     end
+# end
 
-@testset "Multiple evaluations apart with $scheduling_config for map-reduce" for scheduling_config in [
-    "default scheduling",
-    "parallelism encouraged",
-    "parallelism and batches encouraged",
-]
-    use_session_for_testing(scheduling_config_name = scheduling_config) do
+# @testset "Multiple evaluations apart with $scheduling_config for map-reduce" for scheduling_config in [
+#     "default scheduling",
+#     "parallelism encouraged",
+#     "parallelism and batches encouraged",
+# ]
+#     use_session_for_testing(scheduling_config_name = scheduling_config) do
 
-        x = BanyanArrays.fill(10.0, 2048)
-        x = map(e -> e / 10, x)
-        res1 = compute(sum(x)) # Note: failed here with "key :val_6HTGdt08_idx_0 not found"
-        res2 = compute(minimum(x))
+#         x = BanyanArrays.fill(10.0, 2048)
+#         x = map(e -> e / 10, x)
+#         res1 = compute(sum(x)) # Note: failed here with "key :val_6HTGdt08_idx_0 not found"
+#         res2 = compute(minimum(x))
 
-        @test typeof(res1) == Float64
-        @test res1 == 2048
-        @test typeof(res2) == Float64
-        @test res2 == 1.0
-    end
-end
+#         @test typeof(res1) == Float64
+#         @test res1 == 2048
+#         @test typeof(res2) == Float64
+#         @test res2 == 1.0
+#     end
+# end
 
-@testset "Multiple evaluations together with $scheduling_config for map-reduce" for scheduling_config in [
-    "default scheduling",
-    "parallelism encouraged",
-    "parallelism and batches encouraged",
-]
-    use_session_for_testing(scheduling_config_name = scheduling_config) do
+# @testset "Multiple evaluations together with $scheduling_config for map-reduce" for scheduling_config in [
+#     "default scheduling",
+#     "parallelism encouraged",
+#     "parallelism and batches encouraged",
+# ]
+#     use_session_for_testing(scheduling_config_name = scheduling_config) do
 
-        x = BanyanArrays.fill(10.0, 2048)
-        x = map(e -> e / 10, x)
-        res1 = sum(x)
-        res2 = minimum(x)
+#         x = BanyanArrays.fill(10.0, 2048)
+#         x = map(e -> e / 10, x)
+#         res1 = sum(x)
+#         res2 = minimum(x)
 
-        res1 = compute(res1)
-        res2 = compute(res2)
-        @test typeof(res1) == Float64
-        @test res1 == 2048
-        @test typeof(res2) == Float64
-        @test res2 == 1.0
-    end
-end
+#         res1 = compute(res1)
+#         res2 = compute(res2)
+#         @test typeof(res1) == Float64
+#         @test res1 == 2048
+#         @test typeof(res2) == Float64
+#         @test res2 == 1.0
+#     end
+# end
 
-@testset "Simple computing with $scheduling_config for map-reduce" for scheduling_config in [
-    "default scheduling",
-    "parallelism encouraged",
-    "parallelism and batches encouraged",
-]
-    use_session_for_testing(scheduling_config_name = scheduling_config) do
+# @testset "Simple computing with $scheduling_config for map-reduce" for scheduling_config in [
+#     "default scheduling",
+#     "parallelism encouraged",
+#     "parallelism and batches encouraged",
+# ]
+#     use_session_for_testing(scheduling_config_name = scheduling_config) do
 
-        for _ = 1:8
-            # NOTE: This also tests simple writing to and reading from local disk
-            x = BanyanArrays.fill(10.0, 2048)
-            # x = map(e -> e / 10, x)
-            @show typeof(x)
-            write_to_disk(x)
-            # write_to_disk(x)
-            @show typeof(x)
-            sleep(15)
-            @show typeof(x)
-            # NOTE: The only reason why we're not putting `collect(x)` inside the
-            # the `@test` is because `@test` will catch exceptions and prevent the
-            # session from getting destroyed when an exception occurs and we can't keep
-            # running this test if the session ends
-            x_collect = compute(x)
-            @test x_collect == Base.fill(10.0, 2048)
-        end
-    end
-end
+#         for _ = 1:8
+#             # NOTE: This also tests simple writing to and reading from local disk
+#             x = BanyanArrays.fill(10.0, 2048)
+#             # x = map(e -> e / 10, x)
+#             @show typeof(x)
+#             write_to_disk(x)
+#             # write_to_disk(x)
+#             @show typeof(x)
+#             sleep(15)
+#             @show typeof(x)
+#             # NOTE: The only reason why we're not putting `collect(x)` inside the
+#             # the `@test` is because `@test` will catch exceptions and prevent the
+#             # session from getting destroyed when an exception occurs and we can't keep
+#             # running this test if the session ends
+#             x_collect = compute(x)
+#             @test x_collect == Base.fill(10.0, 2048)
+#         end
+#     end
+# end
 
-@testset "Computing with $scheduling_config for map-reduce" for scheduling_config in [
-    "default scheduling",
-    "parallelism encouraged",
-    "parallelism and batches encouraged",
-]
-    use_session_for_testing(scheduling_config_name = scheduling_config) do
+# @testset "Computing with $scheduling_config for map-reduce" for scheduling_config in [
+#     "default scheduling",
+#     "parallelism encouraged",
+#     "parallelism and batches encouraged",
+# ]
+#     use_session_for_testing(scheduling_config_name = scheduling_config) do
 
-        # NOTE: This also tests simple writing to and reading from local disk
-        x = BanyanArrays.fill(10.0, 2048)
-        x = map(e -> e / 10, x)
-        @show typeof(x)
-        write_to_disk(x)
-        write_to_disk(x)
-        @show typeof(x)
-        # NOTE: The only reason why we're not putting `collect(x)` inside the
-        # the `@test` is because `@test` will catch exceptions and prevent the
-        # session from getting destroyed when an exception occurs and we can't keep
-        # running this test if the session ends
-        x_collect = compute(x)
-        @test x_collect == Base.fill(1.0, 2048)
-        @show typeof(x)
-        write_to_disk(x)
-        x_collect = compute(x)
-        @test x_collect == Base.fill(1.0, 2048)
-        x_collect = compute(x)
-        @test x_collect == Base.fill(1.0, 2048)
-    end
-end
+#         # NOTE: This also tests simple writing to and reading from local disk
+#         x = BanyanArrays.fill(10.0, 2048)
+#         x = map(e -> e / 10, x)
+#         @show typeof(x)
+#         write_to_disk(x)
+#         write_to_disk(x)
+#         @show typeof(x)
+#         # NOTE: The only reason why we're not putting `collect(x)` inside the
+#         # the `@test` is because `@test` will catch exceptions and prevent the
+#         # session from getting destroyed when an exception occurs and we can't keep
+#         # running this test if the session ends
+#         x_collect = compute(x)
+#         @test x_collect == Base.fill(1.0, 2048)
+#         @show typeof(x)
+#         write_to_disk(x)
+#         x_collect = compute(x)
+#         @test x_collect == Base.fill(1.0, 2048)
+#         x_collect = compute(x)
+#         @test x_collect == Base.fill(1.0, 2048)
+#     end
+# end
 
-@testset "Re-computing with $scheduling_config for map-reduce" for scheduling_config in [
-    "default scheduling",
-    "parallelism encouraged",
-    "parallelism and batches encouraged",
-]
-    use_session_for_testing(scheduling_config_name = scheduling_config) do
+# @testset "Re-computing with $scheduling_config for map-reduce" for scheduling_config in [
+#     "default scheduling",
+#     "parallelism encouraged",
+#     "parallelism and batches encouraged",
+# ]
+#     use_session_for_testing(scheduling_config_name = scheduling_config) do
 
-        x = BanyanArrays.fill(10.0, 2048)
-        x_sum = reduce(+, x)
-        x = map(e -> e / 10, x)
-        write_to_disk(x)
-        write_to_disk(x_sum)
-        x_sum_collect = compute(x_sum)
-        @test x_sum_collect == 10.0 * 2048
-        write_to_disk(x_sum)
-        x_collect = compute(x)
-        @show length(x_collect)
-        @test x_collect == Base.fill(1.0, 2048)
-        compute(x_sum)
-        x_sum_collect = compute(x_sum)
-        @test x_sum_collect == 10.0 * 2048
-    end
-end
+#         x = BanyanArrays.fill(10.0, 2048)
+#         x_sum = reduce(+, x)
+#         x = map(e -> e / 10, x)
+#         write_to_disk(x)
+#         write_to_disk(x_sum)
+#         x_sum_collect = compute(x_sum)
+#         @test x_sum_collect == 10.0 * 2048
+#         write_to_disk(x_sum)
+#         x_collect = compute(x)
+#         @show length(x_collect)
+#         @test x_collect == Base.fill(1.0, 2048)
+#         compute(x_sum)
+#         x_sum_collect = compute(x_sum)
+#         @test x_sum_collect == 10.0 * 2048
+#     end
+# end
 
-@testset "Map with multiple values with $scheduling_config for map-reduce" for scheduling_config in [
-    "default scheduling",
-    "parallelism encouraged",
-    "parallelism and batches encouraged",
-]
-    use_session_for_testing(scheduling_config_name = scheduling_config) do
+# @testset "Map with multiple values with $scheduling_config for map-reduce" for scheduling_config in [
+#     "default scheduling",
+#     "parallelism encouraged",
+#     "parallelism and batches encouraged",
+# ]
+#     use_session_for_testing(scheduling_config_name = scheduling_config) do
 
-        a = BanyanArrays.fill(10.0, 2048)
-        b = BanyanArrays.fill(10.0, 2048)
-        c = a + b
-        c_sum_collect = compute(sum(c))
-        @test c_sum_collect == 2048 * 10.0 * 2
-    end
-end
+#         a = BanyanArrays.fill(10.0, 2048)
+#         b = BanyanArrays.fill(10.0, 2048)
+#         c = a + b
+#         c_sum_collect = compute(sum(c))
+#         @test c_sum_collect == 2048 * 10.0 * 2
+#     end
+# end
 
-@testset "Complex dependency graphs with $scheduling_config for map-reduce" for scheduling_config in [
-    "default scheduling",
-    "parallelism encouraged",
-    "parallelism and batches encouraged",
-]
-    use_session_for_testing(scheduling_config_name = scheduling_config) do
+# @testset "Complex dependency graphs with $scheduling_config for map-reduce" for scheduling_config in [
+#     "default scheduling",
+#     "parallelism encouraged",
+#     "parallelism and batches encouraged",
+# ]
+#     use_session_for_testing(scheduling_config_name = scheduling_config) do
 
-        # Here we test more complex dependency graphs where some values are destroyed
+#         # Here we test more complex dependency graphs where some values are destroyed
 
-        x = BanyanArrays.fill(10.0, 2048)
-        y = BanyanArrays.fill(10.0, 2048)
-        a = BanyanArrays.fill(10.0, 2048)
-        x += y
-        x += a
-        y_sum_collect = compute(sum(y))
-        @test y_sum_collect == 2048 * 10.0
-        a = nothing
-        x_sum_collect = compute(sum(x))
-        @test x_sum_collect == 2048 * 10.0 * 3
-        y = nothing
-        z = x + x
-        z_sum_collect = compute(sum(z))
-        @test z_sum_collect == 2048 * 10.0 * 6
-        x_sum = sum(x)
-        x = nothing
-        x_sum_collect = compute(x_sum)
-        @test x_sum_collect == 2048 * 10.0 * 3
-    end
-end
+#         x = BanyanArrays.fill(10.0, 2048)
+#         y = BanyanArrays.fill(10.0, 2048)
+#         a = BanyanArrays.fill(10.0, 2048)
+#         x += y
+#         x += a
+#         y_sum_collect = compute(sum(y))
+#         @test y_sum_collect == 2048 * 10.0
+#         a = nothing
+#         x_sum_collect = compute(sum(x))
+#         @test x_sum_collect == 2048 * 10.0 * 3
+#         y = nothing
+#         z = x + x
+#         z_sum_collect = compute(sum(z))
+#         @test z_sum_collect == 2048 * 10.0 * 6
+#         x_sum = sum(x)
+#         x = nothing
+#         x_sum_collect = compute(x_sum)
+#         @test x_sum_collect == 2048 * 10.0 * 3
+#     end
+# end
 
-@testset "Multiple arrays with $scheduling_config for map-reduce" for scheduling_config in [
-    "default scheduling",
-    "parallelism encouraged",
-    "parallelism and batches encouraged",
-]
-    use_session_for_testing(scheduling_config_name = scheduling_config) do
+# @testset "Multiple arrays with $scheduling_config for map-reduce" for scheduling_config in [
+#     "default scheduling",
+#     "parallelism encouraged",
+#     "parallelism and batches encouraged",
+# ]
+#     use_session_for_testing(scheduling_config_name = scheduling_config) do
 
-        x1 = BanyanArrays.fill(10.0, 2048)
-        x2 = BanyanArrays.fill(10.0, 2048)
-        res = map((a, b) -> a * b, x1, x2)
+#         x1 = BanyanArrays.fill(10.0, 2048)
+#         x2 = BanyanArrays.fill(10.0, 2048)
+#         res = map((a, b) -> a * b, x1, x2)
 
-        res_sum_collect = compute(sum(res))
-        @test res_sum_collect == 204_800.0
-        res_minimum_collect = compute(minimum(res))
-        @test res_minimum_collect == 100.0
-    end
-end
+#         res_sum_collect = compute(sum(res))
+#         @test res_sum_collect == 204_800.0
+#         res_minimum_collect = compute(minimum(res))
+#         @test res_minimum_collect == 100.0
+#     end
+# end
 
 @testset "2D arrays with $scheduling_config for map-reduce" for scheduling_config in [
     "default scheduling",
