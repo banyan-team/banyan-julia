@@ -5,9 +5,10 @@
 # test that the call to offloaded returns the -1 
 
 @testset "Offload Function" begin
-    Pkg.activate("./")
     # cluster_name = ENV["BANYAN_CLUSTER_NAME"]
+    println("before the function")
     use_session_for_testing() do
+        println("in the use session")
         res = offloaded() do
             return -1
         end

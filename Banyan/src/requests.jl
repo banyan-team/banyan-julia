@@ -465,6 +465,7 @@ function offloaded(given_function)
             "options" => Dict( ),
             "num_bang_values_issued" => get_num_bang_values_issued(),
             "main_modules" => get_loaded_packages(),
+            "requests" => [],
             "partitioned_using_modules" => [],
             "benchmark" => get(ENV, "BANYAN_BENCHMARK", "0") == "1",
             "offloaded_function_code" => serialized
