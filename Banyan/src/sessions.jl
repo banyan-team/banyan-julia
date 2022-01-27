@@ -259,14 +259,18 @@ end
 
 get_running_sessions(args...; kwargs...) = get_sessions(args...; status="running", kwargs...)
 
-function download_session_logs(session_id::SessionId, cluster_name::String, filename::String=nothing; kwargs...)
+function download_session_logs(session_id::SessionId, cluster_name::String, filename::Union{String,Nothing}=nothing; kwargs...)
     @debug "Downloading logs for session"
     configure(; kwargs...)
     s3_bucket_name = get_cluster_s3_bucket_name(cluster_name)
     log_file_name = "banyan-log-for-session-$(session_id)"
-    filename = !isnothing(filename) ? filename : joinpath(homedir(), ".banyan", "logs")
+    if isnothing(filename) & !isdir(joinpath(homedir(), ".banyan", "logs"))
+        mkdir(joinpath(homedir(), ".banyan", "logs"))
+    end
+    filename = !isnothing(filename) ? filename : joinpath(homedir(), ".banyan", "logs", log_file_name)
     s3_get_file(get_aws_config(), s3_bucket_name, log_file_name, filename)
     @info "Downloaded logs for session with ID $session_id to $filename"
+    return filename
 end
 
 function end_all_sessions(cluster_name::String; release_resources_now = false, release_resources_after = nothing, kwargs...)
@@ -309,7 +313,7 @@ function wait_for_session(session_id::SessionId=get_session_id(), kwargs...)
     elseif session_status == "completed"
         error("Session with ID $session_id has already completed")
     elseif session_status == "failed"
-        error("Session with ID $session_id has failed")
+        error("Session with ID $session_id has failed. See above for logs.")
     else
         error("Unknown session status $session_status")
     end
