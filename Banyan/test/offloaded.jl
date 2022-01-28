@@ -19,21 +19,3 @@
         @test res2 == -1
     end
 end
-
-
-
-
-
-@testset "Get jobs" begin
-    Pkg.activate("./")
-    cluster_name = ENV["BANYAN_CLUSTER_NAME"]
-
-    job_id = create_job()
-    running_jobs = get_running_jobs(cluster_name)
-    destroy_job(job_id)
-    jobs = get_jobs(cluster_name)
-
-    @test all(j -> j[2]["status"] == "running", running_jobs)
-    @test any(j -> j[1] == job_id, running_jobs)
-    @test any(j -> (j[1] == job_id && j[2]["status"] == "completed"), jobs)
-end

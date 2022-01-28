@@ -480,11 +480,11 @@ function offloaded(given_function)
     
     session = get_session()
     gather_queue = get_gather_queue(session.resource_id)
+    stored_message = nothing
     while true
         message = receive_next_message(gather_queue, p)
         @show message # To be removed :))
         message_type = message["kind"]
-        stored_message = nothing
         if (message_type == "GATHER")
             value_id = message["value_id"]
             if (value_id == -1)

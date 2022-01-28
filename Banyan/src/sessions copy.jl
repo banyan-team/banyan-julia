@@ -192,7 +192,11 @@ function start_session(;
     response = send_request_get_response(:start_session, session_configuration)
     session_id = response["session_id"]
     resource_id = response["resource_id"]
-    @info "Starting session with ID $session_id on cluster named \"$cluster_name\""
+    if for_running == false
+        @info "Running session with $code_files"    
+    else
+        @info "Starting session with ID $session_id on cluster named \"$cluster_name\""
+    end
     println("donneee")
     # Store in global state
     current_session_id = session_id
