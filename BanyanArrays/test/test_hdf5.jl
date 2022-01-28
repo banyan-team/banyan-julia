@@ -25,9 +25,9 @@ using HDF5
         @test x_length_collect == 600000
         x_size_collect = size(x)
         @test x_size_collect == (1000, 600)
-        x_sum_collect = collect(sum(x))
+        x_sum_collect = compute(sum(x))
         @test x_sum_collect == 32100000
-        x_sum_collect = collect(sum(x))
+        x_sum_collect = compute(sum(x))
         @test x_sum_collect == 32100000
     end
 
@@ -81,13 +81,13 @@ using HDF5
                 @test x_length_collect == 600000
                 x_size_collect = size(x)
                 @test x_size_collect == (1000, 600)
-                x_sum_collect = collect(sum(x)) # here?
+                x_sum_collect = compute(sum(x)) # here?
                 @test x_sum_collect == 321000000 # incorrect
-                x_sum_collect = collect(sum(x))
+                x_sum_collect = compute(sum(x))
                 @test x_sum_collect == 321000000 # incorrect
-                x_minimum_collect = collect(minimum(x))
+                x_minimum_collect = compute(minimum(x))
                 @test x_minimum_collect == -60
-                x_maximum_collect = collect(maximum(x))
+                x_maximum_collect = compute(maximum(x))
                 @test x_maximum_collect == 990
                 x_length_collect = length(x)
                 @test x_length_collect == 600000

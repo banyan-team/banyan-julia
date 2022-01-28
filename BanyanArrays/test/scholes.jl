@@ -45,7 +45,7 @@ using Distributions
 	)
 
 	call_sum = sum(call)
-	res = collect(call_sum)
+	res = compute(call_sum)
         #res = collect(res)
 	#end = now()
         #@test typeof(res) == Base.Vector{Float64}

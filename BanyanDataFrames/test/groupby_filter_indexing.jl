@@ -47,15 +47,15 @@
                 sub_nrow = nrow(sub)
                 sub2_nrow = nrow(sub2)
                 @show sample(sub2)
-                sepal_length_sub_sum = round(collect(reduce(+, sub[:, :sepal_length])))
-                sepal_length_sub2_sum = round(collect((reduce(+, sub2[:, :sepal_length]))))
+                sepal_length_sub_sum = round(compute(reduce(+, sub[:, :sepal_length])))
+                sepal_length_sub2_sum = round(compute((reduce(+, sub2[:, :sepal_length]))))
                 @show sample(sub2)
                 @show sample(df)
-                @show collect(sub2)
-                @show collect(sub2)
+                @show compute(sub2)
+                @show compute(sub2)
                 @show sample(sub2)
-                @show collect(sub2[:, [:species]])
-                sub2_species = Set(collect(sub2[:, [:species]])[:, :species])
+                @show compute(sub2[:, [:species]])
+                sub2_species = Set(compute(sub2[:, [:species]])[:, :species])
 
                 # Assert
                 @test sub_nrow == 36
@@ -80,9 +80,9 @@
 
                 # Collect results
                 sub3_nrow = nrow(sub3)
-                sub3 = sort(collect(sub3))
-                sub3_row8 = collect(sub3[8, :])
-                sub3_row62 = collect(sub3[62, :])
+                sub3 = sort(compute(sub3))
+                sub3_row8 = compute(sub3[8, :])
+                sub3_row62 = compute(sub3[62, :])
 
                 # Assert
                 @test sub3_nrow == 62
@@ -104,8 +104,8 @@
                 sub4_nrow = nrow(sub4)
 
                 sub4_nrow = nrow(sub4)
-                sub4_max_petal_length = collect(reduce(max, sub4[:, :petal_length]))
-                sub4_valid = collect(
+                sub4_max_petal_length = compute(reduce(max, sub4[:, :petal_length]))
+                sub4_valid = compute(
                     reduce(
                         &,
                         map(
@@ -115,7 +115,7 @@
                         ),
                     ),
                 )
-                sub4 = sort(collect(sub4))
+                sub4 = sort(compute(sub4))
                 sub4_row8 = collect(sub4[8, :])
                 sub4_row114 = collect(sub4[114, :])
 
@@ -143,7 +143,7 @@
 
                 # Collect results
                 sub5_nrow = nrow(sub5)
-                sub5 = sort(collect(sub5))
+                sub5 = sort(compute(sub5))
                 sub5_row1 = collect(sub5[1, :])
                 sub5_row18 = collect(sub5[18, :])
 
@@ -187,8 +187,8 @@ end
 
                 # Collect results
                 sub_nrow = nrow(sub)
-                sub_tripdistance_sum = round(collect(reduce(+, sub[:, :trip_distance])))
-                sub_valid = round(collect(reduce(&, map(d -> d > 1.0, sub[:, :trip_distance]))))
+                sub_tripdistance_sum = round(compute(reduce(+, sub[:, :trip_distance])))
+                sub_valid = round(compute(reduce(&, map(d -> d > 1.0, sub[:, :trip_distance]))))
                 #sub_hour_sum = collect(
                 #    reduce(
                 #        +,
@@ -302,14 +302,14 @@ end
                 gdf_transform_size = size(gdf_transform)
                 gdf_subset_nrow = nrow(gdf_subset)
                 @test gdf_subset_nrow == 474
-                gdf_subset_collected = sort(collect(gdf_subset))
+                gdf_subset_collected = sort(compute(gdf_subset))
                 gdf_subset_row474 = collect(gdf_subset_collected[474, :])
                 gdf_select_plf_square_add = round(
-                    collect(reduce(+, map(l -> l * l, gdf_select[:, :petal_length_function]))),
+                    compute(reduce(+, map(l -> l * l, gdf_select[:, :petal_length_function]))),
                     digits = 2,
                 )
                 gdf_select_filter_length = nrow(
-                    collect(
+                    compute(
                         gdf_select[:, [:petal_length]][
                             map(l -> l .== 1.3, gdf_select[:, :petal_length]),
                             :,
@@ -318,21 +318,21 @@ end
                 )
                 gdf_transform_length =
                     length(groupby(gdf_transform, [:species, :species_function]))
-                gdf_subset_collected = sort(collect(gdf_subset))
+                gdf_subset_collected = sort(compute(gdf_subset))
                 gdf_subset_row5 = collect(gdf_subset_collected[5, :])
                 gdf_subset_row333 = collect(gdf_subset_collected[333, :])
                 gdf_subset_row474 = collect(gdf_subset_collected[474, :])
                 # gdf_keepkeys_false_names = names(combine(gdf, nrow, keepkeys = false))
                 gdf_keepkeys_true_names = Set(names(combine(gdf, nrow, keepkeys = true)))
                 petal_length_mean =
-                    sort(collect(combine(gdf, :petal_length => mean)), :petal_length_mean)[
+                    sort(compute(combine(gdf, :petal_length => mean)), :petal_length_mean)[
                         :,
                         :petal_length_mean,
                     ]
                 petal_length_mean = map(m -> round(m, digits = 2), petal_length_mean)
                 temp = combine(gdf, :petal_length => mean, renamecols = false)
                 temp_names = Set(names(temp))
-                temp_petal_length = sort(collect(temp)[:, :petal_length])
+                temp_petal_length = sort(compute(temp)[:, :petal_length])
                 temp_petal_length = map(l -> round(l, digits = 2), temp_petal_length)
 
                 # Assert
@@ -426,9 +426,9 @@ end
                     gdf_subset = read_file(gdf_collect_save_path)
                 end
 
-                gdf_nrow = sort(collect(combine(gdf, nrow)))
+                gdf_nrow = sort(compute(combine(gdf, nrow)))
                 gdf_subset_nrow = nrow(gdf_subset)
-                gdf_tripdistance_sum = round(collect(reduce(+, gdf_subset[:, :trip_distance])))
+                gdf_tripdistance_sum = round(compute(reduce(+, gdf_subset[:, :trip_distance])))
 
                 @test gdf_nrow == [
                     1,
@@ -508,8 +508,8 @@ end
             @test filtered_single_size == (1, 5)
 
             # Test downloading single row
-            filtered_single_sepal_width = collect(filtered_single[:, :sepal_width])
-            filtered_single_petal_width = collect(filtered_single[:, :petal_width])
+            filtered_single_sepal_width = compute(filtered_single[:, :sepal_width])
+            filtered_single_petal_width = compute(filtered_single[:, :petal_width])
             @test filtered_single_sepal_width == [3.0]
             @test filtered_single_petal_width == [0.2]
 
@@ -588,14 +588,14 @@ end
             filt1 = subset(groupby(df, :species), [:petal_length, :sepal_length, :species] => (pl, sl, s) -> ((pl .< mean(pl)) .& (sl .== 4.9) .& (s .== "setosa")))
             filt2 = subset(groupby(filt1, :species), :sepal_width => sw -> sw .> 100 * mean(sw))
         end
-        df1 = collect(filt1)
-        df2 = collect(filt2)
+        df1 = compute(filt1)
+        df2 = compute(filt2)
         if filter_type == "filter"
             filt3 = filter(row -> row.petal_width == 100, filt2)
         elseif filter_type == "subset"
             filt3 = subset(groupby(filt1, :petal_width), :petal_width => pw -> pw .== 100)
         end
-        df3 = collect(filt3)
+        df3 = compute(filt3)
 
         @test size(df1) == (1, 5)
         @test names(df1) == ["sepal_length", "sepal_width", "petal_length", "petal_width", "species"]
@@ -631,8 +631,8 @@ end
                 :petal_width => pw -> pw .== 100
             )
         end
-        df01 = collect(filt01)
-        df02 = collect(filt02)
+        df01 = compute(filt01)
+        df02 = compute(filt02)
 
         @test size(df01) == (1, 5)
         @test collect(df01[1, :]) == [4.9, 3.0, 1.4, 0.2, "species_10"]
@@ -672,7 +672,7 @@ end
                 filt2 = subset(groupby(filt1, :species), :sepal_width => sw -> sw .> 100 * mean(sw))
             end
 
-            df1 = collect(filt1)
+            df1 = compute(filt1)
         end
     end
 end
@@ -787,7 +787,7 @@ end
         println("Finished combining by mean to trip_means")
         @debug Banyan.format_available_memory()
 
-        trip_means = collect(trip_means)
+        trip_means = compute(trip_means)
         println("Finished collecting to trip_means")
         @debug Banyan.format_available_memory()
     end

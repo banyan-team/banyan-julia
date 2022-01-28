@@ -177,7 +177,7 @@ Banyan.sample_max(df::DataFrames.DataFrame, key) = isempty(df) ? nothing : maxim
 
 # DataFrame properties
 
-DataFrames.nrow(df::DataFrame) = collect(df.nrows)
+DataFrames.nrow(df::DataFrame) = compute(df.nrows)
 DataFrames.ncol(df::DataFrame) = ncol(sample(df))
 Base.size(df::DataFrame) = (nrow(df), ncol(df))
 Base.ndims(df::DataFrame) = 2
@@ -617,7 +617,7 @@ function Base.getindex(df::DataFrame, rows=:, cols=:)
         end
     res =
         if return_vector
-            BanyanArrays.Vector{eltype(sample(df)[!, collect(cols)])}(Future(datatype="Array"), res_size)
+            BanyanArrays.Vector{eltype(sample(df)[!, compute(cols)])}(Future(datatype="Array"), res_size)
         else
             DataFrame(Future(datatype="DataFrame"), res_size)
         end
@@ -1265,7 +1265,7 @@ function Base.sort(df::DataFrame, cols=:; kwargs...)
     cols = Future(cols)
     kwargs = Future(kwargs)
     sortingkey = first(columns)
-    isreversed = get(collect(kwargs), :rev, false)
+    isreversed = get(compute(kwargs), :rev, false)
 
     # TODO: Change to_vector(x) to [x;]
 
