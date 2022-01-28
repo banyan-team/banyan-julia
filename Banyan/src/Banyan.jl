@@ -73,7 +73,8 @@ export Session,
     get_running_sessions,
     get_cluster_name,
     wait_for_session,
-    with_session
+    with_session,
+    download_session_logs
 
 # Futures
 export AbstractFuture, Future, partitioned_computation, write_to_disk, compute
