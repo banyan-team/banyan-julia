@@ -475,11 +475,14 @@ function offloaded(given_function)
         throw(ErrorException("The evaluation request has failed. Please contact support"))
     end
 
-    job_id = Banyan.get_job_id()
-    p = ProgressUnknown("Computing value with ID $(fut.value_id)", spinner=true)
-    gather_queue = get_gather_queue(job_id)
+    # job_id = Banyan.get_job_id()
+    p = ProgressUnknown("Running offloaded code", spinner=true)
+    
+    session = get_session()
+    gather_queue = get_gather_queue(session.resource_id)
     while true
         message = receive_next_message(gather_queue, p)
+        @show message # To be removed :))
         message_type = message["kind"]
         stored_message = nothing
         if (message_type == "GATHER")
