@@ -37,7 +37,7 @@ function use_session_for_testing(
         else
             start_session(
                 cluster_name = ENV["BANYAN_CLUSTER_NAME"],
-                nworkers = 2,
+                nworkers = parse(Int32, get(ENV, "BANYAN_NWORKERS", "2")),
                 sample_rate = sample_rate,
                 print_logs = false,
                 url = "https://github.com/banyan-team/banyan-julia.git",
