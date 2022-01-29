@@ -77,6 +77,8 @@ ReadBlockCSV, ReadBlockParquet, ReadBlockArrow = [
 
             path = Banyan.getpath(loc_params["path"], comm)
 
+            println("In ReadBlock with path=$path, loc_params=$params")
+
             # Handle multi-file tabular datasets
 
             # Handle None location by finding all files in directory used for spilling
@@ -113,6 +115,8 @@ ReadBlockCSV, ReadBlockParquet, ReadBlockArrow = [
                 end
             end
 
+            println("In ReadBlock after Disk case with path=$path, loc_params=$params")
+
             # Iterate through files and identify which ones correspond to the range of
             # rows for the batch currently being processed by this worker
             nrows = loc_params["nrows"]
@@ -139,6 +143,7 @@ ReadBlockCSV, ReadBlockParquet, ReadBlockArrow = [
                     # TODO: Scale the memory usage appropriately when splitting with
                     # this and garbage collect if too much memory is used.
                     if endswith(file_path, file_extension)
+                        print("In ReadBlock calling read_file with path=$path, filerowrange=$filerowrange, readrange=$readrange, rowrange=$rowrange")
                         read_file(path, header, rowrange, readrange, filerowrange, dfs)
                     else
                         error("Expected file with $file_extension extension")
@@ -146,6 +151,7 @@ ReadBlockCSV, ReadBlockParquet, ReadBlockArrow = [
                 end
                 rowsscanned = newrowsscanned
             end
+            println("In ReadBlock with rowrange=$rowrange, nrow.(dfs)=$(nrow.(dfs))")
 
             # Concatenate and return
             # NOTE: If this partition is empty, it is possible that the result is
