@@ -16,6 +16,7 @@ get_csv_chunks(localfilepathp) =
     end
 
 function RemoteTableSource(remotepath; shuffled=false, source_invalid = false, sample_invalid = false, invalidate_source = false, invalidate_sample = false)::Location
+    @show remotepath source_invalid sample_invalid
     RemoteSource(
         remotepath,
         shuffled=shuffled,
@@ -24,6 +25,7 @@ function RemoteTableSource(remotepath; shuffled=false, source_invalid = false, s
         invalidate_source = invalidate_source,
         invalidate_sample = invalidate_sample
     ) do remotepath, remote_source, remote_sample, shuffled
+        @show remotepath isnothing(remote_source) isnothing(remote_sample) shuffled
         # `remote_source` and `remote_sample` might be non-null indicating that
         # we need to reuse a location or a sample (but not both since then the
         # `Remote` constructor would have just returned the location).
@@ -361,6 +363,7 @@ function RemoteTableSource(remotepath; shuffled=false, source_invalid = false, s
         remote_sample_value = isnothing(remote_sample) ? randomsample : remote_sample.value
         remote_sample_rate = totalnrows > 0 ? totalnrows / nrow(remote_sample_value) : 1.0
         nbytes = Base.convert(Integer, ceil(total_memory_usage(remote_sample_value) * remote_sample_rate))
+        println("In table source location constructor with nbytes=$nbytes")
 
         # Load metadata for reading
         # If we're not using S3FS, the files might be empty because `readdir`

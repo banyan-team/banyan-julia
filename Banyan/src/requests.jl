@@ -332,6 +332,11 @@ function configure_scheduling(;kwargs...)
     if get(kwargs, :exaggurate_size, false) || get(kwargs, :name, "") == "size exaggurated"
         exaggurate_size = true
     end
+    if get(kwargs, :name, "") == "default scheduling"
+        encourage_parallelism = false
+        encourage_parallelism_with_batches = false
+        exaggurate_size = false
+    end
 end
 
 function send_evaluation(value_id::ValueId, session_id::SessionId)

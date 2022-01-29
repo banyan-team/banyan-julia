@@ -9,7 +9,6 @@ using Banyan,
     Downloads,
     FileIO,
     FilePathsBase,
-    HDF5,
     MPI,
     Random,
     Serialization

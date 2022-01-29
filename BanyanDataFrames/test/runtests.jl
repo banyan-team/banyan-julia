@@ -4,6 +4,7 @@ using BanyanDataFrames
 using ReTest
 using FilePathsBase, AWSS3, DataFrames, CSV, Parquet, Arrow
 using Random
+using Statistics
 
 global sessions_for_testing = Dict()
 
@@ -229,8 +230,10 @@ include("sample_computation.jl")
 include("groupby_filter_indexing.jl")
 
 # Clear caches to ensure that caching behavior is deterministic
-clear_sources()
-clear_samples()
+# Actually, don't clear this until we optimize sample/source collection.
+# Until then, we have the sample collection tests for this.
+# clear_sources()
+# clear_samples()
 
 try
     runtests(Regex.(ARGS)...)

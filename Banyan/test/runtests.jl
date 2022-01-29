@@ -193,7 +193,6 @@ function use_data(file_extension, remote_kind, single_file)
     end
 end
 
-include("sample_collection.jl")
 include("sample_computation.jl")
 include("config.jl")
 include("clusters.jl")

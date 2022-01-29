@@ -535,6 +535,7 @@ macro partitioned(ex...)
             end
         end
         task.code *= $(string(code))
+        task.code *= "\nprintln(\"Finished code region on $(MPI.Initialized() ? MPI.Comm_rank(MPI.COMM_WORLD) : -1)\")\n"
         task.value_names = [
             (fut.value_id, var_name) for (fut, var_name) in
             zip(splatted_futures, splatted_variable_names)

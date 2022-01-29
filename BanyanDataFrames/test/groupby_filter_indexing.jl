@@ -81,8 +81,8 @@
                 # Collect results
                 sub3_nrow = nrow(sub3)
                 sub3 = sort(compute(sub3))
-                sub3_row8 = compute(sub3[8, :])
-                sub3_row62 = compute(sub3[62, :])
+                sub3_row8 = collect(sub3[8, :])
+                sub3_row62 = collect(sub3[62, :])
 
                 # Assert
                 @test sub3_nrow == 62
@@ -498,6 +498,9 @@ end
                 filtered_single = read_file(filtered_single_save_path)
             end
 
+            filtered_single_sepal_width = compute(filtered_single[:, :sepal_width])
+            @test filtered_single_sepal_width == [3.0]
+
             has_schema = i != 2 || filetype == "arrow"
             has_num_cols = i != 2 || filetype != "parquet"
 
@@ -757,38 +760,43 @@ end
 end
 
 @testset "NYC Taxi Stress Test" begin
-    using Statistics
     use_session_for_testing(scheduling_config_name = "default scheduling", sample_rate=1024) do
-        s3_bucket_name = get_cluster_s3_bucket_name()
-        df = read_csv(
-            "s3://$s3_bucket_name/nyc_tripdata.csv",
-            sample_invalid=true,
-            source_invalid=true,
-            shuffled=true
-        )
-        # @show sample(df)
-        println("Finished reading df")
-        @debug Banyan.format_available_memory()
+        setup_nyc_taxi_stress_test("512 MB")
+        for iter in 1:2
+            @time begin
+                s3_bucket_name = get_cluster_s3_bucket_name()
+                df = read_csv(
+                    # "s3://$s3_bucket_name/nyc_tripdata.csv",
+                    "s3://$s3_bucket_name/nyc_tripdata_large.csv",
+                    # sample_invalid=true,
+                    # source_invalid=true,
+                    shuffled=true
+                )
+                # @show sample(df)
+                println("Finished reading df")
+                @debug Banyan.format_available_memory()
 
-        # Filter all trips with distance longer than 1.0. Group by passenger count
-        # and get the average trip distance for each group.
-        long_trips = filter(
-            row -> row.trip_distance < 1.0,
-            df
-        )
-        println("Finished filtering to long_trips")
-        @debug Banyan.format_available_memory()
-        # @show sample(long_trips)
+                # Filter all trips with distance longer than 1.0. Group by passenger count
+                # and get the average trip distance for each group.
+                long_trips = filter(
+                    row -> row.trip_distance < 1.0,
+                    df
+                )
+                println("Finished filtering to long_trips")
+                @debug Banyan.format_available_memory()
+                # @show sample(long_trips)
 
-        gdf = groupby(long_trips, :passenger_count)
-        println("Finished groupby by passenger count to gdf")
-        @debug Banyan.format_available_memory()
-        trip_means = combine(gdf, :trip_distance => mean)
-        println("Finished combining by mean to trip_means")
-        @debug Banyan.format_available_memory()
+                gdf = groupby(long_trips, :PULocationID)
+                println("Finished groupby by location to gdf")
+                @debug Banyan.format_available_memory()
+                trip_means = combine(gdf, :trip_distance => mean)
+                println("Finished combining by mean to trip_means")
+                @debug Banyan.format_available_memory()
 
-        trip_means = compute(trip_means)
-        println("Finished collecting to trip_means")
-        @debug Banyan.format_available_memory()
+                trip_means = compute(trip_means)
+                println("Finished collecting to trip_means")
+                @debug Banyan.format_available_memory()
+            end
+        end
     end
 end
