@@ -56,9 +56,9 @@ end
 
 function receive_next_message(queue_name, p=nothing)
     content = get_next_message(queue_name, p)
-    if startswith(content, "JOB_READY")
+    if startswith(content, "JOB_READY") || startswith(content, "SESSION_READY")
         response = Dict{String,Any}(
-            "kind" => "JOB_READY"
+            "kind" => "SESSION_READY"
         )
     elseif startswith(content, "EVALUATION_END")
         # @debug "Received evaluation end"
