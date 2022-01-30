@@ -761,7 +761,7 @@ end
 
 @testset "NYC Taxi Stress Test" begin
     use_session_for_testing(scheduling_config_name = "default scheduling", sample_rate=1024) do
-        setup_nyc_taxi_stress_test("512 MB")
+        setup_nyc_taxi_stress_test("5 GB")
         for iter in 1:2
             @time begin
                 s3_bucket_name = get_cluster_s3_bucket_name()

@@ -4,6 +4,12 @@ scale_by = 0
 views = false
 locations = [ { datatype = "GroupedDataFrame" } ]
 
+[merges.ReturnNullGrouping]
+partition_memory_usage = "none"
+scale_by = 0
+views = false
+locations = [ { datatype = "GroupedDataFrame" } ]
+
 # ReadBlock
 
 [splits.ReadBlockCSV]
