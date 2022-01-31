@@ -372,8 +372,39 @@ function run_session(;
     email_when_ready::Union{Bool,Nothing}=nothing,
     kwargs...,)::SessionId
 
-    start_session(cluster_name, nworkers, release_resources_after, print_logs, store_logs_in_s3, store_logs_on_cluster, 
-                  sample_rate, session_name, files, code_files, true, pf_dispatch_table, using_modules, url, branch,
-                  directory, dev_paths, force_clone, force_pull, force_install, estimate_available_memory, false, email_when_ready, true)
+
+    # cluster_name::Union{String,Nothing} = nothing,
+    # nworkers::Union{Integer,Nothing} = 16,
+    # release_resources_after::Union{Integer,Nothing} = 20,
+    # print_logs::Union{Bool,Nothing} = false,
+    # store_logs_in_s3::Union{Bool,Nothing} = true,
+    # store_logs_on_cluster::Union{Bool,Nothing} = false,
+    # sample_rate::Union{Integer,Nothing} = nworkers,
+    # session_name::Union{String,Nothing} = nothing,
+    # files::Union{Vector,Nothing} = [],
+    # code_files::Union{Vector,Nothing} = [],
+    # force_update_files::Union{Bool,Nothing} = false,
+    # pf_dispatch_table::Union{String,Nothing} = nothing,
+    # using_modules::Union{Vector,Nothing} = [],
+    # url::Union{String,Nothing} = nothing,
+    # branch::Union{String,Nothing} = nothing,
+    # directory::Union{String,Nothing} = nothing,
+    # dev_paths::Union{Vector,Nothing} = [],
+    # force_clone::Union{Bool,Nothing} = false,
+    # force_pull::Union{Bool,Nothing} = false,
+    # force_install::Union{Bool,Nothing} = false,
+    # estimate_available_memory::Union{Bool,Nothing} = true,
+    # nowait::Bool=false,
+    # email_when_ready::Union{Bool,Nothing}=nothing,
+    # for_running=false, # NEW
+    
+
+    force_update_files = true
+    start_session(;cluster_name = cluster_name, nworkers = nworkers, release_resources_after = release_resources_after, 
+                  print_logs = print_logs, store_logs_in_s3 = store_logs_in_s3, store_logs_on_cluster = store_logs_on_cluster, 
+                  sample_rate = sample_rate, session_name = session_name, files = files, code_files = code_files, force_update_files = force_update_files,
+                  pf_dispatch_table = pf_dispatch_table, using_modules = using_modules, url = url, branch = branch,
+                  directory = directory, dev_paths = dev_paths, force_clone = force_clone, force_pull = force_pull, force_install = force_install, 
+                  estimate_available_memory = estimate_available_memory, nowait = false, email_when_ready = email_when_ready, for_running = true)
     end_session(get_session_id)
 end
