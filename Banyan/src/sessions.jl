@@ -182,22 +182,10 @@ function start_session(;
     session_id = response["session_id"]
     resource_id = response["resource_id"]
     if for_running == false
-<<<<<<< HEAD
-        @info "Running session with ID $session_id and $code_files"    
-=======
-<<<<<<< HEAD
         @info "Running session  with ID $session_id and $code_files"    
->>>>>>> 0c67b42 (implemented custom scripting)
     else
         @info "Starting session with ID $session_id on cluster named \"$cluster_name\""
     end
-=======
-        @info "Running session with $code_files"    
-    else
-        @info "Starting session with ID $session_id on cluster named \"$cluster_name\""
-    end
-    println("donneee")
->>>>>>> e12c524 (implemented custom scripting)
     # Store in global state
     current_session_id = session_id
     sessions[current_session_id] = Session(cluster_name, current_session_id, resource_id, nworkers, sample_rate)
