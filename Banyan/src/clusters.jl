@@ -27,7 +27,7 @@ function create_cluster(;
         name = "Cluster " * string(length(clusters) + 1)
     end
     if isnothing(region)
-        aws_region = get_aws_config_region()
+        region = get_aws_config_region()
     end
 
     # Check if the configuration for this cluster name already exists
