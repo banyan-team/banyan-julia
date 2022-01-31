@@ -453,8 +453,10 @@ end
 # Make `offloaded` function specify 
 #     job_id, num_bang_values_issued, main_modules, and benchmark 
 #     when calling evaluate (see send_evaluate) and value_id -1
-function offloaded(given_function)
-    serialized = to_jl_value_contents(given_function)
+# offloaded(some_func; distributed=true)
+# offloaded(some_func, a, b; distributed=true)
+function offloaded(given_function, args...; distributed = false)
+    serialized = to_jl_value_contents((given_function, args))
 
     # Submit evaluation request
     response = send_request_get_response(
@@ -468,7 +470,8 @@ function offloaded(given_function)
             "requests" => [],
             "partitioned_using_modules" => [],
             "benchmark" => get(ENV, "BANYAN_BENCHMARK", "0") == "1",
-            "offloaded_function_code" => serialized
+            "offloaded_function_code" => serialized,
+            "distributed" => distributed
         ),
     )
     if isnothing(response)
