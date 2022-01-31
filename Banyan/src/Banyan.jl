@@ -75,6 +75,7 @@ export Session,
     wait_for_session,
     with_session,
     run_session
+    download_session_logs
 
 # Futures
 export AbstractFuture, Future, partitioned_computation, write_to_disk, compute
