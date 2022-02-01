@@ -1,0 +1,20 @@
+[merges.WriteONNXToDisk]
+partition_memory_usage = "all"
+scale_by = 0
+views = false
+required = { name = "Replicating", replication = "all" }
+locations = [ { name = "Disk", datatype = "ONNX" } ]
+
+[splits.ReadONNXFromDisk]
+partition_memory_usage = "all"
+scale_by = 1
+views = false
+required = { name = "Replicating", dividing = false }
+locations = [ { name = "Disk", datatype = "DataFrame" } ]
+
+[splits.ReadONNX]
+partition_memory_usage = "all"
+scale_by = 1
+views = false
+required = { name = "Replicating", dividing = false }
+locations = [ { name = "Remote", format = "onnx" } ]

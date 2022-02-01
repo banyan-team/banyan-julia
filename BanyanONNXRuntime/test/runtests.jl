@@ -49,7 +49,8 @@ function use_job_for_testing(
                 directory = "banyan-julia/BanyanArrays/test",
                 dev_paths = [
                     "banyan-julia/Banyan",
-                    "banyan-julia/BanyanArrays"
+                    "banyan-julia/BanyanArrays",
+                    "banyan-julia/BanyanONNXRunTime"
                 ],
                 # BANYAN_REUSE_RESOURCES should be 1 when the compute resources
                 # for sessions being run can be reused; i.e., there is no
