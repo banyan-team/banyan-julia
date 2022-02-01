@@ -5,12 +5,6 @@ end
 
 Banyan.convert(::Type{Future}, is::InferenceSession) = is.inference_session
 
-function load_inference(path; dynamic_axis::Bool=false)
-    onnx_loc = RemoteONNXSource(path)
-    onnx_loc.src_name == "Remote" || error("$path does not exist")
-    InferenceSession(Future(source=onnx_loc, datatype="ONNX"), dynamic_axis)
-end
-
 function (is::InferenceSession)(inputs, output_names=nothing)
     dynamic_axis = Future(is.dynamic_axis)
     res_size = Future()
@@ -26,10 +20,7 @@ function (is::InferenceSession)(inputs, output_names=nothing)
     input_name = Future(first(keys(inputs)))
     res = Future()
     output_name = first(output_names)
-
-    partitioned_using() do
-        keep_sample_rate(res, A)
-    end
+    println("HERE 1")
 
     partitioned_with(scaled=[A, res]) do
         # Blocked PTs along dimensions _not_ being mapped along
@@ -48,6 +39,7 @@ function (is::InferenceSession)(inputs, output_names=nothing)
         pt(res_size, ReducingWithKey(quote axis -> (a, b) -> indexapply(+, a, b, index=axis) end), match=A, on="key")
         pt(A, res, res_size, is, dynamic_axis, input_name, Replicated())
     end
+    println("HERE 2")
 
     @partitioned is dynamic_axis input_name A res res_size begin
         println("Started running ONNX model")
@@ -60,6 +52,16 @@ function (is::InferenceSession)(inputs, output_names=nothing)
         println("Finished running ONNX model")
         res_size = Base.size(res)
     end
+    println("HERE 3")
 
     Dict(output_name => Array{eltype(sample(res)),ndims(sample(res))}(res, res_size))
+    println("HERE 4")
+end
+
+function load_inference(path; dynamic_axis::Bool=false)
+    onnx_loc = RemoteONNXSource(path)
+    println("GOT LOCATION")
+    onnx_loc.src_name == "Remote" || error("$path does not exist")
+    InferenceSession(Future(source=onnx_loc, datatype="ONNX"), dynamic_axis)
+    println("FINISHED LOAD_INFERENCE")
 end

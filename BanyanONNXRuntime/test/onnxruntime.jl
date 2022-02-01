@@ -7,17 +7,10 @@
         model = BanyanONNXRunTime.load_inference(model_path)
 
         # Create data
-        data = BanyanArrays.ones(Float32, (10, 2, 3))
+        data = BanyanArrays.ones(Float32, (120, 2, 3))
 
         # Call model on data
-        res = BanyanArrays.mapslices(
-            # image -> begin
-            #     model
-            # end,
-            identity,
-            data;
-            dims=[2,3]
-        )
+        res = model(Dict("input" => data))["output"]
         res = compute(res)
 
         res_size = size(res)
