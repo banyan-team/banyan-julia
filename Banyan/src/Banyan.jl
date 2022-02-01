@@ -10,7 +10,11 @@ __precompile__()
 module Banyan
 
 global BANYAN_JULIA_BRANCH_NAME = "v21.12.19"
+<<<<<<< HEAD
 global BANYAN_JULIA_PACKAGES = ["Banyan", "BanyanArrays", "BanyanDataFrames", "BanyanImages"]
+=======
+global BANYAN_JULIA_PACKAGES = ["Banyan", "BanyanArrays", "BanyanDataFrames", "BanyanONNXRunTime"]
+>>>>>>> 4cf2aa5 (Add BanyanONNXRunTime to BANYAN_JULIA_PACKAGES)
 
 using FilePathsBase: joinpath, isempty
 using Base: notnothing, env_project_file

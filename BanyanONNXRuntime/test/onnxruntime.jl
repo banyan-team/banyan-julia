@@ -11,7 +11,9 @@
 
         # Call model on data
         res = model(Dict("input" => data))["output"]
+        println("RES 1: ", res)
         res = compute(res)
+        println("RES 2: ", res)
 
         res_size = size(res)
         @test res_size == (120, 2, 3)

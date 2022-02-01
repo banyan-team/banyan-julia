@@ -54,14 +54,11 @@ function (is::InferenceSession)(inputs, output_names=nothing)
     end
     println("HERE 3")
 
-    Dict(output_name => Array{eltype(sample(res)),ndims(sample(res))}(res, res_size))
-    println("HERE 4")
+    Dict(output_name => BanyanArrays.Array{eltype(sample(res)),ndims(sample(res))}(res, res_size))
 end
 
 function load_inference(path; dynamic_axis::Bool=false)
     onnx_loc = RemoteONNXSource(path)
-    println("GOT LOCATION")
     onnx_loc.src_name == "Remote" || error("$path does not exist")
     InferenceSession(Future(source=onnx_loc, datatype="ONNX"), dynamic_axis)
-    println("FINISHED LOAD_INFERENCE")
 end
