@@ -293,10 +293,15 @@ function end_all_sessions(cluster_name::String; release_resources_now = false, r
 end
 
 function get_session_status(session_id::String=get_session_id(); kwargs...)
+    global sessions
     configure(; kwargs...)
     filters = Dict("session_id" => session_id)
     response = send_request_get_response(:describe_sessions, Dict{String,Any}("filters"=>filters))
     session_status = response["sessions"][session_id]["status"]
+    resource_id = response["sessions"][session_id]["resource_id"]
+    if haskey(sessions, session_id)
+        sessions[session_id].resource_id = resource_id
+    end
     if session_status == "failed"
         # We don't immediately fail - we're just explaining. It's only later on
         # where it's like we're actually using this session do we set the status.
