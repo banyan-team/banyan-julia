@@ -74,7 +74,7 @@ export Session,
     get_cluster_name,
     wait_for_session,
     with_session,
-    run_session
+    run_session,
     download_session_logs
 
 # Futures
