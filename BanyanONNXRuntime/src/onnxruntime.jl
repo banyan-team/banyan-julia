@@ -20,7 +20,6 @@ function (is::InferenceSession)(inputs, output_names=nothing)
     input_name = Future(first(keys(inputs)))
     res = Future()
     output_name = first(output_names)
-    println("HERE 1")
 
     partitioned_with(scaled=[A, res], modules="ONNXRunTime") do
         # Blocked PTs along dimensions _not_ being mapped along
@@ -39,20 +38,15 @@ function (is::InferenceSession)(inputs, output_names=nothing)
         pt(res_size, ReducingWithKey(quote axis -> (a, b) -> indexapply(+, a, b, index=axis) end), match=A, on="key")
         pt(A, res, res_size, is, dynamic_axis, input_name, Replicated())
     end
-    println("HERE 2")
 
     @partitioned is dynamic_axis input_name A res res_size begin
-        println("Started running ONNX model")
         if dynamic_axis
             res = first(values(is(Dict(input_name  => A))))
         else
-            @show collect(2:ndims(A))
             res = Base.mapslices(arr -> first(values(is(Dict(input_name => arr)))), A, dims=collect(2:ndims(A)))
         end
-        println("Finished running ONNX model")
         res_size = Base.size(res)
     end
-    println("HERE 3")
 
     Dict(output_name => BanyanArrays.Array{eltype(sample(res)),ndims(sample(res))}(res, res_size))
 end
