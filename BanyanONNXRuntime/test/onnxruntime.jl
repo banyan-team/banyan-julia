@@ -1,7 +1,7 @@
 @testset "Simple model inference" begin
-    use_job_for_testing(scheduling_config_name = "default scheduling") do
+    use_session_for_testing(scheduling_config_name = "default scheduling") do
         # Get model path
-        model_path "https://github.com/jw3126/ONNXRunTime.jl/raw/main/test/data/increment2x3.onnx"
+        model_path = "https://github.com/jw3126/ONNXRunTime.jl/raw/main/test/data/increment2x3.onnx"
 
         # Load model
         model = BanyanONNXRunTime.load_inference(model_path)
