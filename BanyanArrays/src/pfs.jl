@@ -239,7 +239,7 @@ function WriteJuliaArray(
     nrows = size(part, dim)
     sortableidx = Banyan.sortablestring(idx, get_npartitions(nbatches, comm))
     write_file_julia_array(part, path, dim, sortableidx, nrows)
-    println("In WriteJuliaArray with size(part)=$(size(part)), path=$path, dim=$dim")
+    println("In WriteJuliaArray with size(part)=$(size(part)), path=$path, dim=$dim, sortableidx=$sortableidx")
     MPI.Barrier(comm)
     if nbatches > 1 && batch_idx == nbatches
         tmpdir = readdir(path)
@@ -247,11 +247,12 @@ function WriteJuliaArray(
             Banyan.rmdir_on_nfs(actualpath)
             mkpath(actualpath)
         end
+        println("In WriteJuliaArray with tmpdir=$tmpdir, nbatches=$nbatches")
         MPI.Barrier(comm)
         for batch_i = 1:nbatches
             idx = Banyan.get_partition_idx(batch_i, nbatches, worker_idx)
             sortableidx = Banyan.sortablestring(idx, get_npartitions(nbatches, comm))
-            tmpdir_idx = findfirst(fn -> contains(fn, "part$idx"), tmpdir)
+            tmpdir_idx = findfirst(fn -> contains(fn, "part$sortableidx"), tmpdir)
             if !isnothing(tmpdir_idx)
                 tmpsrc = joinpath(path, tmpdir[tmpdir_idx])
                 actualdst = joinpath(actualpath, tmpdir[tmpdir_idx])

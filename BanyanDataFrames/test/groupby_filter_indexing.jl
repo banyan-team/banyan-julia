@@ -491,8 +491,10 @@ end
             filtered_empty_save_path = get_save_path(bucket, "filtered_empty", path)
             filtered_single_save_path = get_save_path(bucket, "filtered_single", path)
             if i == 1
-                filtered_empty = filter(row -> row.petal_length > 10, df)
+                # filtered_empty = filter(row -> row.petal_length > 10, df)
                 filtered_single = filter(row -> row.petal_length == 1.4 && row.sepal_length == 4.9 && row.species == "setosa", df)
+                @show compute(filtered_single[:, :sepal_width])
+                error()
             else
                 filtered_empty = read_file(filtered_empty_save_path)
                 filtered_single = read_file(filtered_single_save_path)
@@ -522,8 +524,10 @@ end
             # so that no grouping splitting has to be done, we still have to do
             # a groupby-subset on an empty DataFrame with no schema and
             # DataFrames.jl doesn't support that.
+            @show i
             if has_schema
                 # Groupby all columns and subset, resulting in empty df
+                CSV.write("test_res_filtered_empty_sample.csv", sample(filtered_empty))
                 filtered_empty_sub = subset(groupby(filtered_empty, :species), :petal_length => pl -> pl .>= mean(pl))
                 filtered_empty_sub_size = size(filtered_empty_sub)
                 @test filtered_empty_sub_size == (0, 5)

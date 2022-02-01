@@ -256,11 +256,6 @@ function DataFrames.combine(gdf::GroupedDataFrame, args...; kwargs...)
     end
 
     @partitioned gdf gdf_parent groupcols groupkwargs args kwargs res res_nrows begin
-        @show typeof(gdf)
-        @show typeof(gdf.parent)
-        @show typeof(gdf_parent)
-        @show typeof(gdf.parent !== gdf_parent)
-        @show gdf isa DataFrames.GroupedDataFrame
         if !(gdf isa DataFrames.GroupedDataFrame) || gdf.parent !== gdf_parent
             gdf = DataFrames.groupby(gdf_parent, groupcols; groupkwargs...)
         end

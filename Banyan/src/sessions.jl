@@ -257,6 +257,49 @@ function get_sessions(cluster_name = nothing; status = nothing, kwargs...)
     response["sessions"]
 end
 
+# TODO: Make get_resources, get_running_resources, destroy_resource
+# and then make end_all_sessions call these functions to end all running jobs
+# if release_resources_now=true.
+# function get_resources(cluster_name = nothing; status = nothing, kwargs...)
+#     @debug "Downloading description of all jobs in cluster named $cluster_name"
+#     configure(; kwargs...)
+#     filters = Dict()
+#     if !isnothing(cluster_name)
+#         filters["cluster_name"] = cluster_name
+#     end
+#     if !isnothing(status)
+#         filters["status"] = status
+#     end
+
+#     finished = false
+#     indiv_response = send_request_get_response(:describe_jobs, Dict{String,Any}("filters"=>filters))
+#     response = indiv_response
+#     if  isnothing(indiv_response["last_eval"])
+#         finished = true
+#     else
+#         curr_last_eval = indiv_response["last_eval"]
+#         while !finished
+#             indiv_response = send_request_get_response(:describe_jobs, Dict{String,Any}("filters"=>filters, "this_start_key"=>curr_last_eval))
+#             response["jobs"] = merge!(response["jobs"], indiv_response["jobs"])
+#             if isnothing(indiv_response["last_eval"])
+#                 finished = true
+#             else
+#                 curr_last_eval = indiv_response["last_eval"]
+#             end
+#         end
+#     end
+    
+#     for (id, j) in response["jobs"]
+#         if response["jobs"][id]["ended"] == ""
+#             response["jobs"][id]["ended"] = nothing
+#         else
+#             response["jobs"][id]["ended"] = parse_time(response["sessions"][id]["ended"])
+#         end
+#         response["jobs"][id]["created"] = parse_time(response["sessions"][id]["created"])
+#     end
+#     response["sessions"]
+# end
+
 get_running_sessions(args...; kwargs...) = get_sessions(args...; status="running", kwargs...)
 
 function download_session_logs(session_id::SessionId, cluster_name::String, filename::Union{String,Nothing}=nothing; kwargs...)
