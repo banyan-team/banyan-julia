@@ -9,9 +9,9 @@
     println("before the function")
     use_session_for_testing() do
         println("in the use session")
-        # res = offloaded() do
-        #     return -1
-        # end
+        res = offloaded() do
+            return -1
+        end
 
         res2 = offloaded(()->-1)
 
@@ -19,7 +19,7 @@
         @test res2 == -1
 
         res3 = offloaded(x -> x* 10, 5)
-        @test res3 == 10
+        @test res3 == 50
 
         res4 = offloaded(5, 100) do a, b
             a + b

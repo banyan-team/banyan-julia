@@ -74,7 +74,6 @@ function start_session(;
 
     # Configure
     configure(; kwargs...)
-    println("IN start_session")
     # Construct parameters for starting session
     cluster_name = if isnothing(cluster_name)
         running_clusters = get_running_clusters()
