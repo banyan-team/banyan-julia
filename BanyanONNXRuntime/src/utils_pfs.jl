@@ -12,7 +12,7 @@ end
 
 function load_inference_single_threaded(path::AbstractString; execution_provider::Symbol=:cpu,
             envname::AbstractString="defaultenv", timer=ONNXRunTime.TIMER,
-                       )::InferenceSession
+                       )::ONNXRunTime.InferenceSession
     api = GetApi(;execution_provider)
     env = CreateEnv(api, name=envname)
     if execution_provider === :cpu
