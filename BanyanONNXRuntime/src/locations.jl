@@ -10,14 +10,23 @@ function RemoteONNXSource(remotepath; shuffled=false, source_invalid = false, sa
 
         # Get the path
         p = download_remote_path(remotepath)
+        p_exists = isfile(p)
 
-        # TODO: Change back to Remote and then specify locations to specify that format parameter is important in dispatching in the
-                # PF dispatch table entry
+        model = nothing
+        nbytes = 0
+        if isfile(p)
+            with_downloaded_path_for_reading(p) do pp
+                model = ONNXRunTime.load_inference(pp)
+                nbytes = Banyan.total_memory_usage(model)
+            end
+        end
+
         loc_for_reading, metadata_for_reading = if p_exists
             (
                 "Remote",
                 Dict(
                     "path" => remotepath,
+                    "nbytes" => nbytes,
                     "format" => "onnx",
                     "datatype" => "ONNX"
                 ),
@@ -26,21 +35,18 @@ function RemoteONNXSource(remotepath; shuffled=false, source_invalid = false, sa
             ("None", Dict{String,Any}())
         end
 
-         # Construct sample
-        remote_sample = if isnothing(loc_for_reading)
+        # Construct sample
+        remote_sample = if isnothing(loc_for_reading) || isnothing(model)
             Sample()
         else
-            s = nothing
-            with_downloaded_path_for_reading(p) do pp
-                s = ExactSample(load_inference(pp))
-            end
-            s
+            s = ExactSample(model)
         end
 
         # Construct location with metadata
         LocationSource(
             loc_for_reading,
             metadata_for_reading,
+            ceil(Int, nbytes),
             remote_sample,
         )
 
