@@ -22,7 +22,7 @@ function (is::InferenceSession)(inputs, output_names=nothing)
     output_name = first(output_names)
     println("HERE 1")
 
-    partitioned_with(scaled=[A, res]) do
+    partitioned_with(scaled=[A, res], modules="ONNXRunTime") do
         # Blocked PTs along dimensions _not_ being mapped along
         bpt = [bpt for bpt in Blocked(A) if !(compute(dims) isa Colon) && !(bpt.key in [compute(dims)...])]
 

@@ -38,7 +38,7 @@ function load_inference_single_threaded(path::AbstractString; execution_provider
     # TODO Is aliasing supported by ONNX? It will cause bugs, so lets forbid it.
     #@check allunique(_input_names)
     #@check allunique(_output_names)
-    return InferenceSession(api, execution_provider, session, meminfo, allocator,
+    return ONNXRunTime.InferenceSession(api, execution_provider, session, meminfo, allocator,
         _input_names,
         _output_names,
         timer,
