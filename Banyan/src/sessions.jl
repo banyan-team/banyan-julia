@@ -32,7 +32,7 @@ end
 function get_session(session_id=get_session_id())::Session
     global sessions
     if !haskey(sessions, session_id)
-        error("The selected session does not have any information; if it was created by this process, it has either failed or been destroyed.")
+        error("The selected session does not have any information; if it was started by this process, it has either failed or been destroyed.")
     end
     sessions[session_id]
 end
@@ -218,7 +218,11 @@ function end_session(session_id::SessionId = get_session_id(); failed = false, r
 end
 
 function get_sessions(cluster_name = nothing; status = nothing, kwargs...)
-    @debug "Downloading description of all sessions in cluster named $cluster_name"
+    if isnothing(cluster_name)
+        @debud "Downloading description of all sessions"
+    else
+        @debug "Downloading description of all sessions in cluster named $cluster_name"
+    end
     configure(; kwargs...)
     filters = Dict()
     if !isnothing(cluster_name)
@@ -228,33 +232,23 @@ function get_sessions(cluster_name = nothing; status = nothing, kwargs...)
         filters["status"] = status
     end
 
-    finished = false
+    sessions = Dict()
     indiv_response = send_request_get_response(:describe_sessions, Dict{String,Any}("filters"=>filters))
-    response = indiv_response
-    if  isnothing(indiv_response["last_eval"])
-        finished = true
-    else
+    while !isnothing(indiv_response["last_eval"])
         curr_last_eval = indiv_response["last_eval"]
-        while !finished
-            indiv_response = send_request_get_response(:describe_sessions, Dict{String,Any}("filters"=>filters, "this_start_key"=>curr_last_eval))
-            response["sessions"] = merge!(response["sessions"], indiv_response["sessions"])
-            if isnothing(indiv_response["last_eval"])
-                finished = true
-            else
-                curr_last_eval = indiv_response["last_eval"]
-            end
-        end
+        indiv_response = send_request_get_response(:describe_sessions, Dict{String,Any}("filters"=>filters, "this_start_key"=>curr_last_eval))
+        sessions = merge!(sessions, indiv_response["sessions"])
     end
     
-    for (id, j) in response["sessions"]
-        if response["sessions"][id]["ended"] == ""
-            response["sessions"][id]["ended"] = nothing
+    for (id, j) in sessions
+        if sessions[id]["end_time"] == ""
+            sessions[id]["end_time"] = nothing
         else
-            response["sessions"][id]["ended"] = parse_time(response["sessions"][id]["ended"])
+            sessions[id]["end_time"] = parse_time(sessions[id]["end_time"])
         end
-        response["sessions"][id]["created"] = parse_time(response["sessions"][id]["created"])
+        sessions[id]["start_time"] = parse_time(sessions[id]["start_time"])
     end
-    response["sessions"]
+    sessions
 end
 
 get_running_sessions(args...; kwargs...) = get_sessions(args...; status="running", kwargs...)
