@@ -1,7 +1,7 @@
 function SetIntraOpNumThreads(
     api::OrtApi,
     options::OrtSessionOptions,
-    intra_op_num_threads::Int32,
+    intra_op_num_threads::Integer,
 )
     status = @ccall $(api.SetIntraOpNumThreads)(
         options.ptr::Ptr{Cvoid},
