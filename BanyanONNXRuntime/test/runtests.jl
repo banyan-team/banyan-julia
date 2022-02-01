@@ -1,6 +1,6 @@
 
 using ReTest
-using Banyan, BanyanArrays, BanyanONNXRuntime
+using Banyan, BanyanArrays, BanyanONNXRunTime
 using Downloads, JSON
 
 global jobs_for_testing = Dict()
@@ -98,7 +98,7 @@ function use_job_for_testing(
     end
 end
 
-include("simple_test.jl")
+include("onnxruntime.jl")
 
 try
     runtests(Regex.(ARGS)...)
