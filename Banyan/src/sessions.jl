@@ -178,6 +178,7 @@ function start_session(;
 
     # Start the session
     @debug "Sending request for session start"
+    
     response = send_request_get_response(:start_session, session_configuration)
     session_id = response["session_id"]
     resource_id = response["resource_id"]

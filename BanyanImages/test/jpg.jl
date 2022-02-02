@@ -1,7 +1,7 @@
 @testset "Simple usage of JPG in $src $format" for (src, format) in [
     ("Internet", "path"),
     ("Internet", "list of paths"),
-    # ("Internet", "generator"),
+    ("Internet", "generator"),
     ("S3", "path"),
     ("S3", "directory"),
     ("S3", "generator")
@@ -40,6 +40,24 @@
             end
             # @test arr_length == image_size * nimages
         end
+    end
+end
+
+@testset "Simple image analysis on JPG" begin
+    use_session_for_testing() do
+        bucket_name = get_cluster_s3_bucket_name(ENV["BANYAN_CLUSTER_NAME"])
+        nimages = 20
+
+        path = get_test_path("Internet", "generator", "jpg", nimages, bucket_name)
+        images = read_jpg(path, add_channelview=true)
+
+        black_values_count = BanyanArrays.mapslices(
+            img -> sum(img .== 0),
+            images,
+            dims=[2, 3, 4]
+        )
+        black_values_count = compute(black_values_count)
+        @show black_values_count
     end
 end
 
