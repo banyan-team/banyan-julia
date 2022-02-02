@@ -65,12 +65,12 @@ function get_test_path(src, format, filetype, nimages, bucket_name)
         elseif format == "generator"
             if filetype == "png"
                 (
-                    1:4,
+                    1:nimages,
                     i -> JSON.parsefile(Downloads.download("https://forza-api.tk/"))["image"]
                 )
             elseif filetype == "jpg"
                 (
-                    1:4,
+                    1:nimages,
                     i -> "https://gibs.earthdata.nasa.gov/wmts/epsg4326/best/MODIS_Terra_CorrectedReflectance_TrueColor/default/2012-07-09/250m/6/13/$i.jpg"
                 )
             end
