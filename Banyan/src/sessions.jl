@@ -84,7 +84,6 @@ function start_session(;
     else
         cluster_name
     end
-    println("sendin hii!")
 
     julia_version = get_julia_version()
 
@@ -108,16 +107,11 @@ function start_session(;
     if !isnothing(email_when_ready)
         session_configuration["email_when_ready"] = email_when_ready
     end
-    println("sendin 2!")
-    println(cluster_name)
     s3_bucket_name = get_cluster_s3_bucket_name(cluster_name)
-    println("333")
 
     environment_info = Dict{String,Any}()
     # If a url is not provided, then use the local environment
     if isnothing(url)
-        println("sendin 117!")
-
         # TODO: Optimize to not have to send tomls on every call
         local_environment_dir = get_julia_environment_dir()
         project_toml = load_file("file://$(local_environment_dir)Project.toml")
@@ -140,8 +134,6 @@ function start_session(;
             end
         end
     else
-        println("sendin 141!")
-
         # Otherwise, use url and optionally a particular branch
         environment_info["url"] = url
         if isnothing(directory)
@@ -160,7 +152,6 @@ function start_session(;
         )
     end
     session_configuration["environment_info"] = environment_info
-    println("sendin 157!")
 
     # Upload files to S3
     for f in vcat(files, code_files)
@@ -169,7 +160,6 @@ function start_session(;
             s3_put(get_aws_config(), s3_bucket_name, basename(f), load_file(f))
         end
     end
-    println("168")
     # TODO: Optimize so that we only upload (and download onto cluster) the files if the filename doesn't already exist
     session_configuration["files"] = [basename(f) for f in files]
     session_configuration["code_files"] = [basename(f) for f in code_files]
@@ -185,13 +175,11 @@ function start_session(;
     session_configuration["pf_dispatch_table"] = pf_dispatch_table_loaded
 
     # Start the session
-    println("sending thre equest!")
     @debug "Sending request for session start"
     response = send_request_get_response(:start_session, session_configuration)
     session_id = response["session_id"]
     resource_id = response["resource_id"]
     @info "Starting session with ID $session_id on cluster named \"$cluster_name\""
-    println("donneee")
     # Store in global state
     current_session_id = session_id
     sessions[current_session_id] = Session(cluster_name, current_session_id, resource_id, nworkers, sample_rate)
