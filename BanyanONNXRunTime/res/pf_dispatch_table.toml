@@ -10,7 +10,7 @@ partition_memory_usage = "all"
 scale_by = 1
 views = false
 required = { name = "Replicating", dividing = false }
-locations = [ { name = "Disk", datatype = "DataFrame" } ]
+locations = [ { name = "Disk", datatype = "ONNX" } ]
 
 [splits.ReadONNX]
 partition_memory_usage = "all"
