@@ -445,6 +445,12 @@ function write_to_disk(fut::AbstractFuture)
     end
 end
 
+
+# Make the `offloaded` function on the client side keep looping and 
+#     (1) checking receive_next_message and 
+#     (2) checking for message[“kind”] == "GATHER" and 
+#     (3) `break`ing and `return`ing the value (using `from_jl_value_contents(message["contents"])`) 
+#         if value_id == -1
 # Make `offloaded` function in Banyan.jl 
 #   which calls evaluate passing in a string of bytes 
 #   by serializing the given function (just call to_jl_value_contents on it) 
@@ -498,15 +504,7 @@ function offloaded(given_function, args...; distributed = false)
         end
     end
 end
-
-# Make the `offloaded` function on the client side keep looping and 
-#     (1) checking receive_next_message and 
-#     (2) checking for message[“kind”] == "GATHER" and 
-#     (3) `break`ing and `return`ing the value (using `from_jl_value_contents(message["contents"])`) 
-#         if value_id == -1
-
-
-
+    
 ###############################################################
 # Other requests to be sent with request to evaluate a Future #
 ###############################################################
