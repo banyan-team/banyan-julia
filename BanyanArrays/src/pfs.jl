@@ -106,7 +106,9 @@ function ReadBlockJuliaArray(
             # TODO: Scale the memory usage appropriately when splitting with
             # this and garbage collect if too much memory is used.
             read_julia_array_file(path, header, rowrange, readrange, filerowrange, dfs, dim)
-            println("In ReadBlockJuliaArray with path=$path with rowrange=$rowrange, readrange=$readrange, filerowrange=$filerowrange")
+            if isinvestigating()[:losing_data]
+                println("In ReadBlockJuliaArray with path=$path with rowrange=$rowrange, readrange=$readrange, filerowrange=$filerowrange")
+            end
         end
         rowsscanned = newrowsscanned
     end
@@ -133,7 +135,9 @@ function ReadBlockJuliaArray(
     else
         cat(dfs...; dims=dim_partitioning)
     end
-    println("In ReadBlockJuliaArray with size(res)=$(size(res)), length(dfs)=$(length(dfs)), loc_params=$loc_params, dim_partitioning=$dim_partitioning, dim=$dim, partitioned_on_dim=$partitioned_on_dim, size.(dfs)=$(size.(dfs))")
+    if isinvestigating()[:losing_data]
+        println("In ReadBlockJuliaArray with size(res)=$(size(res)), length(dfs)=$(length(dfs)), loc_params=$loc_params, dim_partitioning=$dim_partitioning, dim=$dim, partitioned_on_dim=$partitioned_on_dim, size.(dfs)=$(size.(dfs))")
+    end
     res
 end
 
@@ -239,7 +243,9 @@ function WriteJuliaArray(
     nrows = size(part, dim)
     sortableidx = Banyan.sortablestring(idx, get_npartitions(nbatches, comm))
     write_file_julia_array(part, path, dim, sortableidx, nrows)
-    println("In WriteJuliaArray with size(part)=$(size(part)), path=$path, dim=$dim, sortableidx=$sortableidx")
+    if isinvestigating()[:losing_data]
+        println("In WriteJuliaArray with size(part)=$(size(part)), path=$path, dim=$dim, sortableidx=$sortableidx")
+    end
     MPI.Barrier(comm)
     if nbatches > 1 && batch_idx == nbatches
         tmpdir = readdir(path)
@@ -247,7 +253,9 @@ function WriteJuliaArray(
             Banyan.rmdir_on_nfs(actualpath)
             mkpath(actualpath)
         end
-        println("In WriteJuliaArray with tmpdir=$tmpdir, nbatches=$nbatches")
+        if isinvestigating()[:losing_data]
+            println("In WriteJuliaArray with tmpdir=$tmpdir, nbatches=$nbatches")
+        end
         MPI.Barrier(comm)
         for batch_i = 1:nbatches
             idx = Banyan.get_partition_idx(batch_i, nbatches, worker_idx)
@@ -257,7 +265,9 @@ function WriteJuliaArray(
                 tmpsrc = joinpath(path, tmpdir[tmpdir_idx])
                 actualdst = joinpath(actualpath, tmpdir[tmpdir_idx])
                 cp(tmpsrc, actualdst, force=true)
-                println("In WriteJuliaArray copying from tmpsrc=$tmpsrc to actualdst=$actualdst with tmpdir=$tmpdir")
+                if isinvestigating()[:losing_data]
+                    println("In WriteJuliaArray copying from tmpsrc=$tmpsrc to actualdst=$actualdst with tmpdir=$tmpdir")
+                end
             end
         end
         MPI.Barrier(comm)
@@ -304,17 +314,23 @@ function ReadBlockHDF5(
     # We check if it's a file because for items on disk, files are HDF5
     # datasets while directories contain Parquet, CSV, or Arrow datasets
     path = Banyan.getpath(loc_params["path"], comm)
-    println("In ReadBlockHDF5 with path=$path, loc_name=$loc_name, isfile(path)=$(isfile(path))")
+    if isinvestigating()[:parallel_hdf5]
+        println("In ReadBlockHDF5 with path=$path, loc_name=$loc_name, isfile(path)=$(isfile(path))")
+    end
     if !((loc_name == "Remote" && (occursin(".h5", loc_params["path"]) || occursin(".hdf5", loc_params["path"]))) ||
         (loc_name == "Disk" && HDF5.ishdf5(path)))
         error("Expected HDF5 file to read in; failed to read from $path")
     end
 
-    println("In ReadBlockHDF5 with HDF5.ishdf5(path)=$(HDF5.ishdf5(path))")
+    if isinvestigating()[:parallel_hdf5]
+        println("In ReadBlockHDF5 with HDF5.ishdf5(path)=$(HDF5.ishdf5(path))")
+    end
        
     # @show isfile(path)
     f = h5open(path, "r")
-    println("In ReadBlockHDF5 after h5open")
+    if isinvestigating()[:parallel_hdf5]
+        println("In ReadBlockHDF5 after h5open")
+    end
     dset = loc_name == "Disk" ? f["part"] : f[loc_params["subpath"]]
 
     ismapping = false
@@ -368,7 +384,9 @@ function ReadBlockHDF5(
         ]...]
     end
     close(f)
-    println("In ReadBlockHDF5 at end with size(dset)=$(size(dset)), dimrange=$dimrange")
+    if isinvestigating()[:parallel_hdf5]
+        println("In ReadBlockHDF5 at end with size(dset)=$(size(dset)), dimrange=$dimrange")
+    end
     dset
 end
 

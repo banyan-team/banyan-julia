@@ -77,7 +77,9 @@ ReadBlockCSV, ReadBlockParquet, ReadBlockArrow = [
 
             path = Banyan.getpath(loc_params["path"], comm)
 
-            println("In ReadBlock with path=$path, loc_params=$params")
+            if isinvestigating()[:losing_data]
+                println("In ReadBlock with path=$path, loc_params=$params")
+            end
 
             # Handle multi-file tabular datasets
 
@@ -115,7 +117,9 @@ ReadBlockCSV, ReadBlockParquet, ReadBlockArrow = [
                 end
             end
 
-            println("In ReadBlock after Disk case with path=$path, loc_params=$params")
+            if isinvestigating()[:losing_data]
+                println("In ReadBlock after Disk case with path=$path, loc_params=$params")
+            end
 
             # Iterate through files and identify which ones correspond to the range of
             # rows for the batch currently being processed by this worker
@@ -143,7 +147,9 @@ ReadBlockCSV, ReadBlockParquet, ReadBlockArrow = [
                     # TODO: Scale the memory usage appropriately when splitting with
                     # this and garbage collect if too much memory is used.
                     if endswith(file_path, file_extension)
-                        print("In ReadBlock calling read_file with path=$path, filerowrange=$filerowrange, readrange=$readrange, rowrange=$rowrange")
+                        if isinvestigating()[:losing_data]
+                            println("In ReadBlock calling read_file with path=$path, filerowrange=$filerowrange, readrange=$readrange, rowrange=$rowrange")
+                        end
                         read_file(path, header, rowrange, readrange, filerowrange, dfs)
                     else
                         error("Expected file with $file_extension extension")
@@ -151,7 +157,9 @@ ReadBlockCSV, ReadBlockParquet, ReadBlockArrow = [
                 end
                 rowsscanned = newrowsscanned
             end
-            println("In ReadBlock with rowrange=$rowrange, nrow.(dfs)=$(nrow.(dfs))")
+            if isinvestigating()[:losing_data]
+                println("In ReadBlock with rowrange=$rowrange, nrow.(dfs)=$(nrow.(dfs))")
+            end
 
             # Concatenate and return
             # NOTE: If this partition is empty, it is possible that the result is
@@ -598,8 +606,10 @@ function Banyan.Consolidate(part::AbstractDataFrame, src_params::Dict{String,Any
         ) |> IOBuffer |> Arrow.Table |> DataFrames.DataFrame
         for i in 1:Banyan.get_nworkers(comm)
     ]
-    @show length(results)
-    @show nrow.(results)
+    if investigating()[:losing_data]
+        @show length(results)
+        @show nrow.(results)
+    end
     res = merge_on_executor(
         [
             view(

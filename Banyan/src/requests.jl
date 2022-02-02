@@ -161,13 +161,15 @@ function partitioned_computation(handler, fut::AbstractFuture; destination, new_
             empty!(t.mutation) # Drop references to `Future`s here as well
 
             # @show statements for displaying info about each task
-            # @show t.memory_usage
-            # @show t.inputs
-            # @show t.outputs
-            # @show t.code
-            # @show t.value_names
-            # @show t.effects
-            # @show t.pa_union
+            if isinvestigating()[:tasks]
+                @show t.memory_usage
+                @show t.inputs
+                @show t.outputs
+                @show t.code
+                @show t.value_names
+                @show t.effects
+                @show t.pa_union
+            end
         end
 
         # Finalize (destroy) all `Future`s that can be destroyed

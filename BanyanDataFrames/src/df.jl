@@ -52,7 +52,6 @@ Banyan.convert(::Type{Future}, df::DataFrame) = df.data
 # end
 
 function read_csv(path::String; kwargs...)
-    @show kwargs
     df_loc = RemoteTableSource(path; kwargs...)
     df_loc.src_name == "Remote" || error("$path does not exist")
     df_nrows = Future(df_loc.nrows)

@@ -40,21 +40,11 @@
                     sub2 = read_file(sub2_save_path)
                 end
 
-                @show i
-                @show sample(sub2)
-
                 # Collect results
                 sub_nrow = nrow(sub)
                 sub2_nrow = nrow(sub2)
-                @show sample(sub2)
                 sepal_length_sub_sum = round(compute(reduce(+, sub[:, :sepal_length])))
                 sepal_length_sub2_sum = round(compute((reduce(+, sub2[:, :sepal_length]))))
-                @show sample(sub2)
-                @show sample(df)
-                @show compute(sub2)
-                @show compute(sub2)
-                @show sample(sub2)
-                @show compute(sub2[:, [:species]])
                 sub2_species = Set(compute(sub2[:, [:species]])[:, :species])
 
                 # Assert
@@ -62,7 +52,6 @@
                 @test sepal_length_sub_sum == 217
                 @test sub2_nrow == 4
                 @test sepal_length_sub2_sum == 26
-                @show sample(sub2)
                 @test sub2_species == Set(["species_8", "species_18"])
 
 
@@ -97,8 +86,6 @@
                 else
                     sub4 = read_file(sub4_save_path)
                 end
-
-                @show i sub4_save_path
 
                 # Collect results
                 sub4_nrow = nrow(sub4)
@@ -531,19 +518,25 @@ end
             # so that no grouping splitting has to be done, we still have to do
             # a groupby-subset on an empty DataFrame with no schema and
             # DataFrames.jl doesn't support that.
-            @show i
+            if isinvestigating()[:size_exaggurated_tests]
+                println("In test on iteration $i")
+            end
             if has_schema
                 # Groupby all columns and subset, resulting in empty df
-                CSV.write("test_res_filtered_empty.csv", sample(filtered_empty))
-                @show filtered_empty.data.value_id
+                if isinvestigating()[:size_exaggurated_tests]
+                    CSV.write("test_res_filtered_empty.csv", sample(filtered_empty))
+                    @show filtered_empty.data.value_id
+                end
                 filtered_empty_sub = subset(groupby(filtered_empty, :species), :petal_length => pl -> pl .>= mean(pl))
                 filtered_empty_sub_size = size(filtered_empty_sub)
                 @test filtered_empty_sub_size == (0, 5)
             end
 
             # Test size after filtering single-row dataset
-            CSV.write("test_res_filtered_single.csv", sample(filtered_single))
-            filtered_single_sub = subset(groupby(filtered_single, :species), :petal_length => pl -> pl .>= mean(pl))
+            if isinvestigating()[:size_exaggurated_tests]
+                CSV.write("test_res_filtered_single.csv", sample(filtered_single))
+                filtered_single_sub = subset(groupby(filtered_single, :species), :petal_length => pl -> pl .>= mean(pl))
+            end
             filtered_single_sub_size = size(filtered_single_sub)
             @test filtered_single_sub_size == (1, 5)
             

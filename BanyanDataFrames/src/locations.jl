@@ -16,7 +16,10 @@ get_csv_chunks(localfilepathp) =
     end
 
 function RemoteTableSource(remotepath; shuffled=false, source_invalid = false, sample_invalid = false, invalidate_source = false, invalidate_sample = false)::Location
-    @show remotepath source_invalid sample_invalid
+    if isinvestigating()[:caching][:location_info] || isinvestigating()[:caching][:samples]
+        println("Before call to RemoteSource")
+        @show remotepath source_invalid sample_invalid
+    end
     RemoteSource(
         remotepath,
         shuffled=shuffled,
@@ -25,7 +28,10 @@ function RemoteTableSource(remotepath; shuffled=false, source_invalid = false, s
         invalidate_source = invalidate_source,
         invalidate_sample = invalidate_sample
     ) do remotepath, remote_source, remote_sample, shuffled
-        @show remotepath isnothing(remote_source) isnothing(remote_sample) shuffled
+        if isinvestigating()[:caching][:location_info] || isinvestigating()[:caching][:samples]
+            println("Inside function passed to RemoteSource")
+            @show remotepath isnothing(remote_source) isnothing(remote_sample) shuffled
+        end
         # `remote_source` and `remote_sample` might be non-null indicating that
         # we need to reuse a location or a sample (but not both since then the
         # `Remote` constructor would have just returned the location).
