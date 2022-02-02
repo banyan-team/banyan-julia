@@ -659,13 +659,16 @@ macro partitioned(ex...)
         end
 
         # Default case for determining memory usage
+        println("New task")
         for fut in splatted_futures
+            @show fut.value_id
             if !haskey(task.memory_usage[fut.value_id], "final")
                 total_sampled_input_memory_usage = sum((
                     sample(fut, :memory_usage)
                     for fut in task.scaled
                     if task.effects[fut.value_id] == "CONST"
                 ), init=0)
+                @show total_sampled_input_memory_usage
                 if task.keep_same_sample_rate && total_sampled_input_memory_usage > 0
                     # This case applies for most computation like `filter` and `groupby`
 
@@ -674,10 +677,12 @@ macro partitioned(ex...)
                         for fut in task.scaled
                         if task.effects[fut.value_id] == "CONST"
                     ), init=0)
+                    @show total_input_memory_usage
 
                     # Use the sampels to figure out the rate of change in
                     # memory usage going from inputs to outputs
                     factor = sample(fut, :memory_usage) / total_sampled_input_memory_usage
+                    @show factor
 
                     # Now we use that rate on the actual initial memory
                     # usage which might have been modified using past memory
@@ -690,12 +695,16 @@ macro partitioned(ex...)
                     # isn't going from `nothing` to some assigned value.
                     # This case applies to the very last code region created in
                     # `partitioned_computation`.
+                    @show task.memory_usage[fut.value_id]["initial"]
                     task.memory_usage[fut.value_id]["final"] = task.memory_usage[fut.value_id]["initial"]
                 else
                     # This case applies for `fill` and `innerjoin`.
+                    @show Base.convert(Integer, ceil(sample(fut, :memory_usage) * sample(fut, :rate)))
                     task.memory_usage[fut.value_id]["final"] = Base.convert(Integer, ceil(sample(fut, :memory_usage) * sample(fut, :rate)))
                 end
             end
+            @show task.memory_usage[fut.value_id]
+            @show fut.value_id
         end
 
         # Compute additional memory usage

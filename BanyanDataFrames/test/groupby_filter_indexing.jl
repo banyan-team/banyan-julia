@@ -491,10 +491,8 @@ end
             filtered_empty_save_path = get_save_path(bucket, "filtered_empty", path)
             filtered_single_save_path = get_save_path(bucket, "filtered_single", path)
             if i == 1
-                # filtered_empty = filter(row -> row.petal_length > 10, df)
+                filtered_empty = filter(row -> row.petal_length > 10, df)
                 filtered_single = filter(row -> row.petal_length == 1.4 && row.sepal_length == 4.9 && row.species == "setosa", df)
-                @show compute(filtered_single[:, :sepal_width])
-                error()
             else
                 filtered_empty = read_file(filtered_empty_save_path)
                 filtered_single = read_file(filtered_single_save_path)
@@ -518,6 +516,15 @@ end
             @test filtered_single_sepal_width == [3.0]
             @test filtered_single_petal_width == [0.2]
 
+            # When doing a groupby over an empty dataset, we can't
+            # exaggurate size because the data is empty so the sample
+            # will disallow grouping since maximum # of groups will be 0.
+            # So only replication is allowed but that won't work if the
+            # data size is exaggurated so much. Even for the single-row
+            # result - the sample is empty. And so we have to use default
+            # scheduling.
+            configure_scheduling(name = "default scheduling")
+
             # Only empty Arrow datasets preserve the schema and can be read
             # back in and used in a groupby-subset that references a column
             # from the original schema. Even if the computation were replicated
@@ -527,16 +534,19 @@ end
             @show i
             if has_schema
                 # Groupby all columns and subset, resulting in empty df
-                CSV.write("test_res_filtered_empty_sample.csv", sample(filtered_empty))
+                CSV.write("test_res_filtered_empty.csv", sample(filtered_empty))
+                @show filtered_empty.data.value_id
                 filtered_empty_sub = subset(groupby(filtered_empty, :species), :petal_length => pl -> pl .>= mean(pl))
                 filtered_empty_sub_size = size(filtered_empty_sub)
                 @test filtered_empty_sub_size == (0, 5)
             end
 
             # Test size after filtering single-row dataset
+            CSV.write("test_res_filtered_single.csv", sample(filtered_single))
             filtered_single_sub = subset(groupby(filtered_single, :species), :petal_length => pl -> pl .>= mean(pl))
             filtered_single_sub_size = size(filtered_single_sub)
             @test filtered_single_sub_size == (1, 5)
+            
 
             # If this is round 1, write it out so that it can be read in round
             # 2
@@ -544,6 +554,8 @@ end
                 write_file(filtered_empty_save_path, filtered_empty)
                 write_file(filtered_single_save_path, filtered_single)
             end
+
+            configure_scheduling(name = scheduling_config)
         end
     end
 end
@@ -581,6 +593,12 @@ end
 
         # Read empty df
         df = read_file(path)
+
+        # Subset requires groupby's which for the same reason as the previous test above,
+        # make it super hard for us to just exaggurate size throughout.
+        if filter_type == "subset"
+            configure_scheduling(name = "default scheduling")
+        end
 
         # Filter/subset to single row
         # Filter/subset to empty
@@ -647,6 +665,7 @@ end
         @test size(df02) == (0, 5)
         @test names(df02) == ["sepal_length", "sepal_width", "petal_length", "petal_width", "species"]
 
+        configure_scheduling(name = scheduling_config)
     end
 end
 
