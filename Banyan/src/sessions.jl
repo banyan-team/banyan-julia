@@ -60,7 +60,7 @@ function start_session(;
     force_clone::Union{Bool,Nothing} = false,
     force_pull::Union{Bool,Nothing} = false,
     force_install::Union{Bool,Nothing} = false,
-    estimate_available_memory::Union{Bool,Nothing} = true,
+    estimate_available_memory::Union{Bool,Nothing} = false,
     nowait::Bool=false,
     email_when_ready::Union{Bool,Nothing}=nothing,
     kwargs...,
@@ -74,7 +74,6 @@ function start_session(;
 
     # Configure
     configure(; kwargs...)
-
     # Construct parameters for starting session
     cluster_name = if isnothing(cluster_name)
         running_clusters = get_running_clusters()
@@ -108,7 +107,6 @@ function start_session(;
     if !isnothing(email_when_ready)
         session_configuration["email_when_ready"] = email_when_ready
     end
-
     s3_bucket_name = get_cluster_s3_bucket_name(cluster_name)
 
     environment_info = Dict{String,Any}()
@@ -182,7 +180,6 @@ function start_session(;
     session_id = response["session_id"]
     resource_id = response["resource_id"]
     @info "Starting session with ID $session_id on cluster named \"$cluster_name\""
-
     # Store in global state
     current_session_id = session_id
     sessions[current_session_id] = Session(cluster_name, current_session_id, resource_id, nworkers, sample_rate)
@@ -259,14 +256,18 @@ end
 
 get_running_sessions(args...; kwargs...) = get_sessions(args...; status="running", kwargs...)
 
-function download_session_logs(session_id::SessionId, cluster_name::String, filename::String=nothing; kwargs...)
+function download_session_logs(session_id::SessionId, cluster_name::String, filename::Union{String,Nothing}=nothing; kwargs...)
     @debug "Downloading logs for session"
     configure(; kwargs...)
     s3_bucket_name = get_cluster_s3_bucket_name(cluster_name)
     log_file_name = "banyan-log-for-session-$(session_id)"
-    filename = !isnothing(filename) ? filename : joinpath(homedir(), ".banyan", "logs")
+    if isnothing(filename) & !isdir(joinpath(homedir(), ".banyan", "logs"))
+        mkdir(joinpath(homedir(), ".banyan", "logs"))
+    end
+    filename = !isnothing(filename) ? filename : joinpath(homedir(), ".banyan", "logs", log_file_name)
     s3_get_file(get_aws_config(), s3_bucket_name, log_file_name, filename)
     @info "Downloaded logs for session with ID $session_id to $filename"
+    return filename
 end
 
 function end_all_sessions(cluster_name::String; release_resources_now = false, release_resources_after = nothing, kwargs...)
@@ -274,15 +275,20 @@ function end_all_sessions(cluster_name::String; release_resources_now = false, r
     configure(; kwargs...)
     sessions = get_sessions(cluster_name, status=["creating", "running"])
     for (session_id, session) in sessions
-        end_session(session_id, release_resources_now=release_resources_now, release_resources_after=release_resources_after, kwargs...)
+        end_session(session_id; release_resources_now=release_resources_now, release_resources_after=release_resources_after, kwargs...)
     end
 end
 
 function get_session_status(session_id::String=get_session_id(); kwargs...)
+    global sessions
     configure(; kwargs...)
     filters = Dict("session_id" => session_id)
     response = send_request_get_response(:describe_sessions, Dict{String,Any}("filters"=>filters))
     session_status = response["sessions"][session_id]["status"]
+    resource_id = response["sessions"][session_id]["resource_id"]
+    if haskey(sessions, session_id)
+        sessions[session_id].resource_id = resource_id
+    end
     if session_status == "failed"
         # We don't immediately fail - we're just explaining. It's only later on
         # where it's like we're actually using this session do we set the status.
@@ -309,7 +315,7 @@ function wait_for_session(session_id::SessionId=get_session_id(), kwargs...)
     elseif session_status == "completed"
         error("Session with ID $session_id has already completed")
     elseif session_status == "failed"
-        error("Session with ID $session_id has failed")
+        error("Session with ID $session_id has failed.")
     else
         error("Unknown session status $session_status")
     end

@@ -58,12 +58,13 @@ function use_session_for_testing(
                 # will instead destroy sessions so that when it creates a new session
                 # it can reuse the existing underlying resources.
                 release_resources_after = get(ENV, "BANYAN_REUSE_RESOURCES", "0") == "1" ? 20 : 0,
-                force_pull=true,
+                force_pull = get(ENV, "BANYAN_FORCE_PULL", "0") == "1",
+                force_clone = get(ENV, "BANYAN_FORCE_CLONE", "0") == "1",
+                force_install = get(ENV, "BANYAN_FORCE_INSTALL", "0") == "1",
                 store_logs_on_cluster=get(ENV, "BANYAN_STORE_LOGS_ON_CLUSTER", "0") == "1"
             )
         end
     )
-
     # If selected session has already failed, this will throw an error.
     sessions_for_testing[session_config_hash] = get_session_id()
 
@@ -193,12 +194,11 @@ function use_data(file_extension, remote_kind, single_file)
     end
 end
 
-include("sample_collection.jl")
 include("sample_computation.jl")
 include("config.jl")
 include("clusters.jl")
-# include("jobs.jl")
 include("sessions.jl")
+include("offloaded.jl")
 
 try
     runtests(Regex.(ARGS)...)
