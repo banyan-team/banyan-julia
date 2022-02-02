@@ -1,8 +1,7 @@
-# Add an @testset that creates a job 
-# (by calling create_job) and 
+# Creates a job (by calling create_job) and 
 # then offloads a function (by calling offloaded) 
-# that returns -1, and then 
-# test that the call to offloaded returns the -1 
+# that returns -1, and then tests this. 
+# Also tests offloaded functions with parameters. 
 
 @testset "Offload Function" begin
     # cluster_name = ENV["BANYAN_CLUSTER_NAME"]
