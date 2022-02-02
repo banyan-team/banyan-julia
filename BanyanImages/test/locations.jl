@@ -5,7 +5,7 @@
 ], sample_invalid in [
     true, false
 ]
-    set_job("test_job_id")
+    set_session("test_session_id")
 
     # Prepare test by writing file to S3
     bucket_name = get_cluster_s3_bucket_name(ENV["BANYAN_CLUSTER_NAME"])

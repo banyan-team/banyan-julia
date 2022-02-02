@@ -65,13 +65,13 @@ function get_test_path(src, format, filetype, nimages, bucket_name)
         elseif format == "generator"
             if filetype == "png"
                 (
-                    JSON.parsefile(Downloads.download("https://forza-api.tk/"))["image"]
-                    for i in 1:4
+                    1:4,
+                    i -> JSON.parsefile(Downloads.download("https://forza-api.tk/"))["image"]
                 )
             elseif filetype == "jpg"
                 (
-                    "https://gibs.earthdata.nasa.gov/wmts/epsg4326/best/MODIS_Terra_CorrectedReflectance_TrueColor/default/2012-07-09/250m/6/13/$i.jpg"
-                    for i=1:4  # NOTE: max ~70
+                    1:4,
+                    i -> "https://gibs.earthdata.nasa.gov/wmts/epsg4326/best/MODIS_Terra_CorrectedReflectance_TrueColor/default/2012-07-09/250m/6/13/$i.jpg"
                 )
             end
         end
@@ -81,13 +81,21 @@ function get_test_path(src, format, filetype, nimages, bucket_name)
         elseif format == "directory"
             "s3://$bucket_name/$s3_dir/"
         elseif format == "generator"
-            ("s3://$bucket_name/$s3_dir/test_image_$i.$filetype" for i in 1:nimages)
+            prefix_path = "s3://$bucket_name/$s3_dir/test_image_"
+            (
+                Dict{String,Any}(
+                    "prefix_path" => prefix_path,
+                    "filetype" => filetype
+                ),
+                1:nimages,
+                (path_info, i) -> path_info["prefix_path"] * "$i." * path_info["filetype"]
+            )
         end
     end
 end
 
-function get_image_size(src, format, filetype, nimages)
-    path = if src == "Internet"
+function get_image_size(src, format, filetype, nimages, channelview)
+    expected_size = if src == "Internet"
         if format == "path"
             (1, img_len, img_len)
         elseif format == "list of paths"
@@ -112,4 +120,8 @@ function get_image_size(src, format, filetype, nimages)
             (nimages, img_len, img_len)
         end
     end
+    if channelview
+        expected_size = (expected_size[1], 3, expected_size[2:end]...)
+    end
+    expected_size
 end

@@ -9,18 +9,30 @@ function ReadBlockImage(
 )
     # path = Banyan.getpath(loc_params["path"]) ? isa(loc_params["path"], String) : path
     files = loc_params["files"]
-    ndims = loc_params["ndims"]
-    nbytes = loc_params["nbytes"]
+    # ndims = loc_params["ndims"]
+    # nbytes = loc_params["nbytes"]
     nimages = loc_params["nimages"]
-    dataeltype = loc_params["eltype"]
-    file_extension = "." * loc_params["format"]
+    # dataeltype = loc_params["eltype"]
+    # file_extension = "." * loc_params["format"]
+    add_channelview = loc_params["add_channelview"]
 
-    # files is either a list of file paths or a serialized generator
+    # files is either a list of file paths or a serialized tuple containing
+    # information to construct a generator
     if !isa(files, Base.Array)
-        println("FILES IN PF: ", files)
-        files = Banyan.from_jl_value_contents(files)
-        for f in Base.collect(files)
-            println(f)
+        iter_info = Banyan.from_jl_value_contents(files)
+        # Construct a generator
+        if length(iter_info) > 3 || length(iter_info) < 2
+            error("Remotepath is invalid")
+        elseif length(iter_info) == 3
+            files_to_read_from = (
+                iter_info[3](iter_info[1], idx...)
+                for idx in iter_info[2]
+            )
+        else  # 2
+            files_to_read_from = (
+                iter_info[2](idx...)
+                for idx in iter_info[1]
+            )
         end
     end
 
@@ -28,16 +40,21 @@ function ReadBlockImage(
     # being processed by this worker
     filerange = Banyan.split_len(nimages, batch_idx, nbatches, comm)
 
-    # if isa(files, Base.Generator)
-    #     files_sub = Iterators.take(Iterators.drop(files, filerange.start - 1), filerange.stop - filerange.start + 1)
-    # else
-    #     files_sub = view(files, filerange)
-    # end
+    if isa(files, Base.Generator)
+        # Get the subset of the iterator which corresponds to the range
+        # that this workers is going to process
+        files_sub = Iterators.take(Iterators.drop(files, filerange.start - 1), filerange.stop - filerange.start + 1)
+    else
+        files_sub = view(files, filerange)
+    end
 
     images = []
-    for f in files  #_sub
+    for f in files_sub
         filepath = Banyan.getpath(f)
         image = load(filepath)
+        if add_channelview
+            image = ImageCore.channelview(image)
+        end
         push!(images, reshape(image, (1, size(image)...)))
     end
     images = cat(images..., dims=1)

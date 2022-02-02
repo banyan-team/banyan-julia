@@ -4,11 +4,11 @@ partition_memory_usage = "part"
 scale_by = 2
 owns_partitions = false
 required = { name = "Distributing", distribution = "blocked", id = "!" }
-locations = [ {name = "Remote", format = "png"}, { name = "Disk", datatype = "PNG" } ]
+locations = [ {name = "Remote", format = "png"}, {name = "Remote", format = "jpg"} ]
 
-[merges.WriteImage]
-partition_memory_usage = "part"
-scale_by = 1
-owns_partitions = false
-required = { name = "Distributing" }
-locations = [ {name = "Remote", format = "png"}, { name = "Disk", datatype = "PNG" } ]
+# [merges.WriteImage]
+# partition_memory_usage = "part"
+# scale_by = 1
+# owns_partitions = false
+# required = { name = "Distributing" }
+# locations = [ {name = "Remote", format = "png"}, { name = "Disk", datatype = "PNG" } ]

@@ -1,23 +1,23 @@
 @testset "Simple usage of PNG in $src $format" for (src, format) in [
     ("Internet", "path"),
     ("Internet", "list of paths"),
-    ("Internet", "generator"),
+    # ("Internet", "generator"),
     ("S3", "path"),
     ("S3", "directory"),
     ("S3", "generator")
 ]
 
-    set_job("test_job_id")  # unit test, so doesn't require real job
+    set_session("test_session_id")  # unit test, so doesn't require real session
     bucket_name = get_cluster_s3_bucket_name(ENV["BANYAN_CLUSTER_NAME"])
     nimages = 4
     image_size = 100 * 100
     write_png_files_to_s3(bucket_name, nimages)
 
     # twice to test caching
-    for _ in 1:2
-        path = path = get_test_path(src, format, "png")
+    for it in 1:2
+        path = get_test_path(src, format, "png", nimages, bucket_name)
 
-        arr = read_png(path)
+        arr = read_png(path; sample_invalid=(it == 1))
         arr_size_dim1 = size(arr)[1]
         arr_length = length(arr)
 

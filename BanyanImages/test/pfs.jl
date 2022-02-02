@@ -1,13 +1,14 @@
-@testset "Simple usage of ReadBlockImage $src $format for $filetype files" for (src, format) in [
+@testset "Simple usage of ReadBlockImage $src $format for $filetype files with add_channelview=$add_channelview" for (src, format) in [
     ("Internet", "path"),
     ("Internet", "list of paths"),
     # ("Internet", "generator"),
-    # ("S3", "path"),
-    # ("S3", "directory"),
-    # ("S3", "generator")
-], filetype in ["png", "jpg"]
+], filetype in ["png", "jpg"], add_channelview in [true, false]
 
-    set_job("test_job_id")
+    # Create the /efs directory that would exist on the cluster
+    if !isdir("efs")
+        mkdir(("efs"))
+    end
+    set_session("test_session_id")
     bucket_name = get_cluster_s3_bucket_name(ENV["BANYAN_CLUSTER_NAME"])
     nimages = 4
     image_size = 100 * 100
@@ -17,7 +18,6 @@
     elseif filetype == "jpg"
         write_jpg_files_to_s3(bucket_name, nimages)
     end
-    
 
     comm = MPI.COMM_WORLD
     my_rank = MPI.Comm_rank(comm)
@@ -54,12 +54,13 @@
             "ndims" => 3,
             "size" => 0, # Inaccurate value
             "eltype" => ImageCore.RGB{N0f8},
-            "format" => filetype
+            "format" => filetype,
+            "add_channelview" => add_channelview
         ),
     )
 
     # Get the expected size
-    expected_size = get_image_size(src, format, filetype, nimages)
+    expected_size = get_image_size(src, format, filetype, nimages, add_channelview)
     @test size(images) == expected_size
 
 end
