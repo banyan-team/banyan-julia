@@ -6,9 +6,10 @@ using Downloads, JSON
 
 MPI.Init()
 
-# Create a dummy test job for unit tests
-test_job_id = "test_job_id"
-Banyan.jobs[test_job_id] = Job(ENV["BANYAN_CLUSTER_NAME"], test_job_id, 2, 2)
+# Create a dummy test session for unit tests
+test_session_id = "test_session_id"
+test_resource_id = "test_resource_id"
+Banyan.sessions[test_session_id] = Session(ENV["BANYAN_CLUSTER_NAME"], test_session_id, test_resource_id, 2, 2)
 
 include("utils_data.jl")
 include("locations.jl")

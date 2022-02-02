@@ -9,7 +9,7 @@ function get_image_format(path)
 end
 
 
-function RemoteImageSource(remotepath; shuffled=false, source_invalid = false, sample_invalid = false, invalidate_source = false, invalidate_sample = false)::Location
+function RemoteImageSource(remotepath; shuffled=false, source_invalid = false, sample_invalid = false, invalidate_source = false, invalidate_sample = false, add_channelview=false)::Location
     RemoteSource(
         remotepath,
         shuffled = shuffled,
@@ -20,7 +20,7 @@ function RemoteImageSource(remotepath; shuffled=false, source_invalid = false, s
     ) do remotepath, remote_source, remote_sample, shuffled
 
         # Initialize parameters if location is already cached
-        files = isnothing(remote_source) ? [] : remote_source.files  # list, serialized generator
+        files = isnothing(remote_source) ? [] : remote_source.files  # list, Tuple
         nimages = isnothing(remote_source) ? 0 : remote_source.nimages
         nbytes = isnothing(remote_source) ? 0 : remote_source.nbytes
         ndims = isnothing(remote_source) ? 0 : remote_source.ndims
@@ -32,13 +32,33 @@ function RemoteImageSource(remotepath; shuffled=false, source_invalid = false, s
         # TODO: I think if the above parameters were cached, they still get
         # read in again
 
-        # Remote path is either a single file path, a list of file paths,
-        # or a generator. The file paths can either be S3 or HTTP
-        if isa(remotepath, Base.Generator)
-            files_to_read_from = remotepath
-        else
+        # Remote path is either
+        #   a single file path,
+        #   a list of file paths,
+        #   a 2-tuple of (1) an iterable range and (2) function that operates
+        #       on each iterated element and returns a single path
+        #   a 3-tuple of (1) an object, (2) an iterable range, and (3) a function
+        #       that operates on two arguments where one is the object and the
+        #       other is each iterated element and return a single path
+        # The file paths can either be S3 or HTTP
+        if isa(remotepath, Tuple)
+            # Create a generator here for sampling
+            if length(remotepath) > 3 || length(remotepath) < 2
+                error("Remotepath is invalid")
+            elseif length(remotepath) == 3
+                files_to_read_from = (
+                    remotepath[3](remotepath[1], idx...)
+                    for idx in remotepath[2]
+                )
+            else  # 2
+                files_to_read_from = (
+                    remotepath[2](idx...)
+                    for idx in remotepath[1]
+                )
+            end
+        else  # single path or list of paths
 
-            if !isa(remotepath, Base.Array)
+            if !isa(remotepath, Base.Array)  # single path
                 p = Banyan.download_remote_path(remotepath)
 
                 # Determine if this is a directory
@@ -90,6 +110,9 @@ function RemoteImageSource(remotepath; shuffled=false, source_invalid = false, s
 
                     # Load file and collect metadata and sample
                     image = load(pp)
+                    if add_channelview
+                        image = ImageCore.channelview(image)
+                    end
 
                     if isnothing(remote_source) && !meta_collected
                         nbytes = length(image) * sizeof(eltype(image)) * nimages
@@ -137,6 +160,9 @@ function RemoteImageSource(remotepath; shuffled=false, source_invalid = false, s
 
                 # Load file and collect metadata and sample
                 image = load(pp)
+                if add_channelview
+                    image = ImageCore.channelview(image)
+                end
 
                 nbytes = length(image) * sizeof(eltype(image)) * nimages
                 ndims = length(size(image)) + 1 # first dim
@@ -148,21 +174,21 @@ function RemoteImageSource(remotepath; shuffled=false, source_invalid = false, s
 
         # Serialize generator
         if isnothing(remote_source)
-            files = isa(files_to_read_from, Base.Generator) ? Banyan.to_jl_value_contents(files_to_read_from) : files_to_read_from
+            files = isa(remotepath, Tuple) ? Banyan.to_jl_value_contents(remotepath) : files_to_read_from
         end
 
         loc_for_reading, metadata_for_reading = if !isnothing(files) && !isempty(files)
             (
                 "Remote",
                 Dict(
-                    "path" => remotepath,
-                    "files" => files,  # either a serialized generator or list of filepaths
+                    "files" => files,  # either a serialized tuple or list of filepaths
                     "nimages" => nimages,
                     "nbytes" => nbytes,  # assume all files have same size
                     "ndims" => ndims,
                     "size" => datasize,
                     "eltype" => dataeltype,
-                    "format" => format
+                    "format" => format,
+                    "add_channelview" => add_channelview
                 ),
             )
         else
@@ -192,21 +218,21 @@ function RemoteImageSource(remotepath; shuffled=false, source_invalid = false, s
 end
 
 
-function RemoteImageDestination(remotepath; invalidate_source = true, invalidate_sample = true)::Location
-    RemoteDestination(p, invalidate_source = invalidate_source, invalidate_sample = invalidate_sample) do remotepath
+# function RemoteImageDestination(remotepath; invalidate_source = true, invalidate_sample = true)::Location
+#     RemoteDestination(p, invalidate_source = invalidate_source, invalidate_sample = invalidate_sample) do remotepath
         
-        # NOTE: Path for writing must be a directory
-        remotepath = endswith(string(remotepath), "/") ? p : (remotepath * "/")
+#         # NOTE: Path for writing must be a directory
+#         remotepath = endswith(string(remotepath), "/") ? p : (remotepath * "/")
         
-        loc_for_writing, metadata_for_writing = (
-            "Remote",
-            Dict(
-                "path" => remotepath,
-                # TODO: Dynamically determine format
-                "format" => "png"
-            )
-        )
+#         loc_for_writing, metadata_for_writing = (
+#             "Remote",
+#             Dict(
+#                 "path" => remotepath,
+#                 # TODO: Dynamically determine format
+#                 "format" => "png"
+#             )
+#         )
 
-        LocationDestination(loc_for_writing, metadata_for_writing)
-    end
-end
+#         LocationDestination(loc_for_writing, metadata_for_writing)
+#     end
+# end

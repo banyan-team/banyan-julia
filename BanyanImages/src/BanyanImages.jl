@@ -2,15 +2,15 @@ module BanyanImages
 
 using Banyan, BanyanArrays
 
-using FileIO, ImageIO, MPI
+using FileIO, ImageCore, ImageIO, MPI
 using ProgressMeter, Random
 
-export read_png, write_png,
-    read_jpg, write_jpg
+export read_png, # write_png,
+    read_jpg #, write_jpg
 
-export ReadBlockImage, WriteImage
+export ReadBlockImage  #, WriteImage
 
-export RemoteImageSource, RemoteImageDestination
+export RemoteImageSource  #, RemoteImageDestination
 
 include("image.jl")
 include("pfs.jl")

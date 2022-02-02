@@ -10,7 +10,7 @@ __precompile__()
 module Banyan
 
 global BANYAN_JULIA_BRANCH_NAME = "v21.12.19"
-global BANYAN_JULIA_PACKAGES = ["Banyan", "BanyanArrays", "BanyanDataFrames"]
+global BANYAN_JULIA_PACKAGES = ["Banyan", "BanyanArrays", "BanyanDataFrames", "BanyanImages"]
 
 using FilePathsBase: joinpath, isempty
 using Base: notnothing, env_project_file
