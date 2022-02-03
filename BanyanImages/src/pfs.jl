@@ -20,7 +20,6 @@ function ReadBlockImage(
     # information to construct a generator
     if !isa(files, Base.Array)
         iter_info = Banyan.from_jl_value_contents(files)
-        @show iter_info
         # Construct a generator
         if length(iter_info) > 3 || length(iter_info) < 2
             error("Remotepath is invalid")
@@ -40,7 +39,6 @@ function ReadBlockImage(
     # Identify the range of indices of files for the batch currently
     # being processed by this worker
     filerange = Banyan.split_len(nimages, batch_idx, nbatches, comm)
-    @show filerange
 
     if isa(files, Base.Generator)
         # Get the subset of the iterator which corresponds to the range
@@ -49,11 +47,9 @@ function ReadBlockImage(
     else
         files_sub = view(files, filerange)
     end
-    @show files_sub
 
     images = []
     for f in files_sub
-        @show f
         filepath = Banyan.getpath(f)
         image = load(filepath)
         if add_channelview

@@ -48,7 +48,7 @@ function use_session_for_testing(
                     "banyan-julia/BanyanArrays"
                 ],
                 code_files=["file://foo.jl"],
-                # force_update_files=true,
+                force_update_files=true,
                 # BANYAN_REUSE_RESOURCES should be 1 when the compute resources
                 # for sessions being run can be reused; i.e., there is no
                 # forced pulling, cloning, or installation going on. When it is
@@ -59,10 +59,10 @@ function use_session_for_testing(
                 # TODO: Make it so that sessions that can't reuse existing sessions
                 # will instead destroy sessions so that when it creates a new session
                 # it can reuse the existing underlying resources.
-                release_resources_after = 8, # release_resources_after = get(ENV, "BANYAN_REUSE_RESOURCES", "0") == "1" ? 20 : 0,
-                # force_pull = get(ENV, "BANYAN_FORCE_CLONE", "0") == "0",
-                # force_clone = get(ENV, "BANYAN_FORCE_CLONE", "0") == "1",
-                # force_install = get(ENV, "BANYAN_FORCE_INSTALL", "0") == "1",
+                release_resources_after = get(ENV, "BANYAN_REUSE_RESOURCES", "0") == "1" ? 20 : 0,
+                force_pull = get(ENV, "BANYAN_FORCE_CLONE", "0") == "0",
+                force_clone = get(ENV, "BANYAN_FORCE_CLONE", "0") == "1",
+                force_install = get(ENV, "BANYAN_FORCE_INSTALL", "0") == "1",
                 store_logs_on_cluster=get(ENV, "BANYAN_STORE_LOGS_ON_CLUSTER", "0") == "1"
             )
         end

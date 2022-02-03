@@ -1,8 +1,9 @@
-@testset "Simple usage of ReadBlockImage $src $format for $filetype files with add_channelview=$add_channelview" for (src, format) in [
-    ("Internet", "path"),
-    ("Internet", "list of paths"),
-    ("Internet", "generator"),
-], filetype in ["png", "jpg"], add_channelview in [true, false]
+@testset "Simple usage of ReadBlockImage $src $format for $filetype files with add_channelview=$add_channelview" for (src, format, filetype) in [
+    ("Internet", "path", "png"),
+    ("Internet", "path", "jpg"),
+    ("Internet", "list of paths", "jpg"),
+    ("Internet", "generator", "jpg"),
+], add_channelview in [true, false]
 
     # Create the /efs directory that would exist on the cluster
     if !isdir("efs")
