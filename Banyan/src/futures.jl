@@ -15,7 +15,7 @@
 
 Constructs a new future, representing a value that has not yet been computed.
 """
-function Future(;source::Location = None(), mutate_from::Union{<:AbstractFuture,Nothing}=nothing, datatype="Any")
+function Future(;source::Location = None(), mutate_from::Union{<:AbstractFuture,Nothing}=nothing, viewing=false, datatype="Any")
     # Generate new value id
     value_id = generate_value_id()
 
@@ -45,6 +45,10 @@ function Future(;source::Location = None(), mutate_from::Union{<:AbstractFuture,
         # Mutation can also be specified manually with mutate=true|false in
         # `partition` or implicitly through `Future` constructors
         mutated(new_future)
+    end
+
+    if viewing
+        viewing(new_future)
     end
 
     new_future
