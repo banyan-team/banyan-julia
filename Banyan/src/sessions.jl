@@ -63,6 +63,7 @@ function start_session(;
     estimate_available_memory::Union{Bool,Nothing} = false,
     nowait::Bool=false,
     email_when_ready::Union{Bool,Nothing}=nothing,
+    for_running=false, # NEW
     kwargs...,
 )::SessionId
 
@@ -74,7 +75,6 @@ function start_session(;
 
     # Configure
     configure(; kwargs...)
-
     # Construct parameters for starting session
     cluster_name = if isnothing(cluster_name)
         running_clusters = get_running_clusters()
@@ -108,7 +108,6 @@ function start_session(;
     if !isnothing(email_when_ready)
         session_configuration["email_when_ready"] = email_when_ready
     end
-
     s3_bucket_name = get_cluster_s3_bucket_name(cluster_name)
 
     environment_info = Dict{String,Any}()
@@ -181,8 +180,11 @@ function start_session(;
     response = send_request_get_response(:start_session, session_configuration)
     session_id = response["session_id"]
     resource_id = response["resource_id"]
-    @info "Starting session with ID $session_id on cluster named \"$cluster_name\""
-
+    if for_running == false
+        @info "Running session with $code_files"    
+    else
+        @info "Starting session with ID $session_id on cluster named \"$cluster_name\""
+    end
     # Store in global state
     current_session_id = session_id
     sessions[current_session_id] = Session(cluster_name, current_session_id, resource_id, nworkers, sample_rate)
@@ -350,5 +352,86 @@ function with_session(f::Function; kwargs...)
         if end_session_on_exit && !destroyed
             end_session(j)
         end
+    end
+end
+
+
+function run_session(;
+    cluster_name::Union{String,Nothing} = nothing,
+    nworkers::Union{Integer,Nothing} = 16,
+    release_resources_after::Union{Integer,Nothing} = 20,
+    print_logs::Union{Bool,Nothing} = false,
+    store_logs_in_s3::Union{Bool,Nothing} = true,
+    store_logs_on_cluster::Union{Bool,Nothing} = false,
+    sample_rate::Union{Integer,Nothing} = nworkers,
+    session_name::Union{String,Nothing} = nothing,
+    files::Union{Vector,Nothing} = [],
+    code_files::Union{Vector,Nothing} = [],
+    force_update_files = true,
+    pf_dispatch_table::Union{String,Nothing} = nothing,
+    using_modules::Union{Vector,Nothing} = [],
+    url::Union{String,Nothing} = nothing,
+    branch::Union{String,Nothing} = nothing,
+    directory::Union{String,Nothing} = nothing,
+    dev_paths::Union{Vector,Nothing} = [],
+    force_clone::Union{Bool,Nothing} = false,
+    force_pull::Union{Bool,Nothing} = false,
+    force_install::Union{Bool,Nothing} = false,
+    estimate_available_memory::Union{Bool,Nothing} = true,
+    email_when_ready::Union{Bool,Nothing}=nothing,
+    kwargs...,)::SessionId
+
+
+    # cluster_name::Union{String,Nothing} = nothing,
+    # nworkers::Union{Integer,Nothing} = 16,
+    # release_resources_after::Union{Integer,Nothing} = 20,
+    # print_logs::Union{Bool,Nothing} = false,
+    # store_logs_in_s3::Union{Bool,Nothing} = true,
+    # store_logs_on_cluster::Union{Bool,Nothing} = false,
+    # sample_rate::Union{Integer,Nothing} = nworkers,
+    # session_name::Union{String,Nothing} = nothing,
+    # files::Union{Vector,Nothing} = [],
+    # code_files::Union{Vector,Nothing} = [],
+    # force_update_files::Union{Bool,Nothing} = false,
+    # pf_dispatch_table::Union{String,Nothing} = nothing,
+    # using_modules::Union{Vector,Nothing} = [],
+    # url::Union{String,Nothing} = nothing,
+    # branch::Union{String,Nothing} = nothing,
+    # directory::Union{String,Nothing} = nothing,
+    # dev_paths::Union{Vector,Nothing} = [],
+    # force_clone::Union{Bool,Nothing} = false,
+    # force_pull::Union{Bool,Nothing} = false,
+    # force_install::Union{Bool,Nothing} = false,
+    # estimate_available_memory::Union{Bool,Nothing} = true,
+    # nowait::Bool=false,
+    # email_when_ready::Union{Bool,Nothing}=nothing,
+    # for_running=false, # NEW
+    force_update_files = true
+    try
+        start_session(;cluster_name = cluster_name, nworkers = nworkers, release_resources_after = release_resources_after, 
+                    print_logs = print_logs, store_logs_in_s3 = store_logs_in_s3, store_logs_on_cluster = store_logs_on_cluster, 
+                    sample_rate = sample_rate, session_name = session_name, files = files, code_files = code_files, force_update_files = force_update_files,
+                    pf_dispatch_table = pf_dispatch_table, using_modules = using_modules, url = url, branch = branch,
+                    directory = directory, dev_paths = dev_paths, force_clone = force_clone, force_pull = force_pull, force_install = force_install, 
+                    estimate_available_memory = estimate_available_memory, nowait = false, email_when_ready = email_when_ready, for_running = true)
+    catch
+        session_id = try
+            get_session_id()
+        catch
+            nothing
+        end
+        if !isnothing(session_id)
+            end_session(get_session_id(), failed=true)
+        end
+        rethrow()
+    finally
+        session_id = try
+            get_session_id()
+        catch
+            nothing
+        end
+        if !isnothing(session_id)
+            end_session(get_session_id(), failed=true)
+        end    
     end
 end
