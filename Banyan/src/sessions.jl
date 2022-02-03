@@ -74,7 +74,6 @@ function start_session(;
 
     # Configure
     configure(; kwargs...)
-
     # Construct parameters for starting session
     cluster_name = if isnothing(cluster_name)
         running_clusters = get_running_clusters()
@@ -108,7 +107,6 @@ function start_session(;
     if !isnothing(email_when_ready)
         session_configuration["email_when_ready"] = email_when_ready
     end
-
     s3_bucket_name = get_cluster_s3_bucket_name(cluster_name)
 
     environment_info = Dict{String,Any}()
@@ -182,7 +180,6 @@ function start_session(;
     session_id = response["session_id"]
     resource_id = response["resource_id"]
     @info "Starting session with ID $session_id on cluster named \"$cluster_name\""
-
     # Store in global state
     current_session_id = session_id
     sessions[current_session_id] = Session(cluster_name, current_session_id, resource_id, nworkers, sample_rate)
