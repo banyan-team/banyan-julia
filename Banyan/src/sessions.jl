@@ -185,7 +185,6 @@ function start_session(;
     else
         @info "Starting session with ID $session_id on cluster named \"$cluster_name\""
     end
-    println("donneee")
     # Store in global state
     current_session_id = session_id
     sessions[current_session_id] = Session(cluster_name, current_session_id, resource_id, nworkers, sample_rate)
@@ -368,6 +367,7 @@ function run_session(;
     session_name::Union{String,Nothing} = nothing,
     files::Union{Vector,Nothing} = [],
     code_files::Union{Vector,Nothing} = [],
+    force_update_files = true,
     pf_dispatch_table::Union{String,Nothing} = nothing,
     using_modules::Union{Vector,Nothing} = [],
     url::Union{String,Nothing} = nothing,
@@ -406,14 +406,32 @@ function run_session(;
     # nowait::Bool=false,
     # email_when_ready::Union{Bool,Nothing}=nothing,
     # for_running=false, # NEW
-    
-
     force_update_files = true
-    start_session(;cluster_name = cluster_name, nworkers = nworkers, release_resources_after = release_resources_after, 
-                  print_logs = print_logs, store_logs_in_s3 = store_logs_in_s3, store_logs_on_cluster = store_logs_on_cluster, 
-                  sample_rate = sample_rate, session_name = session_name, files = files, code_files = code_files, force_update_files = force_update_files,
-                  pf_dispatch_table = pf_dispatch_table, using_modules = using_modules, url = url, branch = branch,
-                  directory = directory, dev_paths = dev_paths, force_clone = force_clone, force_pull = force_pull, force_install = force_install, 
-                  estimate_available_memory = estimate_available_memory, nowait = false, email_when_ready = email_when_ready, for_running = true)
-    end_session(get_session_id)
+    try
+        start_session(;cluster_name = cluster_name, nworkers = nworkers, release_resources_after = release_resources_after, 
+                    print_logs = print_logs, store_logs_in_s3 = store_logs_in_s3, store_logs_on_cluster = store_logs_on_cluster, 
+                    sample_rate = sample_rate, session_name = session_name, files = files, code_files = code_files, force_update_files = force_update_files,
+                    pf_dispatch_table = pf_dispatch_table, using_modules = using_modules, url = url, branch = branch,
+                    directory = directory, dev_paths = dev_paths, force_clone = force_clone, force_pull = force_pull, force_install = force_install, 
+                    estimate_available_memory = estimate_available_memory, nowait = false, email_when_ready = email_when_ready, for_running = true)
+    catch
+        session_id = try
+            get_session_id()
+        catch
+            nothing
+        end
+        if !isnothing(session_id)
+            end_session(get_session_id(), failed=true)
+        end
+        rethrow()
+    finally
+        session_id = try
+            get_session_id()
+        catch
+            nothing
+        end
+        if !isnothing(session_id)
+            end_session(get_session_id(), failed=true)
+        end    
+    end
 end
