@@ -131,7 +131,7 @@ function send_message(queue_name, message)
     )
 end
 
-function send_to_client(value_id, value)
+function send_to_client(value_id, value, worker_memory_used = 0)
     send_message(
         get_gather_queue(),
         JSON.json(
