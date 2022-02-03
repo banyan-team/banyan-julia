@@ -362,6 +362,12 @@ end
 # NOTE: `mutated` should not be used inside of `partitioned_with` or
 # `partitioned_using`
 
+function viewing(f::AbstractFuture)
+    global curr_delayed_task
+    append!(convert(Future, f).parent_tasks, curr_delayed_task)
+    curr_delayed_task.isparent = true
+end
+
 mutated(f::AbstractFuture) = mutated(f => f)
 mutated(ff::Pair{<:AbstractFuture,<:AbstractFuture}) = mutated(first(ff), last(ff))
 
@@ -775,7 +781,9 @@ macro partitioned(ex...)
         end
 
         # Record request to record task in backend's dependency graph and reset
-        record_request(RecordTaskRequest(task))
+        if !task.isparent
+            record_task_request(task)
+        end
         finish_task()
 
         # This basically undoes `$(assigning_samples...)`.

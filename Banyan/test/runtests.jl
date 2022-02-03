@@ -199,6 +199,7 @@ include("config.jl")
 include("clusters.jl")
 include("sessions.jl")
 include("offloaded.jl")
+include("compute.jl")
 
 try
     runtests(Regex.(ARGS)...)

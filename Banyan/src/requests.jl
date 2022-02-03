@@ -444,6 +444,8 @@ function compute(fut::AbstractFuture)
     fut.value
 end
 
+compute(x::Any) = x
+
 function write_to_disk(fut::AbstractFuture)
     fut = convert(Future, fut)
 
@@ -543,4 +545,16 @@ to_jl(req::DestroyRequest) = Dict("type" => "DESTROY", "value_id" => req.value_i
 
 function record_request(request::Request)
     push!(get_session().pending_requests, request)
+end
+
+function record_task_request(task::Task)
+    # Recursively record tasks with parents being recorded first. A parent task
+    # is a task that produces a view that is used in a later task. The view
+    # has to be produced first before the next task can be run.
+    for fut in values(task.mutation)
+        for task_parent in fut.parent_tasks
+            record_task_request(task_parent)
+        end
+        record_request(RecordTaskRequest(task))
+    end
 end

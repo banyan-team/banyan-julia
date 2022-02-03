@@ -10,6 +10,7 @@ mutable struct DelayedTask
     effects::Dict{ValueId,String}
     pa_union::Vector{PartitionAnnotation} # Enumeration of applicable PAs
     memory_usage::Dict{ValueId,Dict{String,Integer}} # initial/additional/final
+    isparent::Bool
     # Fields for use in task yet to be processed in a call to `compute`
     partitioned_using_func::Union{Function,Nothing}
     partitioned_with_func::Union{Function,Nothing}
@@ -30,6 +31,7 @@ DelayedTask() = DelayedTask(
     Dict(),
     [PartitionAnnotation()],
     Dict(),
+    false,
     nothing,
     nothing,
     Dict(),
@@ -48,6 +50,7 @@ function to_jl(task::DelayedTask)
         "effects" => task.effects,
         "pa_union" => [to_jl(pa) for pa in task.pa_union],
         "memory_usage" => task.memory_usage,
+        "is_parent" => task.isparent,
         "inputs" => [i.value_id for i in task.inputs],
         "outputs" => [o.value_id for o in task.outputs],
         "keep_same_sample_rate" => task.keep_same_sample_rate,
