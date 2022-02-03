@@ -459,7 +459,7 @@ end
 #     end
 # end
 
-function getpath(path)
+function getpath(path, comm)
     if startswith(path, "http://") || startswith(path, "https://")
         # TODO: First check for size of file and only download to
         # disk if it doesn't fit in free memory
@@ -468,14 +468,17 @@ function getpath(path)
         hashed_path = string(hash(path))
         joined_path = "efs/banyan_dataset_" * hashed_path
         # @info "Downloading $path to $joined_path"
-        if !isfile(joined_path)
+        if MPI.Comm_rank(comm) == 0
+            if !isfile(joined_path)
             # NOTE: Even though we are storing in /tmp, this is
             # effectively caching the download. If this is undesirable
             # to a user, a short-term solution is to use a different
             # URL each time (e.g., add a dummy query to the end of the
             # URL)
-            Downloads.download(path, joined_path)
+                Downloads.download(path, joined_path)
+            end
         end
+        MPI.Barrier(comm)
         # @show isfile(joined_path)
         joined_path
     elseif startswith(path, "s3://")

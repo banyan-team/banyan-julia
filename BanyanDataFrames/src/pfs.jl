@@ -75,7 +75,11 @@ ReadBlockCSV, ReadBlockParquet, ReadBlockArrow = [
             # TODO: Implement a Read for balanced=false where we can avoid duplicate
             # reading of the same range in different reads
 
-            path = Banyan.getpath(loc_params["path"])
+            path = Banyan.getpath(loc_params["path"], comm)
+
+            if isinvestigating()[:losing_data]
+                println("In ReadBlock with path=$path, loc_params=$params")
+            end
 
             # Handle multi-file tabular datasets
 
@@ -86,7 +90,7 @@ ReadBlockCSV, ReadBlockParquet, ReadBlockArrow = [
                 # with a unique name corresponding to the value ID - only if this is
                 # the first batch or loop iteration.
                 name = loc_params["path"]
-                name_path = Banyan.getpath(name)
+                name_path = path
                 # TODO: isdir might not work for S3FS
                 if isdir(name_path)
                     files = []
@@ -113,6 +117,10 @@ ReadBlockCSV, ReadBlockParquet, ReadBlockArrow = [
                 end
             end
 
+            if isinvestigating()[:losing_data]
+                println("In ReadBlock after Disk case with path=$path, loc_params=$params")
+            end
+
             # Iterate through files and identify which ones correspond to the range of
             # rows for the batch currently being processed by this worker
             nrows = loc_params["nrows"]
@@ -127,7 +135,7 @@ ReadBlockCSV, ReadBlockParquet, ReadBlockArrow = [
                 if Banyan.isoverlapping(filerowrange, rowrange)
                     # Deterine path to read from
                     file_path = file["path"]
-                    path = Banyan.getpath(file_path)
+                    path = Banyan.getpath(file_path, comm)
 
                     # Read from location depending on data format
                     readrange =
@@ -139,12 +147,18 @@ ReadBlockCSV, ReadBlockParquet, ReadBlockArrow = [
                     # TODO: Scale the memory usage appropriately when splitting with
                     # this and garbage collect if too much memory is used.
                     if endswith(file_path, file_extension)
+                        if isinvestigating()[:losing_data]
+                            println("In ReadBlock calling read_file with path=$path, filerowrange=$filerowrange, readrange=$readrange, rowrange=$rowrange")
+                        end
                         read_file(path, header, rowrange, readrange, filerowrange, dfs)
                     else
                         error("Expected file with $file_extension extension")
                     end
                 end
                 rowsscanned = newrowsscanned
+            end
+            if isinvestigating()[:losing_data]
+                println("In ReadBlock with rowrange=$rowrange, nrow.(dfs)=$(nrow.(dfs))")
             end
 
             # Concatenate and return
@@ -163,7 +177,7 @@ ReadBlockCSV, ReadBlockParquet, ReadBlockArrow = [
                         # This should not be empty for disk-spilled data
                         DataFrames.DataFrame()
                     else
-                        empty(DataFrames.DataFrame(Arrow.Table(Banyan.getpath(first(files_sorted_by_nrow)["path"])), copycols=false))
+                        empty(DataFrames.DataFrame(Arrow.Table(Banyan.getpath(first(files_sorted_by_nrow)["path"], comm)), copycols=false))
                     end
                 else
                     # When we construct the location, we store an empty data frame with The
@@ -227,12 +241,12 @@ WriteParquet, WriteCSV, WriteArrow = [
             if startswith(path, "http://") || startswith(path, "https://")
                 error("Writing to http(s):// is not supported")
             elseif startswith(path, "s3://")
-                path = Banyan.getpath(path)
+                path = Banyan.getpath(path, comm)
                 # NOTE: We expect that the ParallelCluster instance was set up
                 # to have the S3 filesystem mounted at ~/s3fs/<bucket name>
             else
                 # Prepend "efs/" for local paths
-                path = Banyan.getpath(path)
+                path = Banyan.getpath(path, comm)
             end
 
             # Write file for this partition
@@ -303,7 +317,8 @@ WriteParquet, WriteCSV, WriteArrow = [
                 MPI.Barrier(comm)
                 for batch_i = 1:nbatches
                     idx = Banyan.get_partition_idx(batch_i, nbatches, worker_idx)
-                    tmpdir_idx = findfirst(fn -> startswith(fn, "part$idx"), tmpdir)
+                    sortableidx = Banyan.sortablestring(idx, get_npartitions(nbatches, comm))
+                    tmpdir_idx = findfirst(fn -> startswith(fn, "part$sortableidx"), tmpdir)
                     if !isnothing(tmpdir_idx)
                         tmpsrc = joinpath(path, tmpdir[tmpdir_idx])
                         actualdst = joinpath(actualpath, tmpdir[tmpdir_idx])
@@ -591,8 +606,10 @@ function Banyan.Consolidate(part::AbstractDataFrame, src_params::Dict{String,Any
         ) |> IOBuffer |> Arrow.Table |> DataFrames.DataFrame
         for i in 1:Banyan.get_nworkers(comm)
     ]
-    @show length(results)
-    @show nrow.(results)
+    if investigating()[:losing_data]
+        @show length(results)
+        @show nrow.(results)
+    end
     res = merge_on_executor(
         [
             view(

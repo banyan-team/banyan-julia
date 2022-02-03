@@ -162,13 +162,15 @@ function partitioned_computation(handler, fut::AbstractFuture; destination, new_
             empty!(t.mutation) # Drop references to `Future`s here as well
 
             # @show statements for displaying info about each task
-            # @show t.memory_usage
-            # @show t.inputs
-            # @show t.outputs
-            # @show t.code
-            # @show t.value_names
-            # @show t.effects
-            # @show t.pa_union
+            if isinvestigating()[:tasks]
+                @show t.memory_usage
+                @show t.inputs
+                @show t.outputs
+                @show t.code
+                @show t.value_names
+                @show t.effects
+                @show t.pa_union
+            end
         end
 
         # Finalize (destroy) all `Future`s that can be destroyed
@@ -332,6 +334,11 @@ function configure_scheduling(;kwargs...)
     end
     if get(kwargs, :exaggurate_size, false) || get(kwargs, :name, "") == "size exaggurated"
         exaggurate_size = true
+    end
+    if get(kwargs, :name, "") == "default scheduling"
+        encourage_parallelism = false
+        encourage_parallelism_with_batches = false
+        exaggurate_size = false
     end
 end
 

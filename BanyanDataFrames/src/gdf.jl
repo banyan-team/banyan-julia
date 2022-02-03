@@ -184,7 +184,7 @@ function DataFrames.select(gdf::GroupedDataFrame, args...; kwargs...)
     # mutated(res)
 
     @partitioned gdf gdf_parent groupcols groupkwargs args kwargs res begin
-        if !(gdf isa DataFrames.GroupedDataFrame) || gdf.parent != gdf_parent
+        if !(gdf isa DataFrames.GroupedDataFrame) || gdf.parent !== gdf_parent
             gdf = DataFrames.groupby(gdf_parent, groupcols; groupkwargs...)
         end
         res = DataFrames.select(gdf, args...; kwargs...)
@@ -220,7 +220,7 @@ function DataFrames.transform(gdf::GroupedDataFrame, args...; kwargs...)
     end
 
     @partitioned gdf gdf_parent groupcols groupkwargs args kwargs res begin
-        if !(gdf isa DataFrames.GroupedDataFrame) || gdf.parent != gdf_parent
+        if !(gdf isa DataFrames.GroupedDataFrame) || gdf.parent !== gdf_parent
             gdf = DataFrames.groupby(gdf_parent, groupcols; groupkwargs...)
         end
         res = DataFrames.transform(gdf, args...; kwargs...)
@@ -256,7 +256,7 @@ function DataFrames.combine(gdf::GroupedDataFrame, args...; kwargs...)
     end
 
     @partitioned gdf gdf_parent groupcols groupkwargs args kwargs res res_nrows begin
-        if !(gdf isa DataFrames.GroupedDataFrame) || gdf.parent != gdf_parent
+        if !(gdf isa DataFrames.GroupedDataFrame) || gdf.parent !== gdf_parent
             gdf = DataFrames.groupby(gdf_parent, groupcols; groupkwargs...)
         end
         res = DataFrames.combine(gdf, args...; kwargs...)
@@ -290,7 +290,7 @@ function DataFrames.subset(gdf::GroupedDataFrame, args...; kwargs...)
     end
 
     @partitioned gdf gdf_parent groupcols groupkwargs args kwargs res res_nrows begin
-        if !(gdf isa DataFrames.GroupedDataFrame) || gdf.parent != gdf_parent
+        if !(gdf isa DataFrames.GroupedDataFrame) || gdf.parent !== gdf_parent
             gdf = DataFrames.groupby(gdf_parent, groupcols; groupkwargs...)
         end
         res = DataFrames.subset(gdf, args...; kwargs...)
@@ -339,7 +339,7 @@ end
 #     mutated(res)
 
 #     @partitioned gdf gdf_parent groupcols groupkwargs args kwargs res begin
-#         if gdf.parent != gdf_parent
+#         if gdf.parent !== gdf_parent
 #             gdf = groupby(gdf_parent, groupcols; groupkwargs...)
 #         end
 #         res = transform(gdf, args...; kwargs...)
@@ -388,7 +388,7 @@ end
 #     mutated(res)
 
 #     @partitioned gdf gdf_parent groupcols groupkwargs args kwargs res begin
-#         if gdf.parent != gdf_parent
+#         if gdf.parent !== gdf_parent
 #             gdf = groupby(gdf_parent, groupcols; groupkwargs...)
 #         end
 #         res = combine(gdf, args...; kwargs...)
@@ -438,7 +438,7 @@ end
 #     mutated(res)
 
 #     @partitioned gdf gdf_parent groupcols groupkwargs args kwargs res begin
-#         if gdf.parent != gdf_parent
+#         if gdf.parent !== gdf_parent
 #             gdf = groupby(gdf_parent, groupcols; groupkwargs...)
 #         end
 #         res = subset(gdf, args...; kwargs...)

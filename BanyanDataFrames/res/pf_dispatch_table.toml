@@ -4,6 +4,14 @@ scale_by = 0
 views = false
 locations = [ { datatype = "GroupedDataFrame" } ]
 
+[merges.ReturnNullGrouping]
+partition_memory_usage = "none"
+scale_by = 0
+views = false
+locations = [ { datatype = "GroupedDataFrame" } ]
+
+# ReadBlock
+
 [splits.ReadBlockCSV]
 expected = [ "key" ]
 partition_memory_usage = "part"
@@ -27,6 +35,8 @@ scale_by = 3
 views = false
 required = { name = "Distributing", distribution = "blocked", id = "!" }
 locations = [ { name = "Remote", format = "arrow" }, { name = "Disk", datatype = "DataFrame" } ]
+
+# ReadGroup
 
 [splits.ReadGroupCSV]
 expected = [ "key", "divisions" ]
@@ -55,6 +65,8 @@ required = { name = "Distributing", distribution = "grouped", id = "!" }
 default = { rev = false }
 locations = [ { name = "Remote", format = "arrow" }, { name = "Disk", datatype = "DataFrame" } ]
 
+# CopyFrom
+
 [splits.CopyFromCSV]
 partition_memory_usage = "all"
 scale_by = 3
@@ -79,11 +91,7 @@ views = false
 required = { name = "Replicating", dividing = false }
 locations = [ { name = "Remote", format = "arrow" }, { name = "Disk", datatype = "DataFrame" } ]
 
-[merges.ReturnNullGrouping]
-partition_memory_usage = "none"
-scale_by = 0
-views = false
-locations = [ { datatype = "GroupedDataFrame" } ]
+# Write
 
 [merges.WriteCSV]
 partition_memory_usage = "part"
@@ -105,6 +113,8 @@ scale_by = 0
 views = false
 required = { name = "Distributing" }
 locations = [ { name = "Remote", format = "arrow" }, { name = "Disk", datatype = "DataFrame" } ]
+
+# CopyTo
 
 [merges.CopyToCSV]
 partition_memory_usage = "all"

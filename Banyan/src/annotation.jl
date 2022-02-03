@@ -535,6 +535,9 @@ macro partitioned(ex...)
             end
         end
         task.code *= $(string(code))
+        if isinvestigating()[:code_execution][:finishing]
+            task.code *= "\nprintln(\"Finished code region on $(MPI.Initialized() ? MPI.Comm_rank(MPI.COMM_WORLD) : -1)\")\n"
+        end
         task.value_names = [
             (fut.value_id, var_name) for (fut, var_name) in
             zip(splatted_futures, splatted_variable_names)
@@ -658,13 +661,22 @@ macro partitioned(ex...)
         end
 
         # Default case for determining memory usage
+        if isinvestigating()[:memory_usage]
+            println("Computing memory usage for a new task")
+        end
         for fut in splatted_futures
+            if isinvestigating()[:memory_usage]
+                @show fut.value_id
+            end
             if !haskey(task.memory_usage[fut.value_id], "final")
                 total_sampled_input_memory_usage = sum((
                     sample(fut, :memory_usage)
                     for fut in task.scaled
                     if task.effects[fut.value_id] == "CONST"
                 ), init=0)
+                if isinvestigating()[:memory_usage]
+                    @show total_sampled_input_memory_usage
+                end
                 if task.keep_same_sample_rate && total_sampled_input_memory_usage > 0
                     # This case applies for most computation like `filter` and `groupby`
 
@@ -673,10 +685,16 @@ macro partitioned(ex...)
                         for fut in task.scaled
                         if task.effects[fut.value_id] == "CONST"
                     ), init=0)
+                    if isinvestigating()[:memory_usage]
+                        @show total_input_memory_usage
+                    end
 
                     # Use the sampels to figure out the rate of change in
                     # memory usage going from inputs to outputs
                     factor = sample(fut, :memory_usage) / total_sampled_input_memory_usage
+                    if isinvestigating()[:memory_usage]
+                        @show factor
+                    end
 
                     # Now we use that rate on the actual initial memory
                     # usage which might have been modified using past memory
@@ -689,11 +707,21 @@ macro partitioned(ex...)
                     # isn't going from `nothing` to some assigned value.
                     # This case applies to the very last code region created in
                     # `partitioned_computation`.
+                    if isinvestigating()[:memory_usage]
+                        @show task.memory_usage[fut.value_id]["initial"]
+                    end
                     task.memory_usage[fut.value_id]["final"] = task.memory_usage[fut.value_id]["initial"]
                 else
                     # This case applies for `fill` and `innerjoin`.
+                    if isinvestigating()[:memory_usage]
+                        @show Base.convert(Integer, ceil(sample(fut, :memory_usage) * sample(fut, :rate)))
+                    end
                     task.memory_usage[fut.value_id]["final"] = Base.convert(Integer, ceil(sample(fut, :memory_usage) * sample(fut, :rate)))
                 end
+            end
+            if isinvestigating()[:memory_usage]
+                @show task.memory_usage[fut.value_id]
+                @show fut.value_id
             end
         end
 

@@ -37,7 +37,7 @@ function use_session_for_testing(
         else
             start_session(
                 cluster_name = ENV["BANYAN_CLUSTER_NAME"],
-                nworkers = 2,
+                nworkers = parse(Int32, get(ENV, "BANYAN_NWORKERS", "2")),
                 sample_rate = sample_rate,
                 print_logs = false,
                 url = "https://github.com/banyan-team/banyan-julia.git",
@@ -100,6 +100,8 @@ global data_for_testing = false
 function use_data(data_src = "S3")
     global data_for_testing
 
+    println("In use_data with data_src=$data_src and data_for_testing=$data_for_testing")
+
     if !data_for_testing && data_src == "S3"
         original = h5open(
             download(
@@ -116,6 +118,7 @@ function use_data(data_src = "S3")
             new = h5open(string(f), "w")
             new["DS1"] = repeat(original["DS1"][:, :], 100, 100)
             close(new)
+            println("In use_data with f=$f")
         end
         close(original)
 
@@ -127,6 +130,7 @@ function use_data(data_src = "S3")
             ),
             force = true,
         )
+        println("In use_data force removing s3://$(get_cluster_s3_bucket_name())")
         # TODO: Maybe fsync here so that the directory gets properly updated
     end
 

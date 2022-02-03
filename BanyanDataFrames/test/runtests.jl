@@ -4,6 +4,7 @@ using BanyanDataFrames
 using ReTest
 using FilePathsBase, AWSS3, DataFrames, CSV, Parquet, Arrow
 using Random
+using Statistics
 
 global sessions_for_testing = Dict()
 
@@ -40,7 +41,7 @@ function use_session_for_testing(
         else
             start_session(
                 cluster_name = ENV["BANYAN_CLUSTER_NAME"],
-                nworkers = 2,
+                nworkers = parse(Int32, get(ENV, "BANYAN_NWORKERS", "2")),
                 sample_rate = sample_rate,
                 print_logs = true,
                 url = "https://github.com/banyan-team/banyan-julia.git",
@@ -229,8 +230,10 @@ include("sample_computation.jl")
 include("groupby_filter_indexing.jl")
 
 # Clear caches to ensure that caching behavior is deterministic
-clear_sources()
-clear_samples()
+# Actually, don't clear this until we optimize sample/source collection.
+# Until then, we have the sample collection tests for this.
+# clear_sources()
+# clear_samples()
 
 try
     runtests(Regex.(ARGS)...)
