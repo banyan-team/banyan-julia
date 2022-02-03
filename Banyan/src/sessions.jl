@@ -182,7 +182,7 @@ function start_session(;
     session_id = response["session_id"]
     resource_id = response["resource_id"]
     if for_running == false
-        @info "Running session with $code_files"    
+        @info "Running session  with ID $session_id and $code_files"    
     else
         @info "Starting session with ID $session_id on cluster named \"$cluster_name\""
     end
