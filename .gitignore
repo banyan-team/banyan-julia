@@ -30,3 +30,4 @@ Manifest.toml
 !*iris.csv
 *.parquet
 **/test_nyc.txt
+**/efs/*
