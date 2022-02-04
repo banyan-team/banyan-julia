@@ -10,7 +10,7 @@ function ReadONNX(
     loc_params,
 )
     global onnx_paths
-    model_path = Banyan.getpath(loc_params["path"])
+    model_path = Banyan.getpath(loc_params["path"], comm)
     model = load_inference_single_threaded(model_path)
     onnx_paths[model] = model_path
     model
@@ -25,7 +25,7 @@ function ReadONNXFromDisk(
     loc_name,
     loc_params,
 )
-    onnx_path = getpath(loc_params["path"]) * "_onnx"
+    onnx_path = getpath(loc_params["path"], comm) * "_onnx"
     model = load_inference_single_threaded(read(onnx_path, String))
     model
 end
