@@ -468,6 +468,7 @@ function getpath(path, comm)
         hashed_path = string(hash(path))
         joined_path = "efs/banyan_dataset_" * hashed_path
         # @info "Downloading $path to $joined_path"
+        comm = MPI.COMM_WORLD
         if MPI.Comm_rank(comm) == 0
             if !isfile(joined_path)
             # NOTE: Even though we are storing in /tmp, this is
