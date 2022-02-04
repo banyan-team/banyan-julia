@@ -5,9 +5,9 @@ Banyan Julia is an extension to the Julia programming language for that seamless
 Software libraries can be annotated with partition types and subsequent use of the annotated functions automatically runs at scale. Currently, we have annotated several popular Julia libraries:
 
 - [BanyanArrays.jl](https://www.banyancomputing.com/banyan-arrays-jl-docs) for reading/writing large HDF5 datasets and distributed map-reduce computation
+- [BanyanImages.jl](https://www.banyancomputing.com/banyan-images-jl-docs) for massively parallel image processing
 - [BanyanDataFrames.jl](https://www.banyancomputing.com/banyan-data-frames-jl-docs) for distributed reading/writing Parquet/CSV/Arrow datasets and selecting, aggregating, and transforming data
-- BanyanImages.jl for massively parallel image processing
-- BanyanONNXRunTime.jl for high-performance ML inference (bring your own PyTorch and TensorFlow models!)
+- [BanyanONNXRunTime.jl](https://www.banyancomputing.com/banyan-onnx-run-time-jl-docs) for high-performance ML inference (bring your own PyTorch and TensorFlow models!)
 - BanyanDBInterface.jl (WIP - please contact support@banyancomputing.com) for extracting from and loading to your database
 
 You can effectively be able to use these libraries as drop-in replacements of the standard library Arrays and the DataFrames.jl library. By changing an import statement, you can run your code as is with Banyan scaling to arbitrary data or compute needs and read in
