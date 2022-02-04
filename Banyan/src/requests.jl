@@ -373,7 +373,8 @@ function send_evaluation(value_id::ValueId, session_id::SessionId)
             "num_bang_values_issued" => get_num_bang_values_issued(),
             "main_modules" => get_loaded_packages(),
             "partitioned_using_modules" => used_packages,
-            "benchmark" => get(ENV, "BANYAN_BENCHMARK", "0") == "1"
+            "benchmark" => get(ENV, "BANYAN_BENCHMARK", "0") == "1",
+            "worker_memory_used" => get_session().worker_memory_used`
         ),
     )
     if isnothing(response)
@@ -484,7 +485,8 @@ function offloaded(given_function, args...; distributed = false)
             "partitioned_using_modules" => [],
             "benchmark" => get(ENV, "BANYAN_BENCHMARK", "0") == "1",
             "offloaded_function_code" => serialized,
-            "distributed" => distributed
+            "distributed" => distributed,
+            "worker_memory_used" => get_session().worker_memory_used`
         ),
     )
     if isnothing(response)
@@ -503,6 +505,8 @@ function offloaded(given_function, args...; distributed = false)
         message_type = message["kind"]
         if (message_type == "GATHER")
             value_id = message["value_id"]
+            memory_used = message["worker_memory_used"]
+            get_session().worker_memory_used = get_session().worker_memory_used + memory_used
             if (value_id == -1)
                 stored_message = from_jl_value_contents(message["contents"])
             end

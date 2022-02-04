@@ -138,7 +138,8 @@ function send_to_client(value_id, value, worker_memory_used = 0)
             Dict(
                 "kind" => "GATHER",
                 "value_id" => value_id,
-                "contents" => to_jl_value_contents(value)
+                "contents" => to_jl_value_contents(value),
+                "worker_memory_used" =? worker_memory_used
             )
         )
     )
