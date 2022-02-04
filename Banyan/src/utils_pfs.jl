@@ -467,10 +467,10 @@ function getpath(path, comm)
         # cache on disk
         hashed_path = string(hash(path))
         joined_path = "efs/banyan_dataset_" * hashed_path
-        @show joined_path
         # @info "Downloading $path to $joined_path"
         comm = MPI.COMM_WORLD
         if MPI.Comm_rank(comm) == 0
+            println("On worker $(MPI.Comm_rank(comm)), $joined_path isfile = $(isfile(joined_path))")
             if !isfile(joined_path)
             # NOTE: Even though we are storing in /tmp, this is
             # effectively caching the download. If this is undesirable
@@ -481,8 +481,8 @@ function getpath(path, comm)
                 Downloads.download(path, joined_path)
             end
         end
-        println("Downloaded $path on worker $(MPI.Comm_rank(comm))")
         MPI.Barrier(comm)
+        println("Returning $joined_path on worker $(MPI.Comm_rank(comm))")
         # @show isfile(joined_path)
         joined_path
     elseif startswith(path, "s3://")
