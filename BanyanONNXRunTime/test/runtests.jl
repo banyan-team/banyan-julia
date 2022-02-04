@@ -2,6 +2,8 @@
 using ReTest
 using Banyan, BanyanArrays, BanyanONNXRunTime
 using Downloads, JSON
+using ImageCore
+using IterTools
 
 # # Create a dummy test job for unit tests
 # test_job_id = "test_job_id"
@@ -50,10 +52,10 @@ function use_session_for_testing(
                 branch = get(ENV, "BANYAN_JULIA_BRANCH", Banyan.get_branch_name()),
                 directory = "banyan-julia/BanyanONNXRunTime/test",
                 dev_paths = [
+                    "banyan-julia/BanyanImages",
+                    "banyan-julia/BanyanONNXRunTime",
                     "banyan-julia/Banyan",
                     "banyan-julia/BanyanArrays",
-                    "banyan-julia/BanyanImages",
-                    "banyan-julia/BanyanONNXRunTime"
                 ],
                 # force_update_files=true,
                 # BANYAN_REUSE_RESOURCES should be 1 when the compute resources
