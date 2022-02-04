@@ -467,6 +467,7 @@ function getpath(path, comm)
         # cache on disk
         hashed_path = string(hash(path))
         joined_path = "efs/banyan_dataset_" * hashed_path
+        @show joined_path
         # @info "Downloading $path to $joined_path"
         comm = MPI.COMM_WORLD
         if MPI.Comm_rank(comm) == 0
@@ -476,9 +477,11 @@ function getpath(path, comm)
             # to a user, a short-term solution is to use a different
             # URL each time (e.g., add a dummy query to the end of the
             # URL)
+                println("Going to download $path to $joined_path")
                 Downloads.download(path, joined_path)
             end
         end
+        println("Downloaded $path on worker $(MPI.Comm_rank(comm))")
         MPI.Barrier(comm)
         # @show isfile(joined_path)
         joined_path
