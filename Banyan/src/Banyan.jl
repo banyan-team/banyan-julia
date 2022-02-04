@@ -10,7 +10,7 @@ __precompile__()
 module Banyan
 
 global BANYAN_JULIA_BRANCH_NAME = "v21.12.19"
-global BANYAN_JULIA_PACKAGES = ["Banyan", "BanyanArrays", "BanyanDataFrames"]
+global BANYAN_JULIA_PACKAGES = ["Banyan", "BanyanArrays", "BanyanDataFrames", "BanyanImages"]
 
 using FilePathsBase: joinpath, isempty
 using Base: notnothing, env_project_file
@@ -74,6 +74,7 @@ export Session,
     get_cluster_name,
     wait_for_session,
     with_session,
+    run_session,
     download_session_logs
 
 # Futures
@@ -189,7 +190,6 @@ export ReturnNull,
     Rebalance,
     Distribute,
     DistributeAndShuffle
-
 
 export offloaded
 
