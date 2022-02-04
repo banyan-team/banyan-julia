@@ -1,6 +1,6 @@
 
 using ReTest
-using Banyan, BanyanArrays, BanyanONNXRunTime
+using Banyan, BanyanArrays, BanyanONNXRunTime  #, BanyanImages
 using Downloads, JSON
 using ImageCore
 using IterTools
