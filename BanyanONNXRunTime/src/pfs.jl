@@ -41,7 +41,7 @@ function WriteONNXToDisk(
 )
     global onnx_paths
     if get_partition_idx(batch_idx, nbatches, comm) == 1
-        write(getpath(loc_params["path"]) * "_onnx", onnx_paths[part])
+        write(getpath(loc_params["path"], comm) * "_onnx", onnx_paths[part])
     end
     MPI.Barrier(comm)
 end
