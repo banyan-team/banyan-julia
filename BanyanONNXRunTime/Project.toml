@@ -8,3 +8,9 @@ Banyan = "706d138b-e922-45b9-a636-baf8ae0d5317"
 BanyanArrays = "369465de-032e-4609-9dcf-82b89c370a7b"
 MPI = "da04e1cc-30fd-572f-bb4f-1f8673147195"
 ONNXRunTime = "e034b28e-924e-41b2-b98f-d2bbeb830c6a"
+
+[compat]
+Banyan = "0.2.4"
+ONNXRunTime = "0.2.3"
+MPI = "0.19.0"
+julia = "1.6"

@@ -30,7 +30,7 @@ function ReadONNXFromDisk(
     model
 end
 
-function WriteONNXFromDisk(
+function WriteONNXToDisk(
     src,
     params,
     batch_idx::Integer,

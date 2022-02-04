@@ -8,7 +8,7 @@ using ONNXRunTime.CAPI
 
 export load_inference
 
-export ReadONNX, ReadONNXFromDisk, WriteONNXFromDisk
+export ReadONNX, ReadONNXFromDisk, WriteONNXToDisk
 
 export RemoteONNXSource
 
