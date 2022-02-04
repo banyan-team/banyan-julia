@@ -7,11 +7,8 @@ include("foo.jl")
 ]
     use_session_for_testing(scheduling_config_name = scheduling_config) do
 
-        println(typeof(Base.fill(1.0, 2048)))
         x = BanyanArrays.fill(10.0, 2048)
-        println(typeof(x))
         x = map(e -> e / 10, x)
-        println(typeof(x))
         res = sum(x)
 
         res = compute(res)
@@ -71,12 +68,9 @@ end
             # NOTE: This also tests simple writing to and reading from local disk
             x = BanyanArrays.fill(10.0, 2048)
             # x = map(e -> e / 10, x)
-            @show typeof(x)
             write_to_disk(x)
             # write_to_disk(x)
-            @show typeof(x)
             sleep(15)
-            @show typeof(x)
             # NOTE: The only reason why we're not putting `collect(x)` inside the
             # the `@test` is because `@test` will catch exceptions and prevent the
             # session from getting destroyed when an exception occurs and we can't keep
@@ -97,17 +91,14 @@ end
         # NOTE: This also tests simple writing to and reading from local disk
         x = BanyanArrays.fill(10.0, 2048)
         x = map(e -> e / 10, x)
-        @show typeof(x)
         write_to_disk(x)
         write_to_disk(x)
-        @show typeof(x)
         # NOTE: The only reason why we're not putting `collect(x)` inside the
         # the `@test` is because `@test` will catch exceptions and prevent the
         # session from getting destroyed when an exception occurs and we can't keep
         # running this test if the session ends
         x_collect = compute(x)
         @test x_collect == Base.fill(1.0, 2048)
-        @show typeof(x)
         write_to_disk(x)
         x_collect = compute(x)
         @test x_collect == Base.fill(1.0, 2048)
@@ -132,7 +123,6 @@ end
         @test x_sum_collect == 10.0 * 2048
         write_to_disk(x_sum)
         x_collect = compute(x)
-        @show length(x_collect)
         @test x_collect == Base.fill(1.0, 2048)
         compute(x_sum)
         x_sum_collect = compute(x_sum)
@@ -226,7 +216,7 @@ end
     "default scheduling",
     # "parallelism encouraged",
     # "parallelism and batches encouraged",
-], (force_parallelism, with_parallelism) in [(true, "with"), (false, "without")]
+], (force_parallelism, with_parallelism) in [(true, "with"), (false, "without"), (true, "with")]
     use_session_for_testing(scheduling_config_name = scheduling_config) do
 
         # Using x1

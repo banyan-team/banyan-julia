@@ -316,7 +316,7 @@ CopyFromJulia(
     loc_name,
     loc_params,
 ) = begin
-    path = getpath(loc_params["path"])
+    path = getpath(loc_params["path"], comm)
     isfile(path) ? deserialize(path) : nothing
 end
 
@@ -362,7 +362,7 @@ CopyToJulia(
     # if isa_gdf(part)
     #     part = nothing
     # end
-    serialize(getpath(loc_params["path"]), part)
+    serialize(getpath(loc_params["path"], comm), part)
 end
 
 function get_op!(params::Dict{String,Any})

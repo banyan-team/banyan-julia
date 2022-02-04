@@ -160,7 +160,8 @@ export is_debug_on,
     getpath,
     buftovbuf,
     indexapply,
-    PartiallyMerged
+    PartiallyMerged,
+    isinvestigating
 
 # Partitioning functions for usage in sessions that run on the cluster; dispatched
 # based on `res/pf_dispatch_table.json`.
@@ -191,6 +192,9 @@ export ReturnNull,
     DistributeAndShuffle
 
 export offloaded
+
+# Investigating for debugging purposes
+include("investigating.jl")
 
 # Helpers
 include("id.jl")

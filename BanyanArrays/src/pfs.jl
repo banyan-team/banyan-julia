@@ -5,9 +5,9 @@ function read_julia_array_file(path, header, rowrange, readrange, filerowrange, 
             arr[
                 [
                     if i == dim
-                        Colon()
-                    else
                         (readrange.start-filerowrange.start+1):(readrange.stop-filerowrange.start+1)
+                    else
+                        Colon()
                     end
                     for i in 1:ndims(arr)
                 ]...
@@ -28,7 +28,7 @@ function ReadBlockJuliaArray(
     # TODO: Implement a Read for balanced=false where we can avoid duplicate
     # reading of the same range in different reads
 
-    path = Banyan.getpath(loc_params["path"])
+    path = Banyan.getpath(loc_params["path"], comm)
 
     # Handle multi-file tabular datasets
 
@@ -40,7 +40,7 @@ function ReadBlockJuliaArray(
     # with a unique name corresponding to the value ID - only if this is
     # the first batch or loop iteration.
     name = loc_params["path"]
-    name_path = Banyan.getpath(name)
+    name_path = path
     # TODO: isdir might not work for S3FS
     isdir(name_path) || error("Expected $path to be a directory containing files of Julia-serialized arrays")
 
@@ -91,7 +91,7 @@ function ReadBlockJuliaArray(
         if !partitioned_on_dim || Banyan.isoverlapping(filerowrange, rowrange)
             # Deterine path to read from
             file_path = file["path"]
-            path = Banyan.getpath(file_path)
+            path = Banyan.getpath(file_path, comm)
 
             # Read from location depending on data format
             readrange = if partitioned_on_dim
@@ -106,6 +106,9 @@ function ReadBlockJuliaArray(
             # TODO: Scale the memory usage appropriately when splitting with
             # this and garbage collect if too much memory is used.
             read_julia_array_file(path, header, rowrange, readrange, filerowrange, dfs, dim)
+            if isinvestigating()[:losing_data]
+                println("In ReadBlockJuliaArray with path=$path with rowrange=$rowrange, readrange=$readrange, filerowrange=$filerowrange")
+            end
         end
         rowsscanned = newrowsscanned
     end
@@ -131,6 +134,9 @@ function ReadBlockJuliaArray(
         dfs[1]
     else
         cat(dfs...; dims=dim_partitioning)
+    end
+    if isinvestigating()[:losing_data]
+        println("In ReadBlockJuliaArray with size(res)=$(size(res)), length(dfs)=$(length(dfs)), loc_params=$loc_params, dim_partitioning=$dim_partitioning, dim=$dim, partitioned_on_dim=$partitioned_on_dim, size.(dfs)=$(size.(dfs))")
     end
     res
 end
@@ -174,12 +180,12 @@ function WriteJuliaArray(
     if startswith(path, "http://") || startswith(path, "https://")
         error("Writing to http(s):// is not supported")
     elseif startswith(path, "s3://")
-        path = Banyan.getpath(path)
+        path = Banyan.getpath(path, comm)
         # NOTE: We expect that the ParallelCluster instance was set up
         # to have the S3 filesystem mounted at ~/s3fs/<bucket name>
     else
         # Prepend "efs/" for local paths
-        path = Banyan.getpath(path)
+        path = Banyan.getpath(path, comm)
     end
 
     # Write file for this partition
@@ -237,6 +243,9 @@ function WriteJuliaArray(
     nrows = size(part, dim)
     sortableidx = Banyan.sortablestring(idx, get_npartitions(nbatches, comm))
     write_file_julia_array(part, path, dim, sortableidx, nrows)
+    if isinvestigating()[:losing_data]
+        println("In WriteJuliaArray with size(part)=$(size(part)), path=$path, dim=$dim, sortableidx=$sortableidx")
+    end
     MPI.Barrier(comm)
     if nbatches > 1 && batch_idx == nbatches
         tmpdir = readdir(path)
@@ -244,14 +253,21 @@ function WriteJuliaArray(
             Banyan.rmdir_on_nfs(actualpath)
             mkpath(actualpath)
         end
+        if isinvestigating()[:losing_data]
+            println("In WriteJuliaArray with tmpdir=$tmpdir, nbatches=$nbatches")
+        end
         MPI.Barrier(comm)
         for batch_i = 1:nbatches
             idx = Banyan.get_partition_idx(batch_i, nbatches, worker_idx)
-            tmpdir_idx = findfirst(fn -> contains(fn, "part$idx"), tmpdir)
+            sortableidx = Banyan.sortablestring(idx, get_npartitions(nbatches, comm))
+            tmpdir_idx = findfirst(fn -> contains(fn, "part$sortableidx"), tmpdir)
             if !isnothing(tmpdir_idx)
                 tmpsrc = joinpath(path, tmpdir[tmpdir_idx])
                 actualdst = joinpath(actualpath, tmpdir[tmpdir_idx])
                 cp(tmpsrc, actualdst, force=true)
+                if isinvestigating()[:losing_data]
+                    println("In WriteJuliaArray copying from tmpsrc=$tmpsrc to actualdst=$actualdst with tmpdir=$tmpdir")
+                end
             end
         end
         MPI.Barrier(comm)
@@ -297,14 +313,24 @@ function ReadBlockHDF5(
     # Handle single-file nd-arrays
     # We check if it's a file because for items on disk, files are HDF5
     # datasets while directories contain Parquet, CSV, or Arrow datasets
-    path = Banyan.getpath(loc_params["path"])
+    path = Banyan.getpath(loc_params["path"], comm)
+    if isinvestigating()[:parallel_hdf5]
+        println("In ReadBlockHDF5 with path=$path, loc_name=$loc_name, isfile(path)=$(isfile(path))")
+    end
     if !((loc_name == "Remote" && (occursin(".h5", loc_params["path"]) || occursin(".hdf5", loc_params["path"]))) ||
         (loc_name == "Disk" && HDF5.ishdf5(path)))
         error("Expected HDF5 file to read in; failed to read from $path")
     end
+
+    if isinvestigating()[:parallel_hdf5]
+        println("In ReadBlockHDF5 with HDF5.ishdf5(path)=$(HDF5.ishdf5(path))")
+    end
        
     # @show isfile(path)
     f = h5open(path, "r")
+    if isinvestigating()[:parallel_hdf5]
+        println("In ReadBlockHDF5 after h5open")
+    end
     dset = loc_name == "Disk" ? f["part"] : f[loc_params["subpath"]]
 
     ismapping = false
@@ -358,6 +384,9 @@ function ReadBlockHDF5(
         ]...]
     end
     close(f)
+    if isinvestigating()[:parallel_hdf5]
+        println("In ReadBlockHDF5 at end with size(dset)=$(size(dset)), dimrange=$dimrange")
+    end
     dset
 end
 
@@ -383,12 +412,12 @@ function WriteHDF5(
     if startswith(path, "http://") || startswith(path, "https://")
         error("Writing to http(s):// is not supported")
     elseif startswith(path, "s3://")
-        path = Banyan.getpath(path)
+        path = Banyan.getpath(path, comm)
         # NOTE: We expect that the ParallelCluster instance was set up
         # to have the S3 filesystem mounted at ~/s3fs/<bucket name>
     else
         # Prepend "efs/" for local paths
-        path = Banyan.getpath(path)
+        path = Banyan.getpath(path, comm)
     end
 
     worker_idx = Banyan.get_worker_idx(comm)

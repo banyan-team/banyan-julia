@@ -48,7 +48,6 @@ using HDF5
             joinpath(s3_bucket_name, "fillval.h5"),
         ]
             x = read_hdf5(joinpath(path, "DS1"))
-            @show collect(length(x))
             x = map(e -> e * 10, x)
 
             steps = if startswith(path, "s3://")

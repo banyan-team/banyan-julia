@@ -40,21 +40,11 @@
                     sub2 = read_file(sub2_save_path)
                 end
 
-                @show i
-                @show sample(sub2)
-
                 # Collect results
                 sub_nrow = nrow(sub)
                 sub2_nrow = nrow(sub2)
-                @show sample(sub2)
                 sepal_length_sub_sum = round(compute(reduce(+, sub[:, :sepal_length])))
                 sepal_length_sub2_sum = round(compute((reduce(+, sub2[:, :sepal_length]))))
-                @show sample(sub2)
-                @show sample(df)
-                @show compute(sub2)
-                @show compute(sub2)
-                @show sample(sub2)
-                @show compute(sub2[:, [:species]])
                 sub2_species = Set(compute(sub2[:, [:species]])[:, :species])
 
                 # Assert
@@ -62,7 +52,6 @@
                 @test sepal_length_sub_sum == 217
                 @test sub2_nrow == 4
                 @test sepal_length_sub2_sum == 26
-                @show sample(sub2)
                 @test sub2_species == Set(["species_8", "species_18"])
 
 
@@ -81,8 +70,8 @@
                 # Collect results
                 sub3_nrow = nrow(sub3)
                 sub3 = sort(compute(sub3))
-                sub3_row8 = compute(sub3[8, :])
-                sub3_row62 = compute(sub3[62, :])
+                sub3_row8 = collect(sub3[8, :])
+                sub3_row62 = collect(sub3[62, :])
 
                 # Assert
                 @test sub3_nrow == 62
@@ -97,8 +86,6 @@
                 else
                     sub4 = read_file(sub4_save_path)
                 end
-
-                @show i sub4_save_path
 
                 # Collect results
                 sub4_nrow = nrow(sub4)
@@ -498,6 +485,9 @@ end
                 filtered_single = read_file(filtered_single_save_path)
             end
 
+            filtered_single_sepal_width = compute(filtered_single[:, :sepal_width])
+            @test filtered_single_sepal_width == [3.0]
+
             has_schema = i != 2 || filetype == "arrow"
             has_num_cols = i != 2 || filetype != "parquet"
 
@@ -513,23 +503,43 @@ end
             @test filtered_single_sepal_width == [3.0]
             @test filtered_single_petal_width == [0.2]
 
+            # When doing a groupby over an empty dataset, we can't
+            # exaggurate size because the data is empty so the sample
+            # will disallow grouping since maximum # of groups will be 0.
+            # So only replication is allowed but that won't work if the
+            # data size is exaggurated so much. Even for the single-row
+            # result - the sample is empty. And so we have to use default
+            # scheduling.
+            configure_scheduling(name = "default scheduling")
+
             # Only empty Arrow datasets preserve the schema and can be read
             # back in and used in a groupby-subset that references a column
             # from the original schema. Even if the computation were replicated
             # so that no grouping splitting has to be done, we still have to do
             # a groupby-subset on an empty DataFrame with no schema and
             # DataFrames.jl doesn't support that.
+            if isinvestigating()[:size_exaggurated_tests]
+                println("In test on iteration $i")
+            end
             if has_schema
                 # Groupby all columns and subset, resulting in empty df
+                if isinvestigating()[:size_exaggurated_tests]
+                    CSV.write("test_res_filtered_empty.csv", sample(filtered_empty))
+                    @show filtered_empty.data.value_id
+                end
                 filtered_empty_sub = subset(groupby(filtered_empty, :species), :petal_length => pl -> pl .>= mean(pl))
                 filtered_empty_sub_size = size(filtered_empty_sub)
                 @test filtered_empty_sub_size == (0, 5)
             end
 
             # Test size after filtering single-row dataset
-            filtered_single_sub = subset(groupby(filtered_single, :species), :petal_length => pl -> pl .>= mean(pl))
+            if isinvestigating()[:size_exaggurated_tests]
+                CSV.write("test_res_filtered_single.csv", sample(filtered_single))
+                filtered_single_sub = subset(groupby(filtered_single, :species), :petal_length => pl -> pl .>= mean(pl))
+            end
             filtered_single_sub_size = size(filtered_single_sub)
             @test filtered_single_sub_size == (1, 5)
+            
 
             # If this is round 1, write it out so that it can be read in round
             # 2
@@ -537,6 +547,8 @@ end
                 write_file(filtered_empty_save_path, filtered_empty)
                 write_file(filtered_single_save_path, filtered_single)
             end
+
+            configure_scheduling(name = scheduling_config)
         end
     end
 end
@@ -574,6 +586,12 @@ end
 
         # Read empty df
         df = read_file(path)
+
+        # Subset requires groupby's which for the same reason as the previous test above,
+        # make it super hard for us to just exaggurate size throughout.
+        if filter_type == "subset"
+            configure_scheduling(name = "default scheduling")
+        end
 
         # Filter/subset to single row
         # Filter/subset to empty
@@ -640,6 +658,7 @@ end
         @test size(df02) == (0, 5)
         @test names(df02) == ["sepal_length", "sepal_width", "petal_length", "petal_width", "species"]
 
+        configure_scheduling(name = scheduling_config)
     end
 end
 
@@ -757,38 +776,43 @@ end
 end
 
 @testset "NYC Taxi Stress Test" begin
-    using Statistics
     use_session_for_testing(scheduling_config_name = "default scheduling", sample_rate=1024) do
-        s3_bucket_name = get_cluster_s3_bucket_name()
-        df = read_csv(
-            "s3://$s3_bucket_name/nyc_tripdata.csv",
-            sample_invalid=true,
-            source_invalid=true,
-            shuffled=true
-        )
-        # @show sample(df)
-        println("Finished reading df")
-        @debug Banyan.format_available_memory()
+        setup_nyc_taxi_stress_test("5 GB")
+        for iter in 1:2
+            @time begin
+                s3_bucket_name = get_cluster_s3_bucket_name()
+                df = read_csv(
+                    # "s3://$s3_bucket_name/nyc_tripdata.csv",
+                    "s3://$s3_bucket_name/nyc_tripdata_large.csv",
+                    # sample_invalid=true,
+                    # source_invalid=true,
+                    shuffled=true
+                )
+                # @show sample(df)
+                println("Finished reading df")
+                @debug Banyan.format_available_memory()
 
-        # Filter all trips with distance longer than 1.0. Group by passenger count
-        # and get the average trip distance for each group.
-        long_trips = filter(
-            row -> row.trip_distance < 1.0,
-            df
-        )
-        println("Finished filtering to long_trips")
-        @debug Banyan.format_available_memory()
-        # @show sample(long_trips)
+                # Filter all trips with distance longer than 1.0. Group by passenger count
+                # and get the average trip distance for each group.
+                long_trips = filter(
+                    row -> row.trip_distance < 1.0,
+                    df
+                )
+                println("Finished filtering to long_trips")
+                @debug Banyan.format_available_memory()
+                # @show sample(long_trips)
 
-        gdf = groupby(long_trips, :passenger_count)
-        println("Finished groupby by passenger count to gdf")
-        @debug Banyan.format_available_memory()
-        trip_means = combine(gdf, :trip_distance => mean)
-        println("Finished combining by mean to trip_means")
-        @debug Banyan.format_available_memory()
+                gdf = groupby(long_trips, :PULocationID)
+                println("Finished groupby by location to gdf")
+                @debug Banyan.format_available_memory()
+                trip_means = combine(gdf, :trip_distance => mean)
+                println("Finished combining by mean to trip_means")
+                @debug Banyan.format_available_memory()
 
-        trip_means = compute(trip_means)
-        println("Finished collecting to trip_means")
-        @debug Banyan.format_available_memory()
+                trip_means = compute(trip_means)
+                println("Finished collecting to trip_means")
+                @debug Banyan.format_available_memory()
+            end
+        end
     end
 end
