@@ -50,7 +50,7 @@ function ReadBlockImage(
 
     images = []
     for f in files_sub
-        filepath = Banyan.getpath(f)
+        filepath = Banyan.getpath(f, comm)
         image = load(filepath)
         if add_channelview
             image = ImageCore.channelview(image)
