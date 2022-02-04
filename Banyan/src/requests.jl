@@ -374,7 +374,7 @@ function send_evaluation(value_id::ValueId, session_id::SessionId)
             "main_modules" => get_loaded_packages(),
             "partitioned_using_modules" => used_packages,
             "benchmark" => get(ENV, "BANYAN_BENCHMARK", "0") == "1",
-            "worker_memory_used" => get_session().worker_memory_used`
+            "worker_memory_used" => get_session().worker_memory_used
         ),
     )
     if isnothing(response)
@@ -486,7 +486,7 @@ function offloaded(given_function, args...; distributed = false)
             "benchmark" => get(ENV, "BANYAN_BENCHMARK", "0") == "1",
             "offloaded_function_code" => serialized,
             "distributed" => distributed,
-            "worker_memory_used" => get_session().worker_memory_used`
+            "worker_memory_used" => get_session().worker_memory_used
         ),
     )
     if isnothing(response)

@@ -22,5 +22,13 @@
             a + b
         end
         @test res4 == 105
+
+
+
+        offloaded() do
+            x = ones(800000000)
+            return 0
+        end
+        @show get_session().worker_memory_used
     end
 end
