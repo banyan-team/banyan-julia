@@ -428,7 +428,6 @@ function Base.mapslices(f, A::Array{T,N}; dims) where {T,N}
     end
 
     @partitioned f A dims res res_size begin
-        res = Base.mapslices(f, A, dims=dims)
         res = isempty(A) ? deepcopy(A) : Base.mapslices(f, A, dims=dims)
         res_size = Base.size(res)
     end
