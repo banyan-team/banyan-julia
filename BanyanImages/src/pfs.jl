@@ -13,7 +13,7 @@ function ReadBlockImage(
     # nbytes = loc_params["nbytes"]
     nimages = loc_params["nimages"]
     datasize = loc_params["size"]
-    dataeltype = loc_params["eltype"]
+    dataeltype = Banyan.from_jl_value_contents(loc_params["eltype"])
     # file_extension = "." * loc_params["format"]
     add_channelview = loc_params["add_channelview"]
 

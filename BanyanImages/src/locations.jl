@@ -27,7 +27,7 @@ function RemoteImageSource(remotepath; shuffled=false, source_invalid = false, s
         nbytes = isnothing(remote_source) ? 0 : remote_source.nbytes
         ndims = isnothing(remote_source) ? 0 : remote_source.ndims
         datasize = isnothing(remote_source) ? () : remote_source.size
-        dataeltype = isnothing(remote_source) ? "" : remote_source.eltype
+        dataeltype = isnothing(remote_source) ? "" : Banyan.from_jl_value_contents(remote_source.eltype)
         format = isnothing(remote_source) ? "" : remote_source.format  # png, jpg
 
 
@@ -188,7 +188,7 @@ function RemoteImageSource(remotepath; shuffled=false, source_invalid = false, s
                     "nbytes" => nbytes,  # assume all files have same size
                     "ndims" => ndims,
                     "size" => datasize,
-                    "eltype" => dataeltype,
+                    "eltype" => Banyan.to_jl_value_contents(dataeltype),
                     "format" => format,
                     "add_channelview" => add_channelview
                 ),
