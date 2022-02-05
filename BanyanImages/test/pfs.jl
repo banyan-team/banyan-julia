@@ -30,15 +30,26 @@
     # Construct files
     if format == "directory"
         files = readdir(S3Path(path, config=Banyan.get_aws_config()))
+        datasize = add_channelview ? (nimages, 3, 100, 100) : (nimages, 100, 100)
+        empty_part_size = add_channelview ? (0, 3, 100, 100) : (0, 100, 100)
     elseif format == "generator"
         files = Banyan.to_jl_value_contents(path)
+        datasize = add_channelview ? (nimages, 3, 512, 512) : (nimages, 512, 512)
+        empty_part_size = add_channelview ? (0, 3, 512, 512) : (0, 512, 512)
     elseif format == "path"
         files = [path]
         nimages = 1
-    else
+        datasize = add_channelview ? (1, 3, 100, 100) : (1, 100, 100)
+        empty_part_size = add_channelview ? (0, 3, 100, 100) : (0, 100, 100)
+    elseif format == "list of paths"
         files = path
         nimages = 4
+        datasize = add_channelview ? (nimages, 3, 512, 512) : (nimages, 512, 512)
+        empty_part_size = add_channelview ? (0, 3, 512, 512) : (0, 512, 512)
+    else
+        error("Test not supported")
     end
+    dataeltype = add_channelview ? Float64 : ImageCore.RGB{N0f8}
 
     images = ReadBlockImage(
         nothing,
@@ -53,8 +64,9 @@
             "nimages" => nimages,
             "nbytes" => 0, # Inaccurate value
             "ndims" => 3,
-            "size" => 0, # Inaccurate value
-            "eltype" => ImageCore.RGB{N0f8},
+            "size" => datasize, # Inaccurate value
+            "eltype" => dataeltype,
+            "emptysample" => Banyan.to_jl_value_contents(Base.Array{dataeltype}(undef, empty_part_size)),
             "format" => filetype,
             "add_channelview" => add_channelview
         ),
