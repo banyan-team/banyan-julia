@@ -8,6 +8,8 @@ function get_image_format(path)
     end
 end
 
+MAX_EXACT_SAMPLE_NUM_IMAGES = 100
+
 
 function RemoteImageSource(remotepath; shuffled=false, source_invalid = false, sample_invalid = false, invalidate_source = false, invalidate_sample = false, add_channelview=false)::Location
     RemoteSource(
@@ -100,7 +102,7 @@ function RemoteImageSource(remotepath; shuffled=false, source_invalid = false, s
 
         if isnothing(remote_sample)
 
-            samplesize = Banyan.get_max_exact_sample_length()
+            samplesize = (nimages <= MAX_EXACT_SAMPLE_NUM_IMAGES) ? nimages : ceil(nimages / get_session().sample_rate)
             nbytes_of_sample = 0
 
             progressbar = Progress(length(files_to_read_from), "Collecting sample from $remotepath")
@@ -200,7 +202,7 @@ function RemoteImageSource(remotepath; shuffled=false, source_invalid = false, s
             randomsample = cat(randomsample..., dims=1) # Put to correct shape
             remote_sample = if isnothing(loc_for_reading)
                 Sample()
-            elseif length(files) <= Banyan.get_max_exact_sample_length()
+            elseif nimages <= MAX_EXACT_SAMPLE_NUM_IMAGES
                 ExactSample(randomsample, total_memory_usage = nbytes)
             else
                 Sample(randomsample, total_memory_usage = nbytes)
