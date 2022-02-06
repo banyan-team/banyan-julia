@@ -460,7 +460,6 @@ end
 # end
 
 function getpath(path, comm)
-    @show path
     if startswith(path, "http://") || startswith(path, "https://")
         # TODO: First check for size of file and only download to
         # disk if it doesn't fit in free memory
@@ -482,7 +481,6 @@ function getpath(path, comm)
         # end
         # MPI.Barrier(comm)
         # @show isfile(joined_path)
-        @show joined_path
         joined_path
     elseif startswith(path, "s3://")
         replace(path, "s3://" => "/home/ec2-user/s3fs/")

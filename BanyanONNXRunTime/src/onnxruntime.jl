@@ -40,14 +40,11 @@ function (is::InferenceSession)(inputs, output_names=nothing)
     end
 
     @partitioned is dynamic_axis input_name A res res_size begin
-        @show A
         if dynamic_axis
             res = first(values(is(Dict(input_name  => A))))
         else
             res = Base.mapslices(arr -> first(values(is(Dict(input_name => arr)))), A, dims=collect(2:ndims(A)))
         end
-        @show dynamic_axis
-        @show res
         res_size = Base.size(res)
     end
 
