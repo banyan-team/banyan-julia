@@ -32,6 +32,7 @@ end
 
 function WriteONNXToDisk(
     src,
+    part,
     params,
     batch_idx::Integer,
     nbatches::Integer,
