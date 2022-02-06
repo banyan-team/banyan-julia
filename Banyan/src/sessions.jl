@@ -341,7 +341,7 @@ function get_session_status(session_id::String=get_session_id(); kwargs...)
 end
 
 function wait_for_session(session_id::SessionId=get_session_id(), kwargs...)
-    t = 5
+    t = 2
     session_status = get_session_status(session_id; kwargs)
     p = ProgressUnknown("Preparing session with ID $session_id", spinner=true)
     while session_status == "creating"

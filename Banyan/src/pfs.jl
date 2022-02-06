@@ -263,7 +263,18 @@ end
 
 Merge(
     src::Any,
-    part,
+    part::Any,
+    params::Dict{String,Any},
+    batch_idx::Integer,
+    nbatches::Integer,
+    comm::MPI.Comm,
+    loc_name::String,
+    loc_params::Dict{String,Any},
+) = src
+
+Merge(
+    src::Union{Nothing,PartiallyMerged},
+    part::Nothing,
     params::Dict{String,Any},
     batch_idx::Integer,
     nbatches::Integer,
