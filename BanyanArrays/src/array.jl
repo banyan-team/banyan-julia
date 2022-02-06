@@ -429,7 +429,7 @@ function Base.mapslices(f, A::Array{T,N}; dims) where {T,N}
 
     @partitioned f A dims res res_size begin
         res = isempty(A) ? nothing : Base.mapslices(f, A, dims=dims)
-        res_size = Base.size(res)
+        res_size = isempty(A) ? nothing : Base.size(res)
     end
 
     res
