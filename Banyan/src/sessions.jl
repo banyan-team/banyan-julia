@@ -222,7 +222,7 @@ end
 
 function get_sessions(cluster_name = nothing; status = nothing, kwargs...)
     if isnothing(cluster_name)
-        @debud "Downloading description of all sessions"
+        @debug "Downloading description of all sessions"
     else
         @debug "Downloading description of all sessions in cluster named $cluster_name"
     end
