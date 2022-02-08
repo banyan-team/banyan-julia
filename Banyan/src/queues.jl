@@ -94,7 +94,7 @@ function receive_next_message(queue_name, p=nothing)
             # provisioned nodes should stick around for a bit so it should
             # only be a couple of minutes before the session is back up and
             # running.
-            end_session(failed=true, force=startswith(content, "JOB_FAILURE")) # This will reset the `current_session_id` and delete from `sessions`
+            end_session(failed=true, release_resources_now=startswith(content, "JOB_FAILURE")) # This will reset the `current_session_id` and delete from `sessions`
             error("Session failed; see preceding output")
         end
         Dict{String,Any}("kind" => "SESSION_FAILURE")
