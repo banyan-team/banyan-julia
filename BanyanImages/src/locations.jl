@@ -180,8 +180,6 @@ function RemoteImageSource(remotepath; shuffled=false, source_invalid = false, s
         end
 
         empty_part_size = (0, (datasize[2:end])...)
-        @show dataeltype
-        @show empty_part_size
 
         loc_for_reading, metadata_for_reading = if !isnothing(files) && !isempty(files)
             (
