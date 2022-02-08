@@ -1,7 +1,9 @@
 
 using ReTest
-using Banyan, BanyanArrays, BanyanONNXRunTime
+using Banyan, BanyanArrays, BanyanONNXRunTime  #, BanyanImages
 using Downloads, JSON
+using ImageCore
+using IterTools
 
 # # Create a dummy test job for unit tests
 # test_job_id = "test_job_id"
@@ -19,6 +21,7 @@ end
 
 function use_session_for_testing(
     f::Function;
+    nworkers = 2,
     sample_rate = 2,
     max_exact_sample_length = 50,
     with_s3fs = nothing,
@@ -42,18 +45,19 @@ function use_session_for_testing(
         else
             start_session(
                 cluster_name = ENV["BANYAN_CLUSTER_NAME"],
-                nworkers = 2,
+                nworkers = nworkers,
                 sample_rate = sample_rate,
                 print_logs = false,
                 url = "https://github.com/banyan-team/banyan-julia.git",
                 branch = get(ENV, "BANYAN_JULIA_BRANCH", Banyan.get_branch_name()),
                 directory = "banyan-julia/BanyanONNXRunTime/test",
                 dev_paths = [
+                    "banyan-julia/BanyanImages",
+                    "banyan-julia/BanyanONNXRunTime",
                     "banyan-julia/Banyan",
                     "banyan-julia/BanyanArrays",
-                    "banyan-julia/BanyanONNXRunTime"
                 ],
-                force_update_files=true,
+                # force_update_files=true,
                 # BANYAN_REUSE_RESOURCES should be 1 when the compute resources
                 # for sessions being run can be reused; i.e., there is no
                 # forced pulling, cloning, or installation going on. When it is

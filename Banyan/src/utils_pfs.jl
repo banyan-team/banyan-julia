@@ -466,19 +466,20 @@ function getpath(path, comm)
         # TODO: Add option for Internet locations as to whether or not to
         # cache on disk
         hashed_path = string(hash(path))
-        joined_path = "efs/banyan_dataset_" * hashed_path
+        joined_path = "efs/banyan_dataset_" * hashed_path * "_" * string(MPI.COMM_WORLD)
         # @info "Downloading $path to $joined_path"
-        if MPI.Comm_rank(comm) == 0
-            if !isfile(joined_path)
-            # NOTE: Even though we are storing in /tmp, this is
-            # effectively caching the download. If this is undesirable
-            # to a user, a short-term solution is to use a different
-            # URL each time (e.g., add a dummy query to the end of the
-            # URL)
-                Downloads.download(path, joined_path)
-            end
+        comm = MPI.COMM_WORLD
+        # if MPI.Comm_rank(comm) == 0
+        if !isfile(joined_path)
+        # NOTE: Even though we are storing in /tmp, this is
+        # effectively caching the download. If this is undesirable
+        # to a user, a short-term solution is to use a different
+        # URL each time (e.g., add a dummy query to the end of the
+        # URL)
+            Downloads.download(path, joined_path)
         end
-        MPI.Barrier(comm)
+        # end
+        # MPI.Barrier(comm)
         # @show isfile(joined_path)
         joined_path
     elseif startswith(path, "s3://")

@@ -423,13 +423,13 @@ function Base.mapslices(f, A::Array{T,N}; dims) where {T,N}
 
         # replicated
         # TODO: Determine why this MatchOn constraint is not propagating
-        pt(res_size, ReducingWithKey(quote axis -> (a, b) -> Banyan.indexapply(+, a, b, index=axis) end), match=A, on="key")
+        pt(res_size, ReducingWithKey(quote axis -> (a, b) -> if !isnothing(a) && !isnothing(b) Banyan.indexapply(+, a, b, index=axis) else isnothing(a) ? b : a end end), match=A, on="key")
         pt(A, res, res_size, f, dims, Replicated())
     end
 
     @partitioned f A dims res res_size begin
-        res = Base.mapslices(f, A, dims=dims)
-        res_size = Base.size(res)
+        res = isempty(A) ? nothing : Base.mapslices(f, A, dims=dims)
+        res_size = isempty(A) ? nothing : Base.size(res)
     end
 
     res
