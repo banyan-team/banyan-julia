@@ -483,7 +483,7 @@ function getpath(path, comm)
         # @show isfile(joined_path)
         joined_path
     elseif startswith(path, "s3://")
-        replace(path, "s3://" => "/home/ec2-user/s3fs/")
+        replace(path, "s3://" => "/home/ec2-user/s3/")
         # NOTE: We expect that the ParallelCluster instance was set up
         # to have the S3 filesystem mounted at ~/s3fs/<bucket name>
     else
