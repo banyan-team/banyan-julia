@@ -181,7 +181,7 @@ function start_session(;
     response = send_request_get_response(:start_session, session_configuration)
     session_id = response["session_id"]
     resource_id = response["resource_id"]
-    if for_running == false
+    if for_running
         @info "Running session with ID $session_id and $code_files"    
     else
         @info "Starting session with ID $session_id on cluster named \"$cluster_name\""

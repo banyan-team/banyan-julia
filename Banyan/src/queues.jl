@@ -73,7 +73,9 @@ function receive_next_message(queue_name, p=nothing)
             finish!(p)
         end
         tail = endswith(content, "MESSAGE_END") ? 11 : 0
-        println(chop(content, head=14, tail=tail))
+        println("Starting...")
+        print(chop(content, head=14, tail=tail))
+        println("Stopping...")
         response
     elseif startswith(content, "JOB_FAILURE") || startswith(content, "SESSION_FAILURE")
         if !isnothing(p) && !p.done
@@ -85,7 +87,7 @@ function receive_next_message(queue_name, p=nothing)
         # are streamed in multiple parts, due to SQS message limits.
         tail = endswith(content, "MESSAGE_END") ? 11 : 0
         head_len = startswith(content, "JOB_FAILURE") ? 11 : 15
-        println(chop(content, head=head_len, tail=tail))
+        print(chop(content, head=head_len, tail=tail))
         # End session when last part of log is received.
         if endswith(content, "MESSAGE_END")
             # We have to end the session here because we could be receiving
