@@ -5,8 +5,8 @@ using MPI
 # Helper functions #
 ####################
 
-get_worker_idx(comm::MPI.Comm) = MPI.Comm_rank(comm) + 1
-get_nworkers(comm::MPI.Comm) = MPI.Comm_size(comm)
+get_worker_idx(comm::MPI.Comm = MPI.COMM_WORLD) = MPI.Comm_rank(comm) + 1
+get_nworkers(comm::MPI.Comm = MPI.COMM_WORLD) = MPI.Comm_size(comm)
 
 get_partition_idx(batch_idx, nbatches, comm::MPI.Comm) =
     get_partition_idx(batch_idx, nbatches, get_worker_idx(comm))
@@ -57,6 +57,11 @@ split_on_executor(
         src
     end
 end
+
+# Helper functions along with get_worker_idx() and get_nworkers()
+split_across(obj, idx=get_worker_idx(), npartitions=get_nworkers()) = obj[split_len(length(obj), idx, npartitions)]
+sync_across(comm=MPI.COMM_WORLD) = MPI.Barrier(comm)
+reduce_across(func, val; to_worker_idx=1, comm=MPI.COMM_WORLD) = MPI.Reduce(val, func, to_worker_idx-1, comm)
 
 merge_on_executor(obj::Any; key = nothing) = error("Merging $(typeof(obj)) not supported")
 
