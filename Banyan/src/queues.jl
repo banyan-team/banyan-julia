@@ -73,9 +73,7 @@ function receive_next_message(queue_name, p=nothing)
             finish!(p)
         end
         tail = endswith(content, "MESSAGE_END") ? 11 : 0
-        println("Starting...")
         print(chop(content, head=14, tail=tail))
-        println("Stopping...")
         response
     elseif startswith(content, "JOB_FAILURE") || startswith(content, "SESSION_FAILURE")
         if !isnothing(p) && !p.done
