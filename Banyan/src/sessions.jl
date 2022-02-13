@@ -469,7 +469,7 @@ function run_session(;
             nothing
         end
         if !isnothing(session_id)
-            end_session(get_session_id(), failed=true)
+            end_session(get_session_id(), failed=false)
         end    
     end
 end
