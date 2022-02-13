@@ -222,7 +222,7 @@ end
 
 function get_sessions(cluster_name = nothing; status = nothing, kwargs...)
     if isnothing(cluster_name)
-        @debud "Downloading description of all sessions"
+        @debug "Downloading description of all sessions"
     else
         @debug "Downloading description of all sessions in cluster named $cluster_name"
     end
@@ -469,7 +469,7 @@ function run_session(;
             nothing
         end
         if !isnothing(session_id)
-            end_session(get_session_id(), failed=true)
+            end_session(get_session_id(), failed=false)
         end    
     end
 end
