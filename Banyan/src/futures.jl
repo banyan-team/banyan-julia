@@ -15,12 +15,12 @@
 
 Constructs a new future, representing a value that has not yet been computed.
 """
-function Future(;source::Location = None(), mutate_from::Union{<:AbstractFuture,Nothing}=nothing, viewing=false, datatype="Any")
+function Future(;source::Location = None(), parents=[], viewing=false, mutating=false, filtering=false, datatype="Any")
     # Generate new value id
     value_id = generate_value_id()
 
     # Create new Future and assign a location to it
-    new_future = Future(datatype, nothing, value_id, false, true)
+    new_future = Future(datatype, nothing, value_id, false, true, parents, filtered)
     sourced(new_future, source)
     destined(new_future, None())
 
@@ -31,10 +31,13 @@ function Future(;source::Location = None(), mutate_from::Union{<:AbstractFuture,
         new_future.stale = false
     end
     
-    if !isnothing(mutate_from)
+    # Handle mutation, filtering, viewing. Filtering and viewing are used later
+    # on in PT constructors and also in later `viewing`.
+    if mutating
         # Indicate that this future is the result of an in-place mutation of
         # some other value
-        mutated(mutate_from, new_future)
+        length(parents) > 0 || error("Mutated future must have a parent future that it is mutated from")
+        mutated(first(parents), new_future)
     elseif source.src_name == "None"
         # For convenience, if a future is constructed with no location to
         # split from, we assume it will be mutated in the next code region
@@ -46,9 +49,11 @@ function Future(;source::Location = None(), mutate_from::Union{<:AbstractFuture,
         # `partition` or implicitly through `Future` constructors
         mutated(new_future)
     end
-
+    if filtering
+        new_future.filtered_from_parents = true
+    end
     if viewing
-        viewing(new_future)
+        viewed_by(new_future)
     end
 
     new_future

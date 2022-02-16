@@ -2,13 +2,19 @@ mutable struct Future <: AbstractFuture
     datatype::String
     value::Any
     value_id::ValueId
+    total_memory_usage::Union{Integer,Nothing}
     mutated::Bool
     stale::Bool
+    # A non-view future can still have parents and be filtered from them. These
+    # `parents` and whether or not this future is filtered from them helps PT
+    # constructors like `Blocked` and `Grouped`.
+    parents::Vector{Future}
+    filtered_from_parents::Bool
+    # Specified if this is a view
     parent_tasks::Vector#{Task}
-    total_memory_usage::Union{Integer,Nothing}
 
-    function Future(datatype::String, value::Any, value_id::ValueId, mutated::Bool, stale::Bool)
-        new_future = new(datatype, value, value_id, mutated, stale, [], nothing)
+    function Future(datatype::String, value::Any, value_id::ValueId, mutated::Bool, stale::Bool, parents::Vector, filtered_from_parents::Bool)
+        new_future = new(datatype, value, value_id, nothing, mutated, stale, parents, filtered_from_parents, [])
 
         # Create finalizer and register
         finalizer(new_future) do fut

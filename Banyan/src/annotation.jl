@@ -362,9 +362,20 @@ end
 # NOTE: `mutated` should not be used inside of `partitioned_with` or
 # `partitioned_using`
 
-function viewing(f::AbstractFuture)
+function viewed_by(f::AbstractFuture)
     global curr_delayed_task
-    append!(convert(Future, f).parent_tasks, curr_delayed_task)
+    f = convert(Future, f)
+
+    # Mark this current task as a parent that must be run in order to produce
+    # this future
+    push!(f.parent_tasks, curr_delayed_task)
+
+    # Update parents to include grandparents if the parents are also
+    # views (e.g., for functions like Iterators.map)
+    f.parents = vcat([isview(p) ? p.parents : [p] for p in fut.parents]...)
+    
+    # Mark this task as producing a view so that the backend can ensure
+    # the next task is scheduled with this
     curr_delayed_task.isparent = true
 end
 
