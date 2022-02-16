@@ -550,11 +550,11 @@ end
 function record_task_request(task::Task)
     # Recursively record tasks with parents being recorded first. A parent task
     # is a task that produces a view that is used in a later task. The view
-    # has to be produced first before the next task can be run.
-    for fut in values(task.mutation)
+    # has to be produced first before the next task can be run.f
+    for fut in task.input_views
         for task_parent in fut.parent_tasks
             record_task_request(task_parent)
         end
-        record_request(RecordTaskRequest(task))
     end
+    record_request(RecordTaskRequest(task))
 end

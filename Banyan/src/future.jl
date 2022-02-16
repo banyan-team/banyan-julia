@@ -25,4 +25,4 @@ mutable struct Future <: AbstractFuture
     end
 end
 
-isview(f::F) where F <: AbstractFuture = false
+isview(f::AbstractFuture) = length(convert(Future, f).parent_tasks) > 0

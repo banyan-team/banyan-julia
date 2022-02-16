@@ -16,8 +16,9 @@ mutable struct DelayedTask
     partitioned_with_func::Union{Function,Nothing}
     mutation::Dict{Future,Future} # This gets converted to `effects`
     # Fields for estimating memory usage
-    inputs::Vector{Future}
-    outputs::Vector{Future}
+    inputs::Vector{Future} # inputs that are scaled
+    input_views::Vector{Future}
+    outputs::Vector{Future} # outputs that are scaled
     scaled::Vector{Future}
     keep_same_sample_rate::Bool
     memory_usage_constraints::Vector{PartitioningConstraint}
@@ -35,6 +36,7 @@ DelayedTask() = DelayedTask(
     nothing,
     nothing,
     Dict(),
+    [],
     [],
     [],
     [],

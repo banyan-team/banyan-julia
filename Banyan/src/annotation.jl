@@ -647,6 +647,8 @@ macro partitioned(ex...)
                     end
                 end
             elseif !any(fut.value_id == f.value_id for f in task.scaled)
+                # If a future here is not scaled, it is always replicated and
+                # its total memory usage is equal to its sampled memory usage.
                 task.memory_usage[fut.value_id]["final"] = sample(fut, :memory_usage)
             end
         end
@@ -779,6 +781,13 @@ macro partitioned(ex...)
                 record_request(DestroyRequest(fut.value_id))
             end
         end
+
+        # Get all input futures that are views
+        task.input_views = [
+            fut
+            for fut in splatted_futures
+            if task.effects[fut.value_id] != "MUT" && isview(fut)
+        ]
 
         # Record request to record task in backend's dependency graph and reset
         if !task.isparent
