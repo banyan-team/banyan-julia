@@ -9,6 +9,7 @@ Software libraries can be annotated with partition types and subsequent use of t
 - [BanyanDataFrames.jl](https://www.banyancomputing.com/banyan-data-frames-jl-docs) for distributed reading/writing Parquet/CSV/Arrow datasets and selecting, aggregating, and transforming data
 - [BanyanONNXRunTime.jl](https://www.banyancomputing.com/banyan-onnx-run-time-jl-docs) for high-performance ML inference (bring your own PyTorch and TensorFlow models!)
 - BanyanDBInterface.jl (WIP - please contact support@banyancomputing.com) for extracting from and loading to your database
+- [Banyan.jl's Custom Scripting](https://www.banyancomputing.com/custom-scripting) for running single-worker or many-worker Julia scripts with easy access to MPI, parallel HDF5, and Amazon S3 (with the mounted `s3/` directory)
 
 You can effectively be able to use these libraries as drop-in replacements of the standard library Arrays and the DataFrames.jl library. By changing an import statement, you can run your code as is with Banyan scaling to arbitrary data or compute needs and read in
 array/image/table data from S3 or the Internet (e.g., GitHub or public APIs).
