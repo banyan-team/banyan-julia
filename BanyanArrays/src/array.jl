@@ -301,7 +301,7 @@ function pts_for_copying(A, res)
 end
 
 function Base.copy(A::Array{T,N})::Array{T,N} where {T,N}
-    res = Future(datatype="Array")
+    res = Future(datatype="Array", parents=[A])
 
     partitioned_with(scaled=[A, res], keep_same_keys=true) do
         pts_for_copying(A, res)
@@ -315,7 +315,7 @@ function Base.copy(A::Array{T,N})::Array{T,N} where {T,N}
 end
 
 function Base.deepcopy(A::Array{T,N})::Array{T,N} where {T,N}
-    res = Future(datatype="Array")
+    res = Future(datatype="Array", parents=[A])
 
     partitioned_with(scaled=[A, res], keep_same_keys=true) do
         pts_for_copying(A, res)
@@ -364,7 +364,7 @@ function Base.map(f, c::Array{T,N}...; force_parallelism=false) where {T,N}
     end
 
     f = Future(f)
-    res = Future(datatype="Array")    
+    res = Future(datatype="Array", parents=[c...])
 
     partitioned_with(scaled=[res, c...]) do
         # balanced
@@ -406,7 +406,7 @@ function Base.mapslices(f, A::Array{T,N}; dims) where {T,N}
     f = Future(f)
     res_size = Future()
     # TODO: Ensure that this usage of Any is correct here and elsewhere
-    res = Array{Any,Any}(Future(datatype="Array"), res_size)
+    res = Array{Any,Any}(Future(datatype="Array", parents=A), res_size)
     dims = Future(dims)
 
     partitioned_with(scaled=[A, res]) do
@@ -442,7 +442,7 @@ function Base.reduce(op, A::Array{T,N}; dims=:, kwargs...) where {T,N}
 
     op = Future(op)
     res_size = Future()
-    res = dims isa Colon ? Future() : Array{Any,Any}(Future(datatype="Array"), res_size)
+    res = dims isa Colon ? Future(parents=A) : Array{Any,Any}(Future(datatype="Array", parents=A), res_size)
     dims = Future(dims)
     kwargs = Future(kwargs)
 
@@ -497,7 +497,7 @@ function Base.sortslices(A::Array{T,N}, dims; kwargs...) where {T,N}
     sortingdim = dims isa Colon ? 1 : first(dims)
     isreversed = get(kwargs, :rev, false)
 
-    res = Future(datatype="Array")
+    res = Future(datatype="Array", parents=A)
     dims = Future(dims)
     kwargs = Future(kwargs)
 

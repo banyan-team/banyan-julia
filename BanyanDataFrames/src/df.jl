@@ -308,7 +308,7 @@ function DataFrames.dropmissing(df::DataFrame, args...; kwargs...)
     !get(kwargs, :view, false) || throw(ArgumentError("Cannot return view of filtered dataframe"))
 
     res_nrows = Future()
-    res = DataFrame(Future(datatype="DataFrame"), res_nrows)
+    res = DataFrame(Future(datatype="DataFrame", parents=df, filtering=true), res_nrows)
     args = Future(args)
     kwargs = Future(kwargs)
 
@@ -350,7 +350,7 @@ function Base.filter(f, df::DataFrame; kwargs...)
 
     f = Future(f)
     res_nrows = Future()
-    res = DataFrame(Future(datatype="DataFrame"), res_nrows)
+    res = DataFrame(Future(datatype="DataFrame", parents=df, filtering=true), res_nrows)
     kwargs = Future(kwargs)
 
     partitioned_with(scaled=[df, res], keep_same_keys=true, drifted=true, modules="DataFrames") do
@@ -372,7 +372,7 @@ end
 # DataFrame element-wise
 
 function Missings.allowmissing(df::DataFrame)::DataFrame
-    res = Future(datatype="DataFrame")
+    res = Future(datatype="DataFrame", parents=df)
 
     partitioned_with(scaled=[df, res], keep_same_keys=true, modules="DataFrames") do
         pt(df, Distributed(df, scaled_by_same_as=res))
@@ -393,7 +393,7 @@ function Missings.allowmissing(df::DataFrame)::DataFrame
 end
 
 function Missings.disallowmissing(df::DataFrame)::DataFrame
-    res = Future(datatype="DataFrame")
+    res = Future(datatype="DataFrame", parents=df)
 
     partitioned_with(scaled=[df, res], keep_same_keys=true, modules="DataFrames") do
         pt(df, Distributed(df, scaled_by_same_as=res))
@@ -414,7 +414,7 @@ function Missings.disallowmissing(df::DataFrame)::DataFrame
 end
 
 function Base.deepcopy(df::DataFrame)::DataFrame
-    res = Future(datatype="DataFrame")
+    res = Future(datatype="DataFrame", parents=df)
 
     partitioned_with(scaled=[df, res], keep_same_keys=true, modules="DataFrames") do
         pt(df, Distributed(df, scaled_by_same_as=res))
@@ -435,7 +435,7 @@ function Base.deepcopy(df::DataFrame)::DataFrame
 end
 
 function Base.copy(df::DataFrame)::DataFrame
-    res = Future(datatype="DataFrame")
+    res = Future(datatype="DataFrame", parents=df)
 
     partitioned_with(scaled=[df, res], keep_same_keys=true, modules="DataFrames") do
         pt(df, Distributed(df, scaled_by_same_as=res))
@@ -617,9 +617,9 @@ function Base.getindex(df::DataFrame, rows=:, cols=:)
         end
     res =
         if return_vector
-            BanyanArrays.Vector{eltype(sample(df)[!, compute(cols)])}(Future(datatype="Array"), res_size)
+            BanyanArrays.Vector{eltype(sample(df)[!, compute(cols)])}(Future(datatype="Array", parents=df, filtering=filter_rows), res_size)
         else
-            DataFrame(Future(datatype="DataFrame"), res_size)
+            DataFrame(Future(datatype="DataFrame", parents=df, filtering=filter_rows), res_size)
         end
 
     partitioned_with(scaled=[df, res], keep_same_keys=true, drifted=filter_rows, modules="DataFrames") do
@@ -942,7 +942,7 @@ function Base.setindex!(df::DataFrame, v::Union{BanyanArrays.Vector, BanyanArray
 
     # selection = names(sample(df), cols)
 
-    res = Future(datatype="DataFrame", mutate_from=df)
+    res = Future(datatype="DataFrame", parents=df, mutating=true)
     # cols = Future(Symbol.(names(sample(df), cols)))
     cols = Future(cols)
 
@@ -1106,7 +1106,7 @@ end
 # end
 
 function DataFrames.rename(df::DataFrame, args...; kwargs...)
-    res = Future(datatype="DataFrame")
+    res = Future(datatype="DataFrame", parents=df)
     args = Future(args)
     kwargs = Future(kwargs)
 
@@ -1260,7 +1260,7 @@ function Base.sort(df::DataFrame, cols=:; kwargs...)
     #     first(names(sample(df), firstcol)), get(kwargs, :rev, false)
     # end
 
-    res = Future(datatype="DataFrame")
+    res = Future(datatype="DataFrame", parents=df)
     columns = Symbol.(names(sample(df), cols))
     cols = Future(cols)
     kwargs = Future(kwargs)
@@ -1309,7 +1309,7 @@ function DataFrames.innerjoin(dfs::DataFrame...; on, kwargs...)
     groupingkeys = Symbol.(groupingkeys isa Union{Tuple,Pair} ? [groupingkeys...] : Base.fill(groupingkeys, length(dfs)))
 
     res_nrows = Future()
-    res = DataFrame(Future(datatype="DataFrame"), res_nrows)
+    res = DataFrame(Future(datatype="DataFrame", parents=[dfs...], filtering=true), res_nrows)
     on = Future(on)
     kwargs = Future(kwargs)
 
@@ -1338,7 +1338,7 @@ function DataFrames.innerjoin(dfs::DataFrame...; on, kwargs...)
         # unbalanced, ...., unbalanced -> balanced - "partial sort-merge join"
         dfs_with_groupingkeys = [df => groupingkey for (df, groupingkey) in zip(dfs, groupingkeys)]
         for (df, groupingkey) in dfs_with_groupingkeys
-            pt(df, Grouped(df, by=groupingkey, balanced=false, filtered_to=(out=>first(groupingkeys))), match=res, on=["divisions", "rev"])
+            pt(df, Grouped(df, by=groupingkey, balanced=false, filtered_to=(res =>first(groupingkeys))), match=res, on=["divisions", "rev"])
         end
         pt(res, Grouped(res, by=first(groupingkeys), balanced=true, filtered_from=dfs_with_groupingkeys) & Drifted())
 
@@ -1442,7 +1442,7 @@ function DataFrames.unique(df::DataFrame, cols=:; kwargs...)
 
     # TODO: Check all usage of first
     res_nrows = Future()
-    res = DataFrame(Future(datatype="DataFrame"), res_nrows)
+    res = DataFrame(Future(datatype="DataFrame", parents=df, filtering=true), res_nrows)
     columns = Symbol.(names(sample(df), cols))
     cols = Future(cols)
     kwargs = Future(kwargs)
@@ -1501,7 +1501,7 @@ function DataFrames.nonunique(df::DataFrame, cols=:; kwargs...)
 
     df_nrows = df.nrows
     res_size = Future(df.nrows, mutation=tuple)
-    res = BanyanArrays.Vector{Bool}(Future(datatype="Array"), res_size)
+    res = BanyanArrays.Vector{Bool}(Future(datatype="Array", parents=df), res_size)
     columns = Symbol.(names(sample(df), cols))
     cols = Future(cols)
     kwargs = Future(kwargs)

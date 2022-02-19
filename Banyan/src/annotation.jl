@@ -167,6 +167,9 @@ keep_sample_rate(fut::AbstractFuture, relative_to::AbstractFuture...) =
 # Using samples to assign PTs #
 ###############################
 
+isinput(f::Future, curr_delayed_task::DelayedTask) =
+    any((f.value_id == ff.value_id for ff in values(curr_delayed_task.mutation)))
+
 function partitioned_with(
     handler::Function;
     # Memory usage, sampling
@@ -196,7 +199,16 @@ function partitioned_with(
         partitioned_using_modules(modules...)
     end
 
-    scaled = [convert(Future, f) for f in to_vector(scaled)]
+    scaled = []
+    for f in to_vector(scaled)
+        f = convert(Future, f)
+        if isinput(f, curr_delayed_task) && isview(f)
+            # Case where f is an input view
+            push!(scaled, f.parents)
+        else
+            push!(scaled, f)
+        end
+    end
     curr_delayed_task.scaled = scaled
     curr_delayed_task.partitioned_with_func = handler
     curr_delayed_task.keep_same_sample_rate = keep_same_sample_rate
@@ -212,7 +224,7 @@ function partitioned_with(
         # that would have been marked by a call to `mutated` that is made in the
         # `Future` constructor.
         curr_delayed_task = get_task()
-        outputs = [f for f in curr_delayed_task.scaled if any((f.value_id == ff.value_id for ff in values(curr_delayed_task.mutation)))]
+        outputs = [f for f in curr_delayed_task.scaled if isinput(f, curr_delayed_task)]
         inputs = [f for f in curr_delayed_task.scaled if !any((f.value_id == ff.value_id for ff in outputs))]
         grouping_needed = keep_same_keys || !isnothing(keys) || !isnothing(keys_by_future) || renamed
         if grouping_needed
@@ -268,6 +280,12 @@ function partitioned_with(
         curr_delayed_task.inputs = inputs
         curr_delayed_task.outputs = outputs
     end
+end
+
+get_parents(fut::AbstractFuture) = convert(Future, fut).parents
+get_children(fut::AbstractFuture) = begin
+    fut_id = convert(Future, fut).value_id
+    [o for o in get_task().outputs if any((op.value_id == fut_id for op in o.parents))]
 end
 
 function pt(

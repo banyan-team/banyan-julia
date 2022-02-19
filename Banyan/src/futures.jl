@@ -16,11 +16,13 @@
 Constructs a new future, representing a value that has not yet been computed.
 """
 function Future(;source::Location = None(), parents=[], viewing=false, mutating=false, filtering=false, datatype="Any")
+    parents = to_vector(parents)
+
     # Generate new value id
     value_id = generate_value_id()
 
     # Create new Future and assign a location to it
-    new_future = Future(datatype, nothing, value_id, false, true, parents, filtered)
+    new_future = Future(datatype, nothing, value_id, false, true, [convert(Future, p) for p in parents], filtered)
     sourced(new_future, source)
     destined(new_future, None())
 
@@ -49,10 +51,12 @@ function Future(;source::Location = None(), parents=[], viewing=false, mutating=
         # `partition` or implicitly through `Future` constructors
         mutated(new_future)
     end
-    if filtering
+    if filtering || any((isview(p) && p.filtered_from_parents for p in new_future.parents))
         new_future.filtered_from_parents = true
     end
     if viewing
+        # `viewed_by` will update the parents to be grandparents for any
+        # parents that are simply views
         viewed_by(new_future)
     end
 
@@ -86,7 +90,7 @@ mutated. This is because presumably in the case that we _can't_ copy over the
 given future, we would want to assign to it in the upcoming code region where
 it's going to be used.
 """
-function Future(fut::AbstractFuture; mutation::Function=identity)
+function Future(fut::AbstractFuture; mutation::Function=identity, filtering=false)
     fut = convert(Future, fut)
     if !fut.stale
         # Copy over value
@@ -97,7 +101,9 @@ function Future(fut::AbstractFuture; mutation::Function=identity)
             # If the future is not stale, it is not mutated in a way where
             # a further `compute` is needed. So we can just copy its value.
             false,
-            false
+            false,
+            [fut],
+            filtering
         )
 
         # Copy over location
@@ -105,7 +111,7 @@ function Future(fut::AbstractFuture; mutation::Function=identity)
 
         new_future
     else
-        Future(datatype=fut.datatype)
+        Future(datatype=fut.datatype, parents=[fut], filtering=filtering)
     end
 end
 
