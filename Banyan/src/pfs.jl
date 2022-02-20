@@ -428,6 +428,16 @@ end
 
 ReduceWithKeyAndCopyToJulia = ReduceAndCopyToJulia
 
+Divide(
+    src::AbstractRange,
+    params::Dict{String,Any},
+    batch_idx::Integer,
+    nbatches::Integer,
+    comm::MPI.Comm,
+    loc_name::String,
+    loc_params::Dict{String,Any},
+) = src[split_len(length(src), batch_idx, nbatches, comm)]
+
 function Divide(
     src::Tuple,
     params::Dict{String,Any},
@@ -437,6 +447,7 @@ function Divide(
     loc_name::String,
     loc_params::Dict{String,Any},
 )
+    # This is for sizes which are tuples.
     dim = params["key"]
     part = src
     # part = CopyFrom(src, params, batch_idx, nbatches, comm, loc_name, loc_params)

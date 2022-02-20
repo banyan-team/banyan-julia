@@ -251,8 +251,12 @@ function fill(v, dims::NTuple{N,Integer}) where {N}
     partitioned_with(scaled=A) do
         # blocked
         # TODO: Ensure that we are properly creating new PAs
-        pt(A, Blocked(A))
-        pt(fillingdims, Divided(), match=A, on="key")
+        # We have to create the array in a balanced manner or we have
+        # to TODO make some way for PFs for separate futures to
+        # communicate with each other and determine how one is grouping
+        # so that they both can group
+        pt(A, Blocked(A, balanced=true))
+        pt(fillingdims, Divided())
 
         # replicated
         pt(A, fillingdims, v, Replicated())
@@ -272,6 +276,26 @@ function fill(v, dims::NTuple{N,Integer}) where {N}
 end
 
 fill(v, dims::Integer...) = fill(v, Tuple(dims))
+
+function collect(r::AbstractRange)
+    # Create output futures
+    r = Future(r)
+    A = Future(A)
+
+    # Define how the data can be partitioned (mentally taking into account
+    # data imbalance and grouping)
+    partitioned_with(scaled=A) do
+        pt(A, Blocked(A, balanced=true))
+        pt(r, Divided())
+        pt(A, r, Replicated())
+    end
+
+    # Offload the partitioned computation
+    @partitioned r A begin A = Base.collect(r) end
+
+    # Return a Banyan vector as the result
+    Vector{eltype(r)}(A, Future((length(r),)))
+end
 
 zeros(::Type{T}, args...; kwargs...) where {T} = fill(zero(T), args...; kwargs...)
 zeros(args...; kwargs...) where {T} = zeros(Float64, args...; kwargs...)
@@ -337,6 +361,8 @@ function Base.map(f, c::Array{T,N}...; force_parallelism=false) where {T,N}
     # keep_all_sample_keys(res, fut)
 
     # TODO: Determine whether array operations need to use mutated_from or mutated_to
+    # TODO: Instead just make the Array constructor have a code region using
+    # the data in a replicated way.
 
     if force_parallelism
         # If we are forcing parallelism, we have an empty code region to
