@@ -280,7 +280,7 @@ fill(v, dims::Integer...) = fill(v, Tuple(dims))
 function collect(r::AbstractRange)
     # Create output futures
     r = Future(r)
-    A = Future(A)
+    A = Future(datatype="Array")
 
     # Define how the data can be partitioned (mentally taking into account
     # data imbalance and grouping)
@@ -294,7 +294,7 @@ function collect(r::AbstractRange)
     @partitioned r A begin A = Base.collect(r) end
 
     # Return a Banyan vector as the result
-    Vector{eltype(r)}(A, Future((length(r),)))
+    Vector{eltype(compute(r))}(A, Future((length(compute(r)),)))
 end
 
 zeros(::Type{T}, args...; kwargs...) where {T} = fill(zero(T), args...; kwargs...)
@@ -354,7 +354,7 @@ end
 
 # Array operations
 
-function Base.map(f, c::Array{T,N}...; force_parallelism=false) where {T,N}
+function Base.map(f, c::Array{<:Any,N}...; force_parallelism=false) where {T,N}
     # We shouldn't need to keep sample keys since we are only allowing data
     # to be blocked for now. The sample rate is kept because it might be
     # smaller if this is a column of the result of a join operation.
@@ -439,13 +439,15 @@ function Base.mapslices(f, A::Array{T,N}; dims) where {T,N}
         # Blocked PTs along dimensions _not_ being mapped along
         bpt = [bpt for bpt in Blocked(A) if !(compute(dims) isa Colon) && !(bpt.key in [compute(dims)...])]
 
-        # balanced
-        pt(A, bpt & Balanced())
-        pt(res, Blocked() & Balanced(), match=A, on="key")
+        if !isempty(bpt)
+            # balanced
+            pt(A, bpt & Balanced())
+            pt(res, Blocked() & Balanced(), match=A, on="key")
 
-        # unbalanced
-        pt(A, bpt & Unbalanced(scaled_by_same_as=res))
-        pt(res, Unbalanced(scaled_by_same_as=A), match=A)
+            # unbalanced
+            pt(A, bpt & Unbalanced(scaled_by_same_as=res))
+            pt(res, Unbalanced(scaled_by_same_as=A), match=A)
+        end
 
         # replicated
         # TODO: Determine why this MatchOn constraint is not propagating
@@ -454,11 +456,108 @@ function Base.mapslices(f, A::Array{T,N}; dims) where {T,N}
     end
 
     @partitioned f A dims res res_size begin
+        # We return nothing because `mapslices` doesn't work properly for
+        # empty data
         res = isempty(A) ? nothing : Base.mapslices(f, A, dims=dims)
         res_size = isempty(A) ? nothing : Base.size(res)
     end
 
     res
+end
+
+# function getindex_size(A_s, indices...)
+#     if length(indices) == 1
+#         # Linear-indexing case
+#         if indices[1] isa Colon
+#             prod(A_s)
+#         elseif indices[1] isa Vector
+#             length(indices[1])
+#         else
+#             # Accessing a single element
+#             1
+#         end
+#     else
+#         # Multi-dimensional indexing case
+#         if all((i isa Integer for i in indices))
+#             # Accessing a single element
+#             1
+#         else
+#             tuple(
+#                 [
+#                     if indices[i] isa Colon
+#                         s
+#                     else 
+#                         length(indices[i])
+#                     end
+#                     for (i, s) in enumerate(A_s)
+#                     if indices[i] isa Colon || indices[i] isa Vector
+#                 ]
+#             )
+#         end
+#     end
+# end
+
+function Base.getindex(A::Array{T,N}, indices...) where {T,N}
+    # If we are doing linear indexing, then the data can only be split on the
+    # last dimension because of the column-major ordering
+    all((i isa Colon || i isa Integer || i isa Vector for i in indices)) || error("Expected indices to be either integers, vectors of integers, or colons")
+    allowed_splitting_dims = if length(indices) == 1 && indices[1] isa Colon
+        [ndims(A)]
+    elseif length(indices) == ndims(A)
+        [i for i in 1:ndims(A) if indices[i] isa Colon]
+    else
+        []
+    end
+
+    indices = Future(indices)
+    # A_size = A.size
+    # res_size = Future(A_size, mutation=A_s->getindex_size(A_s, indices...))
+    res_size = Future()
+    res = Future(datatype="Array")
+
+    partitioned_with(scaled=[A, res]) do 
+        # Blocked PTs along dimensions _not_ being mapped along
+        bpt = [bpt for bpt in Blocked(A) if bpt.key in allowed_splitting_dims]
+
+        if !isempty(bpt)
+            # balanced
+            pt(A, bpt & Balanced())
+            pt(res, Blocked() & Balanced(), match=A, on="key")
+
+            # unbalanced
+            pt(A, bpt & Unbalanced(scaled_by_same_as=res))
+            pt(res, Unbalanced(scaled_by_same_as=A), match=A)
+
+            # # Keep the same kind of size
+            # pt(A_size, Replicating())
+            # pt(res_size, PartitionType(), match=A_size)
+            # TODO: See if `quote` is no longer needed
+            pt(res_size, ReducingWithKey(quote axis -> (a, b) -> if !isnothing(a) && !isnothing(b) Banyan.indexapply(+, a, b, index=axis) else isnothing(a) ? b : a end end), match=A, on="key")
+        end
+
+        pt(A, res, res_size, indices, Replicated())
+    end
+
+    # TODO: Add back in A_size and try to use it with mutation= in the `Future`
+    # constructor to avoid having to do a reduction to compute size
+    @partitioned A indices res res_size begin
+        res = Base.getindex(A, indices...)
+        # res_size = BanyanArrays.getindex_size(A_size, indices...)
+        if res isa AbstractArray
+            res_size = size(res)
+        end
+        @show res_size
+        @show typeof(res)
+        @show typeof(res_size)
+        @show typeof(indices)
+        @show indices
+    end
+
+    if sample(res) isa AbstractArray
+        Array{eltype(sample(res)),ndims(sample(res))}(res, res_size)
+    else
+        res
+    end
 end
 
 # TODO: Implement reduce and sortslices
@@ -507,7 +606,7 @@ function Base.reduce(op, A::Array{T,N}; dims=:, kwargs...) where {T,N}
             # @show dims # TODO: Figure out why dims is sometimes a function
         end
         res = Base.reduce(op, A; dims=dims, kwargs...)
-        if res isa Base.Array
+        if res isa AbstractArray
             res_size = Base.size(res)
         end
     end

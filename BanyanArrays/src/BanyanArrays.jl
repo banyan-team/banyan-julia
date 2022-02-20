@@ -34,7 +34,9 @@ export ReadBlockJuliaArray,
     SplitGroup,
     Rebalance,
     Consolidate,
-    Shuffle
+    Shuffle,
+    collect,
+    getindex
 
 export RemoteTableSource, RemoteTableDestination
 

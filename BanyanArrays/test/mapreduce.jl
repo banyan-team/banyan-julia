@@ -260,6 +260,7 @@ end
 
         x = BanyanArrays.fill(1.0, (1000, 100))
         x_vecs = mapslices(v -> [v], x, dims=2)[:, 1]
+        bc = BanyanArrays.collect(1:1000)
         res = map(x_vecs, BanyanArrays.collect(1:1000)) do x_vec, i
             length(x_vec) + i
         end

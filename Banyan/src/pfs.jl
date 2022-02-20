@@ -404,6 +404,8 @@ function ReduceAndCopyToJulia(
     # TODO: Ensure that we handle reductions that can produce nothing
     src = reduce_in_memory(src, part, op)
 
+    println("In ReduceAndCopyToJulia with src=$src and part=$part and batch_idx=$batch_idx and nbatches=$nbatches and loc_name=$loc_name")
+
     # Merge reductions across workers
     if batch_idx == nbatches
         src = Reduce(src, params, Dict{String,Any}(), comm)
@@ -526,6 +528,7 @@ function Reduce(
     # sendbuf and where sendbuf is not isbitstype
 
     # Perform reduction
+    println("In Reduce before Allreduce with part=$part and src=$src on get_worker_idx(comm)=$(get_worker_idx(comm))")
     part = MPI.Allreduce(
         part,
         # sendbuf,
@@ -536,6 +539,7 @@ function Reduce(
         op,
         comm,
     )
+    println("In Reduce after Allreduce with part=$part and src=$src on get_worker_idx(comm)=$(get_worker_idx(comm))")
     part
 end
 
