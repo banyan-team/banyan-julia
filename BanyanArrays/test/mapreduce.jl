@@ -251,6 +251,23 @@ end
     end
 end
 
+@testset "getindex and collect with $scheduling_config" for scheduling_config in [
+    "default scheduling",
+    "parallelism encouraged",
+    "parallelism and batches encouraged",
+]
+    use_session_for_testing(scheduling_config_name = scheduling_config) do
+
+        x = BanyanArrays.fill(1.0, (1000, 100))
+        x_vecs = mapslices(v -> [v], x, dims=2)[:, 1]
+        res = map(x_vecs, BanyanArrays.collect(1:1000)) do x_vec, i
+            length(x_vec) + i
+        end
+        res_sum_compute = compute(sum(res))
+        @test res_sum_compute == sum((1.0 * 100 + i for i in 1:1000))
+    end
+end
+
 # TODO: Re-enable this test once we ensure that we can write out small
 # enough datasets without unnecessary batching
 # @testset "String arrays with $scheduling_config" for scheduling_config in [
