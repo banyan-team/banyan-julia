@@ -354,7 +354,7 @@ CopyFromParquet(src, params, batch_idx, nbatches, comm, loc_name, loc_params) = 
     ReadBlockParquet(src, params, 1, 1, MPI.COMM_SELF, loc_name, loc_params)
 end
 
-CopyToCSV(
+function CopyToCSV(
     src,
     part,
     params,
@@ -363,12 +363,17 @@ CopyToCSV(
     comm::MPI.Comm,
     loc_name,
     loc_params,
-) = if Banyan.get_partition_idx(batch_idx, nbatches, comm) == 1
-    params["key"] = 1
-    WriteCSV(src, part, params, 1, 1, MPI.COMM_SELF, loc_name, loc_params)
+)
+    if Banyan.get_partition_idx(batch_idx, nbatches, comm) == 1
+        params["key"] = 1
+        WriteCSV(src, part, params, 1, 1, MPI.COMM_SELF, loc_name, loc_params)
+    end
+    if get_worker_idx(comm) == 1
+        MPI.Barrier(comm)
+    end
 end
 
-CopyToParquet(
+function CopyToParquet(
     src,
     part,
     params,
@@ -377,12 +382,17 @@ CopyToParquet(
     comm::MPI.Comm,
     loc_name,
     loc_params,
-) = if Banyan.get_partition_idx(batch_idx, nbatches, comm) == 1
-    params["key"] = 1
-    WriteParquet(src, part, params, 1, 1, MPI.COMM_SELF, loc_name, loc_params)
+)
+    if Banyan.get_partition_idx(batch_idx, nbatches, comm) == 1
+        params["key"] = 1
+        WriteParquet(src, part, params, 1, 1, MPI.COMM_SELF, loc_name, loc_params)
+    end
+    if get_worker_idx(comm) == 1
+        MPI.Barrier(comm)
+    end
 end
 
-CopyToArrow(
+function CopyToArrow(
     src,
     part,
     params,
@@ -391,9 +401,14 @@ CopyToArrow(
     comm::MPI.Comm,
     loc_name,
     loc_params,
-) = if Banyan.get_partition_idx(batch_idx, nbatches, comm) == 1
-    params["key"] = 1
-    WriteArrow(src, part, params, 1, 1, MPI.COMM_SELF, loc_name, loc_params)
+)
+    if Banyan.get_partition_idx(batch_idx, nbatches, comm) == 1
+        params["key"] = 1
+        WriteArrow(src, part, params, 1, 1, MPI.COMM_SELF, loc_name, loc_params)
+    end
+    if get_worker_idx(comm) == 1
+        MPI.Barrier(comm)
+    end
 end
 
 function Banyan.SplitBlock(

@@ -346,7 +346,7 @@ CopyToClient(
     send_to_client(loc_params["value_id"], part)
 end
 
-CopyToJulia(
+function CopyToJulia(
     src,
     part,
     params,
@@ -355,14 +355,19 @@ CopyToJulia(
     comm::MPI.Comm,
     loc_name,
     loc_params,
-) = if get_partition_idx(batch_idx, nbatches, comm) == 1
-    # # This must be on disk; we don't support Julia serialized objects
-    # # as a remote location yet. We will need to first refactor locations
-    # # before we add support for that.
-    # if isa_gdf(part)
-    #     part = nothing
-    # end
-    serialize(getpath(loc_params["path"], comm), part)
+)
+    if get_partition_idx(batch_idx, nbatches, comm) == 1
+        # # This must be on disk; we don't support Julia serialized objects
+        # # as a remote location yet. We will need to first refactor locations
+        # # before we add support for that.
+        # if isa_gdf(part)
+        #     part = nothing
+        # end
+        serialize(getpath(loc_params["path"], comm), part)
+    end
+    if get_worker_idx(comm) == 1
+        MPI.Barrier(comm)
+    end
 end
 
 function get_op!(params::Dict{String,Any})
