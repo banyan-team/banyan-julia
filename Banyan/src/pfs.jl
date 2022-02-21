@@ -539,7 +539,7 @@ function Reduce(
         op,
         comm,
     )
-    println("In Reduce after Allreduce with part=$part and src=$src on get_worker_idx(comm)=$(get_worker_idx(comm)) with src_params=$src_params")
+    println("In Reduce after Allreduce with part=$part on get_worker_idx(comm)=$(get_worker_idx(comm)) with src_params=$src_params")
     part
 end
 
