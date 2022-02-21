@@ -68,8 +68,8 @@ end
             # NOTE: This also tests simple writing to and reading from local disk
             x = BanyanArrays.fill(10.0, 2048)
             # x = map(e -> e / 10, x)
-            write_to_disk(x)
-            # write_to_disk(x)
+            compute_inplace(x)
+            # compute_inplace(x)
             sleep(15)
             # NOTE: The only reason why we're not putting `collect(x)` inside the
             # the `@test` is because `@test` will catch exceptions and prevent the
@@ -91,15 +91,15 @@ end
         # NOTE: This also tests simple writing to and reading from local disk
         x = BanyanArrays.fill(10.0, 2048)
         x = map(e -> e / 10, x)
-        write_to_disk(x)
-        write_to_disk(x)
+        compute_inplace(x)
+        compute_inplace(x)
         # NOTE: The only reason why we're not putting `collect(x)` inside the
         # the `@test` is because `@test` will catch exceptions and prevent the
         # session from getting destroyed when an exception occurs and we can't keep
         # running this test if the session ends
         x_collect = compute(x)
         @test x_collect == Base.fill(1.0, 2048)
-        write_to_disk(x)
+        compute_inplace(x)
         x_collect = compute(x)
         @test x_collect == Base.fill(1.0, 2048)
         x_collect = compute(x)
@@ -117,11 +117,11 @@ end
         x = BanyanArrays.fill(10.0, 2048)
         x_sum = reduce(+, x)
         x = map(e -> e / 10, x)
-        write_to_disk(x)
-        write_to_disk(x_sum)
+        compute_inplace(x)
+        compute_inplace(x_sum)
         x_sum_collect = compute(x_sum)
         @test x_sum_collect == 10.0 * 2048
-        write_to_disk(x_sum)
+        compute_inplace(x_sum)
         x_collect = compute(x)
         @test x_collect == Base.fill(1.0, 2048)
         compute(x_sum)
@@ -266,6 +266,47 @@ end
         end
         res_sum_compute = compute(sum(res))
         @test res_sum_compute == sum((1.0 * 100 + i for i in 1:1000))
+
+        x = BanyanArrays.fill(1.0, (1000, 100))
+        x_vecs = mapslices(v -> [v], x, dims=2)[:]
+        bc = BanyanArrays.collect(1:length(x_vecs))
+        res = map(x_vecs, BanyanArrays.collect(1:1000)) do x_vec, i
+            length(x_vec) + i
+        end
+        res_sum_compute = compute(sum(res))
+        @test res_sum_compute == sum((1.0 * 100 + i for i in 1:1000))
+
+        x = BanyanArrays.fill(1.0, (1000, 100))
+        x_vecs = mapslices(v -> [v], x, dims=2)[:]
+        bc = BanyanArrays.collect(1:length(x_vecs))
+        res = map(x_vecs, BanyanArrays.collect(1:1000)) do x_vec, i
+            length(x_vec) + i
+        end
+        compute_inplace(res)
+        res_sum_compute = compute(sum(res))
+        @test res_sum_compute == sum((1.0 * 100 + i for i in 1:1000))
+
+        x = BanyanArrays.fill(1.0, (10, 100))
+        x_vecs = mapslices(v -> [v], x, dims=2)[:]
+        bc = BanyanArrays.collect(1:length(x_vecs))
+        offloaded() do 
+            bucket = readdir("s3")[1]
+            mkpath("s3/$bucket/test_getindex_and_collect/")
+        end
+        res = map(x_vecs, BanyanArrays.collect(1:1000)) do x_vec, i
+            if isdir("s3")
+                bucket = readdir("s3")[1]
+                write("s3/$bucket/test_getindex_and_collect/part$i.txt", string(x_vec))
+            end
+            0
+        end
+        compute_inplace(res)
+        part1_str = read(S3Path("s3://$(get_cluster_s3_bucket_name())/test_getindex_and_collect/part1.txt", config=Banyan.get_aws_config()), String)
+        offloaded() do 
+            bucket = readdir("s3")[1]
+            rm("s3/$bucket/test_getindex_and_collect/", recursive=true)
+        end
+        @test part1_str == string(Base.fill(1.0, 100))
     end
 end
 
@@ -287,7 +328,7 @@ end
 
 #     # TODO: Support writing string arrays for this to work
 #     # This is unnecessary but will cache `res` on disk
-#     # write_to_disk(res)
+#     # compute_inplace(res)
 #     # res_collect = collect(res)
 #     # @test res_collect == BanyanArrays.fill("hello\nhello\nworld\n", 2048)
 

@@ -289,9 +289,9 @@ function partitioned_computation(handler, fut::AbstractFuture; destination, new_
                     # the schedule to determine whether it is possible for the
                     # data to fit in memory, we can't be sure that it will be
                     # in memory. So this data should have first been written to
-                    # disk with `write_to_disk` and then only written to this
+                    # disk with `compute_inplace` and then only written to this
                     # unreadable location.
-                    @warn "Value with ID $(fut.value_id) has been written to a location that cannot be used as a source and it is not on disk. Please do not attempt to use this value again. If you wish to use it again, please write it to disk with `write_to_disk` before writing it to a location."
+                    @warn "Value with ID $(fut.value_id) has been written to a location that cannot be used as a source and it is not on disk. Please do not attempt to use this value again. If you wish to use it again, please write it to disk with `compute_inplace` before writing it to a location."
                 end
                 sourced(fut, destination)
             end
@@ -445,7 +445,7 @@ function compute(fut::AbstractFuture)
     fut.value
 end
 
-function write_to_disk(fut::AbstractFuture)
+function compute_inplace(fut::AbstractFuture)
     fut = convert(Future, fut)
 
     partitioned_computation(fut, destination=Disk()) do

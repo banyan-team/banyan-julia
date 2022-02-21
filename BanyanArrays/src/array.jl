@@ -218,7 +218,7 @@ function write_hdf5(A, path; invalidate_source=true, invalidate_sample=true, kwa
     end
 end
 
-function Banyan.write_to_disk(A::Array{T,N}) where {T,N}
+function Banyan.compute_inplace(A::Array{T,N}) where {T,N}
     partitioned_computation(A, destination=Disk()) do
         pt(A, Blocked(A) | Replicated())
     end

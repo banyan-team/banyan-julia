@@ -522,7 +522,7 @@
 #         # and compute number of rows. Sort by number of rows.
 #         iris = innerjoin(iris, iris[:, [:species]], on = :species)
 #         iris[:, :sepal_length_function] = map(sl -> round(sl), iris[:, :sepal_length])
-#         iris_sepal_length_groups = write_to_disk(
+#         iris_sepal_length_groups = compute_inplace(
 #             sort(
 #                 combine(
 #                     groupby(
