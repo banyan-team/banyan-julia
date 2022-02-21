@@ -78,6 +78,7 @@ function start_session(;
     configure(; kwargs...)
     # Construct parameters for starting session
     cluster_name = if isnothing(cluster_name)
+        # running_clusters is dictionary
         running_clusters = get_running_clusters()
         if length(running_clusters) == 0
             error("Failed to start session: you don't have any clusters created")
@@ -87,7 +88,7 @@ function start_session(;
         cluster_name
     end
 
-    julia_version = get_julia_version()
+    version = get_julia_version()
 
     session_configuration = Dict{String,Any}(
         "cluster_name" => cluster_name,
@@ -97,12 +98,13 @@ function start_session(;
         "store_logs_in_s3" => store_logs_in_s3,
         "store_logs_on_cluster" => store_logs_on_cluster,
         "log_initialization" => log_initialization,
-        "julia_version" => julia_version,
+        "version" => version,
         "benchmark" => get(ENV, "BANYAN_BENCHMARK", "0") == "1",
         "main_modules" => get_loaded_packages(),
         "using_modules" => using_modules,
         "reuse_resources" => !force_update_files,
-        "estimate_available_memory" => estimate_available_memory
+        "estimate_available_memory" => estimate_available_memory,
+        "language" => "jl"
     )
     if !isnothing(session_name)
         session_configuration["session_name"] = session_name
@@ -112,6 +114,7 @@ function start_session(;
     end
     s3_bucket_name = get_cluster_s3_bucket_name(cluster_name)
 
+    # TODO: Construct this dictionary
     environment_info = Dict{String,Any}()
     # If a url is not provided, then use the local environment
     if isnothing(url)
@@ -137,6 +140,7 @@ function start_session(;
                 s3_put(get_aws_config(), s3_bucket_name, "$(environment_hash)/Manifest.toml", manifest_toml)
             end
         end
+    # TODO: Else case is the same
     else
         # Otherwise, use url and optionally a particular branch
         environment_info["url"] = url
@@ -165,6 +169,7 @@ function start_session(;
         end
     end
     # TODO: Optimize so that we only upload (and download onto cluster) the files if the filename doesn't already exist
+    # Example of f might be "C:/Users/Melany Winston/.../src/clusters.py" --> "cluster.py" extracting out cluster.py
     session_configuration["files"] = [basename(f) for f in files]
     session_configuration["code_files"] = [basename(f) for f in code_files]
 
@@ -177,6 +182,7 @@ function start_session(;
     end
     pf_dispatch_table_loaded = load_toml(pf_dispatch_table)
     session_configuration["pf_dispatch_table"] = pf_dispatch_table_loaded
+    session_configuration["language"] = "jl" 
 
     # Start the session
     @debug "Sending request for session start"
@@ -470,7 +476,7 @@ function run_session(;
                     directory = directory, dev_paths = dev_paths, force_sync = force_sync, force_pull = force_pull, force_install = force_install, 
                     estimate_available_memory = estimate_available_memory, nowait = false, email_when_ready = email_when_ready, for_running = true)
     catch
-        session_id = try
+        try
             get_session_id()
         catch
             nothing
