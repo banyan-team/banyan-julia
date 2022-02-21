@@ -301,7 +301,7 @@ function CopyToJuliaArray(
         params["key"] = 1
         res = WriteJuliaArray(src, part, params, 1, 1, MPI.COMM_SELF, loc_name, loc_params)
     end
-    if Banyan.get_worker_idx(comm)
+    if get_worker_idx(comm) == 1
         MPI.Barrier(comm)
     end
 end
@@ -756,7 +756,7 @@ function CopyToHDF5(
         params["key"] = 1
         WriteHDF5(src, part, params, 1, 1, MPI.COMM_SELF, loc_name, loc_params)
     end
-    if Banyan.get_worker_idx(comm) == 1
+    if get_worker_idx(comm) == 1
         MPI.Barrier(comm)
     end
 end
