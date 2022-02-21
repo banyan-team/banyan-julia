@@ -546,11 +546,6 @@ function Base.getindex(A::Array{T,N}, indices...) where {T,N}
         if res isa AbstractArray
             res_size = size(res)
         end
-        @show res_size
-        @show typeof(res)
-        @show typeof(res_size)
-        @show typeof(indices)
-        @show indices
     end
 
     if sample(res) isa AbstractArray
