@@ -368,7 +368,7 @@ function CopyToCSV(
         params["key"] = 1
         WriteCSV(src, part, params, 1, 1, MPI.COMM_SELF, loc_name, loc_params)
     end
-    if get_worker_idx(comm) == 1
+    if batch_idx == 1
         MPI.Barrier(comm)
     end
 end
@@ -387,7 +387,7 @@ function CopyToParquet(
         params["key"] = 1
         WriteParquet(src, part, params, 1, 1, MPI.COMM_SELF, loc_name, loc_params)
     end
-    if get_worker_idx(comm) == 1
+    if batch_idx == 1
         MPI.Barrier(comm)
     end
 end
@@ -406,7 +406,7 @@ function CopyToArrow(
         params["key"] = 1
         WriteArrow(src, part, params, 1, 1, MPI.COMM_SELF, loc_name, loc_params)
     end
-    if get_worker_idx(comm) == 1
+    if batch_idx == 1
         MPI.Barrier(comm)
     end
 end

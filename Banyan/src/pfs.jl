@@ -365,7 +365,7 @@ function CopyToJulia(
         # end
         serialize(getpath(loc_params["path"], comm), part)
     end
-    if get_worker_idx(comm) == 1
+    if batch_idx == 1
         MPI.Barrier(comm)
     end
 end
