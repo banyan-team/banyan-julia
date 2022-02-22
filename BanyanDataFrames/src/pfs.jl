@@ -621,7 +621,7 @@ function Banyan.Consolidate(part::AbstractDataFrame, src_params::Dict{String,Any
         ) |> IOBuffer |> Arrow.Table |> DataFrames.DataFrame
         for i in 1:Banyan.get_nworkers(comm)
     ]
-    if investigating()[:losing_data]
+    if isinvestigating()[:losing_data]
         @show length(results)
         @show nrow.(results)
     end
