@@ -184,7 +184,7 @@ function start_session(;
     session_id = response["session_id"]
     resource_id = response["resource_id"]
     if for_running
-        @info "Running session with ID $session_id and $code_files"    
+        @info "Running session with ID $session_id and $code_files"
     else
         @info "Starting session with ID $session_id on cluster named \"$cluster_name\""
     end
@@ -420,7 +420,6 @@ function run_session(;
     estimate_available_memory::Union{Bool,Nothing} = true,
     email_when_ready::Union{Bool,Nothing}=nothing,
     kwargs...,)::SessionId
-
 
     # cluster_name::Union{String,Nothing} = nothing,
     # nworkers::Union{Integer,Nothing} = 16,

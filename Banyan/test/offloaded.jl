@@ -6,21 +6,35 @@
 @testset "Offload Function" begin
     # cluster_name = ENV["BANYAN_CLUSTER_NAME"]
     use_session_for_testing() do
+        @show get_session().worker_memory_used
+
         res = offloaded() do
             return -1
         end
+        @show get_session().worker_memory_used
 
         res2 = offloaded(()->-1)
+        @show get_session().worker_memory_used
 
         # @test res == -1
         @test res2 == -1
 
         res3 = offloaded(x -> x* 10, 5)
         @test res3 == 50
+        @show get_session().worker_memory_used
 
         res4 = offloaded(5, 100) do a, b
             a + b
         end
         @test res4 == 105
+        @show get_session().worker_memory_used
+
+
+
+        offloaded() do
+            x = ones(800000000)
+            return 0
+        end
+        @show get_session().worker_memory_used
     end
 end

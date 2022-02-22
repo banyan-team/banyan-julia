@@ -131,14 +131,15 @@ function send_message(queue_name, message)
     )
 end
 
-function send_to_client(value_id, value)
+function send_to_client(value_id, value, worker_memory_used = 0)
     send_message(
         get_gather_queue(),
         JSON.json(
             Dict(
                 "kind" => "GATHER",
                 "value_id" => value_id,
-                "contents" => to_jl_value_contents(value)
+                "contents" => to_jl_value_contents(value),
+                "worker_memory_used" => worker_memory_used
             )
         )
     )
