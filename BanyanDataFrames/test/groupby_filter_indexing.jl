@@ -535,8 +535,8 @@ end
             # Test size after filtering single-row dataset
             if isinvestigating()[:size_exaggurated_tests]
                 CSV.write("test_res_filtered_single.csv", sample(filtered_single))
-                filtered_single_sub = subset(groupby(filtered_single, :species), :petal_length => pl -> pl .>= mean(pl))
             end
+            filtered_single_sub = subset(groupby(filtered_single, :species), :petal_length => pl -> pl .>= mean(pl))
             filtered_single_sub_size = size(filtered_single_sub)
             @test filtered_single_sub_size == (1, 5)
             

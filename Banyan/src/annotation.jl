@@ -377,7 +377,7 @@ end
 # Macro for wrapping the code region to offload #
 #################################################
 
-function apply_mutation(mutation::Dict{Future,Future})
+function apply_mutation(mutation#==::Dict{Future,Future}==#)
     for (old, new) in mutation
         if old != new
             # Apply the mutation by setting the value ID of the old future the
@@ -433,7 +433,7 @@ function apply_mutation(mutation::Dict{Future,Future})
     end
 end
 
-invert(mutation::Dict{Future,Future}) = Dict(new => old for (old, new) in mutation)
+invert(mutation#==::Dict{Future,Future}==#) = Dict(new => old for (old, new) in mutation)
 
 function partitioned_using_modules(m...)
     global curr_delayed_task

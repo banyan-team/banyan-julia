@@ -290,7 +290,10 @@ CopyFromValue(
     comm::MPI.Comm,
     loc_name,
     loc_params,
-) = loc_params["value"]
+) = begin
+    println("In CopyFromValue")
+    loc_params["value"]
+end
 
 CopyFromClient(
     src,
