@@ -46,6 +46,7 @@ function start_session(;
     print_logs::Union{Bool,Nothing} = false,
     store_logs_in_s3::Union{Bool,Nothing} = true,
     store_logs_on_cluster::Union{Bool,Nothing} = false,
+    log_initialization::Union{Bool,Nothing} = false,
     sample_rate::Union{Integer,Nothing} = nworkers,
     session_name::Union{String,Nothing} = nothing,
     files::Union{Vector,Nothing} = [],
@@ -95,6 +96,7 @@ function start_session(;
         "return_logs" => print_logs,
         "store_logs_in_s3" => store_logs_in_s3,
         "store_logs_on_cluster" => store_logs_on_cluster,
+        "log_initialization" => log_initialization,
         "julia_version" => julia_version,
         "benchmark" => get(ENV, "BANYAN_BENCHMARK", "0") == "1",
         "main_modules" => get_loaded_packages(),
@@ -181,8 +183,8 @@ function start_session(;
     response = send_request_get_response(:start_session, session_configuration)
     session_id = response["session_id"]
     resource_id = response["resource_id"]
-    if for_running == false
-        @info "Running session  with ID $session_id and $code_files"    
+    if for_running
+        @info "Running session with ID $session_id and $code_files"
     else
         @info "Starting session with ID $session_id on cluster named \"$cluster_name\""
     end
@@ -341,7 +343,7 @@ function get_session_status(session_id::String=get_session_id(); kwargs...)
 end
 
 function wait_for_session(session_id::SessionId=get_session_id(), kwargs...)
-    t = 5
+    t = 2
     session_status = get_session_status(session_id; kwargs)
     p = ProgressUnknown("Preparing session with ID $session_id", spinner=true)
     while session_status == "creating"
@@ -468,7 +470,7 @@ function run_session(;
             nothing
         end
         if !isnothing(session_id)
-            end_session(get_session_id(), failed=true)
+            end_session(get_session_id(), failed=false)
         end    
     end
 end

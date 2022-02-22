@@ -5,8 +5,8 @@ using MPI
 # Helper functions #
 ####################
 
-get_worker_idx(comm::MPI.Comm) = MPI.Comm_rank(comm) + 1
-get_nworkers(comm::MPI.Comm) = MPI.Comm_size(comm)
+get_worker_idx(comm::MPI.Comm = MPI.COMM_WORLD) = MPI.Comm_rank(comm) + 1
+get_nworkers(comm::MPI.Comm = MPI.COMM_WORLD) = MPI.Comm_size(comm)
 
 get_partition_idx(batch_idx, nbatches, comm::MPI.Comm) =
     get_partition_idx(batch_idx, nbatches, get_worker_idx(comm))
@@ -57,6 +57,11 @@ split_on_executor(
         src
     end
 end
+
+# Helper functions along with get_worker_idx() and get_nworkers()
+split_across(obj, idx=get_worker_idx(), npartitions=get_nworkers()) = obj[split_len(length(obj), idx, npartitions)]
+sync_across(comm=MPI.COMM_WORLD) = MPI.Barrier(comm)
+reduce_across(func, val; to_worker_idx=1, comm=MPI.COMM_WORLD) = MPI.Reduce(val, func, to_worker_idx-1, comm)
 
 merge_on_executor(obj::Any; key = nothing) = error("Merging $(typeof(obj)) not supported")
 
@@ -466,23 +471,24 @@ function getpath(path, comm)
         # TODO: Add option for Internet locations as to whether or not to
         # cache on disk
         hashed_path = string(hash(path))
-        joined_path = "efs/banyan_dataset_" * hashed_path
+        joined_path = "efs/banyan_dataset_" * hashed_path * "_" * string(MPI.COMM_WORLD)
         # @info "Downloading $path to $joined_path"
-        if MPI.Comm_rank(comm) == 0
-            if !isfile(joined_path)
-            # NOTE: Even though we are storing in /tmp, this is
-            # effectively caching the download. If this is undesirable
-            # to a user, a short-term solution is to use a different
-            # URL each time (e.g., add a dummy query to the end of the
-            # URL)
-                Downloads.download(path, joined_path)
-            end
+        comm = MPI.COMM_WORLD
+        # if MPI.Comm_rank(comm) == 0
+        if !isfile(joined_path)
+        # NOTE: Even though we are storing in /tmp, this is
+        # effectively caching the download. If this is undesirable
+        # to a user, a short-term solution is to use a different
+        # URL each time (e.g., add a dummy query to the end of the
+        # URL)
+            Downloads.download(path, joined_path)
         end
-        MPI.Barrier(comm)
+        # end
+        # MPI.Barrier(comm)
         # @show isfile(joined_path)
         joined_path
     elseif startswith(path, "s3://")
-        replace(path, "s3://" => "/home/ec2-user/s3fs/")
+        replace(path, "s3://" => "/home/ec2-user/s3/")
         # NOTE: We expect that the ParallelCluster instance was set up
         # to have the S3 filesystem mounted at ~/s3fs/<bucket name>
     else

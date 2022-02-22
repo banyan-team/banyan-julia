@@ -12,6 +12,8 @@ function ReadBlockImage(
     # ndims = loc_params["ndims"]
     # nbytes = loc_params["nbytes"]
     nimages = loc_params["nimages"]
+    datasize = loc_params["size"]
+    empty_sample = Banyan.from_jl_value_contents(loc_params["emptysample"])
     # dataeltype = loc_params["eltype"]
     # file_extension = "." * loc_params["format"]
     add_channelview = loc_params["add_channelview"]
@@ -48,16 +50,19 @@ function ReadBlockImage(
         files_sub = view(files, filerange)
     end
 
-    images = []
-    for f in files_sub
-        filepath = Banyan.getpath(f)
+    part_size = (length(files_sub), (datasize)[2:end]...)
+    empty_sample_eltype = eltype(empty_sample)
+    images = Base.Array{empty_sample_eltype}(undef, part_size)
+    for (i, f) in enumerate(files_sub)
+        filepath = Banyan.getpath(f, comm)
         image = load(filepath)
         if add_channelview
             image = ImageCore.channelview(image)
+            images[i, :, :, :] = image
+        else
+            images[i, :, :] = image
         end
-        push!(images, reshape(image, (1, size(image)...)))
     end
-    images = cat(images..., dims=1)
     images
 end
 

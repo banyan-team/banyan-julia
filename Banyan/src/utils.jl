@@ -499,7 +499,7 @@ function get_loaded_packages()
     modules = map(
         m -> string(m),
         filter(
-            m -> try Main.eval(m) catch nothing end isa Module && !(m in [:Main, :Base, :Core, :InteractiveUtils, :IJulia]),
+            m -> try Main.eval(m) catch nothing end isa Module && !(m in [:Main, :Base, :Core, :InteractiveUtils, :IJulia, :VSCodeServer]),
             names(Main, imported=true)
         )
     )

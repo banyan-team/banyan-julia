@@ -9,8 +9,8 @@ __precompile__()
 
 module Banyan
 
-global BANYAN_JULIA_BRANCH_NAME = "v21.12.19"
-global BANYAN_JULIA_PACKAGES = ["Banyan", "BanyanArrays", "BanyanDataFrames", "BanyanImages"]
+global BANYAN_JULIA_BRANCH_NAME = "v22.02.13"
+global BANYAN_JULIA_PACKAGES = ["Banyan", "BanyanArrays", "BanyanDataFrames", "BanyanImages", "BanyanONNXRunTime"]
 
 using FilePathsBase: joinpath, isempty
 using Base: notnothing, env_project_file
@@ -145,6 +145,9 @@ export is_debug_on,
     orderinghash,
     get_worker_idx,
     get_nworkers,
+    split_across,
+    reduce_across,
+    sync_across,
     get_partition_idx,
     get_npartitions,
     split_len,

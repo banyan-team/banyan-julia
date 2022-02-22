@@ -249,7 +249,7 @@ function Merge(
         delete!(splitting_divisions, part)
 
         # Concatenate across batches
-        src = merge_on_executor(src.pieces...; key = key)
+        src = merge_on_executor((piece for piece in src.pieces if !isnothing(piece))...; key = key)
 
         # Concatenate across workers
         nworkers = get_nworkers(comm)
@@ -263,7 +263,7 @@ end
 
 Merge(
     src::Any,
-    part,
+    part::Any,
     params::Dict{String,Any},
     batch_idx::Integer,
     nbatches::Integer,

@@ -18,7 +18,7 @@ function (is::InferenceSession)(inputs, output_names=nothing)
 
     A = first(values(inputs))
     input_name = Future(first(keys(inputs)))
-    res = Future()
+    res = Future(datatype="Array")
     output_name = first(output_names)
 
     partitioned_with(scaled=[A, res], modules="ONNXRunTime") do

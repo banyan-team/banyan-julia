@@ -1,7 +1,7 @@
 name = "BanyanArrays"
 uuid = "369465de-032e-4609-9dcf-82b89c370a7b"
 authors = ["Banyan <support@banyancomputing.com>"]
-version = "0.1.7"
+version = "0.2.1"
 
 [deps]
 AWS = "fbe9abb3-538b-5e4e-ba9e-bc94f4f92ebc"
@@ -21,7 +21,7 @@ Serialization = "9e88b42a-f829-5b0c-bbe9-9e923198166b"
 AWS = "1.36.0"
 AWSCore = "0.6.17"
 AWSS3 = "0.7"
-Banyan = "0.2.4"
+Banyan = "0.3.1"
 Downloads = "1.4"
 FileIO = "1.9.1"
 FilePathsBase = "0.9.10"

@@ -1,13 +1,26 @@
 name = "BanyanImages"
 uuid = "b9ad4058-0328-459a-b05c-52a04bd79ab2"
 authors = ["Banyan <support@banyancomputing.com>"]
-version = "0.1.0"
+version = "0.1.1"
 
 [deps]
 Banyan = "706d138b-e922-45b9-a636-baf8ae0d5317"
 BanyanArrays = "369465de-032e-4609-9dcf-82b89c370a7b"
+FileIO = "5789e2e9-d7fb-5bc7-8068-2c6fae9b9549"
+ImageCore = "a09fc81d-aa75-5fe9-8630-4744c3626534"
 ImageIO = "82e4d734-157c-48bb-816b-45c225c6df19"
 ImageMagick = "6218d12a-5da1-5696-b52f-db25d2ecc6d1"
 MPI = "da04e1cc-30fd-572f-bb4f-1f8673147195"
 ProgressMeter = "92933f4c-e287-5a05-a399-4b506db050ca"
 Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
+
+[compat]
+Banyan = "0.3.1"
+BanyanArrays = "0.2.1"
+FileIO = "1.9.1"
+ImageCore = "0.9.3"
+ImageIO = "0.6.0"
+ImageMagick = "1.2.2"
+MPI = "0.19.0"
+ProgressMeter = "1.7"
+julia = "1.6"

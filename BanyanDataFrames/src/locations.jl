@@ -369,7 +369,7 @@ function RemoteTableSource(remotepath; shuffled=false, source_invalid = false, s
         remote_sample_value = isnothing(remote_sample) ? randomsample : remote_sample.value
         remote_sample_rate = totalnrows > 0 ? totalnrows / nrow(remote_sample_value) : 1.0
         nbytes = Base.convert(Integer, ceil(total_memory_usage(remote_sample_value) * remote_sample_rate))
-        println("In table source location constructor with nbytes=$nbytes")
+        # println("In table source location constructor with nbytes=$nbytes")
 
         # Load metadata for reading
         # If we're not using S3FS, the files might be empty because `readdir`

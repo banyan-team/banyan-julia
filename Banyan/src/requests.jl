@@ -501,7 +501,6 @@ function offloaded(given_function, args...; distributed = false)
     stored_message = nothing
     while true
         message = receive_next_message(gather_queue, p)
-        @show message # To be removed :))
         message_type = message["kind"]
         if (message_type == "GATHER")
             value_id = message["value_id"]
