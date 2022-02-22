@@ -376,11 +376,11 @@ function Base.map(f, c::Array{<:Any,N}...; force_parallelism=false) where {T,N}
         partitioned_with(scaled=[c...]) do
             # balanced
             pt(first(c), Blocked(first(c), balanced=true))
-            pt(c[2:end]..., Blocked() & Balanced(), match=first(c), on=["key", "id"])
+            pt(c[2:end]..., Blocked() & Balanced(), match=first(c), on=["key"])
     
             # unbalanced
-            pt(first(c), Blocked(first(c), balanced=false))
-            pt(c[2:end]..., Unbalanced(scaled_by_same_as=first(c)), match=first(c))
+            pt(first(c), Blocked(first(c)))
+            pt(c[2:end]..., ScaledBySame(as=first(c)), match=first(c))
 
             # replicated
             pt(c..., Replicated())
@@ -395,11 +395,13 @@ function Base.map(f, c::Array{<:Any,N}...; force_parallelism=false) where {T,N}
     partitioned_with(scaled=[res, c...]) do
         # balanced
         pt(first(c), Blocked(first(c), balanced=true))
-        pt(c[2:end]..., res, Blocked() & Balanced(), match=first(c), on=["key", "id"])
+        pt(c[2:end]..., Blocked() & Balanced(), match=first(c), on=["key"])
+        pt(res, Blocked() & Balanced(), match=first(c))
 
         # unbalanced
-        pt(first(c), Blocked(first(c), balanced=false, scaled_by_same_as=res))
-        pt(c[2:end]..., res, Unbalanced(scaled_by_same_as=first(c)), match=first(c))
+        pt(first(c), Blocked(first(c)))
+        pt(c[2:end]..., ScaledBySame(as=first(c)), match=first(c))
+        pt(res, ScaledBySame(as=first(c)), match=first(c))
 
         # replicated
         if force_parallelism

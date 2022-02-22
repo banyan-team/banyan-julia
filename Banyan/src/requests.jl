@@ -18,6 +18,27 @@
 #############################
 using Banyan
 
+function check_worker_stuck_error(message, error_for_main_stuck, error_for_main_stuck_time)
+    value_id = message["value_id"]
+    if value_id == -2 && isnothing(error_for_main_stuck_time)
+        error_for_main_stuck_msg = from_jl_value_contents(message["contents"])
+        if contains(error_for_main_stuck_msg, "session $(get_session_id())")
+            error_for_main_stuck = error_for_main_stuck_msg
+            error_for_main_stuck_time = Dates.now()
+        end
+    end
+    error_for_main_stuck, error_for_main_stuck_time
+end
+
+function check_worker_stuck(error_for_main_stuck, error_for_main_stuck_time)
+    if !isnothing(error_for_main_stuck) && !isnothing(error_for_main_stuck_time) && (Dates.now() - error_for_main_stuck_time) > Second(30)
+        println(error_for_main_stuck)
+        @warn "The above error occurred on some workers but other workers are still running. Please interrupt and end the session unless you expect that a lot of logs are being returned."
+        error_for_main_stuck = nothing
+    end
+    error_for_main_stuck
+end
+
 function partitioned_computation(handler, fut::AbstractFuture; destination, new_source=nothing)
     if isview(fut)
         error("Computing a view (such as a GroupedDataFrame) is not currently supported")
@@ -221,9 +242,11 @@ function partitioned_computation(handler, fut::AbstractFuture; destination, new_
         if get_session_status(session_id) != "running"
             wait_for_session(session_id)
         end
+        error_for_main_stuck = nothing
+        error_for_main_stuck_time = nothing
         while true
             # TODO: Use to_jl_value and from_jl_value to support Client
-            message = receive_next_message(gather_queue, p)
+            message, error_for_main_stuck = receive_next_message(gather_queue, p, error_for_main_stuck, error_for_main_stuck_time)
             message_type = message["kind"]
             if message_type == "SCATTER_REQUEST"
                 # Send scatter
@@ -254,6 +277,7 @@ function partitioned_computation(handler, fut::AbstractFuture; destination, new_
                     # TODO: Update stale/mutated here to avoid costly
                     # call to `send_evaluation`
                 end
+                error_for_main_stuck, error_for_main_stuck_time = check_worker_stuck_error(message, error_for_main_stuck, error_for_main_stuck_time)
             elseif message_type == "EVALUATION_END"
                 # @debug "End of evaluation"
                 if message["end"] == true
@@ -499,8 +523,9 @@ function offloaded(given_function, args...; distributed = false)
     session = get_session()
     gather_queue = get_gather_queue(session.resource_id)
     stored_message = nothing
+    error_for_main_stuck, error_for_main_stuck_time = nothing, nothing
     while true
-        message = receive_next_message(gather_queue, p)
+        message, error_for_main_stuck = receive_next_message(gather_queue, p, error_for_main_stuck, error_for_main_stuck_time)
         message_type = message["kind"]
         if (message_type == "GATHER")
             value_id = message["value_id"]
@@ -509,6 +534,7 @@ function offloaded(given_function, args...; distributed = false)
             if (value_id == -1)
                 stored_message = from_jl_value_contents(message["contents"])
             end
+            error_for_main_stuck, error_for_main_stuck_time = check_worker_stuck_error(message, error_for_main_stuck, error_for_main_stuck_time)
         elseif (message_type == "EVALUATION_END")
             return stored_message
         end

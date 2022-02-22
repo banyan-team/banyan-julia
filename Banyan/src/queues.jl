@@ -39,9 +39,10 @@ end
 # RECEIVE MESSAGE #
 ###################
 
-function get_next_message(queue, p=nothing; delete = true)
+function get_next_message(queue, p=nothing; delete = true, error_for_main_stuck=nothing, error_for_main_stuck_time=nothing)
     m = sqs_receive_message(queue)
     while (isnothing(m))
+        error_for_main_stuck = check_worker_stuck(error_for_main_stuck, error_for_main_stuck_time)
         m = sqs_receive_message(queue)
         # @debug "Waiting for message from SQS"
         if !isnothing(p)
@@ -51,12 +52,12 @@ function get_next_message(queue, p=nothing; delete = true)
     if delete
         sqs_delete_message(queue, m)
     end
-    return m[:message]
+    return m[:message], error_for_main_stuck
 end
 
-function receive_next_message(queue_name, p=nothing)
-    content = get_next_message(queue_name, p)
-    if startswith(content, "JOB_READY") || startswith(content, "SESSION_READY")
+function receive_next_message(queue_name, p=nothing, error_for_main_stuck=nothing, error_for_main_stuck_time=nothing)
+    content, error_for_main_stuck = get_next_message(queue_name, p; error_for_main_stuck=error_for_main_stuck, error_for_main_stuck_time=error_for_main_stuck_time)
+    res = if startswith(content, "JOB_READY") || startswith(content, "SESSION_READY")
         response = Dict{String,Any}(
             "kind" => "SESSION_READY"
         )
@@ -102,6 +103,7 @@ function receive_next_message(queue_name, p=nothing)
         # @debug "Received scatter or gather request"
         JSON.parse(content)
     end
+    res, error_for_main_stuck
 end
 
 # Used by Banyan/src/pfs.jl, intended to be called from the executor

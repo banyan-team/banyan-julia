@@ -20,6 +20,7 @@ using AWSCore
 using AWSS3
 using AWSSQS
 using Base64
+using Dates
 using Downloads
 using HTTP
 using JSON

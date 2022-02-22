@@ -310,6 +310,17 @@ end
     end
 end
 
+# @testset "Main worker stuck" begin
+#     use_session_for_testing(scheduling_config_name = "default scheduling") do
+#         offloaded(distributed=true) do
+#             if get_worker_idx() > 1
+#                 error("Failure right here")
+#             end
+#             sync_across()
+#         end
+#     end
+# end
+
 # TODO: Re-enable this test once we ensure that we can write out small
 # enough datasets without unnecessary batching
 # @testset "String arrays with $scheduling_config" for scheduling_config in [
