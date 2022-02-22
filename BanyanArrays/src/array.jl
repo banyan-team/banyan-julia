@@ -277,7 +277,7 @@ end
 
 fill(v, dims::Integer...) = fill(v, Tuple(dims))
 
-function collect(r::AbstractRange)
+function Base.collect(r::AbstractRange)
     # Create output futures
     r = Future(r)
     A = Future(datatype="Array")
@@ -291,7 +291,7 @@ function collect(r::AbstractRange)
     end
 
     # Offload the partitioned computation
-    @partitioned r A begin A = Base.collect(r) end
+    @partitioned r A begin A = Base.Base.collect(r) end
 
     # Return a Banyan vector as the result
     Vector{eltype(compute(r))}(A, Future((length(compute(r)),)))

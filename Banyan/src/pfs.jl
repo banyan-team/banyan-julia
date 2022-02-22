@@ -39,7 +39,7 @@ function sortablestring(val, maxval)
     s = string(val)
     maxs = string(maxval)
     res = Base.fill('0', length(maxs))
-    res[length(res)-length(s)+1:length(res)] .= collect(s)
+    res[length(res)-length(s)+1:length(res)] .= Base.collect(s)
     join(res)
 end
 

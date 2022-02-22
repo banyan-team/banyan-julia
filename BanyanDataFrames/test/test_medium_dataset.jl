@@ -18,12 +18,12 @@
 #         @test nrow(tripdata) == 10906858
 #         @test ncol(tripdata) == 19
 #         @test size(tripdata) == (10906858, 19)
-#         @test collect(names(tripdata))[1] == "VendorID"
-#         @test collect(propertynames(tripdata))[1] == :VendorID
+#         @test Base.collect(names(tripdata))[1] == "VendorID"
+#         @test Base.collect(propertynames(tripdata))[1] == :VendorID
 
 #         # Get all trips with distance longer than 1.0, group by passenger count,
 #         # and get the average trip distance for each group
-#         distances = collect(
+#         distances = Base.collect(
 #             sort(
 #                 combine(
 #                     groupby(
@@ -65,7 +65,7 @@
 #         setindex!(tripdata, :start_hour, map(t -> hour(t), tripdata[:, :start_time]))
 #         tripdata_grouped = groupby(tripdata, :start_hour)
 #         means = combine(tripdata_grouped, :trip_distance => mean)
-#         means_sorted = collect(sort(means, :trip_distance_mean))
+#         means_sorted = Base.collect(sort(means, :trip_distance_mean))
 #         @test round.(means_sorted[:, :trip_distance_mean], digits = 3) == [
 #             2.523,
 #             2.529,
@@ -131,9 +131,9 @@
 #         ]
 #         @test nrow(tripdata_unique_start) == 2368616
 #         @test nrow(tripdata_unique_start_end_of_month) == 163601
-#         unique_start_sum = collect(round(sum(tripdata_unique_start_end_of_month)))
+#         unique_start_sum = Base.collect(round(sum(tripdata_unique_start_end_of_month)))
 #         @test unique_start_sum == 490661
-#         pickup_res = collect(tripdata_unique_start_end_of_month[:, :tpep_pickup_datetime])
+#         pickup_res = Base.collect(tripdata_unique_start_end_of_month[:, :tpep_pickup_datetime])
 #         @test pickup_res[1] == "2016-01-30 00:00:01"
 #         @test pickup_res[2] == "2016-01-30 00:00:02"
 #         @test pickup_res[163593] == "2016-01-31 23:57:26"
@@ -173,8 +173,8 @@
 #             :trip_distance_normalized_mean,
 #         )
 
-#         result_1 = collect(result_1)
-#         result_2 = collect(result_2)
+#         result_1 = Base.collect(result_1)
+#         result_2 = Base.collect(result_2)
 #         @test round.(result_1[:, :trip_distance_normalized_mean], digits = 3) ==
 #               round.(result_2[:, :trip_distance_normalized_mean], digits = 3) ==
 #               [0.0, 0.0, 0.0, 0.013, 0.021, 0.031, 0.042, 0.112, 0.146, 0.181]
@@ -206,9 +206,9 @@
 #         )
 #         write_csv(res_2, "s3://$(bucket)/tripdata_new.csv")
 
-#         @test sort(collect(combine(groupby(res, :passenger_count), nrow))[:, :nrow]) ==
+#         @test sort(Base.collect(combine(groupby(res, :passenger_count), nrow))[:, :nrow]) ==
 #               [3, 6, 11, 69, 53536, 88698, 109032, 149283, 403749, 1813376]
-#         @test sort(collect(combine(groupby(res_2, :day)))[:, :day]) == [
+#         @test sort(Base.collect(combine(groupby(res_2, :day)))[:, :day]) == [
 #             120,
 #             2477,
 #             25868,

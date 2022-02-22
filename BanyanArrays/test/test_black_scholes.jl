@@ -42,7 +42,7 @@
 #         res = compute(call_sum)
 # 	    # println(res)
 #         @show res
-#         #res = collect(res)
+#         #res = Base.collect(res)
 #         #end = now()
 #         #@test typeof(res) == Base.Vector{Float64}
 #         #@test all(v->v==3.999999985812889, res)

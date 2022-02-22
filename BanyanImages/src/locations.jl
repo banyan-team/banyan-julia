@@ -156,7 +156,7 @@ function RemoteImageSource(remotepath; shuffled=false, source_invalid = false, s
             # In this case, read one random file to collect metadata
             # We assume that all files have the same nbytes and ndims
 
-            filep = collect(Iterators.take(Iterators.reverse(files_to_read_from), 1))[1]
+            filep = Base.collect(Iterators.take(Iterators.reverse(files_to_read_from), 1))[1]
             p = download_remote_path(filep)
             with_downloaded_path_for_reading(p) do pp
 

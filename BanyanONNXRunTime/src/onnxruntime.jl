@@ -43,7 +43,7 @@ function (is::InferenceSession)(inputs, output_names=nothing)
         if dynamic_axis
             res = first(values(is(Dict(input_name  => A))))
         else
-            res = Base.mapslices(arr -> first(values(is(Dict(input_name => arr)))), A, dims=collect(2:ndims(A)))
+            res = Base.mapslices(arr -> first(values(is(Dict(input_name => arr)))), A, dims=Base.collect(2:ndims(A)))
         end
         res_size = Base.size(res)
     end
