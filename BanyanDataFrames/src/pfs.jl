@@ -77,7 +77,7 @@ ReadBlockCSV, ReadBlockParquet, ReadBlockArrow = [
 
             path = Banyan.getpath(loc_params["path"], comm)
 
-            if isinvestigating()[:losing_data]
+            if isinvestigating()[:losing_data] || true
                 println("In ReadBlock with path=$path, loc_params=$params")
             end
 
@@ -147,10 +147,11 @@ ReadBlockCSV, ReadBlockParquet, ReadBlockArrow = [
                     # TODO: Scale the memory usage appropriately when splitting with
                     # this and garbage collect if too much memory is used.
                     if endswith(file_path, file_extension)
-                        if isinvestigating()[:losing_data]
+                        if isinvestigating()[:losing_data] || true
                             println("In ReadBlock calling read_file with path=$path, filerowrange=$filerowrange, readrange=$readrange, rowrange=$rowrange")
                         end
                         read_file(path, header, rowrange, readrange, filerowrange, dfs)
+                        println("Successfully read file")
                     else
                         error("Expected file with $file_extension extension")
                     end
