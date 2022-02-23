@@ -1,5 +1,5 @@
 using ReTest
-using Banyan, BanyanArrays
+using Banyan, BanyanArrays, BanyanHDF5
 using FilePathsBase, AWSS3, HDF5
 
 global sessions_for_testing = Dict()
@@ -45,7 +45,8 @@ function use_session_for_testing(
                 directory = "banyan-julia/BanyanArrays/test",
                 dev_paths = [
                     "banyan-julia/Banyan",
-                    "banyan-julia/BanyanArrays"
+                    "banyan-julia/BanyanArrays",
+                    "banyan-julia/BanyanHDF5"
                 ],
                 code_files=["file://foo.jl"],
                 force_update_files=get(ENV, "BANYAN_REUSE_RESOURCES", "0") == "1" ? false : true,
