@@ -132,7 +132,7 @@ ReadGroup(ReadBlock) = begin
 
             # Shuffle the batch and add it to the set of data for this partition
             params["divisions_by_worker"] = curr_partition_divisions
-            println("Before Shuffle in ReadGroup")
+            println("Before Shuffle in ReadGroup with typeof(part)=$(typeof(part))")
             push!(
                 parts,
                 Shuffle(

@@ -655,6 +655,7 @@ function Banyan.Shuffle(
     # Get the divisions to apply
     key = dst_params["key"]
     rev = get(dst_params, "rev", false)
+    println("At start of Shuffle")
     worker_idx, nworkers = Banyan.get_worker_idx(comm), Banyan.get_nworkers(comm)
     divisions_by_worker = if haskey(dst_params, "divisions_by_worker")
         dst_params["divisions_by_worker"] # list of min-max tuples
@@ -664,6 +665,7 @@ function Banyan.Shuffle(
     if rev
         reverse!(divisions_by_worker)
     end
+    println("In Shuffle after getting divisions")
 
     # Perform shuffle
     partition_idx_getter(val) = Banyan.get_partition_idx_from_divisions(
@@ -672,6 +674,7 @@ function Banyan.Shuffle(
         boundedlower = boundedlower,
         boundedupper = boundedupper,
     )
+    println("In Shuffle after get_partition_idx_from_divisions")
     res = begin
         gdf = if !isempty(part)
             # Compute the partition to send each row of the dataframe to
@@ -683,6 +686,7 @@ function Banyan.Shuffle(
         else
             nothing
         end
+        println("In Shuffle after transform with typeof(part)=$(typeof(part)) and isempty(part)=$(isempty(part))")
 
         # Create buffer for sending dataframe's rows to all the partitions
         io = IOBuffer()
@@ -700,14 +704,19 @@ function Banyan.Shuffle(
             push!(df_counts, io.size - nbyteswritten)
             nbyteswritten = io.size
         end
+        println("In Shuffle after Arrow.write with nbyteswritten=$nbyteswritten")
         sendbuf = MPI.VBuffer(view(io.data, 1:nbyteswritten), df_counts)
+        println("In Shuffle after MPI.VBuffer with df_counts=$df_counts")
 
         # Create buffer for receiving pieces
         sizes = MPI.Alltoall(MPI.UBuffer(df_counts, 1), comm)
+        println("In Shuffle after MPI.Alltoall")
         recvbuf = MPI.VBuffer(similar(io.data, sum(sizes)), sizes)
+        println("In Shuffle after MPI.VBuffer with sizes=$size")
 
         # Perform the shuffle
         MPI.Alltoallv!(sendbuf, recvbuf, comm)
+        println("In Shuffle after MPI.Alltoallv!")
 
         # Return the concatenated dataframe
         things_to_concatenate = [
@@ -717,9 +726,11 @@ function Banyan.Shuffle(
             ) for (displ, count) in zip(recvbuf.displs, recvbuf.counts)
         ]
         res = length(things_to_concatenate) == 1 ? things_to_concatenate[1] : vcat(things_to_concatenate...)
+        println("In Shuffle at end")
         if :banyan_shuffling_key in propertynames(res)
             DataFrames.select!(res, Not(:banyan_shuffling_key))
         end
+        println("In Shuffle after select! at end")
 
         res
     end
