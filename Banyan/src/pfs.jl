@@ -132,6 +132,7 @@ ReadGroup(ReadBlock) = begin
 
             # Shuffle the batch and add it to the set of data for this partition
             params["divisions_by_worker"] = curr_partition_divisions
+            println("Before Shuffle in ReadGroup")
             push!(
                 parts,
                 Shuffle(
@@ -144,11 +145,13 @@ ReadGroup(ReadBlock) = begin
                     store_splitting_divisions = false
                 ),
             )
+            println("After Shuffle in ReadGroup")
             delete!(params, "divisions_by_worker")
         end
 
         # Concatenate together the data for this partition
         res = merge_on_executor(parts...; key = key)
+        println("After merge_on_executor in ReadGroup")
 
         # If there are no divisions for any of the partitions, then they are all
         # bounded. For a partition to be unbounded on one side, there must be a
@@ -159,6 +162,7 @@ ReadGroup(ReadBlock) = begin
         partition_idx = get_partition_idx(batch_idx, nbatches, comm)
         splitting_divisions[res] =
             (partition_divisions[partition_idx], !hasdivision || partition_idx != firstdivisionidx, !hasdivision || partition_idx != lastdivisionidx)
+        println("At end of ReadGroup")
 
         res
     end
