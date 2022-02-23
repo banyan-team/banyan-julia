@@ -174,17 +174,15 @@ function configure(; user_id=nothing, api_key=nothing, ec2_key_pair_name=nothing
     # Ensure a configuration has been created or can be created. Otherwise,
     # return nothing
     existing_banyan_config = deepcopy(banyan_config)
-    if !banyan_config_has_info
-        if !isnothing(user_id) && !isnothing(api_key)
-            aws_ec2_config = (!isnothing(ec2_key_pair_name) && !isempty(ec2_key_pair_name)) ? Dict("ec2_key_pair_name" => ec2_key_pair_name) : Dict()
-            banyan_config = Dict(
-                "banyan" =>
-                    Dict("user_id" => user_id, "api_key" => api_key),
-                "aws" => aws_ec2_config,
-            )
-        else
-            error("Your user ID and API key must be specified using either keyword arguments, environment variables, or banyanconfig.toml")
-        end
+    if !isnothing(user_id) && !isnothing(api_key)
+        aws_ec2_config = (!isnothing(ec2_key_pair_name) && !isempty(ec2_key_pair_name)) ? Dict("ec2_key_pair_name" => ec2_key_pair_name) : Dict()
+        banyan_config = Dict(
+            "banyan" =>
+                Dict("user_id" => user_id, "api_key" => api_key),
+            "aws" => aws_ec2_config,
+        )
+    else
+        error("Your user ID and API key must be specified using either keyword arguments, environment variables, or banyanconfig.toml")
     end
 
     # # aws.region
