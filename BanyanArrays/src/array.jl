@@ -224,7 +224,7 @@ function Banyan.compute_inplace(A::Array{T,N}) where {T,N}
     end
 end
 
-function fill(v, dims::NTuple{N,Integer}) where {N}
+function BanyanArrays.fill(v, dims::NTuple{N,Integer}) where {N}
     fillingdims = Future(source=Size(dims))
     A = Array{typeof(v),N}(Future(datatype="Array"), Future(dims))
     v = Future(v)
@@ -277,7 +277,7 @@ end
 
 fill(v, dims::Integer...) = fill(v, Tuple(dims))
 
-function Base.collect(r::AbstractRange)
+function BanyanArrays.collect(r::AbstractRange)
     # Create output futures
     r = Future(r)
     A = Future(datatype="Array")
@@ -291,7 +291,7 @@ function Base.collect(r::AbstractRange)
     end
 
     # Offload the partitioned computation
-    @partitioned r A begin A = Base.Base.collect(r) end
+    @partitioned r A begin A = Base.collect(r) end
 
     # Return a Banyan vector as the result
     Vector{eltype(compute(r))}(A, Future((length(compute(r)),)))

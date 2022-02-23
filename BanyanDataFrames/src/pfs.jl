@@ -685,7 +685,7 @@ function Banyan.Shuffle(
 
             # Group the dataframe's rows by what partition to send to
             @show part
-            @show @isdefined DataFrames.groupby
+            # @show @isdefined DataFrames.groupby
             gdf = DataFrames.groupby(part, :species)
             println("In Shuffle after groupby with typeof(part)=$(typeof(part)) and isempty(part)=$(isempty(part)) with :species")
             gdf = DataFrames.groupby(part, :banyan_shuffling_key)
