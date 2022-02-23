@@ -224,7 +224,7 @@ function Banyan.compute_inplace(A::Array{T,N}) where {T,N}
     end
 end
 
-function BanyanArrays.fill(v, dims::NTuple{N,Integer}) where {N}
+function fill(v, dims::NTuple{N,Integer}) where {N}
     fillingdims = Future(source=Size(dims))
     A = Array{typeof(v),N}(Future(datatype="Array"), Future(dims))
     v = Future(v)
@@ -277,7 +277,7 @@ end
 
 fill(v, dims::Integer...) = fill(v, Tuple(dims))
 
-function BanyanArrays.collect(r::AbstractRange)
+function collect(r::AbstractRange)
     # Create output futures
     r = Future(r)
     A = Future(datatype="Array")
