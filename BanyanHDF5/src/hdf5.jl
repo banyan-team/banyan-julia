@@ -6,7 +6,7 @@ function read_hdf5(path; kwargs...)
         # @show A_loc.size
     end
     A = Future(datatype="Array", source=A_loc)
-    Array{A_loc.eltype,A_loc.ndims}(A, Future(A_loc.size))
+    BanyanArrays.Array{A_loc.eltype,A_loc.ndims}(A, Future(A_loc.size))
 end
 
 function write_hdf5(A, path; invalidate_source=true, invalidate_sample=true, kwargs...)

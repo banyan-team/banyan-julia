@@ -42,13 +42,12 @@ function use_session_for_testing(
                 print_logs = true,
                 url = "https://github.com/banyan-team/banyan-julia.git",
                 branch = get(ENV, "BANYAN_JULIA_BRANCH", Banyan.get_branch_name()),
-                directory = "banyan-julia/BanyanArrays/test",
+                directory = "banyan-julia/BanyanHDF5/test",
                 dev_paths = [
                     "banyan-julia/Banyan",
                     "banyan-julia/BanyanArrays",
                     "banyan-julia/BanyanHDF5"
                 ],
-                code_files=["file://foo.jl"],
                 force_update_files=get(ENV, "BANYAN_REUSE_RESOURCES", "0") == "1" ? false : true,
                 # BANYAN_REUSE_RESOURCES should be 1 when the compute resources
                 # for sessions being run can be reused; i.e., there is no
