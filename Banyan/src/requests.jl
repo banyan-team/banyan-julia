@@ -469,7 +469,11 @@ end
 #     when calling evaluate (see send_evaluate) and value_id -1
 # offloaded(some_func; distributed=true)
 # offloaded(some_func, a, b; distributed=true)
-function offloaded(given_function, args...; distributed = false)
+function offloaded(given_function, args...; distributed = false, kwargs...)
+    # Configure using parameters
+    c = configure(; kwargs...)
+
+    # Get serialized function
     serialized = to_jl_value_contents((given_function, args))
 
     # Submit evaluation request

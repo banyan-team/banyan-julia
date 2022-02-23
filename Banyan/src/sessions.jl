@@ -23,7 +23,7 @@ function get_session_id()::SessionId
     global current_session_id
     if isnothing(current_session_id)
         error(
-            "No session selected using `start_session` or `with_session` or `set_session`. The current session may have been destroyed or no session started yet.",
+            "No session started or selected using `start_session` or `with_session` or `set_session`. The current session may have been destroyed or no session started yet.",
         )
     end
     current_session_id
@@ -206,6 +206,9 @@ function end_session(session_id::SessionId = get_session_id(); failed = false, r
     global sessions
     global current_session_id
 
+    # Configure using parameters
+    configure(; kwargs...)
+
     @info "Ending session with ID $session_id"
     request_params = Dict{String,Any}("session_id" => session_id, "failed" => failed, "release_resources_now" => release_resources_now)
     if !isnothing(release_resources_after)
@@ -344,7 +347,7 @@ end
 
 function wait_for_session(session_id::SessionId=get_session_id(), kwargs...)
     t = 2
-    session_status = get_session_status(session_id; kwargs)
+    session_status = get_session_status(session_id; kwargs...)
     p = ProgressUnknown("Preparing session with ID $session_id", spinner=true)
     while session_status == "creating"
         sleep(t)
@@ -352,7 +355,7 @@ function wait_for_session(session_id::SessionId=get_session_id(), kwargs...)
         if t < 80
             t *= 2
         end
-        session_status = get_session_status(session_id; kwargs)
+        session_status = get_session_status(session_id; kwargs...)
     end
     finish!(p, spinner = session_status == "running" ? '✓' : '✗')
     if session_status == "running"
