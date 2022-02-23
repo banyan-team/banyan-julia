@@ -169,10 +169,11 @@ function configure(; kwargs...)
 
 
     # Check banyanconfig file
-    if isnothing(user_id) && haskey(banyan_config, "banyan") && haskey(banyan_config["banyan"], "user_id")
+    banyan_config_has_info = !(isnothing(banyan_config) || isempty(banyan_config))
+    if isnothing(user_id) && banyan_config_has_info && haskey(banyan_config, "banyan") && haskey(banyan_config["banyan"], "user_id")
         user_id = banyan_config["banyan"]["user_id"]
     end
-    if isnothing(api_key) && haskey(banyan_config, "banyan") && haskey(banyan_config["banyan"], "api_key")
+    if isnothing(api_key) && banyan_config_has_info && haskey(banyan_config, "banyan") && haskey(banyan_config["banyan"], "api_key")
         api_key = banyan_config["banyan"]["api_key"]
     end
 
@@ -182,7 +183,7 @@ function configure(; kwargs...)
 
     # Ensure a configuration has been created or can be created. Otherwise,
     # return nothing
-    if isnothing(banyan_config) || isempty(banyan_config)
+    if !banyan_config_has_info
         if !isnothing(user_id) && !isnothing(api_key)
             banyan_config = Dict(
                 "banyan" =>
