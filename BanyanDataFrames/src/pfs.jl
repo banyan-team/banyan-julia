@@ -676,12 +676,15 @@ function Banyan.Shuffle(
     )
     println("In Shuffle after get_partition_idx_from_divisions")
     res = begin
+        println("In Shuffle before transform with typeof(part)=$(typeof(part)) and isempty(part)=$(isempty(part))")
         gdf = if !isempty(part)
             # Compute the partition to send each row of the dataframe to
             DataFrames.transform!(part, key => ByRow(partition_idx_getter) => :banyan_shuffling_key)
+            println("In Shuffle after transform! with typeof(part)=$(typeof(part)) and isempty(part)=$(isempty(part))")
 
             # Group the dataframe's rows by what partition to send to
             gdf = DataFrames.groupby(part, :banyan_shuffling_key, sort = true)
+            println("In Shuffle after groupby with typeof(part)=$(typeof(part)) and isempty(part)=$(isempty(part))")
             gdf
         else
             nothing
