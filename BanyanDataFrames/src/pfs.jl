@@ -190,6 +190,7 @@ ReadBlockCSV, ReadBlockParquet, ReadBlockArrow = [
             else
                 vcat(dfs...)
             end
+            println("Finished ReadBlock")
             res
         end
         ReadBlock
