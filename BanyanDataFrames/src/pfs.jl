@@ -77,7 +77,7 @@ ReadBlockCSV, ReadBlockParquet, ReadBlockArrow = [
 
             path = Banyan.getpath(loc_params["path"], comm)
 
-            if isinvestigating()[:losing_data] || true
+            if isinvestigating()[:losing_data]
                 println("In ReadBlock with path=$path, loc_params=$params")
             end
 
@@ -147,11 +147,10 @@ ReadBlockCSV, ReadBlockParquet, ReadBlockArrow = [
                     # TODO: Scale the memory usage appropriately when splitting with
                     # this and garbage collect if too much memory is used.
                     if endswith(file_path, file_extension)
-                        if isinvestigating()[:losing_data] || true
+                        if isinvestigating()[:losing_data]
                             println("In ReadBlock calling read_file with path=$path, filerowrange=$filerowrange, readrange=$readrange, rowrange=$rowrange")
                         end
                         read_file(path, header, rowrange, readrange, filerowrange, dfs)
-                        println("Successfully read file")
                     else
                         error("Expected file with $file_extension extension")
                     end
@@ -190,7 +189,6 @@ ReadBlockCSV, ReadBlockParquet, ReadBlockArrow = [
             else
                 vcat(dfs...)
             end
-            println("Finished ReadBlock")
             res
         end
         ReadBlock
@@ -655,7 +653,6 @@ function Banyan.Shuffle(
     # Get the divisions to apply
     key = dst_params["key"]
     rev = get(dst_params, "rev", false)
-    println("At start of Shuffle")
     worker_idx, nworkers = Banyan.get_worker_idx(comm), Banyan.get_nworkers(comm)
     divisions_by_worker = if haskey(dst_params, "divisions_by_worker")
         dst_params["divisions_by_worker"] # list of min-max tuples
@@ -665,7 +662,6 @@ function Banyan.Shuffle(
     if rev
         reverse!(divisions_by_worker)
     end
-    println("In Shuffle after getting divisions")
 
     # Perform shuffle
     partition_idx_getter(val) = Banyan.get_partition_idx_from_divisions(
@@ -674,29 +670,16 @@ function Banyan.Shuffle(
         boundedlower = boundedlower,
         boundedupper = boundedupper,
     )
-    println("In Shuffle after get_partition_idx_from_divisions")
     res = begin
-        println("In Shuffle before transform with typeof(part)=$(typeof(part)) and isempty(part)=$(isempty(part))")
         gdf = if !isempty(part)
             # Compute the partition to send each row of the dataframe to
             DataFrames.transform!(part, key => ByRow(partition_idx_getter) => :banyan_shuffling_key)
-            DataFrames.transform(part, key => ByRow(partition_idx_getter) => :banyan_shuffling_key)
-            println("In Shuffle after transform! with typeof(part)=$(typeof(part)) and isempty(part)=$(isempty(part))")
 
             # Group the dataframe's rows by what partition to send to
-            @show part
-            # @show @isdefined DataFrames.groupby
-            gdf = DataFrames.groupby(part, :species)
-            println("In Shuffle after groupby with typeof(part)=$(typeof(part)) and isempty(part)=$(isempty(part)) with :species")
-            gdf = DataFrames.groupby(part, :banyan_shuffling_key)
-            println("In Shuffle after groupby with typeof(part)=$(typeof(part)) and isempty(part)=$(isempty(part)) without sort=true")
-            gdf = DataFrames.groupby(part, :banyan_shuffling_key, sort = true)
-            println("In Shuffle after groupby with typeof(part)=$(typeof(part)) and isempty(part)=$(isempty(part))")
-            gdf
+            DataFrames.groupby(part, :banyan_shuffling_key, sort = true)
         else
             nothing
         end
-        println("In Shuffle after transform with typeof(part)=$(typeof(part)) and isempty(part)=$(isempty(part))")
 
         # Create buffer for sending dataframe's rows to all the partitions
         io = IOBuffer()
@@ -714,19 +697,14 @@ function Banyan.Shuffle(
             push!(df_counts, io.size - nbyteswritten)
             nbyteswritten = io.size
         end
-        println("In Shuffle after Arrow.write with nbyteswritten=$nbyteswritten")
         sendbuf = MPI.VBuffer(view(io.data, 1:nbyteswritten), df_counts)
-        println("In Shuffle after MPI.VBuffer with df_counts=$df_counts")
 
         # Create buffer for receiving pieces
         sizes = MPI.Alltoall(MPI.UBuffer(df_counts, 1), comm)
-        println("In Shuffle after MPI.Alltoall")
         recvbuf = MPI.VBuffer(similar(io.data, sum(sizes)), sizes)
-        println("In Shuffle after MPI.VBuffer with sizes=$size")
 
         # Perform the shuffle
         MPI.Alltoallv!(sendbuf, recvbuf, comm)
-        println("In Shuffle after MPI.Alltoallv!")
 
         # Return the concatenated dataframe
         things_to_concatenate = [
@@ -736,11 +714,9 @@ function Banyan.Shuffle(
             ) for (displ, count) in zip(recvbuf.displs, recvbuf.counts)
         ]
         res = length(things_to_concatenate) == 1 ? things_to_concatenate[1] : vcat(things_to_concatenate...)
-        println("In Shuffle at end")
         if :banyan_shuffling_key in propertynames(res)
             DataFrames.select!(res, Not(:banyan_shuffling_key))
         end
-        println("In Shuffle after select! at end")
 
         res
     end
