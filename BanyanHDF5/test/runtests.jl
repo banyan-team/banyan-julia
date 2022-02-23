@@ -137,10 +137,7 @@ function use_data(data_src = "S3")
     data_for_testing = true
 end
 
-include("sample_computation.jl")
-include("mapreduce.jl")
 include("hdf5.jl")
-include("black_scholes.jl")
 
 try
     runtests(Regex.(ARGS)...)
