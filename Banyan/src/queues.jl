@@ -2,7 +2,6 @@
 # GET QUEUE URL #
 #################
 
-using Dates
 
 function get_scatter_queue(resource_id::Union{ResourceId,Nothing}=nothing)
     if isnothing(resource_id)
@@ -167,20 +166,6 @@ function send_to_client(value_id, value, worker_memory_used = 0)
         )
     )
 end
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 ###########################
 # GET MESSAGES FROM QUEUE #
