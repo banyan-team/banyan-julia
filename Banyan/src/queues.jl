@@ -59,23 +59,27 @@ function sqs_receive_message_with_long_polling(queue)
 end
 
 function get_next_message(queue, p=nothing; delete = true, error_for_main_stuck=nothing, error_for_main_stuck_time=nothing)
-    m = sqs_receive_message(queue)
+    m = @time sqs_receive_message_with_long_polling(queue)
+    @show m
     while (isnothing(m))
         error_for_main_stuck = check_worker_stuck(error_for_main_stuck, error_for_main_stuck_time)
-        m = sqs_receive_message(queue)
+        m = @time sqs_receive_message_with_long_polling(queue)
+        @show m
         # @debug "Waiting for message from SQS"
         if !isnothing(p)
-            next!(p)
+            @time next!(p)
         end
     end
     if delete
-        sqs_delete_message(queue, m)
+        @time sqs_delete_message(queue, m)
+        @show delete
     end
     return m[:message], error_for_main_stuck
 end
 
 function receive_next_message(queue_name, p=nothing, error_for_main_stuck=nothing, error_for_main_stuck_time=nothing)
-    content, error_for_main_stuck = get_next_message(queue_name, p; error_for_main_stuck=error_for_main_stuck, error_for_main_stuck_time=error_for_main_stuck_time)
+    content, error_for_main_stuck = @time get_next_message(queue_name, p; error_for_main_stuck=error_for_main_stuck, error_for_main_stuck_time=error_for_main_stuck_time)
+    @show content
     res = if startswith(content, "JOB_READY") || startswith(content, "SESSION_READY")
         response = Dict{String,Any}(
             "kind" => "SESSION_READY"

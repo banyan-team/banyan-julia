@@ -529,7 +529,8 @@ function offloaded(given_function, args...; distributed = false, kwargs...)
     stored_message = nothing
     error_for_main_stuck, error_for_main_stuck_time = nothing, nothing
     while true
-        message, error_for_main_stuck = receive_next_message(gather_queue, p, error_for_main_stuck, error_for_main_stuck_time)
+        message, error_for_main_stuck = @time receive_next_message(gather_queue, p, error_for_main_stuck, error_for_main_stuck_time)
+        @show message
         message_type = message["kind"]
         if (message_type == "GATHER")
             value_id = message["value_id"]
