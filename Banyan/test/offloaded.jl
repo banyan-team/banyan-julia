@@ -36,3 +36,24 @@
         @show get_session().worker_memory_used
     end
 end
+
+@testset "Offload Latency" begin
+    use_session_for_testing() do
+        for _ in 1:3
+            @time begin
+                offloaded() do
+                    sleep(15)
+                end
+            end
+        end
+        println("Now with distributed!")
+        for i in 1:3
+            @time begin
+                @show offloaded(i, distributed=true) do i
+                    sleep(15)
+                    "on worker $(get_worker_idx()) with i=$i at time $(now())"
+                end
+            end
+        end
+    end
+end

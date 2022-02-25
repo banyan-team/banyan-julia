@@ -2,7 +2,7 @@
 # GET QUEUE URL #
 #################
 
-
+using Dates
 
 function get_scatter_queue(resource_id::Union{ResourceId,Nothing}=nothing)
     if isnothing(resource_id)
@@ -38,6 +38,26 @@ end
 ###################
 # RECEIVE MESSAGE #
 ###################
+
+function sqs_receive_message_with_long_polling(queue)
+    r = AWSSQS.sqs(queue, "ReceiveMessage", MaxNumberOfMessages = "1", WaitTimeSeconds = "20")
+    r = r["messages"]
+
+    if isnothing(r)
+        return nothing
+    end
+
+    handle  = r[1]["ReceiptHandle"]
+    id      = r[1]["MessageId"]
+    message = r[1]["Body"]
+    md5     = r[1]["MD5OfBody"]s
+
+    Dict(
+        :message => message,
+        :id => id,
+        :handle => handle
+    )
+end
 
 function get_next_message(queue, p=nothing; delete = true, error_for_main_stuck=nothing, error_for_main_stuck_time=nothing)
     m = sqs_receive_message(queue)
