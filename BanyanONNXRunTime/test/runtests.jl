@@ -52,10 +52,10 @@ function use_session_for_testing(
                 branch = get(ENV, "BANYAN_JULIA_BRANCH", Banyan.get_branch_name()),
                 directory = "banyan-julia/BanyanONNXRunTime/test",
                 dev_paths = [
-                    "banyan-julia/BanyanImages",
-                    "banyan-julia/BanyanONNXRunTime",
+                    # "banyan-julia/BanyanImages",
                     "banyan-julia/Banyan",
                     "banyan-julia/BanyanArrays",
+                    "banyan-julia/BanyanONNXRunTime",
                 ],
                 # force_update_files=true,
                 # BANYAN_REUSE_RESOURCES should be 1 when the compute resources

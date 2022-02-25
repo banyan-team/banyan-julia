@@ -2,7 +2,7 @@
 AWSS3 = "1c724243-ef5b-51ab-93f4-b0a88ac62a95"
 Banyan = "706d138b-e922-45b9-a636-baf8ae0d5317"
 BanyanArrays = "369465de-032e-4609-9dcf-82b89c370a7b"
-BanyanImages = "b9ad4058-0328-459a-b05c-52a04bd79ab2"
+BanyanONNXRunTime = "3da3ccd6-fc67-4523-8345-616f63551475"
 Downloads = "f43a241f-c20a-4ad4-852c-f6b1247861c6"
 ImageCore = "a09fc81d-aa75-5fe9-8630-4744c3626534"
 IterTools = "c8e1da08-722c-5040-9ed9-7db0dc04731e"
