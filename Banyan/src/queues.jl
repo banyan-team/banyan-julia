@@ -2,11 +2,7 @@
 # GET QUEUE URL #
 #################
 
-<<<<<<< Updated upstream
-
-=======
 using Dates
->>>>>>> Stashed changes
 
 function get_scatter_queue(resource_id::Union{ResourceId,Nothing}=nothing)
     if isnothing(resource_id)

@@ -36,8 +36,6 @@
         @show get_session().worker_memory_used
     end
 end
-<<<<<<< Updated upstream
-=======
 
 @testset "Offload Latency" begin
     use_session_for_testing() do
@@ -59,4 +57,3 @@ end
         end
     end
 end
->>>>>>> Stashed changes
