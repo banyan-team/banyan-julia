@@ -50,7 +50,7 @@ function sqs_receive_message_with_long_polling(queue)
     handle  = r[1]["ReceiptHandle"]
     id      = r[1]["MessageId"]
     message = r[1]["Body"]
-    md5     = r[1]["MD5OfBody"]s
+    md5     = r[1]["MD5OfBody"]
 
     Dict(
         :message => message,
