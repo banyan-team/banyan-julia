@@ -40,7 +40,7 @@ end
 ###################
 
 function sqs_receive_message_with_long_polling(queue)
-    r = AWSSQS.sqs(queue, "ReceiveMessage", MaxNumberOfMessages = "1", WaitTimeSeconds = "20")
+    r = AWSSQS.sqs(queue, "ReceiveMessage", MaxNumberOfMessages = "1", ReceiveMessageWaitTime = "20")
     r = r["messages"]
 
     if isnothing(r)
@@ -60,18 +60,23 @@ function sqs_receive_message_with_long_polling(queue)
 end
 
 function get_next_message(queue, p=nothing; delete = true, error_for_main_stuck=nothing, error_for_main_stuck_time=nothing)
-    m = sqs_receive_message(queue)
+    println("In get_next_message")
+    m = @time sqs_receive_message(queue)
+    @show m
     while (isnothing(m))
         error_for_main_stuck = check_worker_stuck(error_for_main_stuck, error_for_main_stuck_time)
-        m = sqs_receive_message(queue)
+        m = @time sqs_receive_message(queue)
+        @show m
         # @debug "Waiting for message from SQS"
         if !isnothing(p)
             next!(p)
         end
     end
+    println("Before sqs_delete_message")
     if delete
         sqs_delete_message(queue, m)
     end
+    println("After sqs_delete_message")
     return m[:message], error_for_main_stuck
 end
 
