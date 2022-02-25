@@ -154,12 +154,17 @@ end
 ################
 
 function send_message(queue_name, message)
+    generated_message_id = generate_message_id()
     sqs_send_message(
         queue_name,
         message,
         (:MessageGroupId, "1"),
-        (:MessageDeduplicationId, generate_message_id()),
+        (:MessageDeduplicationId, generated_message_id),
     )
+    println("In send_message")
+    @show queue_name
+    @show message
+    @show generated_message_id
 end
 
 function send_to_client(value_id, value, worker_memory_used = 0)
