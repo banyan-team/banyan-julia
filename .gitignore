@@ -30,4 +30,5 @@ docs/site/
 !*iris.csv
 *.parquet
 **/test_nyc.txt
+**/random_test_image.jpg
 **/efs/*
