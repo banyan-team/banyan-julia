@@ -102,19 +102,22 @@ global aws_config_in_usage = nothing
 function load_config(banyanconfig_path=nothing)
     global banyan_config
 
-    if banyanconfig_path == nothing
-        banyanconfig_path = joinpath(homedir(), ".banyan", "banyanconfig.toml")
+    if isnothing(banyan_config)
+        if isnothing(banyanconfig_path)
+            banyanconfig_path = joinpath(homedir(), ".banyan", "banyanconfig.toml")
+        end
+        if isfile(banyanconfig_path)
+            banyan_config = TOML.parsefile(banyanconfig_path)
+        end
     end
-    if isfile(banyanconfig_path)
-        banyan_config = TOML.parsefile(banyanconfig_path)
-    end
+    banyan_config
 end
 
 function write_config(banyanconfig_path=nothing)
     global banyan_config
 
     # Write to banyanconfig.toml
-    if banyanconfig_path == nothing
+    if isnothing(banyanconfig_path)
         banyanconfig_path = joinpath(homedir(), ".banyan", "banyanconfig.toml")
     end
     mkpath(joinpath(homedir(), ".banyan"))
@@ -123,14 +126,7 @@ function write_config(banyanconfig_path=nothing)
     close(f)
 end
 
-if_in_or(key, obj, el = nothing) =
-    if key in keys(obj) && !isnothing(obj[key])
-        obj[key]
-    else
-        el
-    end
-
-function configure(; kwargs...)
+function configure(; user_id=nothing, api_key=nothing, ec2_key_pair_name=nothing, banyanconfig_path=nothing)
     # This function allows for users to configure their authentication.
     # Authentication details are then saved in
     # `$HOME/.banyan/banyanconfig.toml` so they don't have to be entered in again
@@ -146,15 +142,11 @@ function configure(; kwargs...)
     # to 0 to indicate that the argument was not specified. This is so that
     # we can differentiate between a user explicitly providing `nothing` as
     # the value for an arg, versus a default.
-    kwargs = Dict(kwargs)
-    user_id = if_in_or(:user_id, kwargs)
-    api_key = if_in_or(:api_key, kwargs)
-    ec2_key_pair_name = if_in_or(:ec2_key_pair_name, kwargs, 0)
-    banyanconfig_path = if_in_or(:banyanconfig_path, kwargs)
 
-    # Load config
-    load_config(banyanconfig_path)
+    # Load config and set the global variable to it
+    c = load_config(banyanconfig_path)
     global banyan_config
+    banyan_config = c
 
     # Check environment variables
     if isnothing(user_id) && haskey(ENV, "BANYAN_USER_ID")
@@ -163,60 +155,34 @@ function configure(; kwargs...)
     if isnothing(api_key) && haskey(ENV, "BANYAN_API_KEY")
         api_key = ENV["BANYAN_API_KEY"]
     end
-    if ec2_key_pair_name == 0 && haskey(ENV, "BANYAN_EC2_KEY_PAIR_NAME")
+    if isnothing(ec2_key_pair_name) && haskey(ENV, "BANYAN_EC2_KEY_PAIR_NAME")
         api_key = ENV["BANYAN_EC2_KEY_PAIR_NAME"]
     end
 
-
     # Check banyanconfig file
-    if isnothing(user_id) && haskey(banyan_config, "banyan") && haskey(banyan_config["banyan"], "user_id")
+    banyan_config_has_info = !(isnothing(banyan_config) || isempty(banyan_config))
+    if isnothing(user_id) && banyan_config_has_info && haskey(banyan_config, "banyan") && haskey(banyan_config["banyan"], "user_id")
         user_id = banyan_config["banyan"]["user_id"]
     end
-    if isnothing(api_key) && haskey(banyan_config, "banyan") && haskey(banyan_config["banyan"], "api_key")
+    if isnothing(api_key) && banyan_config_has_info && haskey(banyan_config, "banyan") && haskey(banyan_config["banyan"], "api_key")
         api_key = banyan_config["banyan"]["api_key"]
     end
-
-    # Initialize
-    is_modified = false
-    is_valid = true
+    if isnothing(ec2_key_pair_name) && banyan_config_has_info && haskey(banyan_config, "aws") && haskey(banyan_config["aws"], "ec2_key_pair_name")
+        ec2_key_pair_name = banyan_config["aws"]["ec2_key_pair_name"]
+    end
 
     # Ensure a configuration has been created or can be created. Otherwise,
     # return nothing
-    if isnothing(banyan_config) || isempty(banyan_config)
-        if !isnothing(user_id) && !isnothing(api_key)
-            banyan_config = Dict(
-                "banyan" =>
-                    Dict("user_id" => user_id, "api_key" => api_key),
-                "aws" => Dict(),
-            )
-            is_modified = true
-        else
-            error("Your user ID and API key must be specified using either keyword arguments, environment variables, or banyanconfig.toml")
-        end
-    end
-
-    # Check for changes in required
-    if !isnothing(user_id) &&
-        (user_id != banyan_config["banyan"]["user_id"])
-         banyan_config["banyan"]["user_id"] = user_id
-         is_modified = true
-     end
-    if !isnothing(api_key) && (api_key != banyan_config["banyan"]["api_key"])
-        banyan_config["banyan"]["api_key"] = api_key
-        is_modified = true
-    end
-
-    # Check for changes in other args
-
-    # aws.ec2_key_pair_name
-    if isnothing(ec2_key_pair_name)
-        delete!(banyan_config["aws"], "ec2_key_pair_name")
-    elseif (ec2_key_pair_name != 0) && (
-        !(haskey(banyan_config["aws"], "ec2_key_pair_name")) ||
-        ec2_key_pair_name != banyan_config["aws"]["ec2_key_pair_name"]
-    )
-        banyan_config["aws"]["ec2_key_pair_name"] = ec2_key_pair_name
-        is_modified = true
+    existing_banyan_config = deepcopy(banyan_config)
+    if !isnothing(user_id) && !isnothing(api_key)
+        aws_ec2_config = (!isnothing(ec2_key_pair_name) && !isempty(ec2_key_pair_name)) ? Dict("ec2_key_pair_name" => ec2_key_pair_name) : Dict()
+        banyan_config = Dict(
+            "banyan" =>
+                Dict("user_id" => user_id, "api_key" => api_key),
+            "aws" => aws_ec2_config,
+        )
+    else
+        error("Your user ID and API key must be specified using either keyword arguments, environment variables, or banyanconfig.toml")
     end
 
     # # aws.region
@@ -229,7 +195,7 @@ function configure(; kwargs...)
     # end
 
     # Update config file if it was modified
-    if is_modified
+    if existing_banyan_config != banyan_config
         write_config(banyanconfig_path)
     end
 
