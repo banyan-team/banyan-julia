@@ -1,39 +1,37 @@
-[splits.ReadBlockJuliaArray]
+[splits.ReadBlockHDF5]
 expected = [ "key" ]
 partition_memory_usage = "part"
 scale_by = 2
 views = false
 required = { name = "Distributing", distribution = "blocked", id = "!" }
-locations = [ { name = "Disk", datatype = "Array" } ]
+locations = [ {name = "Remote", format = "hdf5"} ]
 
-[splits.ReadGroupJuliaArray]
+[splits.ReadGroupHDF5]
 expected = [ "key", "divisions" ]
 partition_memory_usage = "part"
 scale_by = 9
 views = false
 required = { name = "Distributing", distribution = "grouped", id = "!" }
 default = { rev = false }
-locations = [ { name = "Disk", datatype = "Array" } ]
+locations = [ {name = "Remote", format = "hdf5"} ]
 
-[splits.CopyFromJuliaArray]
+[splits.CopyFromHDF5]
 partition_memory_usage = "all"
 scale_by = 2
 views = false
 required = { name = "Replicating", dividing = false }
-locations = [ { name = "Disk", datatype = "Array" } ]
+locations = [ {name = "Remote", format = "hdf5"} ]
 
-[merges.WriteJuliaArray]
+[merges.WriteHDF5]
 partition_memory_usage = "part"
 scale_by = 1
 views = false
 required = { name = "Distributing" }
-locations = [ { name = "Disk", datatype = "Array" } ]
+locations = [ {name = "Remote", format = "hdf5"} ]
 
-[merges.CopyToJuliaArray]
+[merges.CopyToHDF5]
 partition_memory_usage = "all"
 scale_by = 1
 views = false
 required = { name = "Replicating", replication = "all" }
-locations = [ { name = "Disk", datatype = "Array" } ]
-
-casts = { }
+locations = [ {name = "Remote", format = "hdf5"} ]
