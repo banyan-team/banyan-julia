@@ -247,6 +247,7 @@ function partitioned_computation(handler, fut::AbstractFuture; destination, new_
         while true
             # TODO: Use to_jl_value and from_jl_value to support Client
             message, error_for_main_stuck = receive_next_message(gather_queue, p, error_for_main_stuck, error_for_main_stuck_time)
+            @show message
             message_type = message["kind"]
             if message_type == "SCATTER_REQUEST"
                 # Send scatter

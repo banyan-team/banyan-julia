@@ -82,6 +82,7 @@ end
 
 function receive_next_message(queue_name, p=nothing, error_for_main_stuck=nothing, error_for_main_stuck_time=nothing)
     content, error_for_main_stuck = get_next_message(queue_name, p; error_for_main_stuck=error_for_main_stuck, error_for_main_stuck_time=error_for_main_stuck_time)
+    @show content
     res = if startswith(content, "JOB_READY") || startswith(content, "SESSION_READY")
         response = Dict{String,Any}(
             "kind" => "SESSION_READY"
@@ -128,6 +129,8 @@ function receive_next_message(queue_name, p=nothing, error_for_main_stuck=nothin
         # @debug "Received scatter or gather request"
         JSON.parse(content)
     end
+    @show res
+    @show error_for_main_stucks
     res, error_for_main_stuck
 end
 
