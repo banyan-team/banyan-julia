@@ -130,7 +130,7 @@ function receive_next_message(queue_name, p=nothing, error_for_main_stuck=nothin
         JSON.parse(content)
     end
     @show res
-    @show error_for_main_stucks
+    @show error_for_main_stuck
     res, error_for_main_stuck
 end
 
