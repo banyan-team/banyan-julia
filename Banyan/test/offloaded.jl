@@ -3,7 +3,7 @@
 # that returns -1, and then tests this. 
 # Also tests offloaded functions with parameters. 
 
-@testset "Offload Function" begin
+@testset "Offloaded functionality" begin
     # cluster_name = ENV["BANYAN_CLUSTER_NAME"]
     use_session_for_testing() do
         @show get_session().worker_memory_used
@@ -37,7 +37,7 @@
     end
 end
 
-@testset "Offload Latency" begin
+@testset "Offloaded latency" begin
     use_session_for_testing() do
         for _ in 1:3
             @time begin

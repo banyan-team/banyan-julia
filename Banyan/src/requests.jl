@@ -247,15 +247,12 @@ function partitioned_computation(handler, fut::AbstractFuture; destination, new_
         while true
             # TODO: Use to_jl_value and from_jl_value to support Client
             message, error_for_main_stuck = receive_next_message(gather_queue, p, error_for_main_stuck, error_for_main_stuck_time)
-            @show message
             message_type = message["kind"]
             if message_type == "SCATTER_REQUEST"
                 # Send scatter
                 value_id = message["value_id"]
                 f = session.futures_on_client[value_id]
                 # @debug "Received scatter request for value with ID $value_id and value $(f.value) with location $(get_location(f))"
-                @show scatter
-                @show f.value
                 send_message(
                     scatter_queue,
                     JSON.json(
