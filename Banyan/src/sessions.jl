@@ -330,7 +330,7 @@ function get_session_status(session_id::String=get_session_id(); kwargs...)
     filters = Dict("session_id" => session_id)
     response = send_request_get_response(:describe_sessions, Dict{String,Any}("filters"=>filters))
     if !haskey(response["sessions"], session_id)
-        @warn "Session with ID $session_id may still be creating"
+        @warn "Session with ID $session_id is assumed to still be creating"
         return "creating"
     end
     session_status = response["sessions"][session_id]["status"]
