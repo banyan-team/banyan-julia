@@ -29,7 +29,7 @@
 #         iris = read_csv("s3://$(bucket)/iris_large.csv")
 
 #         # Select rows that have a thin petal (i.e., length > 4 * width). Select only the petal columns.
-#         res = collect(
+#         res = Base.collect(
 #             sort(
 #                 iris[
 #                     map(
@@ -49,9 +49,9 @@
 #         @test res[36, 2] == 0.2
 #         @test res[44, 1] == 1.3
 #         res_row_1 = res[256, [1, 2]]
-#         @test collect(res_row_1) == [1.9, 0.4]
+#         @test Base.collect(res_row_1) == [1.9, 0.4]
 #         res_row_2 = res[nrow(res), [1, 2]]
-#         @test collect(res_row_2) == [4.1, 1.0]
+#         @test Base.collect(res_row_2) == [4.1, 1.0]
 #     end
 
 #     run_with_session("Filtering small dataset") do session
@@ -62,12 +62,12 @@
 #         # Filter
 #         iris_filtered =
 #             sort(filter(row -> (row.sepal_length > 5.0 && row.sepal_width < 3.0), iris))
-#         iris_filtered_collect = collect(iris_filtered)
+#         iris_filtered_collect = Base.collect(iris_filtered)
 #         @test nrow(iris_filtered) == 306
 #         @test iris_filtered_collect[1, :sepal_width] == 2.5
 #         @test iris_filtered_collect[46, :petal_length] == 3.9
 #         @test iris_filtered_collect[51, :sepal_length] == 5.6
-#         @test collect(iris_filtered_collect[298, :]) == [7.7, 2.6, 6.9, 2.3, "species_6"]
+#         @test Base.collect(iris_filtered_collect[298, :]) == [7.7, 2.6, 6.9, 2.3, "species_6"]
 
 #         # Unique
 #         @test nrow(unique(iris[:, [:species]])) == 18
@@ -79,49 +79,49 @@
 
 #         # Nonunique before aggregation
 #         nonunique_idxs = nonunique(iris)
-#         nonunique_iris = collect(sort(iris[nonunique_idxs, :]))
-#         @show collect(iris[nonunique_idxs, :])
+#         nonunique_iris = Base.collect(sort(iris[nonunique_idxs, :]))
+#         @show Base.collect(iris[nonunique_idxs, :])
 #         @show nonunique_iris
 #         @show iris
 #         @show typeof(iris)
-#         @show collect(iris)
-#         @show collect(nonunique_idxs)
-#         @test collect(first(nonunique_iris)) == [4.9, 3.1, 1.5, 0.1, "setosa"]
-#         @test collect(nonunique_iris[10, :]) == [4.9, 3.1, 1.5, 0.1, "species_4"]
-#         @test collect(last(nonunique_iris)) == [5.8, 2.7, 5.1, 1.9, "virginica"]
-#         nonunique_species = collect(nonunique(iris, :species))
+#         @show Base.collect(iris)
+#         @show Base.collect(nonunique_idxs)
+#         @test Base.collect(first(nonunique_iris)) == [4.9, 3.1, 1.5, 0.1, "setosa"]
+#         @test Base.collect(nonunique_iris[10, :]) == [4.9, 3.1, 1.5, 0.1, "species_4"]
+#         @test Base.collect(last(nonunique_iris)) == [5.8, 2.7, 5.1, 1.9, "virginica"]
+#         nonunique_species = Base.collect(nonunique(iris, :species))
 #         @test sum(nonunique_species) == 882
 
 #         # Nonunique after aggregation
-#         @test collect(sum(nonunique_idxs)) == 18
-#         # @show collect(sum(nonunique_idxs))
+#         @test Base.collect(sum(nonunique_idxs)) == 18
+#         # @show Base.collect(sum(nonunique_idxs))
 #         # @show sample(nonunique_idxs)
-#         # @show collect(nonunique_idxs)
-#         nonunique_iris = collect(sort(iris[nonunique_idxs, :]))
-#         @show collect(iris[nonunique_idxs, :])
+#         # @show Base.collect(nonunique_idxs)
+#         nonunique_iris = Base.collect(sort(iris[nonunique_idxs, :]))
+#         @show Base.collect(iris[nonunique_idxs, :])
 #         @show nonunique_iris
-#         @show collect(iris)
-#         @show collect(nonunique_idxs)
-#         @test collect(first(nonunique_iris)) == [4.9, 3.1, 1.5, 0.1, "setosa"]
-#         @test collect(nonunique_iris[10, :]) == [4.9, 3.1, 1.5, 0.1, "species_4"]
-#         @test collect(last(nonunique_iris)) == [5.8, 2.7, 5.1, 1.9, "virginica"]
-#         nonunique_species = collect(nonunique(iris, :species))
+#         @show Base.collect(iris)
+#         @show Base.collect(nonunique_idxs)
+#         @test Base.collect(first(nonunique_iris)) == [4.9, 3.1, 1.5, 0.1, "setosa"]
+#         @test Base.collect(nonunique_iris[10, :]) == [4.9, 3.1, 1.5, 0.1, "species_4"]
+#         @test Base.collect(last(nonunique_iris)) == [5.8, 2.7, 5.1, 1.9, "virginica"]
+#         nonunique_species = Base.collect(nonunique(iris, :species))
 #         @test sum(nonunique_species) == 882
 
 #         # Nonunique after _another_ aggregation
-#         @test collect(sum(nonunique_idxs)) == 18
-#         # @show collect(sum(nonunique_idxs))
+#         @test Base.collect(sum(nonunique_idxs)) == 18
+#         # @show Base.collect(sum(nonunique_idxs))
 #         # @show sample(nonunique_idxs)
-#         # @show collect(nonunique_idxs)
-#         nonunique_iris = collect(sort(iris[nonunique_idxs, :]))
-#         @show collect(iris[nonunique_idxs, :])
+#         # @show Base.collect(nonunique_idxs)
+#         nonunique_iris = Base.collect(sort(iris[nonunique_idxs, :]))
+#         @show Base.collect(iris[nonunique_idxs, :])
 #         @show nonunique_iris
-#         @show collect(iris)
-#         @show collect(nonunique_idxs)
-#         @test collect(first(nonunique_iris)) == [4.9, 3.1, 1.5, 0.1, "setosa"]
-#         @test collect(nonunique_iris[10, :]) == [4.9, 3.1, 1.5, 0.1, "species_4"]
-#         @test collect(last(nonunique_iris)) == [5.8, 2.7, 5.1, 1.9, "virginica"]
-#         nonunique_species = collect(nonunique(iris, :species))
+#         @show Base.collect(iris)
+#         @show Base.collect(nonunique_idxs)
+#         @test Base.collect(first(nonunique_iris)) == [4.9, 3.1, 1.5, 0.1, "setosa"]
+#         @test Base.collect(nonunique_iris[10, :]) == [4.9, 3.1, 1.5, 0.1, "species_4"]
+#         @test Base.collect(last(nonunique_iris)) == [5.8, 2.7, 5.1, 1.9, "virginica"]
+#         nonunique_species = Base.collect(nonunique(iris, :species))
 #         @test sum(nonunique_species) == 882
 
 #         # Dropmissing, allowmissing, disallowmissing
@@ -133,8 +133,8 @@
 #         #iris_cleaned = dropmissing(iris_allowmissing)
 #         #iris_cleaned = disallowmissing(iris_cleaned)
 #         #@test nrow(iris_cleaned) == 147
-#         #@test collect(iris_cleaned[123, :])[:sepal_length] == 6.7
-#         #iris_cleaned = collect(iris_cleaned)
+#         #@test Base.collect(iris_cleaned[123, :])[:sepal_length] == 6.7
+#         #iris_cleaned = Base.collect(iris_cleaned)
 #         #@test first(iris_cleaned)[:sepal_width] == 3.0
 #         #@test last(iris_cleaned)[:petal_width] == 2.3
 #     end
@@ -148,8 +148,8 @@
 #         iris_sorted = sort(iris, :sepal_width)
 #         iris_sorted_reverse = sort(iris, :sepal_width, rev = true)
 
-#         iris_sorted = collect(iris_sorted)
-#         iris_sorted_reverse = collect(iris_sorted_reverse)
+#         iris_sorted = Base.collect(iris_sorted)
+#         iris_sorted_reverse = Base.collect(iris_sorted_reverse)
 
 #         @test iris_sorted[[1, 142, nrow(iris_sorted)], [:sepal_width, :petal_length]] ==
 #               DataFrames.DataFrame(:sepal_width => [2.0, 2.6, 4.4], :petal_length => [3.5, 4.0, 1.5])
@@ -171,9 +171,9 @@
 #         gdf_species = groupby(iris_new, :species)
 #         gdf_region = groupby(iris_new, :region)
 
-#         gr_cols = collect(groupcols(gdf_region))
-#         gs_cols = collect(groupcols(gdf_species))
-#         vr_cols = Set(collect(valuecols(gdf_region)))
+#         gr_cols = Base.collect(groupcols(gdf_region))
+#         gs_cols = Base.collect(groupcols(gdf_species))
+#         vr_cols = Set(Base.collect(valuecols(gdf_region)))
 
 #         @test gr_cols == [:region]
 #         @test gs_cols == [:species]
@@ -181,11 +181,11 @@
 #               Set([:sepal_length, :sepal_width, :petal_length, :petal_width, :species])
 
 #         lengths_species =
-#             collect(sort(combine(gdf_species, :petal_length => mean), :petal_length_mean))
-#         counts_species = collect(sort(combine(gdf_region, nrow), :region))
+#             Base.collect(sort(combine(gdf_species, :petal_length => mean), :petal_length_mean))
+#         counts_species = Base.collect(sort(combine(gdf_region, nrow), :region))
 #         lengths_region =
-#             collect(sort(combine(gdf_region, :petal_length => mean), :petal_length_mean))
-#         counts_region = collect(sort(combine(gdf_region, nrow), :region))
+#             Base.collect(sort(combine(gdf_region, :petal_length => mean), :petal_length_mean))
+#         counts_region = Base.collect(sort(combine(gdf_region, nrow), :region))
 
 #         @test lengths_species[:, :petal_length_mean] ==
 #               lengths_region[:, :petal_length_mean] ==
@@ -228,11 +228,11 @@
 #             select(gdf, :, [:petal_length] => (pl) -> pl .- mean(pl)),
 #             :petal_length_function,
 #         )
-#         petal_length_function_sum = round(collect(reduce(-, iris_select[:, :petal_length_function])), digits=2)
+#         petal_length_function_sum = round(Base.collect(reduce(-, iris_select[:, :petal_length_function])), digits=2)
 #         @test petal_length_function_sum == -52.71
         
 #         #@test round.(
-#         #    collect(
+#         #    Base.collect(
 #         #        iris_select[:, :petal_length_function][[1, 7488, 34992, nrow(iris_select)]],
 #         #    ),
 #         #    digits = 3,
@@ -240,7 +240,7 @@
 
 #         # Transform
 #         iris_new = transform(gdf, :species => x -> "iris-" .* x)
-#         species_names = collect(sort(unique(iris_new[:, "species_function"])))
+#         species_names = Base.collect(sort(unique(iris_new[:, "species_function"])))
 #         @test species_names == [
 #             "iris-setosa",
 #             "iris-species_10",
@@ -264,7 +264,7 @@
 
 #         # Split-Apply-Combine
 #         iris_mins =
-#             collect(sort(combine(gdf, :petal_length => minimum), :petal_length_minimum))
+#             Base.collect(sort(combine(gdf, :petal_length => minimum), :petal_length_minimum))
 #         @test iris_mins[:, :petal_length_minimum] == [
 #             1.0,
 #             1.0,
@@ -329,8 +329,8 @@
 #                 nrow,
 #             ),
 #         )
-#         long_petal_iris_nrow = collect(long_petal_iris)[:, :nrow]
-#         long_petal_iris_species = collect(long_petal_iris)[:, :species]
+#         long_petal_iris_nrow = Base.collect(long_petal_iris)[:, :nrow]
+#         long_petal_iris_species = Base.collect(long_petal_iris)[:, :species]
 #         @test long_petal_iris_nrow == [
 #             1250,
 #             1250,
@@ -378,8 +378,8 @@
 #         # upload_iris_to_s3(bucket)
 #         iris = read_csv("s3://$(bucket)/iris_large.csv")
 #         gdf = groupby(iris, :species)
-#         lengths = collect(sort(combine(gdf, :petal_length => mean)))
-#         counts = collect(combine(gdf, nrow))
+#         lengths = Base.collect(sort(combine(gdf, :petal_length => mean)))
+#         counts = Base.collect(combine(gdf, nrow))
 
 #         @show lengths
 #         @show counts
@@ -457,10 +457,10 @@
 #             "region",
 #         ])
 #         @test nrow(iris_joined) == 146
-#         res = collect(iris_joined)
-#         @test collect(res[1, :]) == [4.3, 3.0, 1.1, 0.1, "setosa", 1.0, "Arctic"]
-#         @test collect(res[121, :]) == [6.6, 2.9, 4.6, 1.3, "species_5", 5.0, "region_5"]
-#         @test collect(res[146, :]) == [7.9, 3.8, 6.4, 2.0, "species_6", 6.0, "region_6"]
+#         res = Base.collect(iris_joined)
+#         @test Base.collect(res[1, :]) == [4.3, 3.0, 1.1, 0.1, "setosa", 1.0, "Arctic"]
+#         @test Base.collect(res[121, :]) == [6.6, 2.9, 4.6, 1.3, "species_5", 5.0, "region_5"]
+#         @test Base.collect(res[146, :]) == [7.9, 3.8, 6.4, 2.0, "species_6", 6.0, "region_6"]
 #     end
 # end
 
@@ -499,8 +499,8 @@
 
 #         @test nrow(result_1) == nrow(result_2) == 462
 
-#         result_1 = collect(result_1)
-#         result_2 = collect(result_2)
+#         result_1 = Base.collect(result_1)
+#         result_2 = Base.collect(result_2)
 
 #         @test isapprox(result_1[7, :petal_length_normalized], 0.52380, atol = 1e-4)
 #         @test isapprox(result_2[7, :petal_length_normalized], 0.52380, atol = 1e-4)
@@ -522,7 +522,7 @@
 #         # and compute number of rows. Sort by number of rows.
 #         iris = innerjoin(iris, iris[:, [:species]], on = :species)
 #         iris[:, :sepal_length_function] = map(sl -> round(sl), iris[:, :sepal_length])
-#         iris_sepal_length_groups = write_to_disk(
+#         iris_sepal_length_groups = compute_inplace(
 #             sort(
 #                 combine(
 #                     groupby(
@@ -534,7 +534,7 @@
 #                 :nrow,
 #             ),
 #         )
-#         res = collect(iris_sepal_length_groups)
+#         res = Base.collect(iris_sepal_length_groups)
 #         @test res[:, :nrow] == [1500, 1800, 7200, 14100, 20400]
 #         @test res[:, :sepal_length_rounded] == [4.0, 8.0, 7.0, 5.0, 6.0]
 #     end

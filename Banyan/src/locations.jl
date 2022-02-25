@@ -469,7 +469,7 @@ end
 function convert_to_unpooled(A)
     type_name = typeof(A).name.name
     if type_name == :PooledArray
-        collect(A)
+        Base.collect(A)
     elseif type_name == :CategoricalArray
         unwrap.(A)
     else

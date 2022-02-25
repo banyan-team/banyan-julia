@@ -238,9 +238,9 @@ function setup_stress_tests(bucket_name=get_cluster_s3_bucket_name())
             for ncopy = 1:n_repeats
                 dst_path = "s3://$(bucket_name)/tripdata_large_$(filetype).$(filetype)/tripdata_$(month)_copy$(ncopy).$(filetype)"
                 dst_s3_path = S3Path(dst_path, config = Banyan.get_aws_config())
-                append!(dst_s3_paths, dst_s3_path)
+                push!(dst_s3_paths, dst_s3_path)
                 if !isfile(dst_s3_path)
-                    append!(dst_s3_paths_missing, dst_s3_path)
+                    push!(dst_s3_paths_missing, dst_s3_path)
                 end
             end
         end

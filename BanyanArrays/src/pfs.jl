@@ -287,7 +287,7 @@ CopyFromJuliaArray(src, params, batch_idx, nbatches, comm, loc_name, loc_params)
     ReadBlockJuliaArray(src, params, 1, 1, MPI.COMM_SELF, loc_name, loc_params)
 end
 
-CopyToJuliaArray(
+function CopyToJuliaArray(
     src,
     part,
     params,
@@ -296,9 +296,14 @@ CopyToJuliaArray(
     comm::MPI.Comm,
     loc_name,
     loc_params,
-) = if Banyan.get_partition_idx(batch_idx, nbatches, comm) == 1
-    params["key"] = 1
-    WriteJuliaArray(src, part, params, 1, 1, MPI.COMM_SELF, loc_name, loc_params)
+)
+    if Banyan.get_partition_idx(batch_idx, nbatches, comm) == 1
+        params["key"] = 1
+        res = WriteJuliaArray(src, part, params, 1, 1, MPI.COMM_SELF, loc_name, loc_params)
+    end
+    if batch_idx == 1
+        MPI.Barrier(comm)
+    end
 end
 
 function ReadBlockHDF5(
@@ -737,7 +742,7 @@ CopyFromHDF5(src, params, batch_idx, nbatches, comm, loc_name, loc_params) = beg
     ReadBlockHDF5(src, params, 1, 1, MPI.COMM_SELF, loc_name, loc_params)
 end
 
-CopyToHDF5(
+function CopyToHDF5(
     src,
     part,
     params,
@@ -746,9 +751,14 @@ CopyToHDF5(
     comm::MPI.Comm,
     loc_name,
     loc_params,
-) = if Banyan.get_partition_idx(batch_idx, nbatches, comm) == 1
-    params["key"] = 1
-    WriteHDF5(src, part, params, 1, 1, MPI.COMM_SELF, loc_name, loc_params)
+)
+    if Banyan.get_partition_idx(batch_idx, nbatches, comm) == 1
+        params["key"] = 1
+        WriteHDF5(src, part, params, 1, 1, MPI.COMM_SELF, loc_name, loc_params)
+    end
+    if batch_idx == 1
+        MPI.Barrier(comm)
+    end
 end
 
 function Banyan.SplitBlock(

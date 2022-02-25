@@ -29,8 +29,6 @@
         @test res4 == 105
         @show get_session().worker_memory_used
 
-
-
         offloaded() do
             x = ones(800000000)
             return 0

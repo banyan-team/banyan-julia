@@ -137,9 +137,9 @@ using HDF5
         #             @test x_length_collect == 400
         #             x_size_collect = size(x)
         #             @test x_size_collect == (400,)
-        #             x_minimum_collect = collect(minimum(x))
+        #             x_minimum_collect = Base.collect(minimum(x))
         #             @test x_minimum_collect == "Parting"
-        #             x_maximum_collect = collect(maximum(x))
+        #             x_maximum_collect = Base.collect(maximum(x))
         #             @test x_maximum_collect == "sweet"
         #             x_length_collect = length(x)
         #             @test x_length_collect == 400

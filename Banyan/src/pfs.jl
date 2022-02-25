@@ -39,7 +39,7 @@ function sortablestring(val, maxval)
     s = string(val)
     maxs = string(maxval)
     res = Base.fill('0', length(maxs))
-    res[length(res)-length(s)+1:length(res)] .= collect(s)
+    res[length(res)-length(s)+1:length(res)] .= Base.collect(s)
     join(res)
 end
 
@@ -346,7 +346,7 @@ CopyToClient(
     send_to_client(loc_params["value_id"], part)
 end
 
-CopyToJulia(
+function CopyToJulia(
     src,
     part,
     params,
@@ -355,14 +355,19 @@ CopyToJulia(
     comm::MPI.Comm,
     loc_name,
     loc_params,
-) = if get_partition_idx(batch_idx, nbatches, comm) == 1
-    # # This must be on disk; we don't support Julia serialized objects
-    # # as a remote location yet. We will need to first refactor locations
-    # # before we add support for that.
-    # if isa_gdf(part)
-    #     part = nothing
-    # end
-    serialize(getpath(loc_params["path"], comm), part)
+)
+    if get_partition_idx(batch_idx, nbatches, comm) == 1
+        # # This must be on disk; we don't support Julia serialized objects
+        # # as a remote location yet. We will need to first refactor locations
+        # # before we add support for that.
+        # if isa_gdf(part)
+        #     part = nothing
+        # end
+        serialize(getpath(loc_params["path"], comm), part)
+    end
+    if batch_idx == 1
+        MPI.Barrier(comm)
+    end
 end
 
 function get_op!(params::Dict{String,Any})
@@ -428,6 +433,16 @@ end
 
 ReduceWithKeyAndCopyToJulia = ReduceAndCopyToJulia
 
+Divide(
+    src::AbstractRange,
+    params::Dict{String,Any},
+    batch_idx::Integer,
+    nbatches::Integer,
+    comm::MPI.Comm,
+    loc_name::String,
+    loc_params::Dict{String,Any},
+) = src[split_len(length(src), batch_idx, nbatches, comm)]
+
 function Divide(
     src::Tuple,
     params::Dict{String,Any},
@@ -437,6 +452,7 @@ function Divide(
     loc_name::String,
     loc_params::Dict{String,Any},
 )
+    # This is for sizes which are tuples.
     dim = params["key"]
     part = src
     # part = CopyFrom(src, params, batch_idx, nbatches, comm, loc_name, loc_params)

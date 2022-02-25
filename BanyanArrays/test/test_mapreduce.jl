@@ -40,10 +40,10 @@
             # NOTE: This also tests simple writing to and reading from local disk
             x = BanyanArrays.fill(10.0, 2048)
             # x = map(e -> e / 10, x)
-            write_to_disk(x)
-            # write_to_disk(x)
+            compute_inplace(x)
+            # compute_inplace(x)
             sleep(15)
-            # NOTE: The only reason why we're not putting `collect(x)` inside the
+            # NOTE: The only reason why we're not putting `Base.collect(x)` inside the
             # the `@test` is because `@test` will catch exceptions and prevent the
             # session from getting destroyed when an exception occurs and we can't keep
             # running this test if the session ends
@@ -56,15 +56,15 @@
         # NOTE: This also tests simple writing to and reading from local disk
         x = BanyanArrays.fill(10.0, 2048)
         x = map(e -> e / 10, x)
-        write_to_disk(x)
-        write_to_disk(x)
-        # NOTE: The only reason why we're not putting `collect(x)` inside the
+        compute_inplace(x)
+        compute_inplace(x)
+        # NOTE: The only reason why we're not putting `Base.collect(x)` inside the
         # the `@test` is because `@test` will catch exceptions and prevent the
         # session from getting destroyed when an exception occurs and we can't keep
         # running this test if the session ends
         x_collect = compute(x)
         @test x_collect == Base.fill(1.0, 2048)
-        write_to_disk(x)
+        compute_inplace(x)
         x_collect = compute(x)
         @test x_collect == Base.fill(1.0, 2048)
         x_collect = compute(x)
@@ -75,11 +75,11 @@
         x = BanyanArrays.fill(10.0, 2048)
         x_sum = reduce(+, x)
         x = map(e -> e / 10, x)
-        write_to_disk(x)
-        write_to_disk(x_sum)
+        compute_inplace(x)
+        compute_inplace(x_sum)
         x_sum_collect = compute(x_sum)
         @test x_sum_collect == 10.0 * 2048
-        write_to_disk(x_sum)
+        compute_inplace(x_sum)
         x_collect = compute(x)
         @test x_collect == Base.fill(1.0, 2048)
         compute(x_sum)
@@ -150,18 +150,18 @@
     #     res = map(*, x1, x2, x3)
     #     res_lengths = map(s -> length(s), res)
 
-    #     res_lengths_minimum_collect = collect(minimum(res_lengths))
+    #     res_lengths_minimum_collect = Base.collect(minimum(res_lengths))
     #     @test res_lengths_minimum_collect == 18
 
     #     # TODO: Support writing string arrays for this to work
     #     # This is unnecessary but will cache `res` on disk
-    #     # write_to_disk(res)
-    #     # res_collect = collect(res)
+    #     # compute_inplace(res)
+    #     # res_collect = Base.collect(res)
     #     # @test res_collect == BanyanArrays.fill("hello\nhello\nworld\n", 2048)
 
     #     # TODO: Test this once we implement a merging function for
     #     # variable-sized reductions
-    #     # res_minimum_collect = collect(minimum(res))
+    #     # res_minimum_collect = Base.collect(minimum(res))
     #     # @test res_minimum_collect == "hello\nhello\nworld\n"
 
     #     # TODO: Test this once we implement a merging function for
@@ -169,7 +169,7 @@
     #     # x = BanyanArrays.fill("hi\n", 8)
     #     # res = reduce(*, x)
 
-    #     # res_collect = collect(res)
+    #     # res_collect = Base.collect(res)
     #     # @test res_collect == "hi\nhi\nhi\nhi\nhi\nhi\nhi\nhi\n"
     # end
 

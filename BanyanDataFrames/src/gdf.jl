@@ -144,16 +144,16 @@ function DataFrames.select(gdf::GroupedDataFrame, args...; kwargs...)
     # # TODO: Share sampled names if performance is impacted by repeatedly getting names
 
     # # allowedgroupingkeys = names(sample(gdf_parent), compute(groupcols))
-    # # allowedgroupingkeys = get(collect(groupkwargs), :sort, false) ? allowedgroupingkeys[1:1] : allowedgroupingkeys
+    # # allowedgroupingkeys = get(Base.collect(groupkwargs), :sort, false) ? allowedgroupingkeys[1:1] : allowedgroupingkeys
     # # union!(sample(gdf_parent, :allowedgroupingkeys), allowedgroupingkeys)
-    # if get(collect(kwargs), :keepkeys, true)
+    # if get(Base.collect(kwargs), :keepkeys, true)
     #     union!(sample(res, :allowedgroupingkeys), sample(gdf, :allowedgroupingkeys))
     # end
     # for key in sample(gdf_parent, :allowedgroupingkeys)
     #     setsample(res, :keystatistics, key, sample(gdf_parent, :keystatistics, key))
     #     for balanced in [true, false]
     #         partition(gdf_parent, Grouped(;key=key, balanced=balanced))
-    #         if get(collect(kwargs), :keepkeys, true)
+    #         if get(Base.collect(kwargs), :keepkeys, true)
     #             partition(res, Partitioned(), match=gdf_parent)
     #         else
     #             partition(res, Blocked(dim=1), match=gdf_parent, on=["balanced", "id"])
@@ -315,14 +315,14 @@ end
 #     partition(gdf_parent, Replicated())
 #     partition(res, Replicated())
     
-#     if get(collect(kwargs), :keepkeys, true)
+#     if get(Base.collect(kwargs), :keepkeys, true)
 #         union!(sample(res, :allowedgroupingkeys), sample(gdf, :allowedgroupingkeys))
 #     end
 #     for key in sample(gdf_parent, :allowedgroupingkeys)
 #         setsample(res, :keystatistics, key, sample(gdf_parent, :keystatistics, key))
 #         for balanced in [true, false]
 #             partition(gdf_parent, Grouped(;key=key, balanced=balanced))
-#             if get(collect(kwargs), :keepkeys, true)
+#             if get(Base.collect(kwargs), :keepkeys, true)
 #                 partition(res, Partitioned(), match=gdf_parent)
 #             else
 #                 partition(res, Blocked(dim=1), match=gdf_parent, on=["balanced", "id"])
@@ -363,13 +363,13 @@ end
 #     partition(gdf_parent, Replicated())
 #     partition(res, Replicated())
     
-#     if get(collect(kwargs), :keepkeys, true)
+#     if get(Base.collect(kwargs), :keepkeys, true)
 #         union!(sample(res, :allowedgroupingkeys), sample(gdf, :allowedgroupingkeys))
 #     end
 #     for key in sample(gdf_parent, :allowedgroupingkeys)
 #         for balanced in [true, false]
 #             partition(gdf_parent, Grouped(;key=key, balanced=balanced))
-#             if get(collect(kwargs), :keepkeys, true)
+#             if get(Base.collect(kwargs), :keepkeys, true)
 #                 partition(res, Grouped(key=key, balanced=false, id="*"), match=gdf_parent, on="divisions")
 #             else
 #                 partition(res, Blocked(dim=1, balanced=false, id="*"))
@@ -415,13 +415,13 @@ end
 #     partition(gdf_parent, Replicated())
 #     partition(res, Replicated())
     
-#     if get(collect(kwargs), :keepkeys, true)
+#     if get(Base.collect(kwargs), :keepkeys, true)
 #         union!(sample(res, :allowedgroupingkeys), sample(gdf, :allowedgroupingkeys))
 #     end
 #     for key in sample(gdf_parent, :allowedgroupingkeys)
 #         for balanced in [true, false]
 #             partition(gdf_parent, Grouped(;key=key, balanced=balanced))
-#             if get(collect(kwargs), :keepkeys, true)
+#             if get(Base.collect(kwargs), :keepkeys, true)
 #                 partition(res, Grouped(key=key, balanced=false, id="*"), match=gdf_parent, on="divisions")
 #             else
 #                 partition(res, Blocked(dim=1, balanced=false, id="*"))

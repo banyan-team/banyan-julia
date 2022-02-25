@@ -20,6 +20,7 @@ using AWSCore
 using AWSS3
 using AWSSQS
 using Base64
+using Dates
 using Downloads
 using HTTP
 using JSON
@@ -78,7 +79,7 @@ export Session,
     download_session_logs
 
 # Futures
-export AbstractFuture, Future, partitioned_computation, write_to_disk, compute
+export AbstractFuture, Future, partitioned_computation, compute_inplace, compute
 
 # Samples
 export Sample, ExactSample, sample, setsample!

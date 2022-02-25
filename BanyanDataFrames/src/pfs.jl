@@ -354,7 +354,7 @@ CopyFromParquet(src, params, batch_idx, nbatches, comm, loc_name, loc_params) = 
     ReadBlockParquet(src, params, 1, 1, MPI.COMM_SELF, loc_name, loc_params)
 end
 
-CopyToCSV(
+function CopyToCSV(
     src,
     part,
     params,
@@ -363,12 +363,17 @@ CopyToCSV(
     comm::MPI.Comm,
     loc_name,
     loc_params,
-) = if Banyan.get_partition_idx(batch_idx, nbatches, comm) == 1
-    params["key"] = 1
-    WriteCSV(src, part, params, 1, 1, MPI.COMM_SELF, loc_name, loc_params)
+)
+    if Banyan.get_partition_idx(batch_idx, nbatches, comm) == 1
+        params["key"] = 1
+        WriteCSV(src, part, params, 1, 1, MPI.COMM_SELF, loc_name, loc_params)
+    end
+    if batch_idx == 1
+        MPI.Barrier(comm)
+    end
 end
 
-CopyToParquet(
+function CopyToParquet(
     src,
     part,
     params,
@@ -377,12 +382,17 @@ CopyToParquet(
     comm::MPI.Comm,
     loc_name,
     loc_params,
-) = if Banyan.get_partition_idx(batch_idx, nbatches, comm) == 1
-    params["key"] = 1
-    WriteParquet(src, part, params, 1, 1, MPI.COMM_SELF, loc_name, loc_params)
+)
+    if Banyan.get_partition_idx(batch_idx, nbatches, comm) == 1
+        params["key"] = 1
+        WriteParquet(src, part, params, 1, 1, MPI.COMM_SELF, loc_name, loc_params)
+    end
+    if batch_idx == 1
+        MPI.Barrier(comm)
+    end
 end
 
-CopyToArrow(
+function CopyToArrow(
     src,
     part,
     params,
@@ -391,9 +401,14 @@ CopyToArrow(
     comm::MPI.Comm,
     loc_name,
     loc_params,
-) = if Banyan.get_partition_idx(batch_idx, nbatches, comm) == 1
-    params["key"] = 1
-    WriteArrow(src, part, params, 1, 1, MPI.COMM_SELF, loc_name, loc_params)
+)
+    if Banyan.get_partition_idx(batch_idx, nbatches, comm) == 1
+        params["key"] = 1
+        WriteArrow(src, part, params, 1, 1, MPI.COMM_SELF, loc_name, loc_params)
+    end
+    if batch_idx == 1
+        MPI.Barrier(comm)
+    end
 end
 
 function Banyan.SplitBlock(
@@ -606,7 +621,7 @@ function Banyan.Consolidate(part::AbstractDataFrame, src_params::Dict{String,Any
         ) |> IOBuffer |> Arrow.Table |> DataFrames.DataFrame
         for i in 1:Banyan.get_nworkers(comm)
     ]
-    if investigating()[:losing_data]
+    if isinvestigating()[:losing_data]
         @show length(results)
         @show nrow.(results)
     end
@@ -661,8 +676,7 @@ function Banyan.Shuffle(
             DataFrames.transform!(part, key => ByRow(partition_idx_getter) => :banyan_shuffling_key)
 
             # Group the dataframe's rows by what partition to send to
-            gdf = DataFrames.groupby(part, :banyan_shuffling_key, sort = true)
-            gdf
+            DataFrames.groupby(part, :banyan_shuffling_key, sort = true)
         else
             nothing
         end

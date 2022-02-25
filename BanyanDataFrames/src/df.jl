@@ -85,7 +85,7 @@ end
 write_parquet(A, p; kwargs...) = write_csv(A, p; kwargs...)
 write_arrow(A, p; kwargs...) = write_csv(A, p; kwargs...)
 
-function Banyan.write_to_disk(df::DataFrame)
+function Banyan.compute_inplace(df::DataFrame)
     partitioned_computation(df, destination=Disk()) do
         pt(df, Partitioned(df))
     end

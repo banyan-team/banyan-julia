@@ -8,7 +8,7 @@ function upload_iris_all_formats_to_s3(bucket_name)
         "iris.csv",
         iris_download_path,
     )
-    #df = collect(read_csv("s3://$(bucket_name)/iris.csv"))
+    #df = Base.collect(read_csv("s3://$(bucket_name)/iris.csv"))
     # Parquet
     Parquet.write_parquet("iris.parquet", df)
     verify_file_in_s3(
@@ -37,9 +37,9 @@ end
             iris = read_func("s3://$(bucket)/iris.$(filetype)")
             @test nrow(iris) == 150
             @test ncol(iris) == 5
-            @test collect(names(iris)) ==
+            @test Base.collect(names(iris)) ==
                 ["sepal_length", "sepal_width", "petal_length", "petal_width", "species"]
-            @test collect(propertynames(iris)) ==
+            @test Base.collect(propertynames(iris)) ==
                 [:sepal_length, :sepal_width, :petal_length, :petal_width, :species]
             iris_filter = iris[map(sl -> sl == 5.1, iris[:, :sepal_length]), :]
             iris_filter_first_row = first(compute(iris_filter))

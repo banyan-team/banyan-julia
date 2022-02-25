@@ -70,8 +70,8 @@
                 # Collect results
                 sub3_nrow = nrow(sub3)
                 sub3 = sort(compute(sub3))
-                sub3_row8 = collect(sub3[8, :])
-                sub3_row62 = collect(sub3[62, :])
+                sub3_row8 = Base.collect(sub3[8, :])
+                sub3_row62 = Base.collect(sub3[62, :])
 
                 # Assert
                 @test sub3_nrow == 62
@@ -103,8 +103,8 @@
                     ),
                 )
                 sub4 = sort(compute(sub4))
-                sub4_row8 = collect(sub4[8, :])
-                sub4_row114 = collect(sub4[114, :])
+                sub4_row8 = Base.collect(sub4[8, :])
+                sub4_row114 = Base.collect(sub4[114, :])
 
                 # Assert
                 @test sub4_nrow == 114
@@ -131,8 +131,8 @@
                 # Collect results
                 sub5_nrow = nrow(sub5)
                 sub5 = sort(compute(sub5))
-                sub5_row1 = collect(sub5[1, :])
-                sub5_row18 = collect(sub5[18, :])
+                sub5_row1 = Base.collect(sub5[1, :])
+                sub5_row18 = Base.collect(sub5[18, :])
 
                 # Assert
                 @test sub5_nrow == 18
@@ -176,7 +176,7 @@ end
                 sub_nrow = nrow(sub)
                 sub_tripdistance_sum = round(compute(reduce(+, sub[:, :trip_distance])))
                 sub_valid = round(compute(reduce(&, map(d -> d > 1.0, sub[:, :trip_distance]))))
-                #sub_hour_sum = collect(
+                #sub_hour_sum = Base.collect(
                 #    reduce(
                 #        +,
                 #        map(
@@ -290,7 +290,7 @@ end
                 gdf_subset_nrow = nrow(gdf_subset)
                 @test gdf_subset_nrow == 474
                 gdf_subset_collected = sort(compute(gdf_subset))
-                gdf_subset_row474 = collect(gdf_subset_collected[474, :])
+                gdf_subset_row474 = Base.collect(gdf_subset_collected[474, :])
                 gdf_select_plf_square_add = round(
                     compute(reduce(+, map(l -> l * l, gdf_select[:, :petal_length_function]))),
                     digits = 2,
@@ -306,9 +306,9 @@ end
                 gdf_transform_length =
                     length(groupby(gdf_transform, [:species, :species_function]))
                 gdf_subset_collected = sort(compute(gdf_subset))
-                gdf_subset_row5 = collect(gdf_subset_collected[5, :])
-                gdf_subset_row333 = collect(gdf_subset_collected[333, :])
-                gdf_subset_row474 = collect(gdf_subset_collected[474, :])
+                gdf_subset_row5 = Base.collect(gdf_subset_collected[5, :])
+                gdf_subset_row333 = Base.collect(gdf_subset_collected[333, :])
+                gdf_subset_row474 = Base.collect(gdf_subset_collected[474, :])
                 # gdf_keepkeys_false_names = names(combine(gdf, nrow, keepkeys = false))
                 gdf_keepkeys_true_names = Set(names(combine(gdf, nrow, keepkeys = true)))
                 petal_length_mean =
@@ -617,7 +617,7 @@ end
 
         @test size(df1) == (1, 5)
         @test names(df1) == ["sepal_length", "sepal_width", "petal_length", "petal_width", "species"]
-        @test collect(df1[1, :]) == [4.9, 3.0, 1.4, 0.2, "setosa"]
+        @test Base.collect(df1[1, :]) == [4.9, 3.0, 1.4, 0.2, "setosa"]
 
         @test size(df2) == (0, 5)
         @test names(df2) == ["sepal_length", "sepal_width", "petal_length", "petal_width", "species"]
@@ -653,7 +653,7 @@ end
         df02 = compute(filt02)
 
         @test size(df01) == (1, 5)
-        @test collect(df01[1, :]) == [4.9, 3.0, 1.4, 0.2, "species_10"]
+        @test Base.collect(df01[1, :]) == [4.9, 3.0, 1.4, 0.2, "species_10"]
 
         @test size(df02) == (0, 5)
         @test names(df02) == ["sepal_length", "sepal_width", "petal_length", "petal_width", "species"]
