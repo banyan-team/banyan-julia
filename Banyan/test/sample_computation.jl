@@ -1,5 +1,3 @@
-using DataFrames, CSV
-
 @testset "Order-preserving hash for samples" begin
     increasing_array_1d = range(1,100,length=100)
     increasing_array_1d_smaller = range(-50,49,length=100)
