@@ -15,8 +15,8 @@ ProgressMeter = "92933f4c-e287-5a05-a399-4b506db050ca"
 Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
 
 [compat]
-Banyan = "0.3.1"
-BanyanArrays = "0.3.2"
+Banyan = "0.3.2"
+BanyanArrays = "0.3.0"
 FileIO = "1.9.1"
 ImageCore = "0.9.3"
 ImageIO = "0.6.0"
