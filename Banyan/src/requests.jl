@@ -253,6 +253,8 @@ function partitioned_computation(handler, fut::AbstractFuture; destination, new_
                 value_id = message["value_id"]
                 f = session.futures_on_client[value_id]
                 # @debug "Received scatter request for value with ID $value_id and value $(f.value) with location $(get_location(f))"
+                @show scatter
+                @show f.value
                 send_message(
                     scatter_queue,
                     JSON.json(
