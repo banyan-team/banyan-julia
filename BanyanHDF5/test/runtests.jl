@@ -138,6 +138,7 @@ function use_data(data_src = "S3")
 end
 
 include("hdf5.jl")
+include("sample_collection.jl")
 
 try
     runtests(Regex.(ARGS)...)
