@@ -1,7 +1,7 @@
 name = "BanyanDataFrames"
 uuid = "dfdd4555-3ad7-41cc-a503-a251c9c652f9"
 authors = ["Banyan <support@banyancomputing.com>"]
-version = "0.2.1"
+version = "0.3.0"
 
 [deps]
 AWS = "fbe9abb3-538b-5e4e-ba9e-bc94f4f92ebc"
@@ -28,7 +28,7 @@ AWSCore = "0.6.17"
 AWSS3 = "0.7"
 Arrow = "1.5.0"
 Banyan = "0.3.1"
-BanyanArrays = "0.2.1"
+BanyanArrays = "0.3.0"
 CSV = "0.9.5"
 DataFrames = "1"
 Downloads = "1.4"

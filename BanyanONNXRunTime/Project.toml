@@ -1,7 +1,7 @@
 name = "BanyanONNXRunTime"
 uuid = "3da3ccd6-fc67-4523-8345-616f63551475"
 authors = ["Banyan Computing <support@banyancomputing.com>"]
-version = "0.1.1"
+version = "0.1.2"
 
 [deps]
 Banyan = "706d138b-e922-45b9-a636-baf8ae0d5317"
@@ -12,7 +12,7 @@ ONNXRunTime = "e034b28e-924e-41b2-b98f-d2bbeb830c6a"
 
 [compat]
 Banyan = "0.3.1"
-BanyanArrays = "0.2.1"
+BanyanArrays = "0.3.2"
 # BanyanImages = "0.1.0"
 MPI = "0.19.0"
 ONNXRunTime = "0.2.3"
