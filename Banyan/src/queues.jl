@@ -59,18 +59,19 @@ function sqs_receive_message_with_long_polling(queue)
 end
 
 function get_next_message(queue, p=nothing; delete = true, error_for_main_stuck=nothing, error_for_main_stuck_time=nothing)
+    println("Time for sqs_receive_message_with_long_polling:")
     m = @time sqs_receive_message_with_long_polling(queue)
-    @show m
     while (isnothing(m))
         error_for_main_stuck = check_worker_stuck(error_for_main_stuck, error_for_main_stuck_time)
+        println("Time for sqs_receive_message_with_long_polling:")
         m = @time sqs_receive_message_with_long_polling(queue)
-        @show m
         # @debug "Waiting for message from SQS"
         if !isnothing(p)
-            @time next!(p)
+            next!(p)
         end
     end
     if delete
+        println("Time for sqs_delete_message:")
         @time sqs_delete_message(queue, m)
         @show delete
     end
@@ -79,7 +80,7 @@ end
 
 function receive_next_message(queue_name, p=nothing, error_for_main_stuck=nothing, error_for_main_stuck_time=nothing)
     content, error_for_main_stuck = @time get_next_message(queue_name, p; error_for_main_stuck=error_for_main_stuck, error_for_main_stuck_time=error_for_main_stuck_time)
-    @show content
+    println("Time for get_next_message ^^^")
     res = if startswith(content, "JOB_READY") || startswith(content, "SESSION_READY")
         response = Dict{String,Any}(
             "kind" => "SESSION_READY"

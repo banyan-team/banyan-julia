@@ -816,3 +816,40 @@ end
         end
     end
 end
+
+@testset "CSV from S3 Latency" begin
+    use_session_for_testing(scheduling_config_name = "default scheduling", sample_rate=256) do
+        for i in 1:2
+            println(i == 1 ? "Cold start" : "Warm start")
+            @time begin
+                println("read_csv with source and sample invalid but shuffled")
+                @time begin
+                    iris_df = read_csv(
+                        "https://raw.githubusercontent.com/banyan-team/banyan-julia/v0.1.3/BanyanDataFrames/test/res/iris.csv",
+                        shuffled=true,
+                        source_invalid=true,
+                        sample_invalid=true
+                    )
+                end
+
+                println("filter")
+                # Filters the rows based on whether the petal length is less than 6.0
+                iris_sub = @time filter(row -> row.petal_length < 6.0, iris_df)
+
+                println("groupby")
+                # Groups the rows by the species type
+                gdf = @time groupby(iris_sub, :species)
+
+                println("combine")
+                res = @time combine(gdf, :petal_length => mean)
+                
+                println("compute")
+                # Computes average petal length for each group and stores in a new
+                # DataFrame. Collects the result back to the client and materializes in
+                # the variable `avg_pl`.
+                avg_pl = @time compute(res)
+                println("Total time:")
+            end
+        end
+    end
+end

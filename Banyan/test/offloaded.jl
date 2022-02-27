@@ -38,20 +38,23 @@
 end
 
 @testset "Offloaded latency" begin
-    use_session_for_testing() do
-        for _ in 1:3
-            @time begin
-                offloaded() do
-                    sleep(15)
-                end
-            end
-        end
-        println("Now with distributed!")
-        for i in 1:3
-            @time begin
-                @show offloaded(i, distributed=true) do i
-                    sleep(15)
-                    "on worker $(get_worker_idx()) with i=$i at time $(now())"
+    for nworkers in [2#=, 8, 16, 32, 64=#]
+        use_session_for_testing(nworkers = nworkers, sample_rate = nworkers) do
+            # for _ in 1:3
+            #     @time begin
+            #         offloaded() do
+            #             sleep(15)
+            #         end
+            #     end
+            # end
+            println("Now with distributed!")
+            for i in 1:2
+                println("Running with $nworkers workers on i=$i")
+                @time begin
+                    @show offloaded(i, distributed=true) do i
+                        sleep(15)
+                        "on worker $(get_worker_idx()) with i=$i at time $(now())"
+                    end
                 end
             end
         end

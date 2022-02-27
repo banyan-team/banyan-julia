@@ -70,6 +70,8 @@ function partitioned_computation(handler, fut::AbstractFuture; destination, new_
         # TODO: Check to ensure that `fut` is annotated
         # This creates an empty final task that ensures that the future
         # will be scheduled to get sent to its destination.
+        println("Preparing tasks")
+        @time begin
         destined(fut, destination)
         mutated(fut)
         partitioned_with(scaled=fut) do
@@ -220,8 +222,11 @@ function partitioned_computation(handler, fut::AbstractFuture; destination, new_
                 delete!(session.locations, req.value_id)
             end
         end
+        end
     
         # Send evaluation request
+        @time begin
+        println("send_evaluation")
         is_merged_to_disk = false
         try
             response = send_evaluation(fut.value_id, session_id)
@@ -230,30 +235,39 @@ function partitioned_computation(handler, fut::AbstractFuture; destination, new_
             end_session(failed=true)
             rethrow()
         end
+        end
     
         # Get queues for moving data between client and cluster
-        scatter_queue = get_scatter_queue(resource_id)
-        gather_queue = get_gather_queue(resource_id)
+        println("get_scatter_queue")
+        scatter_queue = @time get_scatter_queue(resource_id)
+        println("get_gather_queue")
+        gather_queue = @time get_gather_queue(resource_id)
     
         # Read instructions from gather queue
         # @info "Computing result with ID $(fut.value_id)"
+        println("Wait for result")
+        @time begin
         @debug "Waiting on running session $session_id, listening on $gather_queue, and computing value with ID $(fut.value_id)"
         p = ProgressUnknown("Computing value with ID $(fut.value_id)", spinner=true)
-        if get_session_status(session_id) != "running"
+        println("get_session_status")
+        session_status = @time get_session_status(session_id)
+        if session_status != "running"
             wait_for_session(session_id)
         end
         error_for_main_stuck = nothing
         error_for_main_stuck_time = nothing
         while true
             # TODO: Use to_jl_value and from_jl_value to support Client
-            message, error_for_main_stuck = receive_next_message(gather_queue, p, error_for_main_stuck, error_for_main_stuck_time)
+            println("receive_next_message")
+            message, error_for_main_stuck = @time receive_next_message(gather_queue, p, error_for_main_stuck, error_for_main_stuck_time)
             message_type = message["kind"]
             if message_type == "SCATTER_REQUEST"
                 # Send scatter
                 value_id = message["value_id"]
                 f = session.futures_on_client[value_id]
                 # @debug "Received scatter request for value with ID $value_id and value $(f.value) with location $(get_location(f))"
-                send_message(
+                println("send_message")
+                @time send_message(
                     scatter_queue,
                     JSON.json(
                         Dict{String,Any}(
@@ -284,6 +298,7 @@ function partitioned_computation(handler, fut::AbstractFuture; destination, new_
                     break
                 end
             end
+        end
         end
 
         # Update `mutated` and `stale` for the future that is being evaluated
@@ -495,13 +510,15 @@ end
 # offloaded(some_func, a, b; distributed=true)
 function offloaded(given_function, args...; distributed = false, kwargs...)
     # Configure using parameters
-    c = configure(; kwargs...)
+    println("Configuring")
+    c = @time configure(; kwargs...)
 
     # Get serialized function
     serialized = to_jl_value_contents((given_function, args))
 
     # Submit evaluation request
-    response = send_request_get_response(
+    println("Sending request and getting response")
+    response = @time send_request_get_response(
         :evaluate,
         Dict{String,Any}(
             "value_id" => -1,
