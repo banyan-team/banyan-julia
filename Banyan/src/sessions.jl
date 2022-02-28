@@ -240,12 +240,13 @@ function get_sessions(cluster_name = nothing; status = nothing, kwargs...)
         filters["status"] = status
     end
 
-    sessions = Dict()
     indiv_response = send_request_get_response(:describe_sessions, Dict{String,Any}("filters"=>filters))
-    while !isnothing(indiv_response["last_eval"])
-        curr_last_eval = indiv_response["last_eval"]
+    curr_last_eval = indiv_response["last_eval"]
+    sessions = indiv_response["sessions"]
+    while !isnothing(curr_last_eval)
         indiv_response = send_request_get_response(:describe_sessions, Dict{String,Any}("filters"=>filters, "this_start_key"=>curr_last_eval))
         sessions = merge!(sessions, indiv_response["sessions"])
+        curr_last_eval = indiv_response["last_eval"]
     end
     
     for (id, j) in sessions
