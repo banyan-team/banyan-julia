@@ -222,7 +222,7 @@ function partitioned_computation(handler, fut::AbstractFuture; destination, new_
                 delete!(session.locations, req.value_id)
             end
         end
-        end
+        end # end of preparing tasks
     
         # Send evaluation request
         @time begin
