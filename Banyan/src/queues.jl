@@ -40,7 +40,7 @@ end
 ###################
 
 function sqs_receive_message_with_long_polling(queue)
-    r = AWSSQS.sqs(queue, "ReceiveMessage", MaxNumberOfMessages = "1", ReceiveMessageWaitTime = "20")
+    r = AWSSQS.sqs(queue, "ReceiveMessage", MaxNumberOfMessages = "1")
     r = r["messages"]
 
     if isnothing(r)
