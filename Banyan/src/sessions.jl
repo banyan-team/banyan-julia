@@ -225,7 +225,7 @@ function end_session(session_id::SessionId = get_session_id(); failed = false, r
     session_id
 end
 
-function get_sessions(cluster_name = nothing; status = nothing, kwargs...)
+function get_sessions(cluster_name = nothing; status = nothing, limit = -1, kwargs...)
     if isnothing(cluster_name)
         @debug "Downloading description of all sessions"
     else
@@ -240,13 +240,20 @@ function get_sessions(cluster_name = nothing; status = nothing, kwargs...)
         filters["status"] = status
     end
 
-    indiv_response = send_request_get_response(:describe_sessions, Dict{String,Any}("filters"=>filters))
-    curr_last_eval = indiv_response["last_eval"]
-    sessions = indiv_response["sessions"]
-    while !isnothing(curr_last_eval)
-        indiv_response = send_request_get_response(:describe_sessions, Dict{String,Any}("filters"=>filters, "this_start_key"=>curr_last_eval))
-        sessions = merge!(sessions, indiv_response["sessions"])
+    if limit > 0
+        # Get the last `limit` number of sessions
+        indiv_response = send_request_get_response(:describe_sessions, Dict{String,Any}("filters"=>filters, "limit"=>limit))
+        sessions = indiv_response["sessions"]
+    else
+        # Get all sessions
+        indiv_response = send_request_get_response(:describe_sessions, Dict{String,Any}("filters"=>filters))
         curr_last_eval = indiv_response["last_eval"]
+        sessions = indiv_response["sessions"]
+        while !isnothing(curr_last_eval)
+            indiv_response = send_request_get_response(:describe_sessions, Dict{String,Any}("filters"=>filters, "this_start_key"=>curr_last_eval))
+            sessions = merge!(sessions, indiv_response["sessions"])
+            curr_last_eval = indiv_response["last_eval"]
+        end
     end
     
     for (id, j) in sessions
