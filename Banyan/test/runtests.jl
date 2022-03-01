@@ -14,6 +14,7 @@ end
 
 function use_session_for_testing(
     f::Function;
+    nworkers = parse(Int32, get(ENV, "BANYAN_NWORKERS", "2")),
     sample_rate = 2,
     max_exact_sample_length = 50,
     with_s3fs = nothing,
@@ -37,9 +38,9 @@ function use_session_for_testing(
         else
             start_session(
                 cluster_name = ENV["BANYAN_CLUSTER_NAME"],
-                nworkers = parse(Int32, get(ENV, "BANYAN_NWORKERS", "2")),
+                nworkers = nworkers,
                 sample_rate = sample_rate,
-                print_logs = true,
+                print_logs = get(ENV, "BANYAN_PRINT_LOGS", "1") == "1",
                 url = "https://github.com/banyan-team/banyan-julia.git",
                 branch = get(ENV, "BANYAN_JULIA_BRANCH", Banyan.get_branch_name()),
                 directory = "banyan-julia/Banyan/test",
@@ -58,7 +59,7 @@ function use_session_for_testing(
                 # it can reuse the existing underlying resources.
                 release_resources_after = get(ENV, "BANYAN_REUSE_RESOURCES", "0") == "1" ? 20 : 0,
                 force_pull = get(ENV, "BANYAN_FORCE_PULL", "0") == "1",
-                force_clone = get(ENV, "BANYAN_FORCE_CLONE", "0") == "1",
+                force_sync = get(ENV, "BANYAN_FORCE_SYNC", "0") == "1",
                 force_install = get(ENV, "BANYAN_FORCE_INSTALL", "0") == "1",
                 store_logs_on_cluster=get(ENV, "BANYAN_STORE_LOGS_ON_CLUSTER", "0") == "1"
             )
