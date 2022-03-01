@@ -126,7 +126,7 @@ function write_config(banyanconfig_path=nothing)
     close(f)
 end
 
-function configure(; user_id=nothing, api_key=nothing, ec2_key_pair_name=nothing, banyanconfig_path=nothing)
+function configure(; user_id=nothing, api_key=nothing, ec2_key_pair_name=nothing, banyanconfig_path=nothing, kwargs...)
     # This function allows for users to configure their authentication.
     # Authentication details are then saved in
     # `$HOME/.banyan/banyanconfig.toml` so they don't have to be entered in again

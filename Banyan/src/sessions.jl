@@ -115,6 +115,7 @@ function start_session(;
     environment_info = Dict{String,Any}()
     # If a url is not provided, then use the local environment
     if isnothing(url)
+        
         # TODO: Optimize to not have to send tomls on every call
         local_environment_dir = get_julia_environment_dir()
         project_toml = load_file("file://$(local_environment_dir)Project.toml")
@@ -151,7 +152,7 @@ function start_session(;
         environment_info["force_pull"] = force_pull
         environment_info["force_install"] = force_install
         environment_info["environment_hash"] = get_hash(
-            url * (if isnothing(branch) "" else branch end)
+            url * (if isnothing(branch) "" else branch end) * (if isnothing(dev_paths) "" else join(dev_paths) end)
         )
     end
     session_configuration["environment_info"] = environment_info
