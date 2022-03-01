@@ -40,7 +40,7 @@ end
 ###################
 
 function sqs_receive_message_with_long_polling(queue)
-    r = AWSSQS.sqs(queue, "ReceiveMessage", MaxNumberOfMessages = "1", WaitTimeSeconds = "20")
+    r = AWSSQS.sqs(queue, "ReceiveMessage", MaxNumberOfMessages = "1")
     r = r["messages"]
 
     if isnothing(r)
@@ -50,7 +50,7 @@ function sqs_receive_message_with_long_polling(queue)
     handle  = r[1]["ReceiptHandle"]
     id      = r[1]["MessageId"]
     message = r[1]["Body"]
-    md5     = r[1]["MD5OfBody"]s
+    md5     = r[1]["MD5OfBody"]
 
     Dict(
         :message => message,
@@ -145,11 +145,12 @@ end
 ################
 
 function send_message(queue_name, message)
+    generated_message_id = generate_message_id()
     sqs_send_message(
         queue_name,
         message,
         (:MessageGroupId, "1"),
-        (:MessageDeduplicationId, generate_message_id()),
+        (:MessageDeduplicationId, generated_message_id),
     )
 end
 

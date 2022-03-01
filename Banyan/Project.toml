@@ -1,7 +1,7 @@
 name = "Banyan"
 uuid = "706d138b-e922-45b9-a636-baf8ae0d5317"
 authors = ["Banyan <support@banyancomputing.com>"]
-version = "0.3.1"
+version = "0.3.2"
 
 [deps]
 AWS = "fbe9abb3-538b-5e4e-ba9e-bc94f4f92ebc"
@@ -42,4 +42,4 @@ JSON = "0.21.1"
 MPI = "0.19.0"
 ProgressMeter = "1.7"
 TimeZones = "1.5.6"
-julia = "1.6"
+julia = "^1.6"

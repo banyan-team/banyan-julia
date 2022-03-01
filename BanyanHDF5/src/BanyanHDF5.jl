@@ -18,7 +18,7 @@ export ReadBlockHDF5,
     CopyToHDF5
 
 # HDF5 location constructors
-export RemoteTableSource, RemoteTableDestination
+export RemoteHDF5Source, RemoteHDF5Destination
 
 include("locations.jl")
 include("hdf5.jl")
