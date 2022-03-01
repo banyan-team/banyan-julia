@@ -48,8 +48,8 @@ end
         url = "https://github.com/banyan-team/banyan-julia.git",
         branch = get(ENV, "BANYAN_JULIA_BRANCH", get_branch_name()),
         directory = "banyan-julia/Banyan",
-        force_pull = get(ENV, "BANYAN_FORCE_CLONE", "0") == "0",
-        force_clone = get(ENV, "BANYAN_FORCE_CLONE", "0") == "1",
+        force_pull = get(ENV, "BANYAN_FORCE_SYNC", "0") == "0",
+        force_sync = get(ENV, "BANYAN_FORCE_SYNC", "0") == "1",
         force_install = get(ENV, "BANYAN_FORCE_INSTALL", "0") == "1",
         store_logs_on_cluster=get(ENV, "BANYAN_STORE_LOGS_ON_CLUSTER", "0") == "1",
     )
@@ -166,8 +166,8 @@ end
         url = "https://github.com/banyan-team/banyan-julia.git",
         branch = get(ENV, "BANYAN_JULIA_BRANCH", get_branch_name()),
         directory = "banyan-julia/Banyan",
-        force_pull = get(ENV, "BANYAN_FORCE_CLONE", "0") == "0",
-        force_clone = get(ENV, "BANYAN_FORCE_CLONE", "0") == "1",
+        force_pull = get(ENV, "BANYAN_FORCE_SYNC", "0") == "0",
+        force_sync = get(ENV, "BANYAN_FORCE_SYNC", "0") == "1",
         force_install = get(ENV, "BANYAN_FORCE_INSTALL", "0") == "1",
         store_logs_on_cluster=get(ENV, "BANYAN_STORE_LOGS_ON_CLUSTER", "0") == "1",
         nowait=nowait
@@ -226,7 +226,7 @@ end
                 "banyan-julia/Banyan",
                 "banyan-julia/BanyanDataFrames",
             ],
-            force_clone = true,
+            force_sync = true,
             force_pull = true,
             force_install = true,
         )
@@ -267,5 +267,4 @@ end
         # Destroy job
         end_session(job_id)
     end
-
 end

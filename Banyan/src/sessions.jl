@@ -58,7 +58,7 @@ function start_session(;
     branch::Union{String,Nothing} = nothing,
     directory::Union{String,Nothing} = nothing,
     dev_paths::Union{Vector,Nothing} = [],
-    force_clone::Union{Bool,Nothing} = false,
+    force_sync::Union{Bool,Nothing} = false,
     force_pull::Union{Bool,Nothing} = false,
     force_install::Union{Bool,Nothing} = false,
     estimate_available_memory::Union{Bool,Nothing} = false,
@@ -147,13 +147,13 @@ function start_session(;
             environment_info["branch"] = branch
         end
         environment_info["dev_paths"] = dev_paths
-        environment_info["force_clone"] = force_clone
         environment_info["force_pull"] = force_pull
         environment_info["force_install"] = force_install
         environment_info["environment_hash"] = get_hash(
             url * (if isnothing(branch) "" else branch end)
         )
     end
+    environment_info["force_sync"] = force_sync
     session_configuration["environment_info"] = environment_info
 
     # Upload files to S3
@@ -429,7 +429,7 @@ function run_session(;
     branch::Union{String,Nothing} = nothing,
     directory::Union{String,Nothing} = nothing,
     dev_paths::Union{Vector,Nothing} = [],
-    force_clone::Union{Bool,Nothing} = false,
+    force_sync::Union{Bool,Nothing} = false,
     force_pull::Union{Bool,Nothing} = false,
     force_install::Union{Bool,Nothing} = false,
     estimate_available_memory::Union{Bool,Nothing} = true,
@@ -453,7 +453,7 @@ function run_session(;
     # branch::Union{String,Nothing} = nothing,
     # directory::Union{String,Nothing} = nothing,
     # dev_paths::Union{Vector,Nothing} = [],
-    # force_clone::Union{Bool,Nothing} = false,
+    # force_sync::Union{Bool,Nothing} = false,
     # force_pull::Union{Bool,Nothing} = false,
     # force_install::Union{Bool,Nothing} = false,
     # estimate_available_memory::Union{Bool,Nothing} = true,
@@ -466,7 +466,7 @@ function run_session(;
                     print_logs = print_logs, store_logs_in_s3 = store_logs_in_s3, store_logs_on_cluster = store_logs_on_cluster, 
                     sample_rate = sample_rate, session_name = session_name, files = files, code_files = code_files, force_update_files = force_update_files,
                     pf_dispatch_table = pf_dispatch_table, using_modules = using_modules, url = url, branch = branch,
-                    directory = directory, dev_paths = dev_paths, force_clone = force_clone, force_pull = force_pull, force_install = force_install, 
+                    directory = directory, dev_paths = dev_paths, force_sync = force_sync, force_pull = force_pull, force_install = force_install, 
                     estimate_available_memory = estimate_available_memory, nowait = false, email_when_ready = email_when_ready, for_running = true)
     catch
         session_id = try
