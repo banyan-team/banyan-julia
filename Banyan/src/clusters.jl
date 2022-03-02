@@ -40,9 +40,9 @@ function create_cluster(;
                 Dict("cluster_name" => name, "recreate" => true),
             )
             if !nowait
-                wait_for_cluster(name)
+                wait_for_cluster(name; kwargs...)
             end
-            return get_cluster(name)
+            return get_cluster(name; kwargs...)
         else
             error("Cluster with name $name already exists and its current status is $(string(clusters[name].status))")
         end
@@ -91,12 +91,12 @@ function create_cluster(;
     send_request_get_response(:create_cluster, cluster_config)
 
     if !nowait
-        wait_for_cluster(name)
+        wait_for_cluster(name; kwargs...)
     end
 
     # Cache info
     global clusters
-    get_cluster(name)
+    get_cluster(name; kwargs...)
 
     return clusters[name]
 end
@@ -195,7 +195,7 @@ function get_cluster_s3_bucket_arn(cluster_name=get_cluster_name(); kwargs...)
     global clusters
     # Check if cached, sine this property is immutable
     if !haskey(clusters, cluster_name)
-        get_cluster(cluster_name)
+        get_cluster(cluster_name; kwargs...)
     end
     return clusters[cluster_name].s3_bucket_arn
 end
@@ -205,11 +205,11 @@ function get_cluster_s3_bucket_name(cluster_name=get_cluster_name(); kwargs...)
     return s3_bucket_arn_to_name(get_cluster_s3_bucket_arn(cluster_name))
 end
 
-get_cluster(name::String=get_cluster_name(), kwargs...) = get_clusters(name; kwargs...)[name]
+get_cluster(name::String=get_cluster_name(); kwargs...) = get_clusters(name; kwargs...)[name]
 
 get_running_clusters(args...; kwargs...) = filter(entry -> entry[2].status == :running, get_clusters(args...; kwargs...))
 
-function get_cluster_status(name::String=get_cluster_name(), kwargs...)
+function get_cluster_status(name::String=get_cluster_name(); kwargs...)
     global clusters
     if haskey(clusters, name)
         if clusters[name].status == :failed
@@ -223,7 +223,7 @@ function get_cluster_status(name::String=get_cluster_name(), kwargs...)
     c.status
 end
 
-function wait_for_cluster(name::String=get_cluster_name(), kwargs...)
+function wait_for_cluster(name::String=get_cluster_name(); kwargs...)
     t = 5
     cluster_status = get_cluster_status(name; kwargs...)
     p = nothing
@@ -258,7 +258,7 @@ end
 
 function upload_to_s3(src_path; dst_name=basename(src_path), cluster_name=get_cluster_name(), kwargs...)
     configure(; kwargs...)
-    bucket_name = get_cluster_s3_bucket_name(cluster_name)
+    bucket_name = get_cluster_s3_bucket_name(cluster_name; kwargs...)
     s3_dst_path = S3Path("s3://$bucket_name/$dst_name", config=get_aws_config())
     if startswith(src_path, "http://") || startswith(src_path, "https://")
         Base.download(
