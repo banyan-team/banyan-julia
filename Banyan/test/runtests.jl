@@ -1,3 +1,4 @@
+using AWSS3
 using Banyan
 using ReTest
 using Pkg

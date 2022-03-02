@@ -471,7 +471,7 @@ function getpath(path, comm)
         # TODO: Add option for Internet locations as to whether or not to
         # cache on disk
         hashed_path = string(hash(path))
-        joined_path = "efs/banyan_dataset_" * hashed_path * "_" * string(MPI.COMM_WORLD)
+        joined_path = "efs/job_" * Banyan.get_session().resource_id * "_dataset_" * hashed_path * "_" * string(MPI.COMM_WORLD)
         # @info "Downloading $path to $joined_path"
         comm = MPI.COMM_WORLD
         # if MPI.Comm_rank(comm) == 0
