@@ -533,9 +533,9 @@ function offloaded(given_function, args...; distributed = false, kwargs...)
         message_type = message["kind"]
         if (message_type == "GATHER")
             value_id = message["value_id"]
-            memory_used = message["worker_memory_used"]
-            get_session().worker_memory_used = get_session().worker_memory_used + memory_used
             if (value_id == -1)
+                memory_used = message["worker_memory_used"]
+                get_session().worker_memory_used = get_session().worker_memory_used + memory_used
                 stored_message = from_jl_value_contents(message["contents"])
             end
             error_for_main_stuck, error_for_main_stuck_time = check_worker_stuck_error(message, error_for_main_stuck, error_for_main_stuck_time)
