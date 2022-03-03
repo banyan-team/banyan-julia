@@ -370,42 +370,42 @@ function send_request_get_response(method, content::Dict)
 
 end
 
-function send_request_get_response_using_http(method, content::Dict)
-    # Prepare request
-    # content = convert(Dict{Any, Any}, content)
-    configuration = load_config()
-    user_id = configuration["banyan"]["user_id"]
-    api_key = configuration["banyan"]["api_key"]
-    content["debug"] = is_debug_on()
-    url = string(BANYAN_API_ENDPOINT, method_to_string(method))
-    headers = (
-        ("content-type", "application/json"),
-        ("Username-APIKey", "$user_id-$api_key"),
-    )
+# function send_request_get_response_using_http(method, content::Dict)
+#     # Prepare request
+#     # content = convert(Dict{Any, Any}, content)
+#     configuration = load_config()
+#     user_id = configuration["banyan"]["user_id"]
+#     api_key = configuration["banyan"]["api_key"]
+#     content["debug"] = is_debug_on()
+#     url = string(BANYAN_API_ENDPOINT, method_to_string(method))
+#     headers = (
+#         ("content-type", "application/json"),
+#         ("Username-APIKey", "$user_id-$api_key"),
+#     )
 
-    # Post and return response
-    try
-        response = HTTP.post(url, headers, JSON.json(content))
-        body = String(response.body)
-        return JSON.parse(body)
-    catch e
-        if e isa HTTP.ExceptionRequest.StatusError
-            if e.response.status == 403
-                throw(
-                    ErrorException(
-                        "Please set a valid api_key. Sign in to the dashboard to retrieve your api key.",
-                    ),
-                )
-            end
-            if e.response.status != 504
-                throw(ErrorException(String(take!(IOBuffer(e.response.body)))))
-            end
-            rethrow()
-        else
-            rethrow()
-        end
-    end
-end
+#     # Post and return response
+#     try
+#         response = HTTP.post(url, headers, JSON.json(content))
+#         body = String(response.body)
+#         return JSON.parse(body)
+#     catch e
+#         if e isa HTTP.ExceptionRequest.StatusError
+#             if e.response.status == 403
+#                 throw(
+#                     ErrorException(
+#                         "Please set a valid api_key. Sign in to the dashboard to retrieve your api key.",
+#                     ),
+#                 )
+#             end
+#             if e.response.status != 504
+#                 throw(ErrorException(String(take!(IOBuffer(e.response.body)))))
+#             end
+#             rethrow()
+#         else
+#             rethrow()
+#         end
+#     end
+# end
 
 #########
 # FILES #
