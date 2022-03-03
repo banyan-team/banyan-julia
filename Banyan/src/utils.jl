@@ -421,7 +421,7 @@ function load_json(path::String)
         error("S3 path not currently supported")
         # JSON.parsefile(S3Path(path, config=get_aws_config()))
     elseif startswith(path, "http://") || startswith(path, "https://")
-	    JSON.parse(Downloads.request(path).message)
+	    JSON.parse(request_body(path)[2])
     else
         error("Path $path must start with \"file://\", \"s3://\", or \"http(s)://\"")
     end
@@ -437,7 +437,7 @@ function load_toml(path::String)
         error("S3 path not currently supported")
         # JSON.parsefile(S3Path(path, config=get_aws_config()))
     elseif startswith(path, "http://") || startswith(path, "https://")
-	    TOML.parse(Downloads.request(path).message)
+	    TOML.parse(request_body(path)[2])
     else
         error("Path $path must start with \"file://\", \"s3://\", or \"http(s)://\"")
     end
@@ -462,7 +462,7 @@ function load_file(path::String)
         error("S3 path not currently supported")
         String(read(S3Path(path)))
     elseif startswith(path, "http://") || startswith(path, "https://")
-        Downloads.request(path).message
+        request_body(path)[2]
     else
         error("Path $path must start with \"file://\", \"s3://\", or \"http(s)://\"")
     end
