@@ -52,7 +52,11 @@ Banyan.convert(::Type{Future}, df::DataFrame) = df.data
 # end
 
 function read_csv(path::String; kwargs...)
-    df_loc = RemoteTableSource(path; kwargs...)
+    df_loc = offloaded(path, kwargs) do path, kw
+        @show @isdefined RemoteTableSource
+        # RemoteTableSource(path; kw...)
+        df_loc = nothing
+    end
     df_loc.src_name == "Remote" || error("$path does not exist")
     df_nrows = Future(df_loc.nrows)
     DataFrame(Future(datatype="DataFrame", source=df_loc), df_nrows)
@@ -348,20 +352,35 @@ end
 function Base.filter(f, df::DataFrame; kwargs...)
     !get(kwargs, :view, false) || throw(ArgumentError("Cannot return view of filtered dataframe"))
 
+    @time begin
     f = Future(f)
     res_nrows = Future()
     res = DataFrame(Future(datatype="DataFrame"), res_nrows)
     kwargs = Future(kwargs)
+    println("Time for creating futures:")
+    end
 
+    @time begin
     partitioned_with(scaled=[df, res], keep_same_keys=true, drifted=true, modules="DataFrames") do
+        @time begin
         pts_for_filtering(df, res, with=Distributed)
         pt(res_nrows, Reducing(quote (a, b) -> a .+ b end))
         pt(df, res, res_nrows, f, kwargs, Replicated())
+        println("Time for assigning with `pt`:")
+        end
+    end
+    println("Time for `partitioned_with`:")
     end
 
+    @time begin
     @partitioned df res res_nrows f kwargs begin
+        @time begin
         res = DataFrames.filter(f, df; kwargs...)
         res_nrows = DataFrames.nrow(res)
+        println("Time inside `filter` code region:")
+        end
+    end
+    println("Time for `@partitioned``:")
     end
 
     res

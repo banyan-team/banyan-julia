@@ -112,7 +112,8 @@ function start_session(;
     if !isnothing(email_when_ready)
         session_configuration["email_when_ready"] = email_when_ready
     end
-    s3_bucket_name = get_cluster_s3_bucket_name(cluster_name; kwargs...)
+    println("Time for get_cluster_s3_bucket_name:")
+    s3_bucket_name = @time get_cluster_s3_bucket_name(cluster_name; kwargs...)
 
     # TODO: Construct this dictionary
     environment_info = Dict{String,Any}()
@@ -121,23 +122,29 @@ function start_session(;
         
         # TODO: Optimize to not have to send tomls on every call
         local_environment_dir = get_julia_environment_dir()
-        project_toml = load_file("file://$(local_environment_dir)Project.toml")
+        println("Time for loading Project.toml")
+        project_toml = @time load_file("file://$(local_environment_dir)Project.toml")
         if !isfile("$(local_environment_dir)Manifest.toml")
             manifest_toml = ""
             @warn "Manifest file not present for this environment"
         else
             manifest_toml = load_file("file://" * local_environment_dir * "Manifest.toml")
         end
-        environment_hash = get_hash(project_toml * manifest_toml)
+        println("Time for get_hash")
+        environment_hash = @time get_hash(project_toml * manifest_toml)
         environment_info["environment_hash"] = environment_hash
         environment_info["project_toml"] = "$(environment_hash)/Project.toml"
-        if !isfile(S3Path("s3://$(s3_bucket_name)/$(environment_hash)/Project.toml", config=get_aws_config()))
-            s3_put(get_aws_config(), s3_bucket_name, "$(environment_hash)/Project.toml", project_toml)
+        println("Time to put in S3:")
+        file_already_in_s3 = @time isfile(S3Path("s3://$(s3_bucket_name)/$(environment_hash)/Project.toml", config=get_aws_config()))
+        if !file_already_in_s3
+            @time s3_put(get_aws_config(), s3_bucket_name, "$(environment_hash)/Project.toml", project_toml)
         end
         if manifest_toml != ""
+            println("Time to put in S3:")
             environment_info["manifest_toml"] = "$(environment_hash)/Manifest.toml"
-            if !isfile(S3Path("s3://$(s3_bucket_name)/$(environment_hash)/Manifest.toml", config=get_aws_config()))
-                s3_put(get_aws_config(), s3_bucket_name, "$(environment_hash)/Manifest.toml", manifest_toml)
+            file_already_in_s3 = @time isfile(S3Path("s3://$(s3_bucket_name)/$(environment_hash)/Manifest.toml", config=get_aws_config()))
+            if !file_already_in_s3
+                @time s3_put(get_aws_config(), s3_bucket_name, "$(environment_hash)/Manifest.toml", manifest_toml)
             end
         end
     else
@@ -164,7 +171,8 @@ function start_session(;
     for f in vcat(files, code_files)
         s3_path = S3Path("s3://$(s3_bucket_name)/$(basename(f))", config=get_aws_config())
         if !isfile(s3_path) || force_update_files
-            s3_put(get_aws_config(), s3_bucket_name, basename(f), load_file(f))
+            println("Time for putting a file in S3:")
+            @time s3_put(get_aws_config(), s3_bucket_name, basename(f), load_file(f))
         end
     end
     # TODO: Optimize so that we only upload (and download onto cluster) the files if the filename doesn't already exist
@@ -179,14 +187,19 @@ function start_session(;
             for dir in BANYAN_JULIA_PACKAGES
         ]
     end
-    pf_dispatch_table_loaded = load_toml(pf_dispatch_table)
+    println("Time for loading PF dispatch table")
+    pf_dispatch_table_loaded = @time load_toml(pf_dispatch_table)
     session_configuration["pf_dispatch_table"] = pf_dispatch_table_loaded
 
     # Start the session
     @debug "Sending request for session start"
-    response = send_request_get_response(:start_session, session_configuration)
+    println("Time for start_session")
+    response = @time send_request_get_response(:start_session, session_configuration)
     session_id = response["session_id"]
     resource_id = response["resource_id"]
+    organization_id = response["organization_id"]
+    cluster_instance_id = response["cluster_instance_id"]
+    cluster_name = response["cluster_name"]
     if for_running
         @info "Running session with ID $session_id and $code_files"
     else
@@ -194,12 +207,22 @@ function start_session(;
     end
     # Store in global state
     current_session_id = session_id
-    sessions[current_session_id] = Session(cluster_name, current_session_id, resource_id, nworkers, sample_rate)
+    sessions[current_session_id] = Session(
+        cluster_name,
+        current_session_id,
+        resource_id,
+        nworkers,
+        sample_rate,
+        organization_id,
+        cluster_instance_id
+    )
 
-    wait_for_cluster(cluster_name; kwargs...)
+    println("Time for waiting for cluster:")
+    @time wait_for_cluster(cluster_name; kwargs...)
 
     if !nowait
-        wait_for_session(session_id)
+        println("Time for waiting for session:")
+        @time wait_for_session(session_id)
     end
 
     @debug "Finished starting session $session_id"
@@ -218,7 +241,8 @@ function end_session(session_id::SessionId = get_session_id(); failed = false, r
     if !isnothing(release_resources_after)
         request_params["release_resources_after"] = release_resources_after
     end
-    send_request_get_response(
+    println("Time for ending session:")
+    @time send_request_get_response(
         :end_session,
         request_params,
     )

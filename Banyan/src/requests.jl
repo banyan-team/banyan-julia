@@ -70,7 +70,7 @@ function partitioned_computation(handler, fut::AbstractFuture; destination, new_
         # TODO: Check to ensure that `fut` is annotated
         # This creates an empty final task that ensures that the future
         # will be scheduled to get sent to its destination.
-        println("Preparing tasks")
+        @time begin
         @time begin
         destined(fut, destination)
         mutated(fut)
@@ -78,13 +78,17 @@ function partitioned_computation(handler, fut::AbstractFuture; destination, new_
             handler()
         end
         @partitioned fut begin end
+        println("Time for creating final task:")
+        end
 
         # Get all tasks to be recorded in this call to `compute`
-        tasks = [req.task for req in session.pending_requests if req isa RecordTaskRequest]
+        println("Time for getting tasks:")
+        tasks = @time [req.task for req in session.pending_requests if req isa RecordTaskRequest]
 
         # Call `partitioned_using_func`s in 2 passes - forwards and backwards.
         # This allows sample properties to propagate in both directions. We
         # must also make sure to apply mutations in each task appropriately.
+        @time begin
         for t in Iterators.reverse(tasks)
             apply_mutation(invert(t.mutation))
         end
@@ -102,11 +106,14 @@ function partitioned_computation(handler, fut::AbstractFuture; destination, new_
                 t.partitioned_using_func()
             end
         end
+        println("Applying mutation time:")
+        end
 
         # Do further processing on tasks now that all samples have been
         # computed and sample properties have been set up to share references
         # as needed to prevent expensive redundant computation of sample
         # properties like divisions
+        @time begin
         for (i, t) in enumerate(tasks)
             apply_mutation(t.mutation)
             
@@ -165,11 +172,14 @@ function partitioned_computation(handler, fut::AbstractFuture; destination, new_
                 end
             end
         end
+        println("Time for applying PAs:")
+        end
 
         # Switch back to a new task for next code region
         finish_task()
 
         # Iterate through tasks for further processing before recording them
+        @time begin
         for t in tasks
             # Apply defaults to PAs
             for pa in t.pa_union
@@ -195,9 +205,12 @@ function partitioned_computation(handler, fut::AbstractFuture; destination, new_
                 @show t.pa_union
             end
         end
+        println("Time for further processing")
+        end
 
         # Finalize (destroy) all `Future`s that can be destroyed
-        GC.gc()
+        println("Time for destroying stuff with GC.gc():")
+        @time GC.gc()
     
         # Destroy everything that is to be destroyed in this task
         for req in session.pending_requests
@@ -222,11 +235,11 @@ function partitioned_computation(handler, fut::AbstractFuture; destination, new_
                 delete!(session.locations, req.value_id)
             end
         end
+        println("Time for preparing tasks:")
         end # end of preparing tasks
     
         # Send evaluation request
         @time begin
-        println("send_evaluation")
         is_merged_to_disk = false
         try
             response = send_evaluation(fut.value_id, session_id)
@@ -235,6 +248,7 @@ function partitioned_computation(handler, fut::AbstractFuture; destination, new_
             end_session(failed=true)
             rethrow()
         end
+        println("Time for send_evaluation:")
         end
     
         # Get queues for moving data between client and cluster
@@ -397,6 +411,8 @@ function send_evaluation(value_id::ValueId, session_id::SessionId)
     used_packages = union(vcat([req.task.used_modules for req in get_session().pending_requests if req isa RecordTaskRequest]...))
 
     # Submit evaluation request
+    !isnothing(get_session().organization_id) || error("Organization ID not stored locally for this session")
+    !isnothing(get_session().cluster_instance_id) || error("Cluster instance ID not stored locally for this session")
     response = send_request_get_response(
         :evaluate,
         Dict{String,Any}(
@@ -413,7 +429,11 @@ function send_evaluation(value_id::ValueId, session_id::SessionId)
             "main_modules" => get_loaded_packages(),
             "partitioned_using_modules" => used_packages,
             "benchmark" => get(ENV, "BANYAN_BENCHMARK", "0") == "1",
-            "worker_memory_used" => get_session().worker_memory_used
+            "worker_memory_used" => get_session().worker_memory_used,
+            "resource_id" => get_session().resource_id,
+            "organization_id" => get_session().organization_id,
+            "cluster_instance_id" => get_session().cluster_instance_id,
+            "cluster_name" => get_session().cluster_name,
         ),
     )
     if isnothing(response)
@@ -518,6 +538,8 @@ function offloaded(given_function, args...; distributed = false, kwargs...)
 
     # Submit evaluation request
     println("Sending request and getting response")
+    !isnothing(get_session().organization_id) || error("Organization ID not stored locally for this session")
+    !isnothing(get_session().cluster_instance_id) || error("Cluster instance ID not stored locally for this session")
     response = @time send_request_get_response(
         :evaluate,
         Dict{String,Any}(
@@ -531,7 +553,11 @@ function offloaded(given_function, args...; distributed = false, kwargs...)
             "benchmark" => get(ENV, "BANYAN_BENCHMARK", "0") == "1",
             "offloaded_function_code" => serialized,
             "distributed" => distributed,
-            "worker_memory_used" => get_session().worker_memory_used
+            "worker_memory_used" => get_session().worker_memory_used,
+            "resource_id" => get_session().resource_id,
+            "organization_id" => get_session().organization_id,
+            "cluster_instance_id" => get_session().cluster_instance_id,
+            "cluster_name" => get_session().cluster_name,
         ),
     )
     if isnothing(response)
