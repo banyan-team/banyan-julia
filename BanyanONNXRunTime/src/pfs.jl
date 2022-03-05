@@ -9,10 +9,13 @@ function ReadONNX(
     loc_name,
     loc_params,
 )
+    println("At start of ReadONNX")
     global onnx_paths
     model_path = Banyan.getpath(loc_params["path"], comm)
+    println("Using model at path $model_path")
     model = load_inference_single_threaded(model_path)
     onnx_paths[model] = model_path
+    println("At end of ReadONNX")
     model
 end
 

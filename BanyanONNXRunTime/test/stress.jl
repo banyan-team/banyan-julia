@@ -35,10 +35,10 @@
 
         # Create path in S3 to store the encodings
         offloaded() do
-            configure(user_id="7f812fbd2dd0941d8a12abc56c8d7ddb", api_key="8066d203223d2adbd9a668b16339ce7c")
             bucket = get_cluster_s3_bucket_name()
             rm("s3/$bucket/encodings/", recursive=true)
             mkpath("s3/$bucket/encodings/")
+            println("Finished making path in S3 bucket $bucket")
         end
 
         # Write each image encoding to a different file in Amazon S3

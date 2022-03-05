@@ -40,12 +40,15 @@ function (is::InferenceSession)(inputs, output_names=nothing)
     end
 
     @partitioned is dynamic_axis input_name A res res_size begin
+        println("At start of model execution block")
+        @show typeof(A)
         if dynamic_axis
             res = first(values(is(Dict(input_name  => A))))
         else
             res = Base.mapslices(arr -> first(values(is(Dict(input_name => arr)))), A, dims=Base.collect(2:ndims(A)))
         end
         res_size = Base.size(res)
+        println("At end of model execution block")
     end
 
     Dict(output_name => BanyanArrays.Array{eltype(sample(res)),ndims(sample(res))}(res, res_size))
