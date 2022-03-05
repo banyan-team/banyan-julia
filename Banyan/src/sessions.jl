@@ -53,7 +53,9 @@ function start_session(;
     code_files::Union{Vector,Nothing} = [],
     force_update_files::Union{Bool,Nothing} = false,
     pf_dispatch_table::Union{String,Nothing} = nothing,
-    using_modules::Union{Vector,Nothing} = [],
+    using_modules::Vector = [],
+    # We currently can't use modules that require GUI
+    not_using_modules::Vector = ["ProfileView"],
     url::Union{String,Nothing} = nothing,
     branch::Union{String,Nothing} = nothing,
     directory::Union{String,Nothing} = nothing,
@@ -90,6 +92,7 @@ function start_session(;
 
     version = get_julia_version()
 
+    using_modules = [m for m in using_modules if !(m in not_using_modules)]
     session_configuration = Dict{String,Any}(
         "cluster_name" => cluster_name,
         "num_workers" => nworkers,
