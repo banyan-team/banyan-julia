@@ -191,18 +191,20 @@ function get_clusters(cluster_name=nothing; kwargs...)
 end
 
 function get_cluster_s3_bucket_arn(cluster_name=get_cluster_name(); kwargs...)
-    configure(; kwargs...)
+    # Do not call configure here, because if cluster_name is in the clusters dict,
+    # then we do not need to call get_cluster, since the info is cached in memory
     global clusters
     # Check if cached, sine this property is immutable
     if !haskey(clusters, cluster_name)
-        get_cluster(cluster_name)
+        get_cluster(cluster_name; kwargs...)
     end
     return clusters[cluster_name].s3_bucket_arn
 end
 
 function get_cluster_s3_bucket_name(cluster_name=get_cluster_name(); kwargs...)
-    configure(; kwargs...)
-    return s3_bucket_arn_to_name(get_cluster_s3_bucket_arn(cluster_name))
+    # Do not call configure here, because if cluster_name is in the clusters dict,
+    # then we do not need to call get_cluster, since the info is cached in memory
+    return s3_bucket_arn_to_name(get_cluster_s3_bucket_arn(cluster_name); kwargs...)
 end
 
 get_cluster(name::String=get_cluster_name(), kwargs...) = get_clusters(name; kwargs...)[name]
