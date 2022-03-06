@@ -16,6 +16,7 @@ mutable struct Session
     # session failed).
     organization_id::Union{String,Nothing}
     cluster_instance_id::Union{String,Nothing}
+    not_using_modules::Vector{String}
 
     # This struct just stores local state for the session.
     function Session(
@@ -26,6 +27,7 @@ mutable struct Session
         sample_rate::Integer,
         organization_id = nothing,
         cluster_instance_id = nothing,
+        not_using_modules = NOT_USING_MODULES
     )::Session
         new(
             session_id,
@@ -39,6 +41,7 @@ mutable struct Session
             0,
             organization_id,
             cluster_instance_id,
+            not_using_modules
         )
     end
 end

@@ -55,7 +55,7 @@ function start_session(;
     pf_dispatch_table::Union{String,Nothing} = nothing,
     using_modules::Vector = [],
     # We currently can't use modules that require GUI
-    not_using_modules::Vector = ["ProfileView"],
+    not_using_modules::Vector = NOT_USING_MODULES,
     url::Union{String,Nothing} = nothing,
     branch::Union{String,Nothing} = nothing,
     directory::Union{String,Nothing} = nothing,
@@ -92,6 +92,7 @@ function start_session(;
 
     version = get_julia_version()
 
+    main_modules = [m for m in get_loaded_packages() if !(m in not_using_modules)]
     using_modules = [m for m in using_modules if !(m in not_using_modules)]
     session_configuration = Dict{String,Any}(
         "cluster_name" => cluster_name,
@@ -103,7 +104,7 @@ function start_session(;
         "log_initialization" => log_initialization,
         "version" => version,
         "benchmark" => get(ENV, "BANYAN_BENCHMARK", "0") == "1",
-        "main_modules" => get_loaded_packages(),
+        "main_modules" => main_modules,
         "using_modules" => using_modules,
         "reuse_resources" => !force_update_files,
         "estimate_available_memory" => estimate_available_memory,
@@ -217,7 +218,8 @@ function start_session(;
         nworkers,
         sample_rate,
         organization_id,
-        cluster_instance_id
+        cluster_instance_id,
+        not_using_modules
     )
 
     println("Time for waiting for cluster:")

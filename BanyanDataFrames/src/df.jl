@@ -52,11 +52,11 @@ Banyan.convert(::Type{Future}, df::DataFrame) = df.data
 # end
 
 function read_csv(path::String; kwargs...)
-    df_loc = offloaded(path, kwargs) do path, kw
-        @show @isdefined RemoteTableSource
-        # RemoteTableSource(path; kw...)
-        df_loc = nothing
-    end
+    # df_loc = offloaded(path, kwargs) do path, kw
+    #     # @show @isdefined RemoteTableSource
+    #     RemoteTableSource(path; kw...)
+    # end
+    df_loc = RemoteTableSource(path; kwargs...)
     df_loc.src_name == "Remote" || error("$path does not exist")
     df_nrows = Future(df_loc.nrows)
     DataFrame(Future(datatype="DataFrame", source=df_loc), df_nrows)

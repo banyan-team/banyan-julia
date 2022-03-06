@@ -1,3 +1,5 @@
+using Statistics
+
 function test_csv_from_internet_latency()
     use_session_for_testing(scheduling_config_name = "default scheduling", sample_rate=256) do
         for i in 1:2

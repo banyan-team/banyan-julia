@@ -413,6 +413,10 @@ function send_evaluation(value_id::ValueId, session_id::SessionId)
     # Submit evaluation request
     !isnothing(get_session().organization_id) || error("Organization ID not stored locally for this session")
     !isnothing(get_session().cluster_instance_id) || error("Cluster instance ID not stored locally for this session")
+    !isnothing(get_session().not_using_modules) || error("Modules not to be used are not stored locally for this session")
+    not_using_modules = get_session().not_using_modules
+    main_modules = [m for m in get_loaded_packages() if !(m in not_using_modules)]
+    using_modules = [m for m in used_packages if !(m in not_using_modules)]
     response = send_request_get_response(
         :evaluate,
         Dict{String,Any}(
@@ -426,8 +430,8 @@ function send_evaluation(value_id::ValueId, session_id::SessionId)
                 "exaggurate_size" => exaggurate_size
             ),
             "num_bang_values_issued" => get_num_bang_values_issued(),
-            "main_modules" => get_loaded_packages(),
-            "partitioned_using_modules" => used_packages,
+            "main_modules" => main_modules,
+            "partitioned_using_modules" => using_modules,
             "benchmark" => get(ENV, "BANYAN_BENCHMARK", "0") == "1",
             "worker_memory_used" => get_session().worker_memory_used,
             "resource_id" => get_session().resource_id,
@@ -540,6 +544,8 @@ function offloaded(given_function, args...; distributed = false, kwargs...)
     println("Sending request and getting response")
     !isnothing(get_session().organization_id) || error("Organization ID not stored locally for this session")
     !isnothing(get_session().cluster_instance_id) || error("Cluster instance ID not stored locally for this session")
+    not_using_modules = get_session().not_using_modules
+    main_modules = [m for m in get_loaded_packages() if !(m in not_using_modules)]
     response = @time send_request_get_response(
         :evaluate,
         Dict{String,Any}(
@@ -547,7 +553,7 @@ function offloaded(given_function, args...; distributed = false, kwargs...)
             "session_id" => Banyan.get_session_id(),
             "options" => Dict( ),
             "num_bang_values_issued" => get_num_bang_values_issued(),
-            "main_modules" => get_loaded_packages(),
+            "main_modules" => main_modules,
             "requests" => [],
             "partitioned_using_modules" => [],
             "benchmark" => get(ENV, "BANYAN_BENCHMARK", "0") == "1",
