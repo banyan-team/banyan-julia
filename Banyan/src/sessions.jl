@@ -110,7 +110,7 @@ function start_session(;
     if !isnothing(email_when_ready)
         session_configuration["email_when_ready"] = email_when_ready
     end
-    s3_bucket_name = get_cluster_s3_bucket_name(cluster_name)
+    s3_bucket_name = get_cluster_s3_bucket_name(cluster_name; kwargs...)
 
     environment_info = Dict{String,Any}()
     # If a url is not provided, then use the local environment
@@ -180,7 +180,6 @@ function start_session(;
 
     # Start the session
     @debug "Sending request for session start"
-    
     response = send_request_get_response(:start_session, session_configuration)
     session_id = response["session_id"]
     resource_id = response["resource_id"]
@@ -193,7 +192,7 @@ function start_session(;
     current_session_id = session_id
     sessions[current_session_id] = Session(cluster_name, current_session_id, resource_id, nworkers, sample_rate)
 
-    wait_for_cluster(cluster_name)
+    wait_for_cluster(cluster_name; kwargs...)
 
     if !nowait
         wait_for_session(session_id)
@@ -316,7 +315,7 @@ get_running_sessions(args...; kwargs...) = get_sessions(args...; status="running
 function download_session_logs(session_id::SessionId, cluster_name::String, filename::Union{String,Nothing}=nothing; kwargs...)
     @debug "Downloading logs for session"
     configure(; kwargs...)
-    s3_bucket_name = get_cluster_s3_bucket_name(cluster_name)
+    s3_bucket_name = get_cluster_s3_bucket_name(cluster_name; kwargs...)
     log_file_name = "banyan-log-for-session-$(session_id)"
     if isnothing(filename) & !isdir(joinpath(homedir(), ".banyan", "logs"))
         mkdir(joinpath(homedir(), ".banyan", "logs"))
