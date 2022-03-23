@@ -318,7 +318,7 @@ function Grouped(
             if b
                 # Set divisions
                 # TODO: Change this if `divisions` is not a `Vector{Tuple{Any,Any}}`
-                parameters["divisions"] = to_jl_value(sample(f, :statistics, key, :divisions))
+                parameters["divisions"] = to_jl_value_contents(sample(f, :statistics, key, :divisions))
                 max_ngroups = sample(f, :statistics, key, :max_ngroups)::Int64
 
                 # Set flag for reversing the order of the groups

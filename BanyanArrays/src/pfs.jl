@@ -353,7 +353,7 @@ function Banyan.SplitGroup(
         # This case lets us use `SplitGroup` in `DistributeAndShuffle`
         (params["divisions"], false, false)
     end
-    divisions_by_partition = Banyan.get_divisions(src_divisions, npartitions)
+    divisions_by_partition = Banyan.get_divisions(Banyan.from_jl_value_contents(src_divisions), npartitions)
 
     # Get the divisions to apply
     key::Int64 = params["key"]
@@ -401,7 +401,7 @@ function Banyan.SplitGroup(
         # Store divisions
         splitting_divisions = Banyan.get_splitting_divisions()
         splitting_divisions[res] = (
-            divisions_by_partition[partition_idx],
+            Banyan.to_jl_value_contents(divisions_by_partition[partition_idx]),
             !hasdivision || boundedlower || partition_idx != firstdivisionidx,
             !hasdivision || boundedupper || partition_idx != lastdivisionidx,
         )
@@ -540,9 +540,9 @@ function Banyan.Shuffle(
     rev::Bool = get(dst_params, "rev", false)
     worker_idx, nworkers = Banyan.get_worker_idx(comm), Banyan.get_nworkers(comm)
     divisions_by_worker = if haskey(dst_params, "divisions_by_worker")
-        dst_params["divisions_by_worker"] # list of min-max tuples
+        Banyan.from_jl_value_contents(dst_params["divisions_by_worker"]) # list of min-max tuples
     else 
-        Banyan.get_divisions(dst_params["divisions"], nworkers)
+        Banyan.get_divisions(Banyan.from_jl_value_contents(dst_params["divisions"]), nworkers)
     end # list of min-max tuple lists
     if rev
         reverse!(divisions_by_worker)
@@ -653,7 +653,7 @@ function Banyan.Shuffle(
         # Store divisions
         splitting_divisions = Banyan.get_splitting_divisions()
         splitting_divisions[res] =
-            (divisions_by_worker[worker_idx], !hasdivision || worker_idx != firstdivisionidx, !hasdivision || worker_idx != lastdivisionidx)
+            (Banyan.to_jl_value_contents(divisions_by_worker[worker_idx]), !hasdivision || worker_idx != firstdivisionidx, !hasdivision || worker_idx != lastdivisionidx)
     end
 
     res

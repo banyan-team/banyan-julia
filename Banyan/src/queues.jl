@@ -63,7 +63,7 @@ end
 
 function get_next_message(
     queue,
-    p::Union{Nothing,ProgressMeter.Progress} = nothing;
+    p::Union{Nothing,ProgressMeter.ProgressUnknown} = nothing;
     delete::Bool = true,
     error_for_main_stuck::Union{Nothing,String} = nothing,
     error_for_main_stuck_time::Union{Nothing,String} = nothing
@@ -76,7 +76,7 @@ function get_next_message(
         m = @time sqs_receive_message_with_long_polling(queue)
         # @debug "Waiting for message from SQS"
         if !isnothing(p)
-            p::ProgressMeter
+            p::ProgressMeter.ProgressUnknown
             next!(p)
         end
     end

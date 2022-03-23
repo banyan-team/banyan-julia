@@ -221,14 +221,15 @@ function get_aws_config()
         if region == ""
             try
                 configfile = read(Inifile(), joinpath(homedir(), ".aws", "config"))
-                region = _get_ini_value(configfile, profile, "region", default_value="")::String
+                @show _get_ini_value(configfile, profile, "region", default_value="")
+                region = convert(String, _get_ini_value(configfile, profile, "region", default_value=""))::String
             catch
             end
         end
         if region == ""
             try
                 credentialsfile = read(Inifile(), joinpath(homedir(), ".aws", "credentials"))
-                region = _get_ini_value(credentialsfile, profile, "region", default_value="")::String
+                region = convert(String, _get_ini_value(credentialsfile, profile, "region", default_value=""))::String
             catch
             end
         end
