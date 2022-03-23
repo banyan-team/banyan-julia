@@ -114,6 +114,7 @@ function Banyan.sample_divisions(df::DataFrames.DataFrame, key)
     max_ngroups = sample_max_ngroups(df, key)
     ngroups = min(max_ngroups, 512)
     data = sort(map(orderinghash, df[!, key]))
+    OHT = eltype(data)
     datalength = length(data)
     grouplength = div(datalength, ngroups)
     # We use `unique` here because if the divisions have duplicates, this could
@@ -121,7 +122,7 @@ function Banyan.sample_divisions(df::DataFrames.DataFrame, key)
     # `unique` here is more of a safety precaution. The # of divisions we use
     # is the maximum # of groups.
     # TODO: Ensure that `unique` doesn't change the order
-    all_divisions::Base.Vector{Any} = map(
+    all_divisions::Base.Vector{Tuple{OHT,OHT}} = map(
         # Each group has elements that are >= start and < end
         i -> (
             data[(i-1)*grouplength + 1],

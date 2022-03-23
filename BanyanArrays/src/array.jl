@@ -91,12 +91,13 @@ function Banyan.sample_divisions(A::U, key) where U <: Base.AbstractArray{T,N} w
     max_ngroups = sample_max_ngroups(A, key)
     ngroups = min(max_ngroups, 512)
     data = sort(map(orderinghash, eachslice(A, dims=key)))
+    OHT = eltype(data)
     datalength = length(data)
     grouplength = div(datalength, ngroups)
     # We use `unique` here because if the divisions have duplicates, this could
     # result in different partitions getting the same divisions.
     # TODO: Ensure that `unique` doesn't change the order
-    unique([
+    unique(Tuple{OHT,OHT}[
         # Each group has elements that are >= start and < end
         (
             data[(i-1)*grouplength + 1],

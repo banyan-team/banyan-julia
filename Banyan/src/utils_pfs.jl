@@ -189,9 +189,9 @@ orderinghash(A::AbstractArray) = orderinghash(first(A))
 to_vector(v::Vector) = v
 to_vector(v) = [v]
 
-const Division{T} = Tuple{Base.Vector{T},Base.Vector{T}}
+const Division{V} = Tuple{V,V} where {V <: AbstractVector}
 
-function get_divisions(divisions::Base.Vector{Division{T}}, npartitions::Int64)::Base.Vector{Base.Vector{Division{T}}} where T
+function get_divisions(divisions::Base.Vector{Division{V}}, npartitions::Int64)::Base.Vector{Base.Vector{Division{V}}} where V
     # This function accepts a list of divisions where each division is a tuple
     # of ordering hashes (values returned by `orderinghash` which are either
     # numbers or vectors of numbers). It also accepts a number of partitions to
@@ -203,7 +203,7 @@ function get_divisions(divisions::Base.Vector{Division{T}}, npartitions::Int64):
     if ndivisions == 0
         # If there are no divisions (maybe this dataset or this partition of a
         # dataset is empty), we simply return empty set.
-        map(_->Division{T}[], 1:npartitions)
+        map(_->Division{V}[], 1:npartitions)
     elseif ndivisions >= npartitions
         # If there are more divisions than partitions, we can distribute them
         # easily. Each partition gets 0 or more divisions.
@@ -214,13 +214,13 @@ function get_divisions(divisions::Base.Vector{Division{T}}, npartitions::Int64):
         map(partition_idx->divisions[split_len(ndivisions, partition_idx, npartitions)], 1:npartitions)
     else
         # Otherwise, each division must be shared among 1 or more partitions
-        allsplitdivisions = Base.Vector{Division{T}}[]
+        allsplitdivisions = Base.Vector{Division{V}}[]
         # npartitions_per_division = div(npartitions, ndivisions)
 
         # Iterate through the divisions and split each of them and find the
         # one that contains a split that this partition must own and use as
         # its `partition_divisions`
-        for (division_idx::Int64, division::Division{T}) in enumerate(divisions)
+        for (division_idx::Int64, division::Division{V}) in enumerate(divisions)
             # Determine the range (from `firstpartitioni` to `lastpartitioni`) of
             # partitions that own this division
             # islastdivision = division_idx == ndivisions
@@ -238,15 +238,17 @@ function get_divisions(divisions::Base.Vector{Division{T}}, npartitions::Int64):
             ndivisionsplits = length(partitionsrange)
 
             # Get the `Base.Vector{Number}`s to interpolate between
-            divisionbegin::Base.Vector{T} = division[1]
-            divisionend::Base.Vector{T} = division[2]
+            divisionbegin::V = division[1]
+            divisionend::V = division[2]
+            T = eltype(divisionbegin)
 
             # @show divisionbegin
             # @show divisionend
 
             # Initialize divisions for each split
-            splitdivisions::Base.Vector{Division{T}} =
-                map(_ -> Division{T}(copy(divisionbegin), copy(divisionend)), 1:ndivisionsplits)
+            V_nonstatic = Base.Vector{T}
+            splitdivisions::Base.Vector{Division{V_nonstatic}} =
+                map(_ -> Division{V_nonstatic}(convert(V_nonstatic, divisionbegin), convert(V_nonstatic, divisionend)), 1:ndivisionsplits)
 
             # Adjust the divisions for each split to interpolate. The result
             # of an `orderinghash` call can be an array (in the case of
@@ -320,9 +322,9 @@ function get_divisions(divisions::Base.Vector{Division{T}}, npartitions::Int64):
                 # empty, then we just add an empty divisions list. Otherwsie,
                 # we add in our novel split division.
                 if !isempty(allsplitdivisions) && last(allsplitdivisions) == splitdivision
-                    push!(allsplitdivisions, Division{T}[])
+                    push!(allsplitdivisions, Division{V}[])
                 else
-                    push!(allsplitdivisions, Division{T}[splitdivision])
+                    push!(allsplitdivisions, Division{V}[convert(V, splitdivision)])
                 end
             end
 
