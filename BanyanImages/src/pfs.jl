@@ -1,27 +1,27 @@
 function ReadBlockImage(
     src,
     params,
-    batch_idx::Integer,
-    nbatches::Integer,
+    batch_idx::Int64,
+    nbatches::Int64,
     comm::MPI.Comm,
     loc_name,
     loc_params,
 )
     # path = Banyan.getpath(loc_params["path"]) ? isa(loc_params["path"], String) : path
-    files = loc_params["files"]
+    files::Union{Base.Vector{String},String} = loc_params["files"]
     # ndims = loc_params["ndims"]
     # nbytes = loc_params["nbytes"]
-    nimages = loc_params["nimages"]
+    nimages::Int64 = loc_params["nimages"]
     datasize = loc_params["size"]
-    empty_sample = Banyan.from_jl_value_contents(loc_params["emptysample"])
+    empty_sample = Banyan.from_jl_value_contents(loc_params["emptysample"]::String)
     # dataeltype = loc_params["eltype"]
     # file_extension = "." * loc_params["format"]
-    add_channelview = loc_params["add_channelview"]
+    add_channelview::Bool = loc_params["add_channelview"]
 
     # files is either a list of file paths or a serialized tuple containing
     # information to construct a generator
     if !isa(files, Base.Array)
-        iter_info = Banyan.from_jl_value_contents(files)
+        iter_info::Tuple = Banyan.from_jl_value_contents(files::String)
         # Construct a generator
         if length(iter_info) > 3 || length(iter_info) < 2
             error("Remotepath is invalid")
@@ -71,8 +71,8 @@ end
 #     src,
 #     part,
 #     params,
-#     batch_idx::Integer,
-#     nbatches::Integer,
+#     batch_idx::Int64,
+#     nbatches::Int64,
 #     comm::MPI.Comm,
 #     loc_name,
 #     loc_params,

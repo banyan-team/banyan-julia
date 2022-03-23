@@ -15,7 +15,7 @@
 
 Constructs a new future, representing a value that has not yet been computed.
 """
-function Future(;source::Location = None(), mutate_from::Union{<:AbstractFuture,Nothing}=nothing, datatype="Any")
+function Future(;source::Location = None(), mutate_from::Union{Future,Nothing}=nothing, datatype="Any")
     # Generate new value id
     value_id = generate_value_id()
 
@@ -51,7 +51,8 @@ function Future(;source::Location = None(), mutate_from::Union{<:AbstractFuture,
 end
 
 function Future(value::Any; datatype="Any")
-    location = if total_memory_usage(value) ≤ 4 * 1024
+    @nospecialize
+    location::Location = if total_memory_usage(value) ≤ 4 * 1024
         Value(value)
     else
         # TODO: Store values in S3 instead so that we can read from there
@@ -77,8 +78,8 @@ mutated. This is because presumably in the case that we _can't_ copy over the
 given future, we would want to assign to it in the upcoming code region where
 it's going to be used.
 """
-function Future(fut::AbstractFuture; mutation::Function=identity)
-    fut = convert(Future, fut)
+function Future(fut::AbstractFuture; @nospecialize(mutation::Function=identity))
+    fut = convert(Future, fut)::Future
     if !fut.stale
         # Copy over value
         new_future = Future(
@@ -100,8 +101,4 @@ function Future(fut::AbstractFuture; mutation::Function=identity)
     end
 end
 
-# convert(::Type{Future}, value::Any) = Future(value)
-convert(::Type{Future}, fut::Future) = fut
-
-get_location(value_id::ValueId) = get(get_session().locations, value_id, nothing)
-get_location(fut::AbstractFuture) = get_location(convert(Future, fut).value_id)
+get_location(fut::Future)::Union{Location,Nothing} = get(get_session().locations, fut.value_id, nothing)

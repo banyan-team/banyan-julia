@@ -4,12 +4,12 @@
 
 mutable struct DelayedTask
     # Fields for use in processed task ready to be recorded
-    used_modules::Vector
+    used_modules::Vector{String}
     code::String
     value_names::Vector{Tuple{ValueId,String}}
     effects::Dict{ValueId,String}
     pa_union::Vector{PartitionAnnotation} # Enumeration of applicable PAs
-    memory_usage::Dict{ValueId,Dict{String,Integer}} # initial/additional/final
+    memory_usage::Dict{ValueId,Dict{String,Int64}} # initial/additional/final
     # Fields for use in task yet to be processed in a call to `compute`
     partitioned_using_func::Union{Function,Nothing}
     partitioned_with_func::Union{Function,Nothing}
@@ -24,21 +24,21 @@ mutable struct DelayedTask
 end
 
 DelayedTask() = DelayedTask(
-    [],
+    String[],
     "",
-    [],
-    Dict(),
+    Tuple{ValueId,String}[],
+    Dict{ValueId,String}(),
     [PartitionAnnotation()],
-    Dict(),
+    Dict{ValueId,Dict{String,Int64}}(),
     nothing,
     nothing,
-    Dict(),
-    [],
-    [],
-    [],
+    Dict{Future,Future}(),
+    Future[],
+    Future[],
+    Future[],
     true,
-    [],
-    []
+    PartitioningConstraint[],
+    PartitioningConstraint[]
 )
 
 function to_jl(task::DelayedTask)

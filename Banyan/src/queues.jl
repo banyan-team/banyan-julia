@@ -3,7 +3,9 @@
 #################
 
 
-function get_scatter_queue(resource_id::Union{ResourceId,Nothing}=nothing)
+get_scatter_queue(resource_id::Union{ResourceId,Nothing}=nothing) =
+    get_scatter_queue(isnothing(resource_id) ? get_session().resource_id : resource_id)
+function get_scatter_queue(resource_id::ResourceId)
     if isnothing(resource_id)
         resource_id = get_session().resource_id
     end
@@ -13,7 +15,9 @@ function get_scatter_queue(resource_id::Union{ResourceId,Nothing}=nothing)
     )
 end
 
-function get_gather_queue(resource_id::Union{ResourceId,Nothing}=nothing)
+get_gather_queue(resource_id::Union{ResourceId,Nothing}=nothing) =
+    get_gather_queue(isnothing(resource_id) ? get_session().resource_id : resource_id)
+function get_gather_queue(resource_id::ResourceId)
     if isnothing(resource_id)
         resource_id = get_session().resource_id
     end
@@ -23,10 +27,9 @@ function get_gather_queue(resource_id::Union{ResourceId,Nothing}=nothing)
     )
 end
 
-function get_execution_queue(resource_id::Union{ResourceId,Nothing}=nothing)
-    if isnothing(resource_id)
-        resource_id = get_session().resource_id
-    end
+get_execution_queue(resource_id::Union{ResourceId,Nothing}=nothing) =
+    get_execution_queue(isnothing(resource_id) ? get_session().resource_id : resource_id)
+function get_execution_queue(resource_id::ResourceId)
     return sqs_get_queue_with_retries(
         get_aws_config(),
         string("banyan_", resource_id, "_execution.fifo"),
@@ -58,7 +61,13 @@ function sqs_receive_message_with_long_polling(queue)
     )
 end
 
-function get_next_message(queue, p=nothing; delete = true, error_for_main_stuck=nothing, error_for_main_stuck_time=nothing)
+function get_next_message(
+    queue,
+    p::Union{Nothing,ProgressMeter.Progress} = nothing;
+    delete::Bool = true,
+    error_for_main_stuck::Union{Nothing,String} = nothing,
+    error_for_main_stuck_time::Union{Nothing,String} = nothing
+)::Tuple{String,Union{Nothing,String}}
     println("Time for sqs_receive_message_with_long_polling:")
     m = @time sqs_receive_message_with_long_polling(queue)
     while (isnothing(m))
@@ -67,6 +76,7 @@ function get_next_message(queue, p=nothing; delete = true, error_for_main_stuck=
         m = @time sqs_receive_message_with_long_polling(queue)
         # @debug "Waiting for message from SQS"
         if !isnothing(p)
+            p::ProgressMeter
             next!(p)
         end
     end
@@ -75,22 +85,23 @@ function get_next_message(queue, p=nothing; delete = true, error_for_main_stuck=
         @time sqs_delete_message(queue, m)
         @show delete
     end
-    return m[:message], error_for_main_stuck
+    return m[:message]::String, error_for_main_stuck
 end
 
-function receive_next_message(queue_name, p=nothing, error_for_main_stuck=nothing, error_for_main_stuck_time=nothing)
-    content, error_for_main_stuck = @time get_next_message(queue_name, p; error_for_main_stuck=error_for_main_stuck, error_for_main_stuck_time=error_for_main_stuck_time)
+function receive_next_message(
+    queue_name,
+    p=nothing,
+    error_for_main_stuck=nothing,
+    error_for_main_stuck_time=nothing
+)::Tuple{Dict{String,Any},Union{Nothing,String}}
+    content::String, error_for_main_stuck::Union{Nothing,String} = @time get_next_message(queue_name, p; error_for_main_stuck=error_for_main_stuck, error_for_main_stuck_time=error_for_main_stuck_time)
     println("Time for get_next_message ^^^")
-    res = if startswith(content, "JOB_READY") || startswith(content, "SESSION_READY")
-        response = Dict{String,Any}(
+    res::Dict{String,Any} = if startswith(content, "JOB_READY") || startswith(content, "SESSION_READY")
+        Dict{String,Any}(
             "kind" => "SESSION_READY"
         )
     elseif startswith(content, "EVALUATION_END")
         # @debug "Received evaluation end"
-        response = Dict{String,Any}(
-            "kind" => "EVALUATION_END",
-            "end" => endswith(content, "MESSAGE_END")
-        )
         # Print out logs that were outputed by session on cluster. Will be empty if
         # `print_logs=false` for the session. Remove "EVALUATION_END" at start and
         #  chop off "MESSAGE_END" at the end
@@ -99,7 +110,10 @@ function receive_next_message(queue_name, p=nothing, error_for_main_stuck=nothin
         end
         tail = endswith(content, "MESSAGE_END") ? 11 : 0
         print(chop(content, head=14, tail=tail))
-        response
+        Dict{String,Any}(
+            "kind" => "EVALUATION_END",
+            "end" => endswith(content, "MESSAGE_END")
+        )
     elseif startswith(content, "JOB_FAILURE") || startswith(content, "SESSION_FAILURE")
         if !isnothing(p) && !p.done
             finish!(p, spinner='✗')
@@ -131,7 +145,7 @@ function receive_next_message(queue_name, p=nothing, error_for_main_stuck=nothin
 end
 
 # Used by Banyan/src/pfs.jl, intended to be called from the executor
-function receive_from_client(value_id)
+function receive_from_client(value_id::ValueId)
     # Send scatter message to client
     send_message(
         get_gather_queue(),
@@ -139,7 +153,7 @@ function receive_from_client(value_id)
     )
     # Receive response from client
     m = JSON.parse(get_next_message(get_scatter_queue())[1])
-    v = from_jl_value_contents(m["contents"])
+    v = from_jl_value_contents(m["contents"]::String)
     v
 end
 
@@ -158,14 +172,14 @@ function send_message(queue_name, message)
     )
 end
 
-function send_to_client(value_id, value, worker_memory_used = 0)
+function send_to_client(value_id::ValueId, value, worker_memory_used = 0)
     send_message(
         get_gather_queue(),
         JSON.json(
             Dict(
                 "kind" => "GATHER",
                 "value_id" => value_id,
-                "contents" => to_jl_value_contents(value),
+                "contents" => to_jl_value_contents(value)::String,
                 "worker_memory_used" => worker_memory_used
             )
         )

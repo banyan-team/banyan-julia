@@ -37,7 +37,7 @@ function use_session_for_testing(
         else
             start_session(
                 cluster_name = ENV["BANYAN_CLUSTER_NAME"],
-                nworkers = parse(Int32, get(ENV, "BANYAN_NWORKERS", "2")),
+                nworkers = parse(Int64, get(ENV, "BANYAN_NWORKERS", "2")),
                 sample_rate = sample_rate,
                 print_logs = true,
                 url = "https://github.com/banyan-team/banyan-julia.git",
@@ -108,18 +108,16 @@ function use_data(data_src = "S3")
                 "https://support.hdfgroup.org/ftp/HDF5/examples/files/exbyapi/h5ex_d_fillval.h5",
             ),
         )
-        with_downloaded_path_for_reading(
-            joinpath(
-                S3Path("s3://$(get_cluster_s3_bucket_name())", config = Banyan.get_aws_config()),
-                "fillval.h5",
-            ),
-            for_writing = true,
-        ) do f
-            new = h5open(string(f), "w")
-            new["DS1"] = repeat(original["DS1"][:, :], 100, 100)
-            close(new)
-            println("In use_data with f=$f")
-        end
+        f_dst = joinpath(
+            S3Path("s3://$(get_cluster_s3_bucket_name())", config = Banyan.get_aws_config()),
+            "fillval.h5",
+        )
+        f = get_downloaded_path(f_dst, only_for_writing=true)
+        new = h5open(string(f), "w")
+        new["DS1"] = repeat(original["DS1"][:, :], 100, 100)
+        close(new)
+        println("In use_data with f=$f")
+        use_downloaded_path_for_writing(f_dst, f)
         close(original)
 
         # rm(get_s3fs_path(joinpath(get_cluster_s3_bucket_name(), "fillval_copy.h5")), force=true)

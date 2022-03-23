@@ -73,11 +73,12 @@ Base.convert(::Type{Array}, arr::AbstractArray{T}) where {T} = convert(Array{T},
 Base.convert(::Type{Vector{T}}, arr::AbstractVector) where {T} = convert(Array{T}, arr)
 
 Banyan.convert(::Type{Future}, A::Array{T,N}) where {T,N} = A.data
+# Banyan.sample(A::Array{T,N})::Base.AbstractArray{T,N} = sample(A.data)
 
 # Array sample
 
-Banyan.sample_axes(A::U) where U <: Base.AbstractArray{T,N} where {T,N} = [1:ndims(A)...]
-Banyan.sample_keys(A::U) where U <: Base.AbstractArray{T,N} where {T,N} = sample_axes(A)
+function Banyan.sample_axes(A::Base.AbstractArray{T,N})::Vector{Int64} where {T,N} Base.collect(1:ndims(A)) end
+function Banyan.sample_keys(A::Base.AbstractArray{T,N})::Vector{Int64} where {T,N} sample_axes(A) end
 
 # `sample_divisions`, `sample_percentile`, and `sample_max_ngroups` should
 # work with the `orderinghash` of values in the data they are used on
@@ -89,7 +90,7 @@ function Banyan.sample_divisions(A::U, key) where U <: Base.AbstractArray{T,N} w
 
     max_ngroups = sample_max_ngroups(A, key)
     ngroups = min(max_ngroups, 512)
-    data = sort([orderinghash(e) for e in eachslice(A, dims=key)])
+    data = sort(map(orderinghash, eachslice(A, dims=key)))
     datalength = length(data)
     grouplength = div(datalength, ngroups)
     # We use `unique` here because if the divisions have duplicates, this could
@@ -105,12 +106,19 @@ function Banyan.sample_divisions(A::U, key) where U <: Base.AbstractArray{T,N} w
     ])
 end
 
-function Banyan.sample_percentile(A::U, key, minvalue, maxvalue) where U <: Base.AbstractArray{T,N} where {T,N}
+function Banyan.sample_percentile(A::U, key, minvalue, maxvalue)::Float64 where U <: Base.AbstractArray{T,N} where {T,N}
     if isempty(A) || isnothing(minvalue) || isnothing(maxvalue)
-        return 0
+        return 0.0
     end
 
-    count((begin oh = orderinghash(e); oh >= minvalue && oh <= maxvalue end for e in eachslice(A, dims=key))) / size(A, key)
+    c::Int64 = 0
+    for e in eachslice(A, dims=key)
+        oh = orderinghash(e)
+        if oh >= minvalue && oh <= maxvalue
+            c += 1
+        end
+    end
+    c / size(A, key)
 
     # TODO: Determine whether we need to assume a more coarse-grained percentile using the divisions
     # from `sample_divisions` and computing the percent of divisions that overlap with the range
@@ -146,14 +154,14 @@ end
 # something like sorting on multiple dimensions or grouping on multiple
 # dimensions you can just use the first dimension as the key.
 
-function Banyan.sample_max_ngroups(A::U, key) where U <: Base.AbstractArray{T,N} where {T,N}
+function Banyan.sample_max_ngroups(A::U, key)::Int64 where U <: Base.AbstractArray{T,N} where {T,N}
     if isempty(A)
         return 0
     end
 
-    data = sort([orderinghash(e) for e in eachslice(A, dims=key)])
-    currgroupsize = 1
-    maxgroupsize = 0
+    data = sort(map(orderinghash, eachslice(A, dims=key)))
+    currgroupsize::Int64 = 1
+    maxgroupsize::Int64 = 0
     prev = nothing
     prev_is_nothing = true # in case `prev` _can_ be nothing
     for curr in data
@@ -174,20 +182,41 @@ end
 # probably need to vary mapslices on the dim itself and then use eachslices,
 # get the orderinghash and then take minimum across that
 # TODO: Change to use eachslice everywhere and ensure we use key not d
-Banyan.sample_min(A::U, key) where U <: Base.AbstractArray{T,N} where {T,N} = isempty(A) ? nothing : minimum((orderinghash(e) for e in eachslice(A, dims=key)))
-Banyan.sample_max(A::U, key) where U <: Base.AbstractArray{T,N} where {T,N} = isempty(A) ? nothing : maximum((orderinghash(e) for e in eachslice(A, dims=key)))
+function Banyan.sample_min(A::U, key) where U <: Base.AbstractArray{T,N} where {T,N}
+    if isempty(A)
+        nothing
+    else
+        min_oh = orderinghash(eselectdim(A, key, 1:1))
+        for e in eachslice(A, dims=key)
+            min_oh = min(orderiBase.copy(nghash(e), min_oh))
+        end
+        min_oh
+    end
+end
+function Banyan.sample_max(A::U, key) where U <: Base.AbstractArray{T,N} where {T,N}
+    if isempty(A)
+        nothing
+    else
+        min_oh = orderinghash(eselectdim(A, key, 1:1))
+        for e in eachslice(A, dims=key)
+            min_oh = max(orderinghash(e), min_oh)
+        end
+        min_oh
+    end
+end
 
 # Array creation
 
 function Banyan.compute_inplace(A::Array{T,N}) where {T,N}
-    partitioned_computation(A, destination=Disk()) do
-        pt(A, Blocked(A) | Replicated())
+    partitioned_computation(A, destination=Disk()) do f::Future
+        pt(f, Blocked(f) | Replicated())
     end
 end
 
 function fill(v, dims::NTuple{N,Integer}) where {N}
     fillingdims = Future(source=Size(dims))
-    A = Array{typeof(v),N}(Future(datatype="Array"), Future(dims))
+    A = Future(datatype="Array")
+    A_dims = Future(dims)
     v = Future(v)
     dims = Future(dims)
 
@@ -233,10 +262,10 @@ function fill(v, dims::NTuple{N,Integer}) where {N}
         A = Base.fill(v, fillingdims)
     end
 
-    A
+    Array{typeof(v),N}(A, A_dims)
 end
 
-fill(v, dims::Integer...) = fill(v, Tuple(dims))
+fill(v, dims::Int64...) = fill(v, Tuple(dims))
 
 function collect(r::AbstractRange)
     # Create output futures
@@ -287,6 +316,7 @@ end
 
 function Base.copy(A::Array{T,N})::Array{T,N} where {T,N}
     res = Future(datatype="Array")
+    res_size = deepcopy(A.size)
 
     partitioned_with(scaled=[A, res], keep_same_keys=true) do
         pts_for_copying(A, res)
@@ -296,11 +326,12 @@ function Base.copy(A::Array{T,N})::Array{T,N} where {T,N}
         res = Base.copy(A)
     end
 
-    Array{T,N}(res, deepcopy(A.size))
+    Array{T,N}(res, res_size)
 end
 
 function Base.deepcopy(A::Array{T,N})::Array{T,N} where {T,N}
     res = Future(datatype="Array")
+    res_size = deepcopy(A.size)
 
     partitioned_with(scaled=[A, res], keep_same_keys=true) do
         pts_for_copying(A, res)
@@ -310,7 +341,7 @@ function Base.deepcopy(A::Array{T,N})::Array{T,N} where {T,N}
         res = Base.deepcopy(A)
     end
 
-    Array{T,N}(res, deepcopy(A.size))
+    Array{T,N}(res, res_size)
 end
 
 # Array operations
@@ -331,7 +362,7 @@ function Base.map(f, c::Array{<:Any,N}...; force_parallelism=false) where {T,N}
         # from replicated partitioning to distributed partitioning
 
         for c_arg in c
-            mutated(c_arg)
+            mutated(convert(Future, c_arg))
         end
 
         partitioned_with(scaled=[c...]) do
@@ -351,7 +382,8 @@ function Base.map(f, c::Array{<:Any,N}...; force_parallelism=false) where {T,N}
     end
 
     f = Future(f)
-    res = Future(datatype="Array")    
+    res = Future(datatype="Array")
+    res_size = deepcopy(first(c).size)
 
     partitioned_with(scaled=[res, c...]) do
         # balanced
@@ -386,7 +418,7 @@ function Base.map(f, c::Array{<:Any,N}...; force_parallelism=false) where {T,N}
     # @show typeof(sample(res))
     # @show eltype(sample(res))
 
-    Array{eltype(sample(res)),N}(res, deepcopy(first(c).size))
+    Array{eltype(sample(res)),N}(res, res_size)
 end
 
 function Base.mapslices(f, A::Array{T,N}; dims) where {T,N}
@@ -395,7 +427,7 @@ function Base.mapslices(f, A::Array{T,N}; dims) where {T,N}
     f = Future(f)
     res_size = Future()
     # TODO: Ensure that this usage of Any is correct here and elsewhere
-    res = Array{Any,Any}(Future(datatype="Array"), res_size)
+    res = Future(datatype="Array")
     dims = Future(dims)
 
     partitioned_with(scaled=[A, res]) do
@@ -425,7 +457,8 @@ function Base.mapslices(f, A::Array{T,N}; dims) where {T,N}
         res_size = isempty(A) ? nothing : Base.size(res)
     end
 
-    res
+    res_sample = sample(res)
+    Array{eltype(res_sample),ndims(res_sample)}(res, res_size)
 end
 
 # function getindex_size(A_s, indices...)
@@ -463,13 +496,15 @@ end
 function Base.getindex(A::Array{T,N}, indices...) where {T,N}
     # If we are doing linear indexing, then the data can only be split on the
     # last dimension because of the column-major ordering
-    all((i isa Colon || i isa Integer || i isa Vector for i in indices)) || error("Expected indices to be either integers, vectors of integers, or colons")
-    allowed_splitting_dims = if length(indices) == 1 && indices[1] isa Colon
-        [ndims(A)]
+    for i in indices
+        (i isa Colon || i isa Integer || i isa Vector) || error("Expected indices to be either integers, vectors of integers, or colons")
+    end
+    allowed_splitting_dims::Vector{Int64} = if length(indices) == 1 && indices[1] isa Colon
+        Int64[ndims(A)]
     elseif length(indices) == ndims(A)
-        [i for i in 1:ndims(A) if indices[i] isa Colon]
+        Int64[i for i in 1:ndims(A) if indices[i] isa Colon]
     else
-        []
+        Int64[]
     end
 
     indices = Future(indices)
@@ -478,9 +513,9 @@ function Base.getindex(A::Array{T,N}, indices...) where {T,N}
     res_size = Future()
     res = Future(datatype="Array")
 
-    partitioned_with(scaled=[A, res]) do 
+    partitioned_with(scaled=[A, res]) do
         # Blocked PTs along dimensions _not_ being mapped along
-        bpt = [bpt for bpt in Blocked(A) if bpt.key in allowed_splitting_dims]
+        bpt = Int64[bpt for bpt in Blocked(A) if (bpt.key)::Int64 in allowed_splitting_dims]
 
         if !isempty(bpt)
             # balanced
@@ -512,7 +547,8 @@ function Base.getindex(A::Array{T,N}, indices...) where {T,N}
     end
 
     if sample(res) isa AbstractArray
-        Array{eltype(sample(res)),ndims(sample(res))}(res, res_size)
+        res_sample = sample(res)
+        Array{eltype(res_sample),ndims(res_sample)}(res, res_size)
     else
         res
     end
@@ -525,7 +561,7 @@ function Base.reduce(op, A::Array{T,N}; dims=:, kwargs...) where {T,N}
 
     op = Future(op)
     res_size = Future()
-    res = dims isa Colon ? Future() : Array{Any,Any}(Future(datatype="Array"), res_size)
+    res = dims isa Colon ? Future() : Future(datatype="Array")
     dims = Future(dims)
     kwargs = Future(kwargs)
 
@@ -569,7 +605,12 @@ function Base.reduce(op, A::Array{T,N}; dims=:, kwargs...) where {T,N}
         end
     end
 
-    res
+    if sample(res) isa AbstractArray
+        res_sample = sample(res)
+        Array{eltype(res_sample),ndims(res_sample)}(res, res_size)
+    else
+        res
+    end
 end
 
 function Base.sortslices(A::Array{T,N}, dims; kwargs...) where {T,N}
@@ -577,10 +618,11 @@ function Base.sortslices(A::Array{T,N}, dims; kwargs...) where {T,N}
     !haskey(kwargs, :order) || throw(ArgumentError("Sorting by an order is not supported"))
 
     # Determine what to sort by and whether to sort in reverse
-    sortingdim = dims isa Colon ? 1 : first(dims)
-    isreversed = get(kwargs, :rev, false)
+    sortingdim::Int64 = dims isa Colon ? 1 : convert(Int64, first(dims))::Int64
+    isreversed = get(kwargs, :rev, false)::Bool
 
     res = Future(datatype="Array")
+    res_size = deepcopy(A.size)
     dims = Future(dims)
     kwargs = Future(kwargs)
 
@@ -601,10 +643,10 @@ function Base.sortslices(A::Array{T,N}, dims; kwargs...) where {T,N}
         res = Base.sortslices(A, dims=dims, kwargs...)
     end
 
-    Array{T,N}(res, deepcopy(A.size))
+    Array{T,N}(res, res_size)
 end
 
-Base.sort(A::Array{T,N}; kwargs...) where {T,N} = sortslices(A, dims=:; kwargs...)
+Base.sort(A::Array{T,N}; kwargs...) where {T,N} = sortslices(A, dims=Colon(); kwargs...)
 
 # Array aggregation
 

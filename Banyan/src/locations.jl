@@ -12,46 +12,49 @@ mutable struct Location
     dst_name::String
     src_parameters::LocationParameters
     dst_parameters::LocationParameters
-    total_memory_usage::Union{Integer,Nothing}
+    total_memory_usage::Union{Int64,Nothing}
     sample::Sample
 
-    function Location(
-        src_name::String,
-        dst_name::String,
-        src_parameters::Dict{String,<:Any},
-        dst_parameters::Dict{String,<:Any},
-        total_memory_usage::Union{Integer,Nothing} = nothing,
-        sample::Sample = Sample(),
-    )
-        # NOTE: A file might be None and None if it is simply to be cached on
-        # disk and then read from
-        # if src_name == "None" && dst_name == "None"
-        #     error(
-        #         "Location must either be usable as a source or as a destination for data",
-        #     )
-        # end
+    # function Location(
+    #     src_name::String,
+    #     dst_name::String,
+    #     src_parameters::Dict{String,<:Any},
+    #     dst_parameters::Dict{String,<:Any},
+    #     total_memory_usage::Union{Int64,Nothing} = nothing,
+    #     sample::Sample = Sample(),
+    # )
+    #     # NOTE: A file might be None and None if it is simply to be cached on
+    #     # disk and then read from
+    #     # if src_name == "None" && dst_name == "None"
+    #     #     error(
+    #     #         "Location must either be usable as a source or as a destination for data",
+    #     #     )
+    #     # end
 
-        new(
-            src_name,
-            dst_name,
-            src_parameters,
-            dst_parameters,
-            total_memory_usage,
-            sample
-        )
-    end
+    #     new(
+    #         src_name,
+    #         dst_name,
+    #         src_parameters,
+    #         dst_parameters,
+    #         total_memory_usage,
+    #         sample
+    #     )
+    # end
 end
 
-Location(name::String, parameters::Dict{String,<:Any}, total_memory_usage::Union{Integer,Nothing} = nothing, sample::Sample = Sample()) =
+Location(name::String, parameters::LocationParameters, total_memory_usage::Union{Int64,Nothing} = nothing, sample::Sample = Sample())::Location =
     Location(name, name, parameters, parameters, total_memory_usage, sample)
 
-LocationSource(name::String, parameters::Dict{String,<:Any}, total_memory_usage::Union{Integer,Nothing} = nothing, sample::Sample = Sample()) =
+const NOTHING_LOCATION = Location("None", LocationParameters(), nothing, NOTHING_SAMPLE)
+Base.isnothing(l::Location) = isnothing(l.sample)
+
+LocationSource(name::String, parameters::LocationParameters, total_memory_usage::Union{Int64,Nothing} = nothing, sample::Sample = Sample())::Location =
     Location(name, "None", parameters, LocationParameters(), total_memory_usage, sample)
 
 LocationDestination(
     name::String,
-    parameters::Dict{String,<:Any}
-) = Location("None", name, LocationParameters(), parameters, nothing)
+    parameters::LocationParameters
+)::Location = Location("None", name, LocationParameters(), parameters, nothing, Sample())
 
 function Base.getproperty(loc::Location, name::Symbol)
     if hasfield(Location, name)
@@ -100,59 +103,93 @@ end
 # Methods for setting location #
 ################################
 
-function sourced(fut, loc::Location)
+sourced(fut::AbstractFuture, loc::Location) = sourced(convert(Future, fut)::Future, loc)
+function sourced(fut::Future, loc::Location)
     if isnothing(loc.src_name)
         error("Location cannot be used as a source")
     end
 
-    fut::Future = convert(Future, fut)
-    fut_location = get_location(fut)
+    fut_location::Union{Nothing,Location} = get_location(fut)
     # Every future must have a location unless this is the future constructor
     # that's calling this and setting the source location without the
     # desination being set yet.
-    located(
-        fut,
-        Location(
-            loc.src_name,
-            isnothing(fut_location) ? "None" : fut_location.dst_name,
-            loc.src_parameters,
-            isnothing(fut_location) ? Dict{String,Any}() : fut_location.dst_parameters,
-            loc.total_memory_usage,
-            if !isnothing(loc.sample.value)
-                # If this location is like some remote location, then we need
-                # a sample from it.
-                loc.sample
-            elseif !isnothing(fut_location)
-                # Maybe we are just declaring that this future is sourced from
-                # disk on the cluster. In that case, just use the existing
-                # location if there is one.
-                fut_location.sample
-            else
-                # Otherwise just make a fresh new sample.
-                Sample()
-            end,
-        ),
-    )
+    if isnothing(fut_location)
+        located(
+            fut,
+            Location(
+                loc.src_name,
+                "None",
+                loc.src_parameters,
+                Dict{String,Any}(),
+                loc.total_memory_usage,
+                if !isnothing(loc.sample.value)
+                    # If this location is like some remote location, then we need
+                    # a sample from it.
+                    loc.sample
+                else
+                    # Otherwise just make a fresh new sample.
+                    Sample()
+                end,
+            ),
+        )
+    else
+        fut_location::Location
+        located(
+            fut,
+            Location(
+                loc.src_name,
+                fut_location.dst_name,
+                loc.src_parameters,
+                fut_location.dst_parameters,
+                loc.total_memory_usage,
+                if !isnothing(loc.sample.value)
+                    # If this location is like some remote location, then we need
+                    # a sample from it.
+                    loc.sample
+                else
+                    # Maybe we are just declaring that this future is sourced from
+                    # disk on the cluster. In that case, just use the existing
+                    # location if there is one.
+                    fut_location.sample
+                end,
+            ),
+        )
+    end
 end
 
-function destined(fut, loc::Location)
+destined(fut::AbstractFuture, loc::Location) = destined(convert(Future, fut)::Future, loc)
+function destined(fut::Future, loc::Location)
     if isnothing(loc.dst_name)
         error("Location cannot be used as a destination")
     end
 
-    fut::Future = convert(Future, fut)
-    fut_location = get_location(fut.value_id)
-    located(
-        fut,
-        Location(
-            isnothing(fut_location) ? "None" : fut_location.src_name,
-            loc.dst_name,
-            isnothing(fut_location) ? Dict{String,Any}() : fut_location.src_parameters,
-            loc.dst_parameters,
-            fut_location.total_memory_usage,
-            isnothing(fut_location) ? Sample() : fut_location.sample,
-        ),
-    )
+    fut_location::Union{Nothing,Location} = get_location(fut)
+    if isnothing(fut_location)   
+        located(
+            fut,
+            Location(
+                "None",
+                loc.dst_name,
+                Dict{String,Any}(),
+                loc.dst_parameters,
+                fut_location.total_memory_usage,
+                Sample(),
+            ),
+        )
+    else
+        fut_location::Location
+        located(
+            fut,
+            Location(
+                fut_location.src_name,
+                loc.dst_name,
+                fut_location.src_parameters,
+                loc.dst_parameters,
+                fut_location.total_memory_usage,
+                fut_location.sample,
+            ),
+        )
+    end
 end
 
 # The purspose of making the source and destination assignment lazy is because
@@ -161,22 +198,24 @@ end
 # we only want to compute the new location source if the value is really used
 # later on.
 
-global source_location_funcs = Dict()
-global destination_location_funcs = Dict()
+global source_location_funcs = Dict{ValueId,Function}()
+global destination_location_funcs = Dict{ValueId,Function}()
 
-function sourced(fut, location_func::Function)
+function sourced(fut::Future, location_func::Function)
     global source_location_funcs
     source_location_funcs[fut.value_id] = location_func
 end
 
-function destined(fut, location_func::Function)
+function destined(fut::Future, location_func::Function)
     global destination_location_funcs
     destination_location_funcs[fut.value_id] = location_func
 end
 
-function apply_sourced_or_destined_funcs(fut)
+function apply_sourced_or_destined_funcs(fut::Future)
     global source_location_funcs
     global destination_location_funcs
+    source_location_funcs::Dict{ValueId,Function}
+    destination_location_funcs::Dict{ValueId,Function}
     if haskey(source_location_funcs, fut.value_id)
         sourced(fut, source_location_funcs[fut.value_id](fut))
         pop!(source_location_funcs, fut.value_id)
@@ -187,9 +226,8 @@ function apply_sourced_or_destined_funcs(fut)
     end
 end
 
-function located(fut, location::Location)
+function located(fut::Future, location::Location)
     session = get_session()
-    fut = convert(Future, fut)
     value_id = fut.value_id
 
     # Store future's datatype in the parameters so that it could be used for
@@ -210,13 +248,13 @@ function located(fut, location::Location)
     # @debug size(location.sample.value)
 end
 
-function located(futs...)
-    futs = futs .|> obj -> convert(Future, obj)
-    maxindfuts = argmax([get_location(f).total_memory_usage for f in futs])
-    for fut in futs
-        located(fut, get_location(futs[maxindfuts]))
-    end
-end
+# function located(futs...)
+#     futs = futs .|> obj -> convert(Future, obj)
+#     maxindfuts = argmax([get_location(f).total_memory_usage for f in futs])
+#     for fut in futs
+#         located(fut, get_location(futs[maxindfuts]))
+#     end
+# end
 
 # NOTE: The below operations (mem and val) should rarely be used if every. We
 # should probably even remove them at some point. Memory usage of each sample
@@ -225,47 +263,47 @@ end
 
 # NOTE: The below mem and val are not used anywhere.
 
-function mem(fut, estimated_total_memory_usage::Integer)
-    fut = convert(Future, fut)
-    location = get_location(fut)
-    location.total_memory_usage = estimated_total_memory_usage
-    record_request(RecordLocationRequest(fut.value_id, location))
-end
+# function mem(fut, estimated_total_memory_usage::Int64)
+#     fut = convert(Future, fut)
+#     location = get_location(fut)
+#     location.total_memory_usage = estimated_total_memory_usage
+#     record_request(RecordLocationRequest(fut.value_id, location))
+# end
 
-mem(fut, n::Integer, ty::DataType) = mem(fut, n * sizeof(ty))
-mem(fut) = mem(fut, sizeof(convert(Future, fut).value))
+# mem(fut, n::Int64, ty::DataType) = mem(fut, n * sizeof(ty))
+# mem(fut) = mem(fut, sizeof(convert(Future, fut).value))
 
-function mem(futs...)
-    for fut in futs
-        mem(fut, maximum([
-            begin
-                get_location(f).total_memory_usage
-            end for f in futs
-        ]))
-    end
-end
+# function mem(futs...)
+#     for fut in futs
+#         mem(fut, maximum([
+#             begin
+#                 get_location(f).total_memory_usage
+#             end for f in futs
+#         ]))
+#     end
+# end
 
-val(fut) = located(fut, Value(convert(Future, fut).value))
+# val(fut) = located(fut, Value(convert(Future, fut).value))
 
 ################################
 # Methods for getting location #
 ################################
 
-get_src_name(fut) = get_location(fut).src_name
-get_dst_name(fut) = get_location(fut).dst_name
-get_src_parameters(fut) = get_location(fut).src_parameters
-get_dst_parameters(fut) = get_location(fut).dst_parameters
+get_src_name(fut)::String = get_location(fut).src_name
+get_dst_name(fut)::String = get_location(fut).dst_name
+get_src_parameters(fut)::LocationParameters = get_location(fut).src_parameters
+get_dst_parameters(fut)::LocationParameters = get_location(fut).dst_parameters
 
 ####################
 # Simple locations #
 ####################
 
-Value(val) = LocationSource("Value", Dict("value" => to_jl_value(val)), total_memory_usage(val), ExactSample(val))
+Value(val) = LocationSource("Value", Dict{String,Any}("value" => to_jl_value(val)), total_memory_usage(val), ExactSample(val))
 
 # TODO: Implement Size
 Size(val) = LocationSource(
     "Value",
-    Dict("value" => to_jl_value(val)),
+    Dict{String,Any}("value" => to_jl_value(val)),
     0,
     Sample(indexapply(getsamplenrows, val, index = 1)),
 )
@@ -317,9 +355,9 @@ Disk() = Location("None", Dict{String,Any}()) # The scheduler intelligently dete
 # overall data size. This way, two arrays that have the same actual size will
 # be guaranteed to have the same sample size.
 
-get_max_exact_sample_length() = parse(Int, get(ENV, "BANYAN_MAX_EXACT_SAMPLE_LENGTH", "2048"))
+get_max_exact_sample_length()::Int64 = parse(Int64, get(ENV, "BANYAN_MAX_EXACT_SAMPLE_LENGTH", "2048"))
 
-getsamplenrows(totalnrows) =
+getsamplenrows(totalnrows::Int64)::Int64 =
     if totalnrows <= get_max_exact_sample_length()
         # NOTE: This includes the case where the dataset is empty
         # (totalnrows == 0)
@@ -350,7 +388,28 @@ invalidate_sample(p) = rm(joinpath(homedir(), ".banyan", "samples", p |> hash |>
 # location/sample may only need to get the sample or only the location
 # info and if just the location info or just the sample is cached
 
-function RemoteSource(get_remote_source, p; shuffled=false, source_invalid = false, sample_invalid = false, invalidate_source = false, invalidate_sample = false)
+@nospecialize
+
+RemoteSource(
+    get_remote_source::Function,
+    p::String;
+    shuffled::Bool = false,
+    source_invalid::Bool = false,
+    sample_invalid::Bool = false,
+    invalidate_source::Bool = false,
+    invalidate_sample::Bool = false
+)::Location =
+    RemoteSource(get_remote_source, p, shuffled, source_invalid, sample_invalid, invalidate_source, invalidate_sample)
+
+function RemoteSource(
+    get_remote_source::Function,
+    p::String,
+    shuffled::Bool,
+    source_invalid::Bool,
+    sample_invalid::Bool,
+    invalidate_source::Bool,
+    invalidate_sample::Bool
+)::Location
     # In the context of remote locations, the location refers to just the non-sample part of it; i.e., the
     # info about what files are in the dataset and how many rows they have.
 
@@ -375,24 +434,25 @@ function RemoteSource(get_remote_source, p; shuffled=false, source_invalid = fal
     # Get paths with cached locations and samples
     locationspath = joinpath(homedir(), ".banyan", "sources")
     samplespath = joinpath(homedir(), ".banyan", "samples")
-    locationpath = joinpath(locationspath, p |> hash |> string)
-    samplepath = joinpath(samplespath, p |> hash |> string)
+    p_hash_string = string(hash(p))
+    locationpath = joinpath(locationspath, p_hash_string)
+    samplepath = joinpath(samplespath, p_hash_string)
 
     # Get cached sample if it exists
-    remote_sample = if isfile(samplepath) && !sample_invalid
+    remote_sample::Sample = if isfile(samplepath) && !sample_invalid
         deserialize(samplepath)
     else
-        nothing
+        NOTHING_SAMPLE
     end
 
     # Get cached location if it exists
-    remote_source = if isfile(locationpath) && !source_invalid
+    remote_source::Location = if isfile(locationpath) && !source_invalid
         deserialize(locationpath)
     else
-        nothing
+        NOTHING_LOCATION
     end
-    remote_source = get_remote_source_cached(get_remote_source, p; remote_source, remote_sample, shuffled=shuffled)
-    remote_sample = remote_source.sample
+    remote_source = get_remote_source_cached(get_remote_source, p, remote_source, remote_sample, shuffled)
+    remote_sample = (remote_source.sample)::Sample
 
     if isinvestigating()[:caching][:location_info] || isinvestigating()[:caching][:samples]
         println("In RemoteSource")
@@ -406,7 +466,9 @@ function RemoteSource(get_remote_source, p; shuffled=false, source_invalid = fal
     # are calling `write_parquet` with `invalidate_source=false`, then
     # the location will not be saved. But on future writes, the first write's
     # location will be used.
-    if !invalidate_source && remote_source.src_name == "Remote" && remote_source.nbytes > 0
+    remote_source_src_name::String = remote_source.src_name
+    remote_source_nbytes::Int64 = remote_source.nbytes
+    if !invalidate_source && remote_source_src_name == "Remote" && remote_source_nbytes > 0
         mkpath(locationspath)
         serialize(locationpath, remote_source)
     else
@@ -429,18 +491,24 @@ function RemoteSource(get_remote_source, p; shuffled=false, source_invalid = fal
     remote_source
 end
 
-function RemoteDestination(get_remote_destination, p; invalidate_source = true, invalidate_sample = true)
+function RemoteDestination(
+    get_remote_destination::Function,
+    p::String;
+    invalidate_source::Bool = true,
+    invalidate_sample::Bool = true
+)::Location
+    p_hash_string = string(hash(p))
     if invalidate_source
-        rm(joinpath(homedir(), ".banyan", "sources", p |> hash |> string), force=true, recursive=true)
+        rm(joinpath(homedir(), ".banyan", "sources", p_hash_string), force=true, recursive=true)
     end
     if invalidate_sample
-        rm(joinpath(homedir(), ".banyan", "samples", p |> hash |> string), force=true, recursive=true)
+        rm(joinpath(homedir(), ".banyan", "samples", p_hash_string), force=true, recursive=true)
     end
 
-    get_remote_destination(p)
+    get_remote_destination(p)::Location
 end
 
-function get_remote_source_cached(get_remote_source, remotepath; remote_source=nothing, remote_sample=nothing, shuffled=false)::Location
+function get_remote_source_cached(get_remote_source, remotepath, remote_source, remote_sample, shuffled)::Location
     # If both the location and sample are already cached, just return them
     if !isnothing(remote_source) && !isnothing(remote_sample)
         remote_source.sample = remote_sample
@@ -451,7 +519,12 @@ function get_remote_source_cached(get_remote_source, remotepath; remote_source=n
     # deterministic. Might not be needed...
     Random.seed!(hash(get_session_id()))
 
-    get_remote_source(remotepath, remote_source, remote_sample, shuffled)
+    get_remote_source(
+        remotepath,
+        Base.inferencebarrier(remote_source),
+        Base.inferencebarrier(remote_sample),
+        Base.inferencebarrier(shuffled)
+    )
 end
 
 # function get_remote_destination(remotepath)::Location
@@ -466,7 +539,7 @@ end
 #     end
 # end
 
-function convert_to_unpooled(A)
+function convert_to_unpooled(A::Any)
     type_name = typeof(A).name.name
     if type_name == :PooledArray
         Base.collect(A)
@@ -477,3 +550,5 @@ function convert_to_unpooled(A)
         Base.convert(Array, A)
     end
 end
+
+@specialize

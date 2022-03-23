@@ -9,7 +9,12 @@ function read_hdf5(path; kwargs...)
     BanyanArrays.Array{A_loc.eltype,A_loc.ndims}(A, Future(A_loc.size))
 end
 
-function write_hdf5(A, path; invalidate_source=true, invalidate_sample=true, kwargs...)
+function write_hdf5(
+    A::BanyanArrays.Array,
+    path::String;
+    invalidate_source::Bool = true,
+    invalidate_sample::Bool = true
+)
     # # A_loc = Remote(pathname, mount)
     # destined(A, Remote(path, delete_from_cache=true))
     # mutated(A)
@@ -30,9 +35,13 @@ function write_hdf5(A, path; invalidate_source=true, invalidate_sample=true, kwa
     # compute(A)
     partitioned_computation(
         A,
-        destination=RemoteHDF5Destination(path; invalidate_source=invalidate_source, invalidate_sample=invalidate_sample, kwargs...),
+        destination=RemoteHDF5Destination(
+            path;
+            invalidate_source=invalidate_source,
+            invalidate_sample=invalidate_sample
+        ),
         new_source=_->RemoteHDF5Source(path)
-    ) do
-        pt(A, Blocked(A) | Replicated())
+    ) do f::Future
+        pt(f, Blocked(f) | Replicated())
     end
 end

@@ -1,8 +1,8 @@
 ReturnNullGrouping(
     src,
     params,
-    batch_idx::Integer,
-    nbatches::Integer,
+    batch_idx::Int64,
+    nbatches::Int64,
     comm::MPI.Comm,
     loc_name,
     loc_params,
@@ -12,8 +12,8 @@ ReturnNullGrouping(
     src,
     part,
     params,
-    batch_idx::Integer,
-    nbatches::Integer,
+    batch_idx::Int64,
+    nbatches::Int64,
     comm::MPI.Comm,
     loc_name,
     loc_params,
@@ -66,8 +66,8 @@ ReadBlockCSV, ReadBlockParquet, ReadBlockArrow = [
         function ReadBlock(
             src,
             params,
-            batch_idx::Integer,
-            nbatches::Integer,
+            batch_idx::Int64,
+            nbatches::Int64,
             comm::MPI.Comm,
             loc_name,
             loc_params,
@@ -125,7 +125,7 @@ ReadBlockCSV, ReadBlockParquet, ReadBlockArrow = [
             # rows for the batch currently being processed by this worker
             nrows = loc_params["nrows"]
             rowrange = Banyan.split_len(nrows, batch_idx, nbatches, comm)
-            dfs::Base.Vector{DataFrames.DataFrame} = []
+            dfs::Base.Vector{DataFrames.DataFrame} = DataFrames.DataFrame[]
             rowsscanned = 0
             for file in sort(loc_params["files"], by = filedict -> filedict["path"])
                 newrowsscanned = rowsscanned + file["nrows"]
@@ -225,8 +225,8 @@ WriteParquet, WriteCSV, WriteArrow = [
             src,
             part,
             params,
-            batch_idx::Integer,
-            nbatches::Integer,
+            batch_idx::Int64,
+            nbatches::Int64,
             comm::MPI.Comm,
             loc_name,
             loc_params,
@@ -358,8 +358,8 @@ function CopyToCSV(
     src,
     part,
     params,
-    batch_idx::Integer,
-    nbatches::Integer,
+    batch_idx::Int64,
+    nbatches::Int64,
     comm::MPI.Comm,
     loc_name,
     loc_params,
@@ -377,8 +377,8 @@ function CopyToParquet(
     src,
     part,
     params,
-    batch_idx::Integer,
-    nbatches::Integer,
+    batch_idx::Int64,
+    nbatches::Int64,
     comm::MPI.Comm,
     loc_name,
     loc_params,
@@ -396,8 +396,8 @@ function CopyToArrow(
     src,
     part,
     params,
-    batch_idx::Integer,
-    nbatches::Integer,
+    batch_idx::Int64,
+    nbatches::Int64,
     comm::MPI.Comm,
     loc_name,
     loc_params,
@@ -414,8 +414,8 @@ end
 function Banyan.SplitBlock(
     src::T,
     params::Dict{String,Any},
-    batch_idx::Integer,
-    nbatches::Integer,
+    batch_idx::Int64,
+    nbatches::Int64,
     comm::MPI.Comm,
     loc_name::String,
     loc_params::Dict{String,Any},
@@ -430,10 +430,10 @@ function Banyan.SplitBlock(
 end
 
 function Banyan.SplitGroup(
-    src::AbstractDataFrame,
+    src::DataFrames.DataFrame,
     params,
-    batch_idx::Integer,
-    nbatches::Integer,
+    batch_idx::Int64,
+    nbatches::Int64,
     comm::MPI.Comm,
     loc_name,
     loc_params;
@@ -514,8 +514,10 @@ Banyan.Rebalance(
     comm::MPI.Comm
 ) = nothing
 
+de(x) = DataFrames.DataFrame(Arrow.Table(IOBuffer(x)))
+
 function Banyan.Rebalance(
-    part::AbstractDataFrame,
+    part::DataFrames.DataFrame,
     src_params::Dict{String,Any},
     dst_params::Dict{String,Any},
     comm::MPI.Comm
@@ -529,7 +531,6 @@ function Banyan.Rebalance(
     endidx = startidx + len - 1
 
     # Get functions for serializing/deserializing
-    ser = Arrow.write
     # TODO: Use JLD for ser/de for arrays
     # TODO: Ensure that we are properly handling intermediate arrays or
     # dataframes that are empty (especially because they may not have their
@@ -537,7 +538,6 @@ function Banyan.Rebalance(
     # empty should concatenate properly. We just need to be sure to not expect
     # every partition to know what its schema is. We can however expect each
     # partition of an array to know its ndims.
-    de = x -> DataFrames.DataFrame(Arrow.Table(IOBuffer(x)))
 
     # Construct buffer to send parts to all workers who own in this range
     nworkers = Banyan.get_nworkers(comm)
@@ -545,7 +545,7 @@ function Banyan.Rebalance(
     whole_len = MPI.bcast(endidx, nworkers - 1, comm)
     io = IOBuffer()
     nbyteswritten = 0
-    counts::Base.Vector{Int64} = []
+    counts::Base.Vector{Int64} = Int64[]
     for partition_idx = 1:npartitions
         # `Banyan.split_len` gives us the range that this partition needs
         partitionrange = Banyan.split_len(whole_len, partition_idx, npartitions)
@@ -555,7 +555,7 @@ function Banyan.Rebalance(
             max(startidx, partitionrange.start) <= min(endidx, partitionrange.stop)
 
         # If they do overlap, then serialize the overlapping slice
-        ser(
+        Arrow.write(
             io,
             view(
                 part,
@@ -595,7 +595,7 @@ function Banyan.Rebalance(
         (displ, count) in zip(recvbuf.displs, recvbuf.counts)
     ]
     res = merge_on_executor(
-        things_to_concatenate...;
+        things_to_concatenate;
         key = dim,
     )
     res
@@ -606,7 +606,7 @@ end
 # nothing.
 Banyan.Consolidate(part::Union{Nothing, DataFrames.GroupedDataFrame}, src_params::Dict{String,Any}, dst_params::Dict{String,Any}, comm::MPI.Comm) = nothing
 
-function Banyan.Consolidate(part::AbstractDataFrame, src_params::Dict{String,Any}, dst_params::Dict{String,Any}, comm::MPI.Comm)
+function Banyan.Consolidate(part::DataFrames.DataFrame, src_params::Dict{String,Any}, dst_params::Dict{String,Any}, comm::MPI.Comm)
     io = IOBuffer()
     Arrow.write(io, part)
     sendbuf = MPI.Buffer(view(io.data, 1:io.size))
@@ -632,27 +632,27 @@ function Banyan.Consolidate(part::AbstractDataFrame, src_params::Dict{String,Any
                 (recvvbuf.displs[i]+1):(recvvbuf.displs[i]+recvvbuf.counts[i])
             ) |> IOBuffer |> Arrow.Table |> DataFrames.DataFrame
             for i in 1:Banyan.get_nworkers(comm)
-        ]...;
+        ];
         key = 1
     )
     res
 end
 
 function Banyan.Shuffle(
-    part::AbstractDataFrame,
+    part::DataFrames.DataFrame,
     src_params::Dict{String,Any},
     dst_params::Dict{String,Any},
     comm::MPI.Comm;
     boundedlower = false,
     boundedupper = false,
     store_splitting_divisions = true
-)
+)::DataFrames.DataFrame
     # We don't have to worry about grouped data frames since they are always
     # block-partitioned.
 
     # Get the divisions to apply
     key = dst_params["key"]
-    rev = get(dst_params, "rev", false)
+    rev::Bool = get(dst_params, "rev", false)
     worker_idx, nworkers = Banyan.get_worker_idx(comm), Banyan.get_nworkers(comm)
     divisions_by_worker = if haskey(dst_params, "divisions_by_worker")
         dst_params["divisions_by_worker"] # list of min-max tuples
@@ -671,7 +671,7 @@ function Banyan.Shuffle(
         boundedupper = boundedupper,
     )
     res = begin
-        gdf = if !isempty(part)
+        gdf::Union{DataFrames.GroupedDataFrame,Nothing} = if !isempty(part)
             # Compute the partition to send each row of the dataframe to
             DataFrames.transform!(part, key => ByRow(partition_idx_getter) => :banyan_shuffling_key)
 
@@ -683,8 +683,8 @@ function Banyan.Shuffle(
 
         # Create buffer for sending dataframe's rows to all the partitions
         io = IOBuffer()
-        nbyteswritten = 0
-        df_counts::Base.Vector{Int64} = []
+        nbyteswritten::Int64 = 0
+        df_counts::Base.Vector{Int64} = Int64[]
         for partition_idx = 1:nworkers
             Arrow.write(
                 io,
@@ -707,13 +707,21 @@ function Banyan.Shuffle(
         MPI.Alltoallv!(sendbuf, recvbuf, comm)
 
         # Return the concatenated dataframe
-        things_to_concatenate = [
+        res::DataFrames.DataFrame = if length(recvbuf.counts) == 1
             DataFrames.DataFrame(
-                Arrow.Table(IOBuffer(view(recvbuf.data, displ+1:displ+count))),
+                Arrow.Table(IOBuffer(view(recvbuf.data, :))),
                 copycols = false,
-            ) for (displ, count) in zip(recvbuf.displs, recvbuf.counts)
-        ]
-        res = length(things_to_concatenate) == 1 ? things_to_concatenate[1] : vcat(things_to_concatenate...)
+            )
+        else
+            vcat(
+                (
+                    DataFrames.DataFrame(
+                        Arrow.Table(IOBuffer(view(recvbuf.data, displ+1:displ+count))),
+                        copycols = false,
+                    ) for (displ, count) in zip(recvbuf.displs, recvbuf.counts)
+                )...
+            )
+        end
         if :banyan_shuffling_key in propertynames(res)
             DataFrames.select!(res, Not(:banyan_shuffling_key))
         end

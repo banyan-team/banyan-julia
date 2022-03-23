@@ -120,37 +120,54 @@ function download_remote_s3_path(path)
     end
 end
 
-function with_downloaded_path_for_reading(func::Function, downloaded_path; for_writing=false)
-    global tmp_paths
+# function with_downloaded_path_for_reading(@nospecialize(func::Function), @nospecialize(downloaded_path); @nospecialize(for_writing=false))::String
+#     global tmp_paths
 
-    # There are 3 cases here: `downloaded_path` is an S3Path or a local S3FS
-    # path or an http:// file that has been downloaded to tempdir() (i.e., /tmp).
+#     # There are 3 cases here: `downloaded_path` is an S3Path or a local S3FS
+#     # path or an http:// file that has been downloaded to tempdir() (i.e., /tmp).
 
-    temp_downloaded_path = if downloaded_path isa S3Path
-        temp_downloaded_path = Path(tempname() * splitext(downloaded_path)[2])
-        push!(tmp_paths, temp_downloaded_path)
-        if !for_writing
-            cp(downloaded_path, temp_downloaded_path, force=true)
-        end
-        func(string(temp_downloaded_path))
-        if for_writing
-            cp(temp_downloaded_path, downloaded_path, force=true)
-        end
-        string(temp_downloaded_path)
-    else
-        func(string(downloaded_path))
-        string(downloaded_path)
+#     temp_downloaded_path = if downloaded_path isa S3Path
+#         temp_downloaded_path = Path(tempname() * splitext(downloaded_path)[2])
+#         push!(tmp_paths, temp_downloaded_path)
+#         if !for_writing
+#             cp(downloaded_path, temp_downloaded_path, force=true)
+#         end
+#         func(string(temp_downloaded_path))
+#         if for_writing
+#             cp(temp_downloaded_path, downloaded_path, force=true)
+#         end
+#         string(temp_downloaded_path)
+#     else
+#         func(string(downloaded_path))
+#         string(downloaded_path)
+#     end
+# end
+
+function get_downloaded_path(downloaded_path::S3Path; only_for_writing=false)::String
+    temp_downloaded_path = string(Path(tempname() * splitext(downloaded_path)[2]))
+    @show temp_downloaded_path
+    @show downloaded_path
+    if !only_for_writing
+        cp(downloaded_path, temp_downloaded_path, force=true)
     end
+    @show isfile(temp_downloaded_path)
+    temp_downloaded_path
+end
+get_downloaded_path(downloaded_path)::String = string(downloaded_path)
+
+function destroy_downloaded_path(temp_downloaded_path)
+    # This will be a problem if it actually deletes something from `s3fs/`.
+    # So for now we will just ignore it and we're anyway going to be moving to`
+    # loading location info on the cluster where we can just use the mounted
+    # `s3/` directory and forget about all of this.
+    # if isdir(temp_downloaded_path)
+    #     rm(temp_downloaded_path, recursive=true, force=true)
+    # else
+    #     rm(temp_downloaded_path, force=true)
+    # end
 end
 
-function cleanup_tmp()
-    global tmp_paths
-    for tmp_path in tmp_paths
-        try
-            rm(tmp_path, recursive=true, force=true)
-        catch e
-            @warn "Unable to delete $tmp_path: $e"
-        end
-    end
-    empty!(tmp_paths)
+function use_downloaded_path_for_writing(uploading_path::S3Path, temp_downloaded_path)
+    cp(temp_downloaded_path, uploading_path, force=true)
+    destroy_downloaded_path(temp_downloaded_path)
 end

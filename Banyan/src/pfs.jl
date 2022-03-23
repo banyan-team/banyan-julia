@@ -11,8 +11,8 @@
 ReturnNull(
     src,
     params,
-    batch_idx::Integer,
-    nbatches::Integer,
+    batch_idx::Int64,
+    nbatches::Int64,
     comm::MPI.Comm,
     loc_name,
     loc_params,
@@ -22,8 +22,8 @@ ReturnNull(
     src,
     part,
     params,
-    batch_idx::Integer,
-    nbatches::Integer,
+    batch_idx::Int64,
+    nbatches::Int64,
     comm::MPI.Comm,
     loc_name,
     loc_params,
@@ -54,8 +54,8 @@ ReadGroup(ReadBlock) = begin
     function ReadGroup(
         src,
         params,
-        batch_idx::Integer,
-        nbatches::Integer,
+        batch_idx::Int64,
+        nbatches::Int64,
         comm::MPI.Comm,
         loc_name,
         loc_params,
@@ -66,7 +66,7 @@ ReadGroup(ReadBlock) = begin
         # Get information needed to read in the appropriate group
         divisions = params["divisions"]
         key = params["key"]
-        rev = get(params, "rev", false) # Passed in ReadBlock
+        rev::Bool = get(params, "rev", false) # Passed in ReadBlock
         nworkers = get_nworkers(comm)
         npartitions = nworkers * nbatches
         partition_divisions = get_divisions(divisions, npartitions)
@@ -148,7 +148,7 @@ ReadGroup(ReadBlock) = begin
         end
 
         # Concatenate together the data for this partition
-        res = merge_on_executor(parts...; key = key)
+        res = merge_on_executor(parts; key = key)
 
         # If there are no divisions for any of the partitions, then they are all
         # bounded. For a partition to be unbounded on one side, there must be a
@@ -185,8 +185,8 @@ end
 SplitBlock(
     src::Union{Nothing,PartiallyMerged},
     params::Dict{String,Any},
-    batch_idx::Integer,
-    nbatches::Integer,
+    batch_idx::Int64,
+    nbatches::Int64,
     comm::MPI.Comm,
     loc_name::String,
     loc_params::Dict{String,Any},
@@ -209,8 +209,8 @@ SplitBlock(
 SplitGroup(
     src::Union{Nothing,PartiallyMerged},
     params,
-    batch_idx::Integer,
-    nbatches::Integer,
+    batch_idx::Int64,
+    nbatches::Int64,
     comm::MPI.Comm,
     loc_name,
     loc_params;
@@ -224,8 +224,8 @@ function Merge(
     src::Union{Nothing,PartiallyMerged},
     part,
     params::Dict{String,Any},
-    batch_idx::Integer,
-    nbatches::Integer,
+    batch_idx::Int64,
+    nbatches::Int64,
     comm::MPI.Comm,
     loc_name::String,
     loc_params::Dict{String,Any},
@@ -249,7 +249,7 @@ function Merge(
         delete!(splitting_divisions, part)
 
         # Concatenate across batches
-        src = merge_on_executor((piece for piece in src.pieces if !isnothing(piece))...; key = key)
+        src = merge_on_executor(filter(piece -> !isnothing(piece), src.pieces); key = key)
 
         # Concatenate across workers
         nworkers = get_nworkers(comm)
@@ -265,8 +265,8 @@ Merge(
     src::Any,
     part::Any,
     params::Dict{String,Any},
-    batch_idx::Integer,
-    nbatches::Integer,
+    batch_idx::Int64,
+    nbatches::Int64,
     comm::MPI.Comm,
     loc_name::String,
     loc_params::Dict{String,Any},
@@ -275,8 +275,8 @@ Merge(
 CopyFrom(
     src,
     params,
-    batch_idx::Integer,
-    nbatches::Integer,
+    batch_idx::Int64,
+    nbatches::Int64,
     comm::MPI.Comm,
     loc_name,
     loc_params,
@@ -285,8 +285,8 @@ CopyFrom(
 CopyFromValue(
     src,
     params,
-    batch_idx::Integer,
-    nbatches::Integer,
+    batch_idx::Int64,
+    nbatches::Int64,
     comm::MPI.Comm,
     loc_name,
     loc_params,
@@ -295,8 +295,8 @@ CopyFromValue(
 CopyFromClient(
     src,
     params,
-    batch_idx::Integer,
-    nbatches::Integer,
+    batch_idx::Int64,
+    nbatches::Int64,
     comm::MPI.Comm,
     loc_name,
     loc_params,
@@ -310,8 +310,8 @@ end
 CopyFromJulia(
     src,
     params,
-    batch_idx::Integer,
-    nbatches::Integer,
+    batch_idx::Int64,
+    nbatches::Int64,
     comm::MPI.Comm,
     loc_name,
     loc_params,
@@ -324,8 +324,8 @@ function CopyTo(
     src,
     part,
     params,
-    batch_idx::Integer,
-    nbatches::Integer,
+    batch_idx::Int64,
+    nbatches::Int64,
     comm::MPI.Comm,
     loc_name,
     loc_params,
@@ -337,8 +337,8 @@ CopyToClient(
     src,
     part,
     params,
-    batch_idx::Integer,
-    nbatches::Integer,
+    batch_idx::Int64,
+    nbatches::Int64,
     comm::MPI.Comm,
     loc_name,
     loc_params,
@@ -350,8 +350,8 @@ function CopyToJulia(
     src,
     part,
     params,
-    batch_idx::Integer,
-    nbatches::Integer,
+    batch_idx::Int64,
+    nbatches::Int64,
     comm::MPI.Comm,
     loc_name,
     loc_params,
@@ -398,8 +398,8 @@ function ReduceAndCopyToJulia(
     src,
     part::T,
     params,
-    batch_idx::Integer,
-    nbatches::Integer,
+    batch_idx::Int64,
+    nbatches::Int64,
     comm::MPI.Comm,
     loc_name,
     loc_params,
@@ -436,8 +436,8 @@ ReduceWithKeyAndCopyToJulia = ReduceAndCopyToJulia
 Divide(
     src::AbstractRange,
     params::Dict{String,Any},
-    batch_idx::Integer,
-    nbatches::Integer,
+    batch_idx::Int64,
+    nbatches::Int64,
     comm::MPI.Comm,
     loc_name::String,
     loc_params::Dict{String,Any},
@@ -446,8 +446,8 @@ Divide(
 function Divide(
     src::Tuple,
     params::Dict{String,Any},
-    batch_idx::Integer,
-    nbatches::Integer,
+    batch_idx::Int64,
+    nbatches::Int64,
     comm::MPI.Comm,
     loc_name::String,
     loc_params::Dict{String,Any},
@@ -463,8 +463,8 @@ end
 function Divide(
     src,
     params::Dict{String,Any},
-    batch_idx::Integer,
-    nbatches::Integer,
+    batch_idx::Int64,
+    nbatches::Int64,
     comm::MPI.Comm,
     loc_name::String,
     loc_params::Dict{String,Any},
@@ -478,8 +478,8 @@ end
 function DivideFromValue(
     src::T,
     params::Dict{String,Any},
-    batch_idx::Integer,
-    nbatches::Integer,
+    batch_idx::Int64,
+    nbatches::Int64,
     comm::MPI.Comm,
     loc_name::String,
     loc_params::Dict{String,Any},
@@ -491,8 +491,8 @@ end
 function DivideFromDisk(
     src::T,
     params::Dict{String,Any},
-    batch_idx::Integer,
-    nbatches::Integer,
+    batch_idx::Int64,
+    nbatches::Int64,
     comm::MPI.Comm,
     loc_name::String,
     loc_params::Dict{String,Any},
@@ -504,8 +504,8 @@ end
 function DivideFromClient(
     src::T,
     params::Dict{String,Any},
-    batch_idx::Integer,
-    nbatches::Integer,
+    batch_idx::Int64,
+    nbatches::Int64,
     comm::MPI.Comm,
     loc_name::String,
     loc_params::Dict{String,Any},

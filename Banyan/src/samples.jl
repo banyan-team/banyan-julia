@@ -12,14 +12,14 @@ mutable struct Sample
         value::Any = nothing;
         properties::Dict{Symbol,Any} = Dict{Symbol,Any}(),
         sample_rate=get_session().sample_rate,
-        total_memory_usage=nothing
+        total_memory_usage::Int64=-1
     )
         newsample = new(value, properties)
 
         # We compute the `memory_usage` lazily
 
         # Fill in properties if possible
-        if !isnothing(total_memory_usage)
+        if total_memory_usage != -1
             setsample!(newsample, :memory_usage, round(total_memory_usage / sample_rate))
         end
         setsample!(newsample, :rate, sample_rate)
@@ -34,6 +34,8 @@ mutable struct Sample
     #     ))
 end
 
+Base.isnothing(s::Sample) = sample(s, :rate)::Int64 == -1
+
 ExactSample(value::Any = nothing; kwargs...) = Sample(value; sample_rate=1, kwargs...)
 
 # sample* functions always return a concrete value or a dict with properties.
@@ -41,10 +43,12 @@ ExactSample(value::Any = nothing; kwargs...) = Sample(value; sample_rate=1, kwar
 
 # TODO: Lazily compute samples by storing sample computation in a DAG if its
 # getting too expensive
-sample(fut::AbstractFuture) = sample(get_location(fut))
+sample(fut::AbstractFuture) = sample(convert(Future, fut)::Future)
+sample(fut::Future) = sample(get_location(fut))
 sample(sample::Sample) = sample.value
 
-sample(fut::AbstractFuture, propertykeys...) = sample(get_location(fut).sample, propertykeys...)
+sample(fut::AbstractFuture, propertykeys...) = sample(convert(Future, fut)::Future, propertykeys...)
+sample(fut::Future, propertykeys...) = sample(get_location(fut).sample, propertykeys...)
 function sample(s::Sample, propertykeys...)
     properties = s.properties
     for (i, propertykey) in enumerate(propertykeys)
@@ -61,12 +65,14 @@ function sample(s::Sample, propertykeys...)
     properties
 end
 
-setsample!(fut::AbstractFuture, value) = setsample!(get_location(fut).sample, value)
+setsample!(fut::AbstractFuture, value) = setsample!(convert(Future, fut)::Future, value)
+setsample!(fut::Future, value) = setsample!(get_location(fut).sample, value)
 function setsample!(sample::Sample, value)
     sample.value = value
 end
 
-setsample!(fut::AbstractFuture, propertykeys...) = setsample!(get_location(fut).sample, propertykeys...)
+setsample!(fut::AbstractFuture, propertykeys...) = setsample!(convert(Future, fut)::Future, propertykeys...)
+setsample!(fut::Future, propertykeys...) = setsample!(get_location(fut).sample, propertykeys...)
 function setsample!(sample::Sample, propertykeys...)
     if length(propertykeys) == 1
         setsample!(sample, first(propertykeys))
@@ -100,6 +106,8 @@ end
 # properties of the sample by property key name instead of an explicit
 # function call. This makes it easier for the `sample` and `setsample!`
 # functions for `Future`s to compute and cache samples.
+
+@nospecialize
 
 sample(as::Any, properties...) =
     if length(properties) <= 2 && first(properties) == :statistics
@@ -152,7 +160,7 @@ sample(as::Any, properties...) =
         throw(ArgumentError("Invalid sample properties: $properties"))
     end
 
-sample_memory_usage(as::Any) = total_memory_usage(as)
+sample_memory_usage(as::Any)::Int64 = total_memory_usage(as)
 
 # Implementation error 
 impl_error(fn_name, as) = error("$fn_name not implemented for $(typeof(as))")
@@ -166,3 +174,7 @@ sample_percentile(as::Any, key, minvalue, maxvalue) = impl_error("sample_percent
 sample_max_ngroups(as::Any, key) = impl_error("sample_max_ngroups", as)
 sample_min(as::Any, key) = impl_error("sample_min", as)
 sample_max(as::Any, key) = impl_error("sample_max", as)
+
+@specialize
+
+const NOTHING_SAMPLE = Sample(nothing, sample_rate=-1)

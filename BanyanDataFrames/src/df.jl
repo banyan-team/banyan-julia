@@ -5,9 +5,10 @@ struct DataFrame <: AbstractFuture
     # offset::Future
 end
 
-Base.convert(::Type{DataFrame}, df::AbstractDataFrame) = DataFrame(Future(df; datatype="DataFrame"), Future(nrow(df)))
+Base.convert(::Type{DataFrame}, df::DataFrames.DataFrame) = DataFrame(Future(df; datatype="DataFrame"), Future(nrow(df)))
 
 Banyan.convert(::Type{Future}, df::DataFrame) = df.data
+Banyan.sample(df::DataFrame)::DataFrames.DataFrame = sample(df.data)
 
 # DataFrame creation
 
@@ -67,7 +68,7 @@ read_arrow(p; kwargs...) = read_csv(p; kwargs...)
 
 # TODO: For writing functions, if a file is specified, enforce Replicated
 
-function write_csv(df, path; invalidate_source=true, invalidate_sample=true, kwargs...)
+function write_csv(df::DataFrame, path; invalidate_source=true, invalidate_sample=true, kwargs...)
     # destined(df, Remote(path, delete_from_cache=true))
     # mutated(df)
     # partitioned_with() do
@@ -81,7 +82,7 @@ function write_csv(df, path; invalidate_source=true, invalidate_sample=true, kwa
         df,
         destination=RemoteTableDestination(path; invalidate_source=invalidate_source, invalidate_sample=invalidate_sample, kwargs...),
         new_source=_->RemoteTableSource(path)
-    ) do
+    ) do f::Future
         pt(df, Partitioned(df))
     end
 end
@@ -90,8 +91,8 @@ write_parquet(A, p; kwargs...) = write_csv(A, p; kwargs...)
 write_arrow(A, p; kwargs...) = write_csv(A, p; kwargs...)
 
 function Banyan.compute_inplace(df::DataFrame)
-    partitioned_computation(df, destination=Disk()) do
-        pt(df, Partitioned(df))
+    partitioned_computation(df, destination=Disk()) do f::Future
+        pt(f, Partitioned(f))
     end
 end
 
@@ -99,15 +100,15 @@ end
 
 # DataFrame sample
 
-Banyan.sample_axes(df::DataFrames.DataFrame) = [1]
-Banyan.sample_keys(df::DataFrames.DataFrame) = propertynames(df)
+Banyan.sample_axes(df::DataFrames.DataFrame) = Int64[1]
+Banyan.sample_keys(df::DataFrames.DataFrame)::Base.Vector{String} = names(df)
 
 # TODO: Make these sample_* functions handle empty data frames
 
 function Banyan.sample_divisions(df::DataFrames.DataFrame, key)
     # There are no divisions for empty data
     if isempty(df)
-        return []
+        return Any[]
     end
 
     max_ngroups = sample_max_ngroups(df, key)
@@ -120,21 +121,22 @@ function Banyan.sample_divisions(df::DataFrames.DataFrame, key)
     # `unique` here is more of a safety precaution. The # of divisions we use
     # is the maximum # of groups.
     # TODO: Ensure that `unique` doesn't change the order
-    unique([
+    all_divisions::Base.Vector{Any} = map(
         # Each group has elements that are >= start and < end
-        (
+        i -> (
             data[(i-1)*grouplength + 1],
             data[i == ngroups ? datalength : i*grouplength + 1]
-        )
-        for i in 1:ngroups
-    ])
+        ),
+        1:ngroups
+    )
+    unique(all_divisions)
 end
 
-function Banyan.sample_percentile(df::DataFrames.DataFrame, key, minvalue, maxvalue)
+function Banyan.sample_percentile(df::DataFrames.DataFrame, key, minvalue, maxvalue)::Float64
     # If the data frame is empty, nothing between `minvalue` and `maxvalue` can
     # exist in `df`. so the percentile is 0.
     if isempty(df) || isnothing(minvalue) || isnothing(maxvalue)
-        return 0
+        return 0.0
     end
 
     # NOTE: This may cause some problems because the way that data is ultimately split may
@@ -145,7 +147,14 @@ function Banyan.sample_percentile(df::DataFrames.DataFrame, key, minvalue, maxva
     # call sample_divisions with a reasonable number of divisions and then counting how many
     # divisions the range actually belongs to.
 
-    count(map(o -> begin oh = orderinghash(o); oh >= minvalue && oh <= maxvalue end, df[!, key])) / nrow(df)
+    c::Int64 = 0
+    for o in df[!, key]
+        oh = orderinghash(o)
+        if oh >= minvalue && oh <= maxvalue
+            c += 1
+        end
+    end
+    c / nrow(df)
 
     # # minvalue and maxvalue should already be order-preserved hashes
     # # minvalue, maxvalue = orderinghash(minvalue), orderinghash(maxvalue)
@@ -175,7 +184,7 @@ function Banyan.sample_percentile(df::DataFrames.DataFrame, key, minvalue, maxva
     # percentile
 end
 
-Banyan.sample_max_ngroups(df::DataFrames.DataFrame, key) = isempty(df) ? 0 : div(DataFrames.nrow(df), maximum(DataFrames.combine(DataFrames.groupby(df[!, [key,]], key), DataFrames.nrow).nrow))
+Banyan.sample_max_ngroups(df::DataFrames.DataFrame, key)::Int64 = isempty(df) ? 0 : div(DataFrames.nrow(df), maximum(DataFrames.combine(DataFrames.groupby(df[!, [key,]], key), DataFrames.nrow).nrow))
 Banyan.sample_min(df::DataFrames.DataFrame, key) = isempty(df) ? nothing : minimum(map(orderinghash, df[!, key]))
 Banyan.sample_max(df::DataFrames.DataFrame, key) = isempty(df) ? nothing : maximum(map(orderinghash, df[!, key]))
 
@@ -261,7 +270,11 @@ Base.propertynames(df::DataFrame) = propertynames(sample(df))
 #     df, res, res_nrows, args, kwargs
 # end
 
-function pts_for_filtering(init::AbstractFuture, final::AbstractFuture; with, kwargs...)
+function pts_for_filtering(init::AbstractFuture, final::AbstractFuture; @nospecialize(with), @nospecialize(kwargs...))
+    pts_for_filtering(convert(Future, init), convert(Future, final), with, kwargs...)
+end
+
+function pts_for_filtering(init::Future, final::Future; @nospecialize(with), @nospecialize(kwargs...))
     # for (initpt, finalpt) in zip(
     #     with(init; balanced=false, filtered_to=final, kwargs...),
     #     with(final; balanced=false, filtered_from=init, kwargs...),
@@ -312,7 +325,7 @@ function DataFrames.dropmissing(df::DataFrame, args...; kwargs...)
     !get(kwargs, :view, false) || throw(ArgumentError("Cannot return view of filtered dataframe"))
 
     res_nrows = Future()
-    res = DataFrame(Future(datatype="DataFrame"), res_nrows)
+    res = Future(datatype="DataFrame")
     args = Future(args)
     kwargs = Future(kwargs)
 
@@ -346,7 +359,7 @@ function DataFrames.dropmissing(df::DataFrame, args...; kwargs...)
         res_nrows = DataFrames.nrow(res)
     end
 
-    res
+    DataFrame(res, res_nrows)
 end
 
 function Base.filter(f, df::DataFrame; kwargs...)
@@ -355,7 +368,7 @@ function Base.filter(f, df::DataFrame; kwargs...)
     @time begin
     f = Future(f)
     res_nrows = Future()
-    res = DataFrame(Future(datatype="DataFrame"), res_nrows)
+    res = Future(datatype="DataFrame")
     kwargs = Future(kwargs)
     println("Time for creating futures:")
     end
@@ -383,7 +396,7 @@ function Base.filter(f, df::DataFrame; kwargs...)
     println("Time for `@partitioned``:")
     end
 
-    res
+    DataFrame(res, res_nrows)
 end
 
 # TODO: Make a `used` field and ensure that splitting/merging functions don't get used if their used are not provided
@@ -392,6 +405,7 @@ end
 
 function Missings.allowmissing(df::DataFrame)::DataFrame
     res = Future(datatype="DataFrame")
+    res_nrows = copy(df.nrows)
 
     partitioned_with(scaled=[df, res], keep_same_keys=true, modules="DataFrames") do
         pt(df, Distributed(df, scaled_by_same_as=res))
@@ -408,11 +422,12 @@ function Missings.allowmissing(df::DataFrame)::DataFrame
 
     @partitioned df res begin res = DataFrames.allowmissing(df) end
 
-    DataFrame(res, copy(df.nrows))
+    DataFrame(res, res_nrows)
 end
 
 function Missings.disallowmissing(df::DataFrame)::DataFrame
     res = Future(datatype="DataFrame")
+    res_nrows = copy(df.nrows)
 
     partitioned_with(scaled=[df, res], keep_same_keys=true, modules="DataFrames") do
         pt(df, Distributed(df, scaled_by_same_as=res))
@@ -429,7 +444,7 @@ function Missings.disallowmissing(df::DataFrame)::DataFrame
 
     @partitioned df res begin res = DataFrames.disallowmissing(df) end
 
-    DataFrame(res, copy(df.nrows))
+    DataFrame(res, res_nrows)
 end
 
 function Base.deepcopy(df::DataFrame)::DataFrame
@@ -455,6 +470,7 @@ end
 
 function Base.copy(df::DataFrame)::DataFrame
     res = Future(datatype="DataFrame")
+    res_nrows = copy(df.nrows)
 
     partitioned_with(scaled=[df, res], keep_same_keys=true, modules="DataFrames") do
         pt(df, Distributed(df, scaled_by_same_as=res))
@@ -471,7 +487,7 @@ function Base.copy(df::DataFrame)::DataFrame
 
     @partitioned df res begin res = DataFrames.copy(df) end
 
-    DataFrame(res, copy(df.nrows))
+    DataFrame(res, res_nrows)
 
     # res = DataFrame(Future(), res_nrows)
 
@@ -622,11 +638,11 @@ function Base.getindex(df::DataFrame, rows=:, cols=:)
     return_vector = cols isa Symbol || cols isa String || cols isa Integer
     select_columns = !(cols isa Colon)
     filter_rows = !(rows isa Colon)
-    columns = Symbol.(names(sample(df), cols))
+    columns::Base.Vector{String} = names(sample(df), cols)
     cols = Future(cols)
     rows = rows isa AbstractFuture ? rows : Future(rows)
 
-    res_size =
+    res_size::Future =
         if filter_rows
             Future()
         elseif return_vector
@@ -634,12 +650,11 @@ function Base.getindex(df::DataFrame, rows=:, cols=:)
         else
             Future(df.nrows)
         end
-    res =
-        if return_vector
-            BanyanArrays.Vector{eltype(sample(df)[!, compute(cols)])}(Future(datatype="Array"), res_size)
-        else
-            DataFrame(Future(datatype="DataFrame"), res_size)
-        end
+    if return_vector
+        res = Future(datatype="Array")
+    else
+        res = Future(datatype="DataFrame")
+    end
 
     partitioned_with(scaled=[df, res], keep_same_keys=true, drifted=filter_rows, modules="DataFrames") do
         if filter_rows
@@ -719,7 +734,11 @@ function Base.getindex(df::DataFrame, rows=:, cols=:)
         res_size = res isa Base.Vector ? res_size : first(res_size)
     end
 
-    res
+    if return_vector
+        res = BanyanArrays.Vector{eltype(sample(df)[!, compute(cols)])}(res, res_size)
+    else
+        res = DataFrame(res, res_size)
+    end
 
     # by = names(sample(df), cols)
     # onecol = cols isa Symbol || cols isa String || cols isa Integer
@@ -961,7 +980,7 @@ function Base.setindex!(df::DataFrame, v::Union{BanyanArrays.Vector, BanyanArray
 
     # selection = names(sample(df), cols)
 
-    res = Future(datatype="DataFrame", mutate_from=df)
+    res = Future(datatype="DataFrame", mutate_from=convert(Future, df)::Future)
     # cols = Future(Symbol.(names(sample(df), cols)))
     cols = Future(cols)
 
@@ -1126,6 +1145,7 @@ end
 
 function DataFrames.rename(df::DataFrame, args...; kwargs...)
     res = Future(datatype="DataFrame")
+    res_nrows = copy(df.nrows)
     args = Future(args)
     kwargs = Future(kwargs)
 
@@ -1134,8 +1154,9 @@ function DataFrames.rename(df::DataFrame, args...; kwargs...)
         for dfpt in Distributed(df, scaled_by_same_as=res)
             pt(dfpt)
             if dfpt.distribution == "grouped"
-                groupingkeyindex = indexin(dfpt.key, sample(df, :keys))
-                groupingkey = sample(res, :keys)[groupingkeyindex]
+                dfpt_key::String = dfpt.key
+                groupingkeyindex = indexin(dfpt_key, sample_keys(sample(df)))
+                groupingkey = sample_keys(sample(res))[groupingkeyindex]
                 pt(res, Grouped(by=groupingkey) & ScaledBySame(as=df), match=df, on=["balanced", "id", "divisions", "rev"])
             else
                 pt(res, ScaledBySame(as=df), match=df)
@@ -1150,7 +1171,7 @@ function DataFrames.rename(df::DataFrame, args...; kwargs...)
         res = DataFrames.rename(df, args...; kwargs...)
     end
 
-    DataFrame(res, copy(df.nrows))
+    DataFrame(res, res_nrows)
 
 
     # TODO: Make partition_delayed calls be processed in reverse
@@ -1280,11 +1301,12 @@ function Base.sort(df::DataFrame, cols=:; kwargs...)
     # end
 
     res = Future(datatype="DataFrame")
-    columns = Symbol.(names(sample(df), cols))
+    res_nrows = copy(df.nrows)
+    columns::Base.Vector{String} = names(sample(df), cols)
     cols = Future(cols)
     kwargs = Future(kwargs)
     sortingkey = first(columns)
-    isreversed = get(compute(kwargs), :rev, false)
+    isreversed = get(compute(kwargs), :rev, false)::Bool
 
     # TODO: Change to_vector(x) to [x;]
 
@@ -1312,10 +1334,10 @@ function Base.sort(df::DataFrame, cols=:; kwargs...)
     #     setsample(res, :keystatistics, by, statistics[by])
     # end
 
-    DataFrame(res, copy(df.nrows))
+    DataFrame(res, res_nrows)
 end
 
-function DataFrames.innerjoin(dfs::DataFrame...; on, kwargs...)
+function DataFrames.innerjoin(dfs::DataFrames.DataFrame...; on, kwargs...)
     length(dfs) >= 2 || throw(ArgumentError("Join requires at least 2 dataframes"))
 
     # TODO: Make it so that the code region's sampled computation is run first to allow for the function's
@@ -1324,8 +1346,14 @@ function DataFrames.innerjoin(dfs::DataFrame...; on, kwargs...)
     # TODO: Change this annotation to allow for grouping on any of the keys we
     # are joining on
 
-    groupingkeys = first(on isa Base.Vector ? on : [on])
-    groupingkeys = Symbol.(groupingkeys isa Union{Tuple,Pair} ? [groupingkeys...] : Base.fill(groupingkeys, length(dfs)))
+    groupingkeys = on isa Base.AbstractVector ? on[1] : [on]
+    K = typeof(groupingkeys)
+    groupingkeys = if groupingkeys isa Pair
+        Base.collect(groupingkeys)
+    else
+        Base.fill(groupingkeys, length(dfs))
+    end
+    groupingkeys::Base.Vector{String} = map(string, groupingkeys)
 
     res_nrows = Future()
     res = DataFrame(Future(datatype="DataFrame"), res_nrows)
@@ -1333,8 +1361,12 @@ function DataFrames.innerjoin(dfs::DataFrame...; on, kwargs...)
     kwargs = Future(kwargs)
 
     # TODO: Use something like this for join
+    keys_by_future::Dict{Future,Base.Vector{String}} = Dict(
+        df => [groupingkey] for (df, groupingkey) in zip(dfs, groupingkeys)
+    )
+    keys_by_future[res] = groupingkeys[1:1]
     partitioned_with(
-        scaled=[dfs..., res],
+        scaled=[dfs; res],
         # NOTE: We are adjusting the sample rate accordingly, but we still need
         # to note that skew can occur in the selectivity of the join.
         # Therefore, we create ScaleBy constraints just for the
@@ -1347,15 +1379,12 @@ function DataFrames.innerjoin(dfs::DataFrame...; on, kwargs...)
         # stick around in the case that we are doing a broadcast join
         # TODO: Make it so that the function used here and in groupby/sort
         # simply adds in the grouping key that was used
-        keys_by_future=[
-            [df => groupingkey for (df, groupingkey) in zip(dfs, groupingkeys)]...,
-            res => first(groupingkeys)
-        ],
+        keys_by_future=keys_by_future,
         drifted=true,
         modules="DataFrames"
     ) do
         # unbalanced, ...., unbalanced -> balanced - "partial sort-merge join"
-        dfs_with_groupingkeys = [df => groupingkey for (df, groupingkey) in zip(dfs, groupingkeys)]
+        dfs_with_groupingkeys = Dict(df => groupingkey for (df, groupingkey) in zip(dfs, groupingkeys))
         for (df, groupingkey) in dfs_with_groupingkeys
             pt(df, Grouped(df, by=groupingkey, balanced=false, filtered_to=(out=>first(groupingkeys))), match=res, on=["divisions", "rev"])
         end
@@ -1365,9 +1394,9 @@ function DataFrames.innerjoin(dfs::DataFrame...; on, kwargs...)
         for i in 1:length(dfs)
             # "partial sort-merge join"
             for (j, (df, groupingkey)) in enumerate(dfs_with_groupingkeys)
-                pt(df, Grouped(df, by=groupingkey, balanced=(j==i), filtered_to=(res => first(groupingkeys))), match=dfs[i], on=["divisions", "rev"])
+                pt(df, Grouped(df, by=groupingkey, balanced=(j==i), filtered_to=Dict(res => first(groupingkeys))), match=dfs[i], on=["divisions", "rev"])
             end
-            pt(res, Grouped(res, by=first(groupingkeys), balanced=false, filtered_from=dfs_with_groupingkeys[i]) & Drifted(), match=dfs[i], on=["divisions", "rev"])
+            pt(res, Grouped(res, by=first(groupingkeys), balanced=false, filtered_from=Dict(dfs[i] => groupingkeys[i])) & Drifted(), match=dfs[i], on=["divisions", "rev"])
 
             # broadcast join
             pt(dfs[i], Distributed(dfs[i]))
@@ -1390,7 +1419,7 @@ function DataFrames.innerjoin(dfs::DataFrame...; on, kwargs...)
 
         # unbalanced, unbalanced, ... -> unbalanced - "partial sort-merge join"
         for (df, groupingkey) in dfs_with_groupingkeys
-            pt(df, Grouped(df, by=groupingkey, balanced=false, filtered_to=(res => first(groupingkeys))), match=res, on=["divisions", "rev"])
+            pt(df, Grouped(df, by=groupingkey, balanced=false, filtered_to=Dict(res => first(groupingkeys))), match=res, on=["divisions", "rev"])
         end
         pt(res, Grouped(res, by=first(groupingkeys), balanced=false, filtered_from=dfs_with_groupingkeys) & Drifted())
         
@@ -1462,7 +1491,7 @@ function DataFrames.unique(df::DataFrame, cols=:; kwargs...)
     # TODO: Check all usage of first
     res_nrows = Future()
     res = DataFrame(Future(datatype="DataFrame"), res_nrows)
-    columns = Symbol.(names(sample(df), cols))
+    columns::Base.Vector{String} = names(sample(df), cols)
     cols = Future(cols)
     kwargs = Future(kwargs)
 
@@ -1520,8 +1549,8 @@ function DataFrames.nonunique(df::DataFrame, cols=:; kwargs...)
 
     df_nrows = df.nrows
     res_size = Future(df.nrows, mutation=tuple)
-    res = BanyanArrays.Vector{Bool}(Future(datatype="Array"), res_size)
-    columns = Symbol.(names(sample(df), cols))
+    res = Future(datatype="Array")
+    columns::Base.Vector{String} = names(sample(df), cols)
     cols = Future(cols)
     kwargs = Future(kwargs)
 
@@ -1538,7 +1567,7 @@ function DataFrames.nonunique(df::DataFrame, cols=:; kwargs...)
         res_size = Tuple(df_nrows)
     end
 
-    res
+    BanyanArrays.Vector{Bool}(res, res_size)
 
     # if get(kwargs, :view, false) throw(ArgumentError("Cannot return view of Banyan dataframe")) end
 

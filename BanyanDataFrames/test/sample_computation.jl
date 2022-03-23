@@ -1,7 +1,7 @@
 @testset "Sample properties for data frames" begin
     df = DataFrames.DataFrame(:x => [1,2,3,4], :y => ["a", "d", "b", "c"])
     @test Banyan.sample_axes(df) == [1]
-    @test Banyan.sample_keys(df) == [:x, :y]
+    @test Banyan.sample_keys(df) == ["x", "y"]
     @test Banyan.sample_min(df, :x) == 1
     @test Banyan.sample_max(df, :x) == 4
     @test Banyan.sample_min(df, :y) == orderinghash("a")

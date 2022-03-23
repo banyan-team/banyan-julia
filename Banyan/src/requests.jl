@@ -16,12 +16,15 @@
 #############################
 # Basic methods for futures #
 #############################
-using Banyan
 
-function check_worker_stuck_error(message, error_for_main_stuck, error_for_main_stuck_time)
-    value_id = message["value_id"]
+function check_worker_stuck_error(
+    message::Dict{String,Any},
+    error_for_main_stuck::Union{Nothing,String},
+    error_for_main_stuck_time::Union{Nothing,String}
+)::Tuple{Union{Nothing,String},Union{Nothing,String}}
+    value_id = message["value_id"]::ValueId
     if value_id == -2 && isnothing(error_for_main_stuck_time)
-        error_for_main_stuck_msg = from_jl_value_contents(message["contents"])
+        error_for_main_stuck_msg::String = from_jl_value_contents(message["contents"]::String)
         if contains(error_for_main_stuck_msg, "session $(get_session_id())")
             error_for_main_stuck = error_for_main_stuck_msg
             error_for_main_stuck_time = Dates.now()
@@ -30,7 +33,10 @@ function check_worker_stuck_error(message, error_for_main_stuck, error_for_main_
     error_for_main_stuck, error_for_main_stuck_time
 end
 
-function check_worker_stuck(error_for_main_stuck, error_for_main_stuck_time)
+function check_worker_stuck(
+    error_for_main_stuck::Union{Nothing,String},
+    error_for_main_stuck_time::Union{Nothing,String}
+)::Union{Nothing,String}
     if !isnothing(error_for_main_stuck) && !isnothing(error_for_main_stuck_time) && (Dates.now() - error_for_main_stuck_time) > Second(30)
         println(error_for_main_stuck)
         @warn "The above error occurred on some workers but other workers are still running. Please interrupt and end the session unless you expect that a lot of logs are being returned."
@@ -39,10 +45,24 @@ function check_worker_stuck(error_for_main_stuck, error_for_main_stuck_time)
     error_for_main_stuck
 end
 
-function partitioned_computation(handler, fut::AbstractFuture; destination, new_source=nothing)
+function partitioned_computation(
+    handler::Function,
+    fut::AbstractFuture;
+    destination::Location,
+    new_source::Location=NOTHING_LOCATION
+)
     if isview(fut)
         error("Computing a view (such as a GroupedDataFrame) is not currently supported")
     end
+    partitioned_computation(handler, convert(Future, fut)::Future, destination, new_source)
+end
+
+function partitioned_computation(
+    @nospecialize(handler::Function),
+    fut::Future,
+    destination::Location,
+    @nospecialize(new_source::Location)
+)
 
     # NOTE: Right now, `compute` wil generally spill to disk (or write to some
     # remote location or download to the client). It will not just persist data
@@ -61,12 +81,12 @@ function partitioned_computation(handler, fut::AbstractFuture; destination, new_
 
     global sessions
 
-    fut = convert(Future, fut)
     session_id = get_session_id()
     session = get_session()
     resource_id = session.resource_id
 
-    if fut.mutated || (destination.dst_name == "Client" && fut.stale) || destination.dst_name == "Remote"
+    destination_dst_name::String = destination.dst_name
+    if fut.mutated || (destination_dst_name == "Client" && fut.stale) || destination-dst_name == "Remote"
         # TODO: Check to ensure that `fut` is annotated
         # This creates an empty final task that ensures that the future
         # will be scheduled to get sent to its destination.
@@ -75,7 +95,7 @@ function partitioned_computation(handler, fut::AbstractFuture; destination, new_
         destined(fut, destination)
         mutated(fut)
         partitioned_with(scaled=fut) do
-            handler()
+            handler(fut)
         end
         @partitioned fut begin end
         println("Time for creating final task:")
@@ -83,27 +103,30 @@ function partitioned_computation(handler, fut::AbstractFuture; destination, new_
 
         # Get all tasks to be recorded in this call to `compute`
         println("Time for getting tasks:")
-        tasks = @time [req.task for req in session.pending_requests if req isa RecordTaskRequest]
+        tasks::Vector{DelayedTask} = @time DelayedTask[req.task for req in session.pending_requests if req isa RecordTaskRequest]
+        tasks_reverse::Vector{DelayedTask} = reverse(tasks)
 
         # Call `partitioned_using_func`s in 2 passes - forwards and backwards.
         # This allows sample properties to propagate in both directions. We
         # must also make sure to apply mutations in each task appropriately.
         @time begin
-        for t in Iterators.reverse(tasks)
+        for t in tasks_reverse
             apply_mutation(invert(t.mutation))
         end
         for t in tasks
             set_task(t)
             if !isnothing(t.partitioned_using_func)
-                t.partitioned_using_func()
+                partitioned_using_func = t.partitioned_using_func
+                partitioned_using_func()
             end
             apply_mutation(t.mutation)
         end
-        for t in Iterators.reverse(tasks)
+        for t in tasks_reverse
             set_task(t)
             apply_mutation(invert(t.mutation))
             if !isnothing(t.partitioned_using_func)
-                t.partitioned_using_func()
+                partitioned_using_func = t.partitioned_using_func
+                partitioned_using_func()
             end
         end
         println("Applying mutation time:")
@@ -114,27 +137,28 @@ function partitioned_computation(handler, fut::AbstractFuture; destination, new_
         # as needed to prevent expensive redundant computation of sample
         # properties like divisions
         @time begin
-        for (i, t) in enumerate(tasks)
+        for t::DelayedTask in tasks
             apply_mutation(t.mutation)
             
             # Call `partitioned_with_func` to create additional PAs for each task
             set_task(t)
             if !isnothing(t.partitioned_with_func)
-                t.partitioned_with_func()
+                partitioned_with_func::Function = t.partitioned_with_func
+                partitioned_with_func()
             end
 
             # Cascade PAs backwards. In other words, if as we go from first to
             # last PA we come across one that's annotating a value not
             # annotated in a previous PA, we copy over the annotation (the
             # assigned PT stack) to the previous PA.
-            for (j, pa) in enumerate(t.pa_union)
+            for (j, pa::PartitionAnnotation) in enumerate(t.pa_union)
                 # For each PA in this PA union for this task, we consider the
                 # PAs before it
-                for previous_pa in Iterators.reverse(t.pa_union[1:j-1])
-                    for value_id in keys(pa.partitions.pt_stacks)
+                for previous_pa::PartitionAnnotation in reverse(t.pa_union[1:j-1])
+                    for value_id::ValueId in keys(pa.partitions.pt_stacks)
                         # Check if there is a previous PA where this value
                         # does not have a PT.
-                        if !(value_id in keys(previous_pa.partitions.pt_stacks))
+                        if !haskey(previous_pa.partitions.pt_stacks, value_id)
                             # Cascade the PT composition backwards
                             previous_pa.partitions.pt_stacks[value_id] =
                                 deepcopy(pa.partitions.pt_stacks[value_id])
@@ -143,19 +167,21 @@ function partitioned_computation(handler, fut::AbstractFuture; destination, new_
                             # value. NOTE: If this is not desired, users should
                             # be explicit and assign different PT compositions for
                             # different values.
-                            for constraint in pa.constraints.constraints
+                            for constraint::PartitioningConstraint in pa.constraints.constraints
                                 # Determine whether we should copy over this constraint
-                                copy_constraint = false
-                                if constraint isa PartitioningConstraintOverGroup
+                                copy_constraint::Bool = false
+                                if !isempty(constraint.args)
                                     for arg in constraint.args
-                                        if arg isa PartitionTypeReference && first(arg) == value_id
+                                        arg_v::ValueId = arg[1]
+                                        if arg_v == value_id
                                             copy_constraint = true
                                         end
                                     end
-                                elseif constraint isa PartitioningConstraintOverGroups
-                                    for arg in constraint.args
-                                        for subarg in arg
-                                            if subarg isa PartitionTypeReference && first(subarg) == value_id
+                                elseif !isempty(constraint.co_args)
+                                    for arg::Vector{PartitionTypeReference} in constraint.co_args
+                                        for subarg::PartitionTypeReference in arg
+                                            subarg_v = subarg[1]
+                                            if subarg_v == value_id
                                                 copy_constraint = true
                                             end    
                                         end
@@ -180,9 +206,9 @@ function partitioned_computation(handler, fut::AbstractFuture; destination, new_
 
         # Iterate through tasks for further processing before recording them
         @time begin
-        for t in tasks
+        for t::DelayedTask in tasks
             # Apply defaults to PAs
-            for pa in t.pa_union
+            for pa::PartitionAnnotation in t.pa_union
                 apply_default_constraints!(pa)
                 duplicate_for_batching!(pa)
             end
@@ -216,23 +242,32 @@ function partitioned_computation(handler, fut::AbstractFuture; destination, new_
         for req in session.pending_requests
             # Don't destroy stuff where a `DestroyRequest` was produced just
             # because of a `mutated(old, new)`
-            if req isa DestroyRequest && !any(req.value_id in values(t.mutation) for t in tasks)
-                # If this value was to be downloaded to or uploaded from the
-                # client side, delete the reference to its data. We do the
-                # `GC.gc()` before this and store `futures_on_client` in a
-                # `WeakKeyDict` just so that we can ensure that we can actually
-                # garbage-collect a value if it's done and only keep it around if
-                # a later call to `collect` it may happen and in that call to
-                # `collect` we will be using `partitioned_computation` to
-                # communicate with the executor and fill in the value for that
-                # future as needed and then return `the_future.value`.
-                if req.value_id in keys(session.futures_on_client)
-                    delete!(session.futures_on_client, req.value_id)
+            if req isa DestroyRequest
+                is_mutated = false
+                req_value_id::ValueId = req.value_id
+                for t in tasks
+                    if req_value_id in values(t.mutation)
+                        is_mutated = true
+                    end
                 end
-    
-                # Remove information about the value's location including the
-                # sample taken from it
-                delete!(session.locations, req.value_id)
+                if !is_mutated
+                    # If this value was to be downloaded to or uploaded from the
+                    # client side, delete the reference to its data. We do the
+                    # `GC.gc()` before this and store `futures_on_client` in a
+                    # `WeakKeyDict` just so that we can ensure that we can actually
+                    # garbage-collect a value if it's done and only keep it around if
+                    # a later call to `collect` it may happen and in that call to
+                    # `collect` we will be using `partitioned_computation` to
+                    # communicate with the executor and fill in the value for that
+                    # future as needed and then return `the_future.value`.
+                    if haskey(session.futures_on_client, req_value_id)
+                        delete!(session.futures_on_client, req_value_id)
+                    end
+        
+                    # Remove information about the value's location including the
+                    # sample taken from it
+                    delete!(session.locations, req_value_id)
+                end
             end
         end
         println("Time for preparing tasks:")
@@ -240,10 +275,10 @@ function partitioned_computation(handler, fut::AbstractFuture; destination, new_
     
         # Send evaluation request
         @time begin
-        is_merged_to_disk = false
+        is_merged_to_disk::Bool = false
         try
             response = send_evaluation(fut.value_id, session_id)
-            is_merged_to_disk = response["is_merged_to_disk"]
+            is_merged_to_disk = response["is_merged_to_disk"]::Bool
         catch
             end_session(failed=true)
             rethrow()
@@ -264,21 +299,22 @@ function partitioned_computation(handler, fut::AbstractFuture; destination, new_
         @debug "Waiting on running session $session_id, listening on $gather_queue, and computing value with ID $(fut.value_id)"
         p = ProgressUnknown("Computing value with ID $(fut.value_id)", spinner=true)
         println("get_session_status")
-        session_status = @time get_session_status(session_id)
+        session_status::String = @time get_session_status(session_id)
         if session_status != "running"
             wait_for_session(session_id)
         end
-        error_for_main_stuck = nothing
-        error_for_main_stuck_time = nothing
+        error_for_main_stuck::Union{Nothing,String} = nothing
+        error_for_main_stuck_time::Union{Nothing,String} = nothing
         while true
             # TODO: Use to_jl_value and from_jl_value to support Client
             println("receive_next_message")
             message, error_for_main_stuck = @time receive_next_message(gather_queue, p, error_for_main_stuck, error_for_main_stuck_time)
-            message_type = message["kind"]
+            message_type::String = message["kind"]
             if message_type == "SCATTER_REQUEST"
                 # Send scatter
-                value_id = message["value_id"]
-                f = session.futures_on_client[value_id]
+                value_id = message["value_id"]::ValueId
+                haskey(session.futures_on_client, value_id) || error("Expected future to be stored on client side")
+                f = session.futures_on_client[value_id]::Future
                 # @debug "Received scatter request for value with ID $value_id and value $(f.value) with location $(get_location(f))"
                 println("send_message")
                 @time send_message(
@@ -295,11 +331,11 @@ function partitioned_computation(handler, fut::AbstractFuture; destination, new_
                 # call to `send_evaluation`
             elseif message_type == "GATHER"
                 # Receive gather
-                value_id = message["value_id"]
+                value_id = message["value_id"]::ValueId
                 # @debug "Received gather request for $value_id"
-                if value_id in keys(session.futures_on_client)
-                    value = from_jl_value_contents(message["contents"])
-                    f::Future = session.futures_on_client[value_id]
+                if haskey(session.futures_on_client, value_id)
+                    value = from_jl_value_contents(message["contents"]::String)
+                    f = session.futures_on_client[value_id]::Future
                     f.value = value
                     # @debug "Received $(f.value)"
                     # TODO: Update stale/mutated here to avoid costly
@@ -308,7 +344,7 @@ function partitioned_computation(handler, fut::AbstractFuture; destination, new_
                 error_for_main_stuck, error_for_main_stuck_time = check_worker_stuck_error(message, error_for_main_stuck, error_for_main_stuck_time)
             elseif message_type == "EVALUATION_END"
                 # @debug "End of evaluation"
-                if message["end"] == true
+                if message["end"]::Bool == true
                     break
                 end
             end
@@ -408,21 +444,28 @@ function send_evaluation(value_id::ValueId, session_id::SessionId)
     @debug "Sending evaluation request"
 
     # Get list of the modules used in the code regions here
-    used_packages = union(vcat([req.task.used_modules for req in get_session().pending_requests if req isa RecordTaskRequest]...))
+    record_task_requests::Vector{RecordTaskRequest} = convert(Vector{RecordTaskRequest}, filter(req -> req isa RecordTaskRequest, get_session().pending_requests))
+    used_packages = String[]
+    for record_task_request in record_task_requests
+        for used_module in record_task_request.task.used_modules
+            push!(used_packages, used_module)
+        end
+    end
+    used_packages = union(used_packages)  # remove duplicates
 
     # Submit evaluation request
-    !isnothing(get_session().organization_id) || error("Organization ID not stored locally for this session")
-    !isnothing(get_session().cluster_instance_id) || error("Cluster instance ID not stored locally for this session")
+    !isempty(get_session().organization_id) || error("Organization ID not stored locally for this session")
+    !isempty(get_session().cluster_instance_id) || error("Cluster instance ID not stored locally for this session")
     !isnothing(get_session().not_using_modules) || error("Modules not to be used are not stored locally for this session")
     not_using_modules = get_session().not_using_modules
-    main_modules = [m for m in get_loaded_packages() if !(m in not_using_modules)]
-    using_modules = [m for m in used_packages if !(m in not_using_modules)]
+    main_modules = setdiff(get_loaded_packages(),  not_using_modules)
+    using_modules = setdiff(used_packages, not_using_modules)
     response = send_request_get_response(
         :evaluate,
         Dict{String,Any}(
             "value_id" => value_id,
             "session_id" => session_id,
-            "requests" => [to_jl(req) for req in get_session().pending_requests],
+            "requests" => map(to_jl, get_session().pending_requests),
             "options" => Dict(
                 "report_schedule" => report_schedule,
                 "encourage_parallelism" => encourage_parallelism,
@@ -452,67 +495,63 @@ function send_evaluation(value_id::ValueId, session_id::SessionId)
     response
 end
 
-function compute(fut::AbstractFuture)
-    fut = convert(Future, fut)
+compute(fut::AbstractFuture) = compute(convert(Future, fut)::Future)
+function compute(f::Future)
 
     # NOTE: We might be in the middle of an annotation when this is called so
     # we need to avoid partitioned computation (which will reset the task)
 
     # # Fast case for where the future has not been mutated and isn't stale
-    if !fut.mutated && !fut.stale
-        return fut.value
+    if f.mutated || f.stale
+        # # This function collects the given future on the client side
+        
+        # # NOTE: If the value was already replicated and has never been written to disk, then this
+        # # might send it to the client and never allow the value to be used again since it hasn't been saved.
+        # # By computing it now, we can ensure that its saved to disk. This is one of the things we should address when we
+        # # clean up locations.
+        # compute(fut)
+        
+        # # Set the future's destination location to Client
+        # destined(fut, Client())
+        # mutated(fut)
+
+        # pt(fut, Replicated())
+        # @partitioned fut begin
+        #     # This code region is empty but it ensures that something is run
+        #     # and so the data is partitioned and then re-merged back up to its new
+        #     # destination location, the client
+        # end
+
+        # # Evaluate the future so that its value is downloaded to the client
+        # compute(fut)
+        # destined(fut, None())
+        # @show fut.value
+        # fut.value
+
+        # We don't need to specify a `source_after` since it should just be
+        # `Client()` and the sample won't change at all. Also, we should already
+        # have a sample since we are merging it to the client.
+
+        partitioned_computation(f, destination=Client(), new_source=Client(nothing)) do fut::Future
+            pt(fut, Replicated())
+        end
+
+        # NOTE: We can't use `new_source=fut->Client(fut.value)` because
+        # `new_source` is for locations that require expensive sample collection
+        # and so we would only want to compute that location if we really need to
+        # use it as a source. Instead in this case, we really just know initially
+        # that this is a destination with _some_ value (so we default it to `nothing`)
+        # and then right after when we have actually computed, we will set it to the right
+        # location using the computed `fut.value`.
+        sourced(f, Client(f.value))
     end
 
-    # # This function collects the given future on the client side
-    
-    # # NOTE: If the value was already replicated and has never been written to disk, then this
-    # # might send it to the client and never allow the value to be used again since it hasn't been saved.
-    # # By computing it now, we can ensure that its saved to disk. This is one of the things we should address when we
-    # # clean up locations.
-    # compute(fut)
-    
-    # # Set the future's destination location to Client
-    # destined(fut, Client())
-    # mutated(fut)
-
-    # pt(fut, Replicated())
-    # @partitioned fut begin
-    #     # This code region is empty but it ensures that something is run
-    #     # and so the data is partitioned and then re-merged back up to its new
-    #     # destination location, the client
-    # end
-
-    # # Evaluate the future so that its value is downloaded to the client
-    # compute(fut)
-    # destined(fut, None())
-    # @show fut.value
-    # fut.value
-
-    # We don't need to specify a `source_after` since it should just be
-    # `Client()` and the sample won't change at all. Also, we should already
-    # have a sample since we are merging it to the client.
-
-    partitioned_computation(fut, destination=Client(), new_source=Client(nothing)) do 
-        pt(fut, Replicated())
-    end
-
-    # NOTE: We can't use `new_source=fut->Client(fut.value)` because
-    # `new_source` is for locations that require expensive sample collection
-    # and so we would only want to compute that location if we really need to
-    # use it as a source. Instead in this case, we really just know initially
-    # that this is a destination with _some_ value (so we default it to `nothing`)
-    # and then right after when we have actually computed, we will set it to the right
-    # location using the computed `fut.value`.
-    sourced(fut, Client(fut.value))
-
-    fut.value
+    f.value
 end
 
 function compute_inplace(fut::AbstractFuture)
-    fut = convert(Future, fut)
-
-    partitioned_computation(fut, destination=Disk()) do
-        pt(fut, Replicated())
+    partitioned_computation(fut, destination=Disk()) do f::Future
+        pt(f, Replicated())
     end
 end
 
@@ -532,18 +571,16 @@ end
 #     when calling evaluate (see send_evaluate) and value_id -1
 # offloaded(some_func; distributed=true)
 # offloaded(some_func, a, b; distributed=true)
-function offloaded(given_function, args...; distributed = false, kwargs...)
-    # Configure using parameters
-    println("Configuring")
-    c = @time configure(; kwargs...)
+function offloaded(given_function::Function, args...; distributed::Bool = false)
+    @nospecialize
 
     # Get serialized function
-    serialized = to_jl_value_contents((given_function, args))
+    serialized::String = to_jl_value_contents((given_function, args))
 
     # Submit evaluation request
     println("Sending request and getting response")
-    !isnothing(get_session().organization_id) || error("Organization ID not stored locally for this session")
-    !isnothing(get_session().cluster_instance_id) || error("Cluster instance ID not stored locally for this session")
+    !isempty(get_session().organization_id) || error("Organization ID not stored locally for this session")
+    !isempty(get_session().cluster_instance_id) || error("Cluster instance ID not stored locally for this session")
     not_using_modules = get_session().not_using_modules
     main_modules = [m for m in get_loaded_packages() if !(m in not_using_modules)]
     response = @time send_request_get_response(
@@ -580,13 +617,13 @@ function offloaded(given_function, args...; distributed = false, kwargs...)
     while true
         message, error_for_main_stuck = @time receive_next_message(gather_queue, p, error_for_main_stuck, error_for_main_stuck_time)
         @show message
-        message_type = message["kind"]
+        message_type = message["kind"]::String
         if (message_type == "GATHER")
-            value_id = message["value_id"]
+            value_id = message["value_id"]::Int64
             if (value_id == -1)
-                memory_used = message["worker_memory_used"]
+                memory_used = message["worker_memory_used"]::Int64
                 get_session().worker_memory_used = get_session().worker_memory_used + memory_used
-                stored_message = from_jl_value_contents(message["contents"])
+                stored_message = from_jl_value_contents(message["contents"]::String)
             end
             error_for_main_stuck, error_for_main_stuck_time = check_worker_stuck_error(message, error_for_main_stuck, error_for_main_stuck_time)
         elseif (message_type == "EVALUATION_END")
@@ -625,6 +662,6 @@ to_jl(req::RecordLocationRequest) =
 
 to_jl(req::DestroyRequest) = Dict("type" => "DESTROY", "value_id" => req.value_id)
 
-function record_request(request::Request)
+function record_request(@nospecialize(request::Request))
     push!(get_session().pending_requests, request)
 end

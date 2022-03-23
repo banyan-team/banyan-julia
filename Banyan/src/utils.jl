@@ -19,7 +19,7 @@ json_to_jl(j) = JSON.parse(j)
 key_to_jl(key) = reinterpret(UInt8, hash(string(key))) |> String
 axis_to_jl(axis) = reinterpret(UInt8, hash(string(key))) |> String
 
-total_memory_usage(val) =
+total_memory_usage(val)::Int64 =
     begin
         size = Base.summarysize(val)
         # TODO: Maybe make this larger
@@ -31,7 +31,7 @@ total_memory_usage(val) =
     end
 
 # NOTE: This function is shared between the client library and the PT library
-function indexapply(op, objs...; index::Integer=1)
+function indexapply(op, objs...; index::Int64=1)
     lists = [obj for obj in objs if (obj isa AbstractVector || obj isa Tuple)]
     length(lists) > 0 || throw(ArgumentError("Expected at least one tuple as input"))
     index = index isa Colon ? length(first(lists)) : index
@@ -61,7 +61,7 @@ function parse_time(time)
     DateTime(astimezone(ZonedDateTime(time * "0000", "yyyy-mm-dd-HH:MM:SSzzzz"), localzone()))
 end
 
-function s3_bucket_arn_to_name(s3_bucket_arn)
+function s3_bucket_arn_to_name(s3_bucket_arn::String)::String
     # Get s3 bucket name from arn
     s3_bucket_name = last(split(s3_bucket_arn, ":"))
     if endswith(s3_bucket_name, "/")
@@ -74,7 +74,7 @@ function s3_bucket_arn_to_name(s3_bucket_arn)
     return s3_bucket_name
 end
 
-function s3_bucket_name_to_arn(s3_bucket_name)
+function s3_bucket_name_to_arn(s3_bucket_name::String)::String
     # Get s3 bucket arn from name
     s3_bucket_arn = s3_bucket_name
     if endswith(s3_bucket_arn, "/")
@@ -126,7 +126,15 @@ function write_config(banyanconfig_path=nothing)
     close(f)
 end
 
-function configure(; user_id=nothing, api_key=nothing, ec2_key_pair_name=nothing, banyanconfig_path=nothing, kwargs...)
+configure(; user_id=nothing, api_key=nothing, ec2_key_pair_name=nothing, banyanconfig_path=nothing) =
+    configure(
+        isnothing(user_id) ? "" : user_id,
+        isnothing(api_key) ? "" : api_key,
+        isnothing(ec2_key_pair_name) ? "" : ec2_key_pair_name,
+        isnothing(banyanconfig_path) ? "" : banyanconfig_path
+    )
+function configure(user_id, api_key, ec2_key_pair_name, banyanconfig_path)
+    @nospecialize
     # This function allows for users to configure their authentication.
     # Authentication details are then saved in
     # `$HOME/.banyan/banyanconfig.toml` so they don't have to be entered in again
@@ -149,33 +157,33 @@ function configure(; user_id=nothing, api_key=nothing, ec2_key_pair_name=nothing
     banyan_config = c
 
     # Check environment variables
-    if isnothing(user_id) && haskey(ENV, "BANYAN_USER_ID")
+    if isempty(user_id) && haskey(ENV, "BANYAN_USER_ID")
         user_id = ENV["BANYAN_USER_ID"]
     end
-    if isnothing(api_key) && haskey(ENV, "BANYAN_API_KEY")
+    if isempty(api_key) && haskey(ENV, "BANYAN_API_KEY")
         api_key = ENV["BANYAN_API_KEY"]
     end
-    if isnothing(ec2_key_pair_name) && haskey(ENV, "BANYAN_EC2_KEY_PAIR_NAME")
+    if isempty(ec2_key_pair_name) && haskey(ENV, "BANYAN_EC2_KEY_PAIR_NAME")
         api_key = ENV["BANYAN_EC2_KEY_PAIR_NAME"]
     end
 
     # Check banyanconfig file
-    banyan_config_has_info = !(isnothing(banyan_config) || isempty(banyan_config))
-    if isnothing(user_id) && banyan_config_has_info && haskey(banyan_config, "banyan") && haskey(banyan_config["banyan"], "user_id")
+    banyan_config_has_info = !(isempty(banyan_config) || isempty(banyan_config))
+    if isempty(user_id) && banyan_config_has_info && haskey(banyan_config, "banyan") && haskey(banyan_config["banyan"], "user_id")
         user_id = banyan_config["banyan"]["user_id"]
     end
-    if isnothing(api_key) && banyan_config_has_info && haskey(banyan_config, "banyan") && haskey(banyan_config["banyan"], "api_key")
+    if isempty(api_key) && banyan_config_has_info && haskey(banyan_config, "banyan") && haskey(banyan_config["banyan"], "api_key")
         api_key = banyan_config["banyan"]["api_key"]
     end
-    if isnothing(ec2_key_pair_name) && banyan_config_has_info && haskey(banyan_config, "aws") && haskey(banyan_config["aws"], "ec2_key_pair_name")
+    if isempty(ec2_key_pair_name) && banyan_config_has_info && haskey(banyan_config, "aws") && haskey(banyan_config["aws"], "ec2_key_pair_name")
         ec2_key_pair_name = banyan_config["aws"]["ec2_key_pair_name"]
     end
 
     # Ensure a configuration has been created or can be created. Otherwise,
     # return nothing
     existing_banyan_config = deepcopy(banyan_config)
-    if !isnothing(user_id) && !isnothing(api_key)
-        aws_ec2_config = (!isnothing(ec2_key_pair_name) && !isempty(ec2_key_pair_name)) ? Dict("ec2_key_pair_name" => ec2_key_pair_name) : Dict()
+    if !isempty(user_id) && !isempty(api_key)
+        aws_ec2_config = (!isempty(ec2_key_pair_name) && !isempty(ec2_key_pair_name)) ? Dict("ec2_key_pair_name" => ec2_key_pair_name) : Dict()
         banyan_config = Dict(
             "banyan" =>
                 Dict("user_id" => user_id, "api_key" => api_key),
@@ -209,18 +217,18 @@ function get_aws_config()
     if isnothing(aws_config_in_usage)
         # Get region according to ENV, then credentials, then config files
         profile = get(ENV, "AWS_DEFAULT_PROFILE", get(ENV, "AWS_DEFAULT_PROFILE", "default"))
-        region = get(ENV, "AWS_DEFAULT_REGION", "")
+        region::String = get(ENV, "AWS_DEFAULT_REGION", "")
         if region == ""
             try
                 configfile = read(Inifile(), joinpath(homedir(), ".aws", "config"))
-                region = _get_ini_value(configfile, profile, "region", default_value="")
+                region = _get_ini_value(configfile, profile, "region", default_value="")::String
             catch
             end
         end
         if region == ""
             try
                 credentialsfile = read(Inifile(), joinpath(homedir(), ".aws", "credentials"))
-                region = _get_ini_value(credentialsfile, profile, "region", default_value="")
+                region = _get_ini_value(credentialsfile, profile, "region", default_value="")::String
             catch
             end
         end
@@ -246,7 +254,7 @@ function get_aws_config()
     aws_config_in_usage
 end
 
-get_aws_config_region() = get_aws_config()[:region]
+get_aws_config_region() = get_aws_config()[:region]::String
 
 #########################
 # ENVIRONMENT VARIABLES #
@@ -270,7 +278,7 @@ end
 # API REQUESTS #
 ################
 
-method_to_string(method) = begin
+method_to_string(method::Symbol)::String = begin
     if method == :create_cluster
         "create-cluster"
     elseif method == :destroy_cluster
@@ -295,7 +303,7 @@ end
 """
 Sends given request with given content
 """
-function request_body(url::AbstractString; kwargs...)
+function request_body(url::String; kwargs...)
     global downloader
     resp = nothing
     body = sprint() do output
@@ -304,7 +312,7 @@ function request_body(url::AbstractString; kwargs...)
     return resp, body
 end
 
-function request_json(url::AbstractString; kwargs...)
+function request_json(url::String; kwargs...)
     resp, body = request_body(url; kwargs...)
     return resp, JSON.parse(body)
 end
@@ -528,9 +536,9 @@ byte_sizes = Dict(lowercase(k) => v for (k, v) in byte_sizes)
 merge!(byte_sizes, Dict(string(k[1]) => v for (k, v) in byte_sizes if !isempty(k) && !occursin("i", k)))
 merge!(byte_sizes, Dict(k[1:end-1] => v for (k, v) in byte_sizes if !isempty(k) && occursin("i", k)))
 
-parse_bytes(r::Real) = r
+parse_bytes(r::Real)::Float64 = convert(Float64, r)
 
-function parse_bytes(s::String)
+function parse_bytes(s::String)::Float64
     s = replace(s, " " => "")
     if !any([isdigit(char) for char in s])
         s = "1" * s
@@ -549,7 +557,7 @@ function parse_bytes(s::String)
 
     n = -1
     try
-        n = parse(Float32, prefix)
+        n = parse(Float64, prefix)
     catch
         throw(ArgumentError("Could not interpret '$prefix' as a number"))
     end

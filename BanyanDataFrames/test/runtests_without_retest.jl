@@ -48,10 +48,10 @@ global session_id = start_session(
     user_id = user_id,
     api_key = api_key,
     cluster_name = cluster_name,
-    nworkers = parse(Int32, nworkers),
+    nworkers = parse(Int64, nworkers),
     banyanfile_path = "file://res/Banyanfile.json",
     return_logs = true,
-    sample_rate = get(ENV, "BANYAN_TEST_WITH_STRESS", "0") == "1" ? 1024 : parse(Int32, nworkers)
+    sample_rate = get(ENV, "BANYAN_TEST_WITH_STRESS", "0") == "1" ? 1024 : parse(Int64, nworkers)
 )
 
 function run_with_session(test_fn, name)
@@ -67,7 +67,7 @@ function run_with_session(test_fn, name)
                     username = username,
                     api_key = api_key,
                     cluster_name = cluster_name,
-                    nworkers = parse(Int32, nworkers),
+                    nworkers = parse(Int64, nworkers),
                     banyanfile_path = "file://res/Banyanfile.json",
                     user_id = user_id,
                     end_session_on_exit=false

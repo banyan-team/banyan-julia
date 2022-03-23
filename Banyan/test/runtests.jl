@@ -15,7 +15,7 @@ end
 
 function use_session_for_testing(
     f::Function;
-    nworkers = parse(Int32, get(ENV, "BANYAN_NWORKERS", "2")),
+    nworkers = parse(Int64, get(ENV, "BANYAN_NWORKERS", "2")),
     sample_rate = 2,
     nworkers = 2,
     max_exact_sample_length = 50,
@@ -40,7 +40,7 @@ function use_session_for_testing(
         else
             start_session(
                 cluster_name = ENV["BANYAN_CLUSTER_NAME"],
-                nworkers = parse(Int32, get(ENV, "BANYAN_NWORKERS", string(nworkers))),
+                nworkers = parse(Int64, get(ENV, "BANYAN_NWORKERS", string(nworkers))),
                 sample_rate = sample_rate,
                 print_logs = get(ENV, "BANYAN_PRINT_LOGS", "1") == "1",
                 url = "https://github.com/banyan-team/banyan-julia.git",

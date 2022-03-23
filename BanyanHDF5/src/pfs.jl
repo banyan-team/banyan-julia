@@ -1,8 +1,8 @@
 function ReadBlockHDF5(
     src,
     params,
-    batch_idx::Integer,
-    nbatches::Integer,
+    batch_idx::Int64,
+    nbatches::Int64,
     comm::MPI.Comm,
     loc_name,
     loc_params,
@@ -48,37 +48,42 @@ function ReadBlockHDF5(
         # If we want to read in an emoty dataset, it's a little tricky to
         # do that with HDF5.jl. But this is how we do it:
         if dimsize == 0
-            dset[[Colon() for _ in 1:ndims(dset)]...]
+            dset[fill(Colon(), ndims(dset))...]
         else
-            dset[[
+            dim_selector_a::Base.Vector{Union{UnitRange{Int64},Colon}} = Union{UnitRange{Int64},Colon}[]
+            dim_selector_b::Base.Vector{Union{UnitRange{Int64},Colon}} = Union{UnitRange{Int64},Colon}[]
+            for i = 1:ndims(dset)
+                if i == dim
+                    push!(dim_selector_a, 1:1)
+                    push!(dim_selector_b, 1:0)
+                else
+                    push!(dim_selector_a, Colon())
+                    push!(dim_selector_b, Colon())
+                end 
+            end
+            dset[
                 # We first read in the first slice into memory. This is
                 # because HDF5.jl (unlike h5py) does not support just
                 # reading in an empty `1:0` slice.
-                if i == dim
-                    1:1
-                else
-                    Colon()
-                end for i = 1:ndims(dset)
-            ]...][[
+                dim_selector...
+            ][
                 # Then once that row is in memory we just remove it so
                 # that we have the appropriate empty slice.
-                if i == dim
-                    1:0
-                else
-                    Colon()
-                end for i = 1:ndims(dset)
-            ]...]
+                dim_selector...
+            ]
         end
     else 
         # If it's not an empty slice that we want to read, it's pretty
         # straightforward - we just specify the slice.
-        dset[[
+        dim_selector::Base.Vector{Union{UnitRange{Int64},Colon}} = Union{UnitRange{Int64},Colon}[]
+        for i = 1:ndims(dset)
             if i == dim
-                dimrange
+                push!(dim_selector, dimrange)
             else
-                Colon()
-            end for i = 1:ndims(dset)
-        ]...]
+                push!(dim_selector, Colon())
+            end 
+        end
+        dset[dim_selector...]
     end
     close(f)
     if isinvestigating()[:parallel_hdf5]
@@ -93,8 +98,8 @@ function WriteHDF5(
     src,
     part,
     params,
-    batch_idx::Integer,
-    nbatches::Integer,
+    batch_idx::Int64,
+    nbatches::Int64,
     comm::MPI.Comm,
     loc_name,
     loc_params,
@@ -105,7 +110,7 @@ function WriteHDF5(
     delete!(splitting_divisions, part)
 
     # Get path of directory to write to
-    path = loc_params["path"]
+    path::String = loc_params["path"]
     if startswith(path, "http://") || startswith(path, "https://")
         error("Writing to http(s):// is not supported")
     elseif startswith(path, "s3://")
@@ -132,7 +137,7 @@ function WriteHDF5(
         error("Unable to write array with element type $(eltype(part)) to HDF5 dataset at $(loc_params["path"])")
     end
 
-    dim = params["key"]
+    dim::Int64 = params["key"]
     # TODO: Ensure that wherever we are using MPI for reduction or
     # broadcasts, we should always ensure that we cast back into
     # the original data type. Even if we have an isbits type like a tuple,
@@ -151,11 +156,11 @@ function WriteHDF5(
     # batch to a separate group. TODO: If we need multiple batches, don't
     # write the last batch to its own group. Instead just write it into the
     # aggregated group.
-    group_prefix = loc_name == "Disk" ? "part" : loc_params["subpath"]
+    group_prefix::String = loc_name == "Disk" ? "part" : loc_params["subpath"]
     partition_idx = Banyan.get_partition_idx(batch_idx, nbatches, comm)
     worker_idx = Banyan.get_worker_idx(comm)
     nworkers = Banyan.get_nworkers(comm)
-    group = nbatches == 1 ? group_prefix : group_prefix * "_part$idx" * "_dim=$dim"
+    group::String = nbatches == 1 ? group_prefix : group_prefix * "_part$idx" * "_dim=$dim"
 
     # TODO: Have an option in the location to set this to either "w" or
     # "cw". Both will create a new file if it's not already there but
@@ -170,6 +175,7 @@ function WriteHDF5(
 
     # Write out to an HDF5 dataset differently depending on whether there
     # are multiple batches per worker or just one per worker
+    dim_selector::Base.Vector{Union{UnitRange{Int64},Colon}} = Union{UnitRange{Int64},Colon}[]
     if nbatches == 1
         # Determine the offset into the resulting HDF5 dataset where this
         # worker should write
@@ -205,17 +211,19 @@ function WriteHDF5(
         dset = create_dataset(f, group, eltype(part), (whole_size, whole_size))
 
         # Write out each partition
+        dim_selector = []
+        for d = 1:ndims(dset)
+            if d == dim
+                push!(dim_selector, (offset+1):(offset+size(part, dim)))
+            else
+                push!(dim_selector, Colon())
+            end
+        end
         setindex!(
             dset,
             part,
-            [
-                # d == dim ? Banyan.split_len(whole_size[dim], batch_idx, nbatches, comm) :
-                if d == dim
-                    (offset+1):(offset+size(part, dim))
-                else
-                    Colon()
-                end for d = 1:ndims(dset)
-            ]...,
+            # d == dim ? Banyan.split_len(whole_size[dim], batch_idx, nbatches, comm) :
+            dim_selector...,
         )
 
         # Close file
@@ -299,20 +307,22 @@ function WriteHDF5(
         # Collect datasets from each batch and write into the final result dataset
         if batch_idx == nbatches
             # Get all intermediate datasets that have been written to by this worker
-            partdsets = [
-                begin
-                    # Determine what index partition this batch is
-                    idx = Banyan.get_partition_idx(batch_idx, nbatches, comm)
+            partdsets = Any[]
+            for batch_idx = 1:nbatches
+                # Determine what index partition this batch is
+                idx = Banyan.get_partition_idx(batch_idx, nbatches, comm)
 
-                    # Get the dataset
-                    group = group_prefix * "_part$idx" * "_dim=$dim"
-                    f[group]
-                end for batch_idx = 1:nbatches
-            ]
+                # Get the dataset
+                group = group_prefix * "_part$idx" * "_dim=$dim"
+                push!(partdsets, f[group])
+            end
 
             # Compute the size of all the batches on this worker
             # concatenated
-            whole_batch_length = sum([size(partdset, dim) for partdset in partdsets])
+            whole_batch_length = 0
+            for partdset in partdsets
+                whole_batch_length += size(partdset, dim)
+            end
 
             # Determine the offset into the resulting HDF5 dataset where this
             # worker should write
@@ -360,6 +370,14 @@ function WriteHDF5(
                 partdset_reading = partdset[Base.fill(Colon(), ndims(dset))...]
 
                 # # println("In writing worker_idx=$worker_idx, batch_idx=$batch_idx/$nbatches: after reading batch $batch_i with available memory: $(Banyan.format_available_memory())")
+                dim_selector = []
+                for d = 1:ndims(dset)
+                    if d == dim
+                        push!(dim_selector, (batchoffset+1):batchoffset+size(partdset, dim))
+                    else
+                        push!(dim_selector, Colon())
+                    end
+                end
                 setindex!(
                     # We are writing to the whole dataset that was just
                     # created
@@ -369,15 +387,8 @@ function WriteHDF5(
                     partdset_reading,
                     # We write to the appropriate split of the whole
                     # dataset
-                    [
-                        if d == dim
-                            (batchoffset+1):batchoffset+size(partdset, dim)
-                        else
-                            Colon()
-                        end
-                        # Banyan.split_len(whole_size[dim], batch_idx, nbatches, comm) : Colon()
-                        for d = 1:ndims(dset)
-                    ]...,
+                    # Banyan.split_len(whole_size[dim], batch_idx, nbatches, comm) : Colon()
+                    dim_selector...,
                 )
                 partdset_reading = nothing
 
@@ -438,8 +449,8 @@ function CopyToHDF5(
     src,
     part,
     params,
-    batch_idx::Integer,
-    nbatches::Integer,
+    batch_idx::Int64,
+    nbatches::Int64,
     comm::MPI.Comm,
     loc_name,
     loc_params,

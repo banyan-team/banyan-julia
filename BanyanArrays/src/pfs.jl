@@ -19,8 +19,8 @@ end
 function ReadBlockJuliaArray(
     src,
     params,
-    batch_idx::Integer,
-    nbatches::Integer,
+    batch_idx::Int64,
+    nbatches::Int64,
     comm::MPI.Comm,
     loc_name,
     loc_params,
@@ -164,8 +164,8 @@ function WriteJuliaArray(
     src,
     part,
     params,
-    batch_idx::Integer,
-    nbatches::Integer,
+    batch_idx::Int64,
+    nbatches::Int64,
     comm::MPI.Comm,
     loc_name,
     loc_params,
@@ -291,8 +291,8 @@ function CopyToJuliaArray(
     src,
     part,
     params,
-    batch_idx::Integer,
-    nbatches::Integer,
+    batch_idx::Int64,
+    nbatches::Int64,
     comm::MPI.Comm,
     loc_name,
     loc_params,
@@ -309,8 +309,8 @@ end
 function Banyan.SplitBlock(
     src::AbstractArray,
     params::Dict{String,Any},
-    batch_idx::Integer,
-    nbatches::Integer,
+    batch_idx::Int64,
+    nbatches::Int64,
     comm::MPI.Comm,
     loc_name::String,
     loc_params::Dict{String,Any},
@@ -327,8 +327,8 @@ end
 function Banyan.SplitGroup(
     src::AbstractArray,
     params,
-    batch_idx::Integer,
-    nbatches::Integer,
+    batch_idx::Int64,
+    nbatches::Int64,
     comm::MPI.Comm,
     loc_name,
     loc_params;
@@ -356,8 +356,8 @@ function Banyan.SplitGroup(
     divisions_by_partition = Banyan.get_divisions(src_divisions, npartitions)
 
     # Get the divisions to apply
-    key = params["key"]
-    rev = get(params, "rev", false)
+    key::Int64 = params["key"]
+    rev::Bool = get(params, "rev", false)
     if rev
         reverse!(divisions_by_partition)
     end
@@ -410,6 +410,8 @@ function Banyan.SplitGroup(
     res
 end
 
+de(x) = deserialize(IOBuffer(x))
+
 function Banyan.Rebalance(
     part::AbstractArray,
     src_params::Dict{String,Any},
@@ -425,7 +427,6 @@ function Banyan.Rebalance(
     endidx = startidx + len - 1
 
     # Get functions for serializing/deserializing
-    ser = serialize
     # TODO: Use JLD for ser/de for arrays
     # TODO: Ensure that we are properly handling intermediate arrays or
     # dataframes that are empty (especially because they may not have their
@@ -433,7 +434,6 @@ function Banyan.Rebalance(
     # empty should concatenate properly. We just need to be sure to not expect
     # every partition to know what its schema is. We can however expect each
     # partition of an array to know its ndims.
-    de = x -> deserialize(IOBuffer(x))
 
     # NOTE: Below this is all common between Rebalance for DataFrame and AbstractArray
 
@@ -442,7 +442,7 @@ function Banyan.Rebalance(
     npartitions = nworkers
     whole_len = MPI.bcast(endidx, nworkers - 1, comm)
     io = IOBuffer()
-    nbyteswritten = 0
+    nbyteswritten::Int64 = 0
     counts::Base.Vector{Int64} = []
     for partition_idx = 1:npartitions
         # `Banyan.split_len` gives us the range that this partition needs
@@ -453,11 +453,11 @@ function Banyan.Rebalance(
             max(startidx, partitionrange.start) <= min(endidx, partitionrange.stop)
 
         # If they do overlap, then serialize the overlapping slice
-        ser(
+        serialize(
             io,
             view(
                 part,
-                Base.fill(:, dim - 1)...,
+                Base.fill(Colon(), dim - 1)...,
                 if rangesoverlap
                     max(1, partitionrange.start - startidx + 1):min(
                         size(part, dim),
@@ -467,7 +467,7 @@ function Banyan.Rebalance(
                     # Return zero length for this dimension
                     1:0
                 end,
-                Base.fill(:, ndims(part) - dim)...,
+                Base.fill(Colon(), ndims(part) - dim)...,
             ),
         )
 
@@ -488,12 +488,11 @@ function Banyan.Rebalance(
     MPI.Alltoallv!(sendbuf, recvbuf, comm)
 
     # Return the concatenated array
-    things_to_concatenate = [
-        de(view(recvbuf.data, displ+1:displ+count)) for
-        (displ, count) in zip(recvbuf.displs, recvbuf.counts)
-    ]
     res = merge_on_executor(
-        things_to_concatenate...;
+        map(
+            (displ, count) -> de(view(recvbuf.data, displ+1:displ+count)),
+            zip(recvbuf.displs, recvbuf.counts)
+        );
         key = dim,
     )
     res
@@ -519,7 +518,7 @@ function Banyan.Consolidate(part::AbstractArray, src_params::Dict{String,Any}, d
                 is_buffer_type ? chunk : deserialize(IOBuffer(chunk))
             end
             for i in 1:Banyan.get_nworkers(comm)
-        ]...;
+        ];
         key = src_params["key"],
     )
 end
@@ -538,7 +537,7 @@ function Banyan.Shuffle(
 
     # Get the divisions to apply
     key = dst_params["key"]
-    rev = get(dst_params, "rev", false)
+    rev::Bool = get(dst_params, "rev", false)
     worker_idx, nworkers = Banyan.get_worker_idx(comm), Banyan.get_nworkers(comm)
     divisions_by_worker = if haskey(dst_params, "divisions_by_worker")
         dst_params["divisions_by_worker"] # list of min-max tuples
@@ -561,7 +560,7 @@ function Banyan.Shuffle(
         # parameter)
         multidimensional = ndims(part) > 1
         if multidimensional
-            partition_idx_to_e = [[] for partition_idx = 1:nworkers]
+            partition_idx_to_e = Any[Any[] for partition_idx = 1:nworkers]
             for e in eachslice(part, dims = key)
                 partition_idx = partition_idx_getter(e)
                 if partition_idx != -1
@@ -587,16 +586,21 @@ function Banyan.Shuffle(
                 # NOTE: We ensure that we serialize something (even if its an
                 # empty array) for each partition to ensure that we can
                 # deserialize each item
+                dim_selector::Vector{Union{UnitRange{Int64},Colon}} = []
+                for d = 1:ndims(part)
+                    if d == key
+                        push!(dim_selector, 1:0)
+                    else
+                        push!(dim_selector, Colon())
+                    end
+                end
                 serialize(
                     io,
-                    !isempty(e) ? cat(e...; dims = key) :
-                    view(part, [
-                        if d == key
-                            1:0
-                        else
-                            Colon()
-                        end for d = 1:ndims(part)
-                    ]...),
+                    if !isempty(e)
+                        cat(e...; dims = key)
+                    else
+                        view(part, dim_selector...)
+                    end,
                 )
             else
                 next_part_sortperm_idx = part_sortperm_idx

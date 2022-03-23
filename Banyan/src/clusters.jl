@@ -2,6 +2,8 @@
 # Might contain stale information
 global clusters = Dict()
 
+@nospecialize
+
 function create_cluster(;
     name::Union{String,Nothing} = nothing,
     instance_type::Union{String,Nothing} = "m4.4xlarge",
@@ -298,3 +300,5 @@ function upload_to_s3(src_path; dst_name=basename(src_path), cluster_name=get_cl
     end
     return dst_name
 end
+
+@specialize

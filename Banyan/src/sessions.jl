@@ -41,34 +41,36 @@ get_cluster_name() = get_session().cluster_name
 
 function start_session(;
     cluster_name::Union{String,Nothing} = nothing,
-    nworkers::Union{Integer,Nothing} = 16,
+    nworkers::Int64 = 16,
     release_resources_after::Union{Integer,Nothing} = 20,
-    print_logs::Union{Bool,Nothing} = false,
-    store_logs_in_s3::Union{Bool,Nothing} = true,
-    store_logs_on_cluster::Union{Bool,Nothing} = false,
-    log_initialization::Union{Bool,Nothing} = false,
-    sample_rate::Union{Integer,Nothing} = nworkers,
+    print_logs::Bool = false,
+    store_logs_in_s3::Bool = true,
+    store_logs_on_cluster::Bool = false,
+    log_initialization::Bool = false,
+    sample_rate::Int64 = nworkers,
     session_name::Union{String,Nothing} = nothing,
-    files::Union{Vector,Nothing} = [],
-    code_files::Union{Vector,Nothing} = [],
-    force_update_files::Union{Bool,Nothing} = false,
-    pf_dispatch_table::Union{String,Nothing} = nothing,
-    using_modules::Vector = [],
+    files::Vector{String} = String[],
+    code_files::Vector{String} = String[],
+    force_update_files::Bool = false,
+    pf_dispatch_table::Union{Vector{String},Nothing} = nothing,
+    using_modules::Vector{String} = String[],
     # We currently can't use modules that require GUI
-    not_using_modules::Vector = NOT_USING_MODULES,
+    not_using_modules::Vector{String} = NOT_USING_MODULES,
     url::Union{String,Nothing} = nothing,
     branch::Union{String,Nothing} = nothing,
     directory::Union{String,Nothing} = nothing,
-    dev_paths::Union{Vector,Nothing} = [],
-    force_sync::Union{Bool,Nothing} = false,
-    force_pull::Union{Bool,Nothing} = false,
-    force_install::Union{Bool,Nothing} = false,
-    estimate_available_memory::Union{Bool,Nothing} = false,
-    nowait::Bool=false,
-    email_when_ready::Union{Bool,Nothing}=nothing,
-    for_running=false, # NEW
+    dev_paths::Vector{String} = String[],
+    force_sync::Bool = false,
+    force_pull::Bool = false,
+    force_install::Bool = false,
+    estimate_available_memory::Bool = false,
+    nowait::Bool = false,
+    email_when_ready::Union{Bool,Nothing} = nothing,
+    for_running::Bool = false,
     kwargs...,
 )::SessionId
+    # Should save 5ms of overhead
+    @nospecialize
 
     global BANYAN_JULIA_BRANCH_NAME
     global BANYAN_JULIA_PACKAGES
@@ -368,7 +370,7 @@ function end_all_sessions(cluster_name::String; release_resources_now = false, r
     end
 end
 
-function get_session_status(session_id::String=get_session_id(); kwargs...)
+function get_session_status(session_id::String=get_session_id(); kwargs...)::String
     global sessions
     configure(; kwargs...)
     filters = Dict("session_id" => session_id)

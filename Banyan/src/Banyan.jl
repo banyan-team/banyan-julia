@@ -10,8 +10,8 @@ __precompile__()
 module Banyan
 
 global BANYAN_JULIA_BRANCH_NAME = "v22.02.13"
-global BANYAN_JULIA_PACKAGES = ["Banyan", "BanyanArrays", "BanyanDataFrames", "BanyanImages", "BanyanONNXRunTime", "BanyanHDF5"]
-global NOT_USING_MODULES = ["ProfileView"]
+global BANYAN_JULIA_PACKAGES = String["Banyan", "BanyanArrays", "BanyanDataFrames", "BanyanImages", "BanyanONNXRunTime", "BanyanHDF5"]
+global NOT_USING_MODULES = String["ProfileView"]
 
 using FilePathsBase: joinpath, isempty
 using Base: notnothing, env_project_file
@@ -26,6 +26,7 @@ using Downloads
 using JSON
 using Random
 using Serialization
+using StaticArrays
 using TOML
 
 using FileIO
@@ -92,11 +93,13 @@ export sample_memory_usage,
     sample_max_ngroups,
     sample_min,
     sample_max
+export NOTHING_SAMPLE
 
 # Locations
 export Location, LocationSource, LocationDestination, located, sourced, destined
 export Value, Size, Client, Disk, None, RemoteSource, RemoteDestination
 export clear_sources, clear_samples, invalidate_source, invalidate_sample
+export NOTHING_LOCATION
 
 # Serialization
 export from_jl_value_contents, to_jl_value_contents
@@ -141,7 +144,9 @@ export is_debug_on,
     get_s3fs_bucket_path,
     get_s3_bucket_path,
     download_remote_path,
-    with_downloaded_path_for_reading,
+    get_downloaded_path,
+    destroy_downloaded_path,
+    use_downloaded_path_for_writing,
     configure_scheduling,
     orderinghash,
     get_worker_idx,

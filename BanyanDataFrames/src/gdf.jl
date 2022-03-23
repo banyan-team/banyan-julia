@@ -33,20 +33,24 @@ DataFrames.valuecols(gdf::GroupedDataFrame) = valuecols(sample(gdf))
 
 # GroupedDataFrame creation
 
-function DataFrames.groupby(df::DataFrame, cols; kwargs...)::GroupedDataFrame
+function DataFrames.groupby(df::DataFrame, cols::Any; kwargs...)::GroupedDataFrame
+    # We will simply pass the `cols` and `kwargs` into `Future` constructor
+    # so specialization isn't really needed
+    @nospecialize
     get(kwargs, :sort, true) || error("Groups cannot currently be ordered by how they originally appeared")
 
+    groupingkeys::Base.Vector{String} = names(sample(df), cols)
+
+    df_nrows = df.nrows
     gdf_data = Future()
     gdf_length = Future()
     cols = Future(cols)
     kwargs = Future(kwargs)
-    gdf = GroupedDataFrame(Future(datatype="GroupedDataFrame"), gdf_length, df, cols, kwargs)
+    gdf = Future(datatype="GroupedDataFrame")
 
     # partition(df, Replicated())
     # partition(gdf, Replicated())
     # partition(gdf_length, Replicated())
-
-    groupingkeys = Symbol.(names(sample(df), compute(cols)))
 
     partitioned_with(scaled=[df, gdf], modules="DataFrames") do
         pt(df, Grouped(df, by=groupingkeys, scaled_by_same_as=gdf))
@@ -111,7 +115,13 @@ function DataFrames.groupby(df::DataFrame, cols; kwargs...)::GroupedDataFrame
     # # for writing to disk, just be sure to put everything into a dataframe such that it
     # # can be read back and have a column that specifies how to group by
 
-    gdf
+    @show typeof(gdf)
+    @show typeof(gdf_length)
+
+    res = GroupedDataFrame(gdf, gdf_length, DataFrame(df, df_nrows), cols, kwargs)
+    @show res
+    @show typeof(res)
+    res
 end
 
 # GroupedDataFrame column manipulation
@@ -125,12 +135,13 @@ function DataFrames.select(gdf::GroupedDataFrame, args...; kwargs...)
     groupcols = gdf.groupcols
     groupkwargs = gdf.groupkwargs
     res = Future(datatype="DataFrame")
+    res_nrows = copy(gdf_parent.nrows)
     args = Future(args)
+    groupingkeys::Base.Vector{String} = names(sample(gdf_parent), compute(groupcols)::Base.Vector{String})
+    res_groupingkeys::Base.Vector{String} = get(kwargs, :keepkeys, true) ? groupingkeys : String[]
     kwargs = Future(kwargs)
 
-    groupingkeys = Symbol.(names(sample(gdf_parent), compute(groupcols)))
-
-    partitioned_with(scaled=[gdf_parent, gdf, res], grouped=[gdf_parent, res], keys=get(compute(kwargs), :keepkeys, true) ? groupingkeys : [], drifted=true, modules="DataFrames") do
+    partitioned_with(scaled=[gdf_parent, gdf, res], grouped=[gdf_parent, res], keys=res_groupingkeys, drifted=true, modules="DataFrames") do
         pt(gdf_parent, Grouped(gdf_parent, by=groupingkeys, scaled_by_same_as=res), match=res)
         pt(gdf, Blocked(along=1) & ScaledBySame(as=res))
         pt(res, ScaledBySame(as=gdf_parent))
@@ -190,7 +201,7 @@ function DataFrames.select(gdf::GroupedDataFrame, args...; kwargs...)
         res = DataFrames.select(gdf, args...; kwargs...)
     end
 
-    DataFrame(res, copy(gdf_parent.nrows))
+    DataFrame(res, res_nrows)
 end
 
 function DataFrames.transform(gdf::GroupedDataFrame, args...; kwargs...)
@@ -202,17 +213,19 @@ function DataFrames.transform(gdf::GroupedDataFrame, args...; kwargs...)
     groupcols = gdf.groupcols
     groupkwargs = gdf.groupkwargs
     res = Future(datatype="DataFrame")
+    res_nrows = copy(gdf_parent.nrows)
     args = Future(args)
+    groupingkeys::Base.Vector{String} = names(sample(gdf_parent), compute(groupcols))
+    res_groupingkeys::Base.Vector{String} = get(kwargs, :keepkeys, true)::Bool ? groupingkeys : String[]
     kwargs = Future(kwargs)
 
     # TODO: Put groupingkeys in GroupedDataFrame
-    groupingkeys = Symbol.(names(sample(gdf_parent), compute(groupcols)))
 
     # TODO: Maybe automatically infer sample properties (set with
     # `partitioned_using`) by looking at the actual annotations in
     # `partitioned_with`
 
-    partitioned_with(scaled=[gdf_parent, gdf, res], grouped=[gdf_parent, res], keys=get(compute(kwargs), :keepkeys, true) ? groupingkeys : [], drifted=true, modules="DataFrames") do
+    partitioned_with(scaled=[gdf_parent, gdf, res], grouped=[gdf_parent, res], keys=res_groupingkeys, drifted=true, modules="DataFrames") do
         pt(gdf_parent, Grouped(gdf_parent, by=groupingkeys, scaled_by_same_as=res), match=res)
         pt(gdf, Blocked(along=1) & ScaledBySame(as=res))
         pt(res, ScaledBySame(as=gdf_parent))
@@ -226,7 +239,7 @@ function DataFrames.transform(gdf::GroupedDataFrame, args...; kwargs...)
         res = DataFrames.transform(gdf, args...; kwargs...)
     end
 
-    DataFrame(res, copy(gdf_parent.nrows))
+    DataFrame(res, res_nrows)
 end
 
 function DataFrames.combine(gdf::GroupedDataFrame, args...; kwargs...)
@@ -238,14 +251,15 @@ function DataFrames.combine(gdf::GroupedDataFrame, args...; kwargs...)
     groupcols = gdf.groupcols
     groupkwargs = gdf.groupkwargs
     res_nrows = Future()
-    res = DataFrame(Future(datatype="DataFrame"), res_nrows)
+    res = Future(datatype="DataFrame")
     args = Future(args)
+    groupingkeys::Base.Vector{String} = names(sample(gdf_parent), compute(groupcols))
+    res_groupingkeys::Base.Vector{String} = get(kwargs, :keepkeys, true) ? groupingkeys : String[]
     kwargs = Future(kwargs)
 
     # TODO: Put groupingkeys in GroupedDataFrame
-    groupingkeys = Symbol.(names(sample(gdf_parent), compute(groupcols)))
 
-    partitioned_with(scaled=[gdf_parent, gdf, res], grouped=[gdf_parent, res], keys=get(compute(kwargs), :keepkeys, true) ? groupingkeys : [], drifted=true, modules="DataFrames") do
+    partitioned_with(scaled=[gdf_parent, gdf, res], grouped=[gdf_parent, res], keys=res_groupingkeys, drifted=true, modules="DataFrames") do
         # TODO: If we want to support `keepkeys=false`, we need to make the
         # result be Blocked and `filtered_from` the input
         pts_for_filtering(gdf_parent, res, with=Grouped, by=groupingkeys)
@@ -263,7 +277,7 @@ function DataFrames.combine(gdf::GroupedDataFrame, args...; kwargs...)
         res_nrows = DataFrames.nrow(res)
     end
 
-    res
+    DataFrame(res, res_nrows)
 end
 
 function DataFrames.subset(gdf::GroupedDataFrame, args...; kwargs...)
@@ -275,14 +289,15 @@ function DataFrames.subset(gdf::GroupedDataFrame, args...; kwargs...)
     groupcols = gdf.groupcols
     groupkwargs = gdf.groupkwargs
     res_nrows = Future()
-    res = DataFrame(Future(datatype="DataFrame"), res_nrows)
+    res = Future(datatype="DataFrame")
     args = Future(args)
+    groupingkeys::Base.Vector{String} = names(sample(gdf_parent), compute(groupcols))
+    res_groupingkeys::Base.Vector{String} = get(kwargs, :keepkeys, true) ? groupingkeys : String[]
     kwargs = Future(kwargs)
 
     # TODO: Put groupingkeys in GroupedDataFrame
-    groupingkeys = Symbol.(names(sample(gdf_parent), compute(groupcols)))
 
-    partitioned_with(scaled=[gdf_parent, gdf, res], grouped=[gdf_parent, res], keys=get(compute(kwargs), :keepkeys, true) ? groupingkeys : [], drifted=true, modules="DataFrames") do
+    partitioned_with(scaled=[gdf_parent, gdf, res], grouped=[gdf_parent, res], keys=res_groupingkeys, drifted=true, modules="DataFrames") do
         pts_for_filtering(gdf_parent, res, with=Grouped, by=groupingkeys)
         pt(gdf, Blocked(along=1) & ScaledBySame(as=gdf_parent))
         pt(res_nrows, Reducing(quote (a, b) -> a .+ b end))
@@ -297,7 +312,7 @@ function DataFrames.subset(gdf::GroupedDataFrame, args...; kwargs...)
         res_nrows = DataFrames.nrow(res)
     end
 
-    res
+    DataFrame(res, res_nrows)
 end
 
 # function transform(gdf::GroupedDataFrame)

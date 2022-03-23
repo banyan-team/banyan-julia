@@ -1,5 +1,9 @@
-Banyan.split_on_executor(src::AbstractDataFrame, d::Integer, i) = @view src[i, :]
-Banyan.split_on_executor(src::DataFrames.GroupedDataFrame, d::Integer, i) = nothing
+Banyan.split_on_executor(
+    src::DataFrames.DataFrame,
+    d::Int64,
+    i::UnitRange{Int64}
+)::SubDataFrame{DataFrame, DataFrames.Index, UnitRange{Int64}} = @view src[i, :]
+Banyan.split_on_executor(src::DataFrames.GroupedDataFrame, d::Int64, i::UnitRange{Int64}) = nothing
 
 # In case we are trying to `Distribute` a grouped data frame,
 # we can't do that so we will simply return nothing so that the groupby
@@ -7,14 +11,14 @@ Banyan.split_on_executor(src::DataFrames.GroupedDataFrame, d::Integer, i) = noth
 
 Banyan.split_on_executor(
     src::Union{Nothing,DataFrames.GroupedDataFrame},
-    dim::Integer,
-    batch_idx::Integer,
-    nbatches::Integer,
+    dim::Int64,
+    batch_idx::Int64,
+    nbatches::Int64,
     comm::MPI.Comm,
 ) = nothing
 
 # If this is a dataframe then we ignore the grouping key
-function Banyan.merge_on_executor(obj::Vararg{AbstractDataFrame,M}; key = nothing) where {M}
+function Banyan.merge_on_executor(obj::Base.Vector{DataFrames.DataFrame}; key = nothing)::DataFrames.DataFrame
     if length(obj) == 1
         obj[1]
     else
@@ -22,5 +26,5 @@ function Banyan.merge_on_executor(obj::Vararg{AbstractDataFrame,M}; key = nothin
     end
 end
 
-Banyan.merge_on_executor(obj::Vararg{DataFrames.GroupedDataFrame{<:AbstractDataFrame},M}; key = nothing) where {M} = nothing
-Banyan.merge_on_executor(obj::Vararg{T,M}; key = nothing) where {T,M} = first(obj)
+Banyan.merge_on_executor(obj::Base.Vector{DataFrames.GroupedDataFrame{<:AbstractDataFrame}}; key = nothing) = nothing
+function Banyan.merge_on_executor(obj::Base.Vector{T}; key = nothing)::T where {T} first(obj) end
