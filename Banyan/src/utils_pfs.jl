@@ -328,7 +328,7 @@ function get_divisions(divisions::Base.Vector{Division{V}}, npartitions::Int64):
                 if !isempty(allsplitdivisions) && last(allsplitdivisions) == splitdivision
                     push!(allsplitdivisions, Division{V}[])
                 else
-                    push!(allsplitdivisions, Division{V}[convert(V, splitdivision)])
+                    push!(allsplitdivisions, Division{V}[(convert(V, splitdivision[1]), convert(V, splitdivision[2]))])
                 end
             end
 
