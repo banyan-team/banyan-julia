@@ -65,6 +65,8 @@ ReadGroup(ReadBlock) = begin
 
         # Get information needed to read in the appropriate group
         divisions = Banyan.from_jl_value_contents(params["divisions"])
+        @show divisions
+        @show typeof(divisions)
         key = params["key"]
         rev::Bool = get(params, "rev", false) # Passed in ReadBlock
         nworkers = get_nworkers(comm)
