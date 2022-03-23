@@ -124,7 +124,7 @@ function Banyan.sample_divisions(df::DataFrames.DataFrame, key)
     # TODO: Ensure that `unique` doesn't change the order
     all_divisions::Base.Vector{Tuple{OHT,OHT}} = map(
         # Each group has elements that are >= start and < end
-        i -> Tuple{OHT,OHT}(
+        i -> (
             data[(i-1)*grouplength + 1],
             data[i == ngroups ? datalength : i*grouplength + 1]
         ),
