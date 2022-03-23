@@ -248,7 +248,7 @@ function get_divisions(divisions::Base.Vector{Division{V}}, npartitions::Int64):
             # Initialize divisions for each split
             V_nonstatic = Base.Vector{T}
             splitdivisions::Base.Vector{Division{V_nonstatic}} =
-                map(_ -> Division{V_nonstatic}(convert(V_nonstatic, divisionbegin), convert(V_nonstatic, divisionend)), 1:ndivisionsplits)
+                map(_ -> (convert(V_nonstatic, divisionbegin), convert(V_nonstatic, divisionend)), 1:ndivisionsplits)
 
             # Adjust the divisions for each split to interpolate. The result
             # of an `orderinghash` call can be an array (in the case of
