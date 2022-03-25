@@ -78,11 +78,13 @@ function write_csv(df::DataFrame, path; invalidate_source=true, invalidate_sampl
     # compute(df)
     # sourced(df, Remote(path)) # Allow data to be read from this path if needed in the future
     # destined(df, None())
+    @show sample(df)
     partitioned_computation(
         df,
         destination=RemoteTableDestination(path; invalidate_source=invalidate_source, invalidate_sample=invalidate_sample, kwargs...),
         new_source=_->RemoteTableSource(path)
     ) do f::Future
+        @show sample(f)
         pt(df, Partitioned(df))
     end
 end
@@ -272,7 +274,7 @@ Base.propertynames(df::DataFrame) = propertynames(sample(df))
 # end
 
 function pts_for_filtering(init::AbstractFuture, final::AbstractFuture; @nospecialize(with), @nospecialize(kwargs...))
-    pts_for_filtering(convert(Future, init), convert(Future, final), with, kwargs...)
+    pts_for_filtering(convert(Future, init), convert(Future, final); with=with, kwargs...)
 end
 
 function pts_for_filtering(init::Future, final::Future; @nospecialize(with), @nospecialize(kwargs...))
@@ -387,6 +389,13 @@ function Base.filter(f, df::DataFrame; kwargs...)
     end
 
     @time begin
+        @show @macroexpand @partitioned df res res_nrows f kwargs begin
+            @time begin
+            res = DataFrames.filter(f, df; kwargs...)
+            res_nrows = DataFrames.nrow(res)
+            println("Time inside `filter` code region:")
+            end
+        end
     @partitioned df res res_nrows f kwargs begin
         @time begin
         res = DataFrames.filter(f, df; kwargs...)
@@ -397,6 +406,8 @@ function Base.filter(f, df::DataFrame; kwargs...)
     println("Time for `@partitioned``:")
     end
 
+    @show typeof(res)
+    @show res
     DataFrame(res, res_nrows)
 end
 

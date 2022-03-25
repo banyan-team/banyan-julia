@@ -42,13 +42,13 @@ mutable struct Location
     # end
 end
 
-Location(name::String, parameters::LocationParameters, total_memory_usage::Union{Int64,Nothing} = nothing, sample::Sample = Sample())::Location =
+Location(name::String, parameters::LocationParameters, total_memory_usage::Union{Int64,Nothing} = nothing, sample::Sample = NOTHING_SAMPLE)::Location =
     Location(name, name, parameters, parameters, total_memory_usage, sample)
 
 const NOTHING_LOCATION = Location("None", LocationParameters(), nothing, NOTHING_SAMPLE)
 Base.isnothing(l::Location) = isnothing(l.sample)
 
-LocationSource(name::String, parameters::LocationParameters, total_memory_usage::Union{Int64,Nothing} = nothing, sample::Sample = Sample())::Location =
+LocationSource(name::String, parameters::LocationParameters, total_memory_usage::Union{Int64,Nothing} = nothing, sample::Sample = NOTHING_SAMPLE)::Location =
     Location(name, "None", parameters, LocationParameters(), total_memory_usage, sample)
 
 LocationDestination(
@@ -109,7 +109,7 @@ function sourced(fut::Future, loc::Location)
         error("Location cannot be used as a source")
     end
 
-    fut_location::Union{Nothing,Location} = get_location(fut)
+    fut_location::Location = get_location(fut)
     # Every future must have a location unless this is the future constructor
     # that's calling this and setting the source location without the
     # desination being set yet.
@@ -163,7 +163,7 @@ function destined(fut::Future, loc::Location)
         error("Location cannot be used as a destination")
     end
 
-    fut_location::Union{Nothing,Location} = get_location(fut)
+    fut_location::Location = get_location(fut)
     if isnothing(fut_location)   
         located(
             fut,
@@ -481,7 +481,7 @@ function RemoteSource(
     # will invalidate the sample on reads but for performance reasons someone
     # might not. But if they don't invalidate the sample, we only want to reuse
     # the sample if it was for a location that was actually written to.
-    if !invalidate_sample && !isnothing(remote_sample.value)
+    if !invalidate_sample && !isnothing(remote_sample)
         mkpath(samplespath)
         serialize(samplepath, remote_sample)
     else

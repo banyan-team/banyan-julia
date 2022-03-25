@@ -165,7 +165,7 @@ function get_remote_table_source(
                 # TODO: Maybe call GC.gc() here if we get an error when sampling really large datasets
                 memory_used_in_sampling += total_memory_usage(chunkdf)
                 memory_used_in_sampling_total = memory_used_in_sampling + total_memory_usage(exactsample) + total_memory_usage(randomsample)
-                chunkdf = nothing
+                chunkdf = DataFrames.DataFrame()
                 chunk = nothing
                 free_memory = Sys.free_memory()
                 if memory_used_in_sampling_total > cld(free_memory, 4)
@@ -408,7 +408,7 @@ function get_remote_table_source(
         # value to some location that doesn't exist yet, we don't want to
         # change the sample or the sample rate.
         # TODO: Don't set the sample or sample properties if we are merely trying to overwrite something.
-        setsample!(remote_sample, :memory_usage, ceil(nbytes / remote_sample_rate))
+        setsample!(remote_sample, :memory_usage, convert(Int64, ceil(nbytes / remote_sample_rate))::Int64)
         setsample!(remote_sample, :rate, remote_sample_rate)
     end
 

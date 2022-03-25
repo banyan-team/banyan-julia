@@ -20,7 +20,7 @@ mutable struct Sample
 
         # Fill in properties if possible
         if total_memory_usage != -1
-            setsample!(newsample, :memory_usage, round(total_memory_usage / sample_rate))
+            setsample!(newsample, :memory_usage, convert(Int64, round(total_memory_usage / sample_rate))::Int64)
         end
         setsample!(newsample, :rate, sample_rate)
 
@@ -116,7 +116,7 @@ sample(as::Any, properties...) =
         Dict()
     elseif length(properties) == 1
         if first(properties) == :memory_usage
-            sample_memory_usage(as)
+            sample_memory_usage(as)::Int64
         elseif first(properties) == :rate
             # This is the default but the `Sample` constructor overrides this
             # before-hand to allow some samples to be "exact" with a sample

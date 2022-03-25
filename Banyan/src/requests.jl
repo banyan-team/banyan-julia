@@ -23,7 +23,7 @@ function check_worker_stuck_error(
     error_for_main_stuck_time::Union{Nothing,String}
 )::Tuple{Union{Nothing,String},Union{Nothing,String}}
     value_id = message["value_id"]::ValueId
-    if value_id == -2 && isnothing(error_for_main_stuck_time)
+    if value_id == "-2" && isnothing(error_for_main_stuck_time)
         error_for_main_stuck_msg::String = from_jl_value_contents(message["contents"]::String)
         if contains(error_for_main_stuck_msg, "session $(get_session_id())")
             error_for_main_stuck = error_for_main_stuck_msg
@@ -49,19 +49,26 @@ function partitioned_computation(
     handler::Function,
     fut::AbstractFuture;
     destination::Location,
-    new_source::Location=NOTHING_LOCATION
+    new_source::Union{Location,Function}=NOTHING_LOCATION
 )
     if isview(fut)
         error("Computing a view (such as a GroupedDataFrame) is not currently supported")
     end
-    partitioned_computation(handler, convert(Future, fut)::Future, destination, new_source)
+    if new_source isa Function
+        new_source_func = new_source
+        new_source = NOTHING_LOCATION
+    else
+        new_source_func = identity
+    end
+    partitioned_computation(handler, convert(Future, fut)::Future, destination, new_source, new_source_func)
 end
 
 function partitioned_computation(
     @nospecialize(handler::Function),
     fut::Future,
     destination::Location,
-    @nospecialize(new_source::Location)
+    @nospecialize(new_source::Location),
+    @nospecialize(new_source_func::Function)
 )
 
     # NOTE: Right now, `compute` wil generally spill to disk (or write to some
@@ -239,6 +246,8 @@ function partitioned_computation(
         @time GC.gc()
     
         # Destroy everything that is to be destroyed in this task
+        @show sample(fut)
+        @show fut.value_id
         for req in session.pending_requests
             # Don't destroy stuff where a `DestroyRequest` was produced just
             # because of a `mutated(old, new)`
@@ -266,6 +275,7 @@ function partitioned_computation(
         
                     # Remove information about the value's location including the
                     # sample taken from it
+                    @show req.value_id
                     delete!(session.locations, req_value_id)
                 end
             end
@@ -360,12 +370,16 @@ function partitioned_computation(
         end
 
         # This is where we update the location source.
+        @show is_merged_to_disk
+        @show sample(fut)
         if is_merged_to_disk
             sourced(fut, Disk())
         else
             # TODO: If not still merged to disk, we need to lazily set the location source to something else
             if !isnothing(new_source)
                 sourced(fut, new_source)
+            elseif new_source_func !== identity
+                sourced(fut, new_source_func)
             else
                 # TODO: Maybe suppress this warning because while it may be
                 # useful for large datasets, it is going to come up for
@@ -388,6 +402,7 @@ function partitioned_computation(
 
         # Reset the location destination to its default. This is where we
         # update the location destination.
+        @show sample(fut)
         destined(fut, None())
     end
 
@@ -398,6 +413,7 @@ function partitioned_computation(
     # whenever we compute something we fully merge it. In fully merging it,
     # we spill it out of memory. Maybe it might be kept in memory and we don't
     # need to set the new source of something being `collect`ed to `Client`.
+    @show sample(fut)
 
     fut
 end
@@ -620,7 +636,7 @@ function offloaded(given_function::Function, args...; distributed::Bool = false)
         message_type = message["kind"]::String
         if (message_type == "GATHER")
             value_id = message["value_id"]::Int64
-            if (value_id == -1)
+            if (value_id == "-1")
                 memory_used = message["worker_memory_used"]::Int64
                 get_session().worker_memory_used = get_session().worker_memory_used + memory_used
                 stored_message = from_jl_value_contents(message["contents"]::String)

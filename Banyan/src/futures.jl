@@ -101,4 +101,4 @@ function Future(fut::AbstractFuture; @nospecialize(mutation::Function=identity))
     end
 end
 
-get_location(fut::Future)::Union{Location,Nothing} = get(get_session().locations, fut.value_id, nothing)
+get_location(fut::Future)::Location = get(get_session().locations, fut.value_id, NOTHING_LOCATION)

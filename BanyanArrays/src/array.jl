@@ -77,8 +77,8 @@ Banyan.convert(::Type{Future}, A::Array{T,N}) where {T,N} = A.data
 
 # Array sample
 
-function Banyan.sample_axes(A::Base.AbstractArray{T,N})::Vector{Int64} where {T,N} Base.collect(1:ndims(A)) end
-function Banyan.sample_keys(A::Base.AbstractArray{T,N})::Vector{Int64} where {T,N} sample_axes(A) end
+function Banyan.sample_axes(A::Base.AbstractArray{T,N})::Base.Vector{Int64} where {T,N} Base.collect(1:ndims(A)) end
+function Banyan.sample_keys(A::Base.AbstractArray{T,N})::Base.Vector{Int64} where {T,N} sample_axes(A) end
 
 # `sample_divisions`, `sample_percentile`, and `sample_max_ngroups` should
 # work with the `orderinghash` of values in the data they are used on
@@ -500,7 +500,7 @@ function Base.getindex(A::Array{T,N}, indices...) where {T,N}
     for i in indices
         (i isa Colon || i isa Integer || i isa Vector) || error("Expected indices to be either integers, vectors of integers, or colons")
     end
-    allowed_splitting_dims::Vector{Int64} = if length(indices) == 1 && indices[1] isa Colon
+    allowed_splitting_dims::Base.Vector{Int64} = if length(indices) == 1 && indices[1] isa Colon
         Int64[ndims(A)]
     elseif length(indices) == ndims(A)
         Int64[i for i in 1:ndims(A) if indices[i] isa Colon]

@@ -31,7 +31,7 @@ Replicated()::Vector{PartitionType} = Replicating() & PartitionType("replication
 # TODO: Determine whether the `"reducer" => nothing` should be there
 Divided()::Vector{PartitionType} = Replicating() & PartitionType("dividing" => true)
 Reducing(op::Union{Function,Expr})::Vector{PartitionType} = Replicating() & PartitionType("replication" => nothing, "reducer" => to_jl_value(op), "with_key" => false)
-ReducingWithKey(op::Function)::Vector{PartitionType} = Replicating() & PartitionType("replication" => nothing, "reducer" => to_jl_value(op), "with_key" => true)
+ReducingWithKey(op::Union{Function,Expr})::Vector{PartitionType} = Replicating() & PartitionType("replication" => nothing, "reducer" => to_jl_value(op), "with_key" => true)
 # TODO: Maybe replace banyan_reduce_size_by_key with an anonymous function since that actually _can_ be ser/de-ed
 # or instead make there be a reducing type that passes in the key to the reducing functions so it can reduce by that key
 # ReducingSize() = PartitionType("replication" => "one", "reducer" => "banyan_reduce_size_by_key")
@@ -246,6 +246,8 @@ function Grouped(
     end
 
     # Prepare `by`
+    @show K
+    @show sample(f, :groupingkeys)
     by::Vector{K} = if isnothing(by)
         sample(f, :groupingkeys)::Vector{K}
     elseif by isa Colon

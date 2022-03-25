@@ -31,10 +31,12 @@
                 if i == 1
                     sub = filter(row -> row.sepal_width == 3.3, df)
                     sub2 = filter(row -> endswith(row.species, "8"), sub)
+                    @show sample(sub2)
+                    write_file(sub2_save_path, sub2)
+                    @show sample(sub2)
                     write_file(sub_save_path, sub)
                     invalidate_source(sub2)
                     invalidate_sample(sub2)
-                    write_file(sub2_save_path, sub2)
                 else
                     sub = read_file(sub_save_path)
                     sub2 = read_file(sub2_save_path)

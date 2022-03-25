@@ -63,7 +63,7 @@ function partitioned_using(@nospecialize(handler::Function))
     curr_delayed_task.partitioned_using_func = handler
 end
 
-function keep_all_sample_keys(participants::Vector{Future}, drifted::Bool)
+function keep_all_sample_keys(participants::Base.Vector{Future}, drifted::Bool)
     if isempty(participants)
         return
     end
@@ -77,24 +77,25 @@ function keep_all_sample_keys(participants::Vector{Future}, drifted::Bool)
     # println("In keep_all_sample_keys")
     # @show participants
     # @show [sample(p, :groupingkeys) for p in participants]
-    K = eltype(sample_keys(sample(participants[1])))
-    groupingkeys = K[]
     for p in participants
-        pgk = sample(p, :groupingkeys)
-        if length(pgk) >= 1
-            append!(groupingkeys::Vector{K}, pgk)
+        p_keys = sample_keys(sample(p))
+        K = eltype(p_keys)
+        new_p_groupingkeys = K[]
+        for op in participants
+            op_groupingkeys = sample(op, :groupingkeys)
+            OK = eltype(op_groupingkeys)
+            if OK == K
+                append!(new_p_groupingkeys, op_groupingkeys)
+            end
         end
-    end
-    for p in participants
-        p_keys = intersect(groupingkeys, sample_keys(sample(p)))
-        setsample!(p, :groupingkeys, p_keys)
+        setsample!(p, :groupingkeys, intersect(p_keys, new_p_groupingkeys))
     end
 
     # Only allow keys that are actually in the keys of the participants
     # TODO: Maybe replace this with a function that doesn't require calling
     # a potentially expensive function to iterate through _all_ columns.
     if !drifted
-        statistics = merge([sample(p, :statistics) for p in participants]...)
+        statistics = merge((sample(p, :statistics) for p in participants)...)
         for p in participants
             p_keys = sample_keys(sample(p))
             setsample!(
@@ -327,11 +328,11 @@ function partitioned_with(
                 # @show grouped
                 # @show inputs_grouped
                 # @show outputs_grouped
-                keep_all_sample_keys(vcat(outputs_grouped, inputs_grouped), drifted)
+                keep_all_sample_keys(vcat(inputs_grouped, outputs_grouped), drifted)
             end
         end
         if !isempty(keys)
-            keep_sample_keys(keys, vcat(outputs_grouped, inputs_grouped), drifted)
+            keep_sample_keys(keys, vcat(inputs_grouped, outputs_grouped), drifted)
         end
         if !isempty(keys_by_future)
             keep_sample_keys_named(keys_by_future, drifted)
@@ -547,7 +548,7 @@ function partitioned_code_region(
         unsplatted_futures::Vector{Union{Future,Vector{Future}}} =
             map(
                 v -> if v isa Tuple
-                    Base.collect(map(f -> convert(Future, v), v))
+                    Base.collect(map(f -> convert(Future, f), v))
                 else
                     convert(Future, v)
                 end,
@@ -585,6 +586,7 @@ function partitioned_code_region(
 
         # Fill in task with code and value names pulled using the macror
         unsplatted_variable_names = String[$(variable_names...)]
+        @show typeof(unsplatted_variable_names)
         splatted_variable_names = String[]
         task::DelayedTask = get_task()
         # Get code to initialize the unsplatted variable in the code region
@@ -636,13 +638,36 @@ function partitioned_code_region(
         # of the old value and the new future of the new
 
         # Perform computation on samples
-        $(assigning_samples...)      
         try
-            $(esc(code))
+            let ($(variables...),) = [$(assigning_samples...)]
+                begin
+                    for v in [$(variables...)]
+                        @show v
+                    end
+                    # Run the computation
+                    for v in [$(variables...)]
+                        @show v
+                    end
+                    $(esc(code))
+                    # Move results from variables back into the samples. Also, update the
+                    # memory usage accordingly.
+                    # TODO: Determine if other sample properties need to be invalidated (or
+                    # updated) after modified by an annotated code region.
+                    for v in [$(variables...)]
+                        @show v
+                    end
+                    $(reassigning_futures...)
+                    for v in [$(variables...)]
+                        @show v
+                    end
+                end
+            end
+            for v in [$(variables...)]
+                @show v
+            end
         catch
             # I
             finish_task()
-            $(reassigning_futures...)
             rethrow()
         end
 
@@ -668,25 +693,6 @@ function partitioned_code_region(
         # an expensive scan of S3. This will record `RecordLocationRequest`s.
         for splatted_future in splatted_futures
             apply_sourced_or_destined_funcs(splatted_future)
-        end
-
-        # Move results from variables back into the samples. Also, update the
-        # memory usage accordingly.
-        # TODO: Determine if other sample properties need to be invalidated (or
-        # updated) after modified by an annotated code region.
-        for (i, value) in enumerate([$(variables...)])
-            if unsplatted_futures[i] isa Vector
-                uf::Vector{Future} = unsplatted_futures[i]
-                for j = 1:length(uf)
-                    fe::Future = uf[j]
-                    setsample!(fe, value[j])
-                    setsample!(fe, :memory_usage, sample_memory_usage(value[j]))
-                end
-            else
-                f::Future = unsplatted_futures[i]
-                setsample!(f, value)
-                setsample!(f, :memory_usage, sample_memory_usage(value))
-            end
         end
 
         # Look at mutation, inputs, outputs, and constraints to determine
@@ -776,6 +782,7 @@ function partitioned_code_region(
                 total_sampled_input_memory_usage::Int64 = 0
                 for fut in task.scaled
                     if task.effects[fut.value_id] == "CONST"
+                        @show sample(fut, :memory_usage)
                         total_sampled_input_memory_usage = sample(fut, :memory_usage)::Int64
                     end
                 end
@@ -888,15 +895,16 @@ function partitioned_code_region(
             # Issue destroy request for mutated futures that are no longer
             # going to be used
             is_fut_used::Bool = false
+            fut_value_id = fut.value_id
             for f in keys(task.mutation)
-                if fut.value_id == f.value_id
+                if fut_value_id == f.value_id
                     is_fut_used = true
                 end
             end
             is_fut_to_be_used::Bool = false
             for f in values(task.mutation)
-                if fut.value_id == f.value_id
-                    is_fut_to_be_used = false
+                if fut_value_id == f.value_id
+                    is_fut_to_be_used = true
                 end
             end
             if is_fut_used && !is_fut_to_be_used
@@ -907,9 +915,6 @@ function partitioned_code_region(
         # Record request to record task in backend's dependency graph and reset
         record_request(RecordTaskRequest(task))
         finish_task()
-
-        # This basically undoes `$(assigning_samples...)`.
-        $(reassigning_futures...)
 
         # Make a call to `apply_mutation` to handle calls to `mut` like
         # `mutated(df, res)`
@@ -932,19 +937,23 @@ macro partitioned(ex...)
     # the list of futures they came from.
 
     assigning_samples = Expr[]
-    reassigning_futures = Expr[]
+    reassigning_futures = Expr[quote uf::Vector{Future} = Future[] end]
     for (i, variable) in enumerate(variables)
         # Assign samples to variables used in annotated code
         push!(
             assigning_samples,
             quote
-                unsplatted_future = unsplatted_futures[$i]
-                if unsplatted_future isa Vector
-                    unsplatted_future::Vector{Future}
-                    $variable = map(sample, unsplatted_future)
-                else
-                    unsplatted_future::Future
-                    $variable = sample(unsplatted_future)
+                let unsplatted_future = unsplatted_futures[$i]
+                    @show typeof(unsplatted_future)
+                    if unsplatted_future isa Vector
+                        ufs = unsplatted_future
+                        map(sample, ufs)
+                    else
+                        ufs = Future[unsplatted_future]
+                        @show typeof($variable)
+                        @show sample(ufs[1])
+                        sample(ufs[1])
+                    end
                 end
             end
         )
@@ -955,10 +964,26 @@ macro partitioned(ex...)
         # variable names in the macro expansion.
         push!(
             reassigning_futures,
-            quote $variable = unsplatted_futures[$i] end
+            quote
+                if unsplatted_futures[$i] isa Vector
+                    uf = unsplatted_futures[$i]
+                    for j = 1:length(uf)
+                        fe::Future = uf[j]
+                        setsample!(fe, $variable[j])
+                        setsample!(fe, :memory_usage, sample_memory_usage($variable[j]))
+                        @show sample(fe)
+                    end
+                else
+                    uf = Future[unsplatted_futures[$i]]
+                    setsample!(uf[1], $variable)
+                    setsample!(uf[1], :memory_usage, sample_memory_usage($variable))
+                    @show sample(uf[1])
+                end
+            end
         )
     end
 
+    println("here")
     partitioned_code_region(
         variables,
         variable_names,
