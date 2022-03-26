@@ -173,7 +173,7 @@ function Banyan.sample_max_ngroups(A::U, key)::Int64 where U <: Base.AbstractArr
             currgroupsize = 1
         end
         # TODO: Maybe use deepcopy here if eltype might be nested
-        prev = copy(curr)
+        prev = Base.copy(curr)
         prev_is_nothing = false
     end
     maxgroupsize = max(maxgroupsize, currgroupsize)
@@ -189,7 +189,7 @@ function Banyan.sample_min(A::U, key) where U <: Base.AbstractArray{T,N} where {
     else
         min_oh = orderinghash(eselectdim(A, key, 1:1))
         for e in eachslice(A, dims=key)
-            min_oh = min(orderiBase.copy(nghash(e), min_oh))
+            min_oh = min(orderinghash(e), min_oh)
         end
         min_oh
     end
@@ -316,8 +316,8 @@ function pts_for_copying(A, res)
 end
 
 function Base.copy(A::Array{T,N})::Array{T,N} where {T,N}
-    res = Future(datatype="Array")
     res_size = deepcopy(A.size)
+    res = Future(datatype="Array")
 
     partitioned_with(scaled=[A, res], keep_same_keys=true) do
         pts_for_copying(A, res)
@@ -331,8 +331,8 @@ function Base.copy(A::Array{T,N})::Array{T,N} where {T,N}
 end
 
 function Base.deepcopy(A::Array{T,N})::Array{T,N} where {T,N}
-    res = Future(datatype="Array")
     res_size = deepcopy(A.size)
+    res = Future(datatype="Array")
 
     partitioned_with(scaled=[A, res], keep_same_keys=true) do
         pts_for_copying(A, res)
@@ -382,9 +382,12 @@ function Base.map(f, c::Array{<:Any,N}...; force_parallelism=false) where {T,N}
         @partitioned c begin end
     end
 
+    @show Banyan.get_task()
+    @show Banyan.get_task().mutation
+
+    res_size = deepcopy(first(c).size)
     f = Future(f)
     res = Future(datatype="Array")
-    res_size = deepcopy(first(c).size)
 
     partitioned_with(scaled=[res, c...]) do
         # balanced
@@ -418,6 +421,9 @@ function Base.map(f, c::Array{<:Any,N}...; force_parallelism=false) where {T,N}
     # @show sample(res)
     # @show typeof(sample(res))
     # @show eltype(sample(res))
+
+    @show Banyan.get_task()
+    @show Banyan.get_task().mutation
 
     Array{eltype(sample(res)),N}(res, res_size)
 end
@@ -622,8 +628,8 @@ function Base.sortslices(A::Array{T,N}, dims; kwargs...) where {T,N}
     sortingdim::Int64 = dims isa Colon ? 1 : convert(Int64, first(dims))::Int64
     isreversed = get(kwargs, :rev, false)::Bool
 
-    res = Future(datatype="Array")
     res_size = deepcopy(A.size)
+    res = Future(datatype="Array")
     dims = Future(dims)
     kwargs = Future(kwargs)
 

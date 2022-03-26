@@ -31,6 +31,9 @@ function Future(;source::Location = None(), mutate_from::Union{Future,Nothing}=n
         new_future.stale = false
     end
     
+    @show source
+    @show value_id
+    @show get_location(new_future)
     if !isnothing(mutate_from)
         # Indicate that this future is the result of an in-place mutation of
         # some other value

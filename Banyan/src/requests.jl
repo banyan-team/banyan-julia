@@ -20,8 +20,8 @@
 function check_worker_stuck_error(
     message::Dict{String,Any},
     error_for_main_stuck::Union{Nothing,String},
-    error_for_main_stuck_time::Union{Nothing,String}
-)::Tuple{Union{Nothing,String},Union{Nothing,String}}
+    error_for_main_stuck_time::Union{Nothing,DateTime}
+)::Tuple{Union{Nothing,String},Union{Nothing,DateTime}}
     value_id = message["value_id"]::ValueId
     if value_id == "-2" && isnothing(error_for_main_stuck_time)
         error_for_main_stuck_msg::String = from_jl_value_contents(message["contents"]::String)
@@ -35,7 +35,7 @@ end
 
 function check_worker_stuck(
     error_for_main_stuck::Union{Nothing,String},
-    error_for_main_stuck_time::Union{Nothing,String}
+    error_for_main_stuck_time::Union{Nothing,DateTime}
 )::Union{Nothing,String}
     if !isnothing(error_for_main_stuck) && !isnothing(error_for_main_stuck_time) && (Dates.now() - error_for_main_stuck_time) > Second(30)
         println(error_for_main_stuck)
@@ -112,6 +112,7 @@ function partitioned_computation(
         println("Time for getting tasks:")
         tasks::Vector{DelayedTask} = @time DelayedTask[req.task for req in session.pending_requests if req isa RecordTaskRequest]
         tasks_reverse::Vector{DelayedTask} = reverse(tasks)
+        @show length(tasks)
 
         # Call `partitioned_using_func`s in 2 passes - forwards and backwards.
         # This allows sample properties to propagate in both directions. We
@@ -314,7 +315,7 @@ function partitioned_computation(
             wait_for_session(session_id)
         end
         error_for_main_stuck::Union{Nothing,String} = nothing
-        error_for_main_stuck_time::Union{Nothing,String} = nothing
+        error_for_main_stuck_time::Union{Nothing,DateTime} = nothing
         while true
             # TODO: Use to_jl_value and from_jl_value to support Client
             println("receive_next_message")
@@ -476,6 +477,8 @@ function send_evaluation(value_id::ValueId, session_id::SessionId)
     not_using_modules = get_session().not_using_modules
     main_modules = setdiff(get_loaded_packages(),  not_using_modules)
     using_modules = setdiff(used_packages, not_using_modules)
+    @show map(to_jl, get_session().pending_requests)
+    @show length(get_session().pending_requests)
     response = send_request_get_response(
         :evaluate,
         Dict{String,Any}(

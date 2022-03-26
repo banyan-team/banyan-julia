@@ -12,7 +12,7 @@ mutable struct Location
     dst_name::String
     src_parameters::LocationParameters
     dst_parameters::LocationParameters
-    total_memory_usage::Union{Int64,Nothing}
+    total_memory_usage::Int64
     sample::Sample
 
     # function Location(
@@ -42,19 +42,19 @@ mutable struct Location
     # end
 end
 
-Location(name::String, parameters::LocationParameters, total_memory_usage::Union{Int64,Nothing} = nothing, sample::Sample = NOTHING_SAMPLE)::Location =
+Location(name::String, parameters::LocationParameters, total_memory_usage::Int64 = -1, sample::Sample = Sample())::Location =
     Location(name, name, parameters, parameters, total_memory_usage, sample)
 
-const NOTHING_LOCATION = Location("None", LocationParameters(), nothing, NOTHING_SAMPLE)
+const NOTHING_LOCATION = Location("None", LocationParameters(), -1, NOTHING_SAMPLE)
 Base.isnothing(l::Location) = isnothing(l.sample)
 
-LocationSource(name::String, parameters::LocationParameters, total_memory_usage::Union{Int64,Nothing} = nothing, sample::Sample = NOTHING_SAMPLE)::Location =
+LocationSource(name::String, parameters::LocationParameters, total_memory_usage::Int64 = -1, sample::Sample = Sample())::Location =
     Location(name, "None", parameters, LocationParameters(), total_memory_usage, sample)
 
 LocationDestination(
     name::String,
     parameters::LocationParameters
-)::Location = Location("None", name, LocationParameters(), parameters, nothing, Sample())
+)::Location = Location("None", name, LocationParameters(), parameters, -1, Sample())
 
 function Base.getproperty(loc::Location, name::Symbol)
     if hasfield(Location, name)
@@ -93,7 +93,7 @@ function to_jl(lt::Location)
         # TODO: Instead of computing the total memory usage here, compute it
         # at the end of each `@partitioned`. That way we will count twice for
         # mutation
-        "total_memory_usage" => lt.total_memory_usage,
+        "total_memory_usage" => lt.total_memory_usage == -1 ? nothing : lt.total_memory_usage,
     )
 end
 
@@ -164,7 +164,7 @@ function destined(fut::Future, loc::Location)
     end
 
     fut_location::Location = get_location(fut)
-    if isnothing(fut_location)   
+    if isnothing(fut_location)
         located(
             fut,
             Location(

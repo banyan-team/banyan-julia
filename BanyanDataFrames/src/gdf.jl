@@ -132,10 +132,10 @@ function DataFrames.select(gdf::GroupedDataFrame, args...; kwargs...)
     get(kwargs, :keepkeys, true) || throw(ArgumentError("Select/transform/combine/subset operations on grouped dataframes must keep the grouping columns"))
 
     gdf_parent = gdf.parent
+    res_nrows = copy(gdf_parent.nrows)
     groupcols = gdf.groupcols
     groupkwargs = gdf.groupkwargs
     res = Future(datatype="DataFrame")
-    res_nrows = copy(gdf_parent.nrows)
     args = Future(args)
     groupingkeys::Base.Vector{String} = names(sample(gdf_parent), compute(groupcols)::Base.Vector{String})
     res_groupingkeys::Base.Vector{String} = get(kwargs, :keepkeys, true) ? groupingkeys : String[]
@@ -210,10 +210,10 @@ function DataFrames.transform(gdf::GroupedDataFrame, args...; kwargs...)
     get(kwargs, :keepkeys, true) || throw(ArgumentError("Select/transform/combine/subset operations on grouped dataframes must keep the grouping columns"))
 
     gdf_parent = gdf.parent
+    res_nrows = copy(gdf_parent.nrows)
     groupcols = gdf.groupcols
     groupkwargs = gdf.groupkwargs
     res = Future(datatype="DataFrame")
-    res_nrows = copy(gdf_parent.nrows)
     args = Future(args)
     groupingkeys::Base.Vector{String} = names(sample(gdf_parent), compute(groupcols))
     res_groupingkeys::Base.Vector{String} = get(kwargs, :keepkeys, true)::Bool ? groupingkeys : String[]

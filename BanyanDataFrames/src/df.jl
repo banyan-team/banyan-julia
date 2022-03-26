@@ -416,8 +416,8 @@ end
 # DataFrame element-wise
 
 function Missings.allowmissing(df::DataFrame)::DataFrame
-    res = Future(datatype="DataFrame")
     res_nrows = copy(df.nrows)
+    res = Future(datatype="DataFrame")
 
     partitioned_with(scaled=[df, res], keep_same_keys=true, modules="DataFrames") do
         pt(df, Distributed(df, scaled_by_same_as=res))
@@ -438,8 +438,8 @@ function Missings.allowmissing(df::DataFrame)::DataFrame
 end
 
 function Missings.disallowmissing(df::DataFrame)::DataFrame
-    res = Future(datatype="DataFrame")
     res_nrows = copy(df.nrows)
+    res = Future(datatype="DataFrame")
 
     partitioned_with(scaled=[df, res], keep_same_keys=true, modules="DataFrames") do
         pt(df, Distributed(df, scaled_by_same_as=res))
@@ -460,6 +460,7 @@ function Missings.disallowmissing(df::DataFrame)::DataFrame
 end
 
 function Base.deepcopy(df::DataFrame)::DataFrame
+    res_nrows = copy(df.nrows)
     res = Future(datatype="DataFrame")
 
     partitioned_with(scaled=[df, res], keep_same_keys=true, modules="DataFrames") do
@@ -477,12 +478,12 @@ function Base.deepcopy(df::DataFrame)::DataFrame
 
     @partitioned df res begin res = DataFrames.deepcopy(df) end
 
-    DataFrame(res, copy(df.nrows))
+    DataFrame(res, res_nrows)
 end
 
 function Base.copy(df::DataFrame)::DataFrame
-    res = Future(datatype="DataFrame")
     res_nrows = copy(df.nrows)
+    res = Future(datatype="DataFrame")
 
     partitioned_with(scaled=[df, res], keep_same_keys=true, modules="DataFrames") do
         pt(df, Distributed(df, scaled_by_same_as=res))
@@ -1156,8 +1157,8 @@ end
 # end
 
 function DataFrames.rename(df::DataFrame, args...; kwargs...)
-    res = Future(datatype="DataFrame")
     res_nrows = copy(df.nrows)
+    res = Future(datatype="DataFrame")
     args = Future(args)
     kwargs = Future(kwargs)
 
@@ -1312,8 +1313,8 @@ function Base.sort(df::DataFrame, cols=:; kwargs...)
     #     first(names(sample(df), firstcol)), get(kwargs, :rev, false)
     # end
 
-    res = Future(datatype="DataFrame")
     res_nrows = copy(df.nrows)
+    res = Future(datatype="DataFrame")
     columns::Base.Vector{String} = names(sample(df), cols)
     cols = Future(cols)
     kwargs = Future(kwargs)

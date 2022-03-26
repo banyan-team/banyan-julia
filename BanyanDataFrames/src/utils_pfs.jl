@@ -1,5 +1,5 @@
 Banyan.split_on_executor(
-    src::DataFrames.DataFrame,
+    src::DataFrames.AbstractDataFrame,
     d::Int64,
     i::UnitRange{Int64}
 )::SubDataFrame{DataFrame, DataFrames.Index, UnitRange{Int64}} = @view src[i, :]

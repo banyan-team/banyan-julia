@@ -66,7 +66,7 @@ function get_next_message(
     p::Union{Nothing,ProgressMeter.ProgressUnknown} = nothing;
     delete::Bool = true,
     error_for_main_stuck::Union{Nothing,String} = nothing,
-    error_for_main_stuck_time::Union{Nothing,String} = nothing
+    error_for_main_stuck_time::Union{Nothing,DateTime} = nothing
 )::Tuple{String,Union{Nothing,String}}
     println("Time for sqs_receive_message_with_long_polling:")
     m = @time sqs_receive_message_with_long_polling(queue)

@@ -589,6 +589,9 @@ function partitioned_code_region(
         @show typeof(unsplatted_variable_names)
         splatted_variable_names = String[]
         task::DelayedTask = get_task()
+        println("At start of @partitioned")
+        @show task
+        @show task.mutation
         # Get code to initialize the unsplatted variable in the code region
         # TODO: Generate code in codegen that puts each code region in a
         # seperate function (where we reuse functions with the hash of the
@@ -913,6 +916,9 @@ function partitioned_code_region(
         end
 
         # Record request to record task in backend's dependency graph and reset
+        println("At end of @partitioned")
+        @show task
+        @show task.mutation
         record_request(RecordTaskRequest(task))
         finish_task()
 

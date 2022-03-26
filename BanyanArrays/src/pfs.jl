@@ -191,7 +191,7 @@ function WriteJuliaArray(
     # Write file for this partition
     worker_idx = Banyan.get_worker_idx(comm)
     idx = Banyan.get_partition_idx(batch_idx, nbatches, comm)
-    actualpath = deepcopy(path)
+    actualpath = Base.deepcopy(path)
     if nbatches > 1
         # Add _tmp to the end of the path
         path = path * "_tmp"
