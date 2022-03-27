@@ -2,7 +2,7 @@ Banyan.split_on_executor(
     src::DataFrames.AbstractDataFrame,
     d::Int64,
     i::UnitRange{Int64}
-)::SubDataFrame{DataFrame, DataFrames.Index, UnitRange{Int64}} = @view src[i, :]
+)::SubDataFrame{DataFrames.DataFrame, DataFrames.Index, UnitRange{Int64}} = @view src[i, :]
 Banyan.split_on_executor(src::DataFrames.GroupedDataFrame, d::Int64, i::UnitRange{Int64}) = nothing
 
 # In case we are trying to `Distribute` a grouped data frame,
