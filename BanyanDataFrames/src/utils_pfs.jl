@@ -27,4 +27,4 @@ function Banyan.merge_on_executor(obj::Base.Vector{<:DataFrames.AbstractDataFram
 end
 
 Banyan.merge_on_executor(obj::Base.Vector{DataFrames.GroupedDataFrame{<:AbstractDataFrame}}; key = nothing) = nothing
-function Banyan.merge_on_executor(obj::Base.Vector{T}; key = nothing)::T where {T} first(obj) end
+# function Banyan.merge_on_executor(obj::Base.Vector{T}; key = nothing)::T where {T} first(obj) end
