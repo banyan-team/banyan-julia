@@ -18,7 +18,7 @@ Banyan.split_on_executor(
 ) = nothing
 
 # If this is a dataframe then we ignore the grouping key
-function Banyan.merge_on_executor(obj::Base.Vector{DataFrames.DataFrame}; key = nothing)::DataFrames.DataFrame
+function Banyan.merge_on_executor(obj::Base.Vector{<:DataFrames.AbstractDataFrame}; key = nothing)
     if length(obj) == 1
         obj[1]
     else
