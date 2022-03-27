@@ -224,14 +224,16 @@ Consolidate(part::Any, src_params::Dict{String,Any}, dst_params::Dict{String,Any
 
 function Merge(
     src::Union{Nothing,PartiallyMerged},
-    part,
+    part::T,
     params::Dict{String,Any},
     batch_idx::Int64,
     nbatches::Int64,
     comm::MPI.Comm,
     loc_name::String,
     loc_params::Dict{String,Any},
-)
+) where {T}
+    @show typeof(src)
+    @show typeof(part)
     splitting_divisions = get_splitting_divisions()
 
     # TODO: To allow for mutation of a value, we may want to remove this
