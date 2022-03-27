@@ -246,7 +246,7 @@ function Merge(
 
     # Concatenate across batches
     if batch_idx == 1
-        src = PartiallyMerged(Vector{Any}(undef, nbatches))
+        src = PartiallyMerged(Vector{T}(undef, nbatches))
     end
     src.pieces[batch_idx] = part
     if batch_idx == nbatches
