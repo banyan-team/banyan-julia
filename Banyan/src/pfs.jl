@@ -234,6 +234,7 @@ function Merge(
 ) where {T}
     @show typeof(src)
     @show typeof(part)
+    @show T
     splitting_divisions = get_splitting_divisions()
 
     # TODO: To allow for mutation of a value, we may want to remove this
@@ -246,13 +247,15 @@ function Merge(
 
     # Concatenate across batches
     if batch_idx == 1
-        src = PartiallyMerged(Vector{T}(undef, nbatches))
+        src = PartiallyMerged(Vector{Union{Nothing,T}}(undef, nbatches))
     end
     src.pieces[batch_idx] = part
     if batch_idx == nbatches
         delete!(splitting_divisions, part)
 
         # Concatenate across batches
+        @show typeof(src.pieces)
+        # TODO: Maybe convert to a vector without `nothing`s
         src = merge_on_executor(filter(piece -> !isnothing(piece), src.pieces); key = key)
 
         # Concatenate across workers
