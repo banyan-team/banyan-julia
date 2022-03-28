@@ -64,6 +64,8 @@ sync_across(comm=MPI.COMM_WORLD) = MPI.Barrier(comm)
 reduce_across(func, val; to_worker_idx=1, comm=MPI.COMM_WORLD) = MPI.Reduce(val, func, to_worker_idx-1, comm)
 
 merge_on_executor(obj::Any; key = nothing) = error("Merging $(typeof(obj)) not supported")
+# merge_on_executor(obj::Vector{Missing}; key=nothing) = missing
+# merge_on_executor(obj::Vector; key=nothing) = if isempty(obj) missing else error("Merging $(typeof(obj)) not supported") end
 
 # # TODO: Make `merge_on_executor` and `tobuf` and `frombuf`
 # # dispatch based on the `kind` so we only have to precompile Arrow if we are

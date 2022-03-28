@@ -460,8 +460,8 @@ function Base.mapslices(f, A::Array{T,N}; dims) where {T,N}
     @partitioned f A dims res res_size begin
         # We return nothing because `mapslices` doesn't work properly for
         # empty data
-        res = isempty(A) ? nothing : Base.mapslices(f, A, dims=dims)
-        res_size = isempty(A) ? nothing : Base.size(res)
+        res = isempty(A) ? missing : Base.mapslices(f, A, dims=dims)
+        res_size = isempty(A) ? missing : Base.size(res)
     end
 
     res_sample = sample(res)

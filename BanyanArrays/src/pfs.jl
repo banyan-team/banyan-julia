@@ -499,14 +499,9 @@ function Banyan.Rebalance(
 end
 
 function Banyan.Consolidate(part::AbstractArray, src_params::Dict{String,Any}, dst_params::Dict{String,Any}, comm::MPI.Comm)
-    is_buffer_type = ndims(part) == 1 && isbitstype(eltype(part))
-    sendbuf = if is_buffer_type
-        MPI.Buffer(part)
-    else
-        io = IOBuffer()
-        serialize(io, part)
-        MPI.Buffer(view(io.data, 1:io.size))
-    end
+    io = IOBuffer()
+    serialize(io, part)
+    MPI.Buffer(view(io.data, 1:io.size))
     recvvbuf = Banyan.buftovbuf(sendbuf, comm)
     # TODO: Maybe sometimes use gatherv if all sendbuf's are known to be equally sized
 

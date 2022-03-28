@@ -24,6 +24,7 @@ using Base64
 using Dates
 using Downloads
 using JSON
+using Missings
 using Random
 using Serialization
 using StaticArrays

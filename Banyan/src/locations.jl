@@ -539,16 +539,16 @@ end
 #     end
 # end
 
-function convert_to_unpooled(A::Any)
-    type_name = typeof(A).name.name
-    if type_name == :PooledArray
-        Base.collect(A)
-    elseif type_name == :CategoricalArray
-        unwrap.(A)
-    else
-        # For handling SentinelArrays.MissingVector
-        Base.convert(Array, A)
-    end
-end
+# function convert_to_unpooled(A::T) where {T}
+#     type_name = typeof(A).name.name
+#     if type_name == :PooledArray
+#         Base.collect(A)
+#     elseif type_name == :CategoricalArray
+#         unwrap.(A)
+#     else
+#         # For handling SentinelArrays.MissingVector
+#         Base.convert(Array, A)
+#     end
+# end
 
 @specialize

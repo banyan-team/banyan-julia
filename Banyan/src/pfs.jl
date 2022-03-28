@@ -180,8 +180,8 @@ function rmdir_on_nfs(actualpath)
     # to remove all directories at the end of the session.
 end
 
-mutable struct PartiallyMerged
-    pieces::Vector{Any}
+mutable struct PartiallyMerged where {T}
+    pieces::Vector{Union{Missing,T}}
 end
 
 SplitBlock(
@@ -246,8 +246,17 @@ function Merge(
     key = params["key"]
 
     # Concatenate across batches
+    if part isa AbstractArray
+        part = Base.convert(Base.Array, part)
+    end
     if batch_idx == 1
-        src = PartiallyMerged(Vector{Union{Nothing,T}}(undef, nbatches))
+        src = PartiallyMerged(Vector{typeof(part)}(undef, nbatches))
+    else
+        # Convert the type if needed
+        PMT = eltype(src.pieces)
+        if !(T <: PMT)
+            src.pieces = convert(Vector{Union{T,PMT}}, src.pieces)
+        end
     end
     src.pieces[batch_idx] = part
     if batch_idx == nbatches
@@ -255,8 +264,10 @@ function Merge(
 
         # Concatenate across batches
         @show typeof(src.pieces)
-        # TODO: Maybe convert to a vector without `nothing`s
-        src = merge_on_executor(filter(piece -> !isnothing(piece), src.pieces); key = key)
+        to_merge = Missings.disallowmissing(filter(piece -> !ismissing(piece), src.pieces))
+        src = isempty(to_merge) ? error("Result of merging is empty") : merge_on_executor(to_merge; key = key)
+        # src = merge_on_executor(src.pieces; key = key)
+        # TODO: Handle case where everything merges to become empty and also ensure WriteHDF5 is correct
 
         # Concatenate across workers
         nworkers = get_nworkers(comm)
@@ -264,6 +275,8 @@ function Merge(
             src = Consolidate(src, params, Dict{String,Any}(), comm)
         end
     end
+
+    # TODO: Handle Consolidate, Merge, WriteHDF5, WriteJuliaArray, WriteCSV/Parquet/Arrow receiving missing
 
     src
 end

@@ -149,7 +149,7 @@ function get_remote_hdf5_source(
     # If the sample is a PooledArray or CategoricalArray, convert it to a
     # simple array so we can correctly compute its memory usage.
     if !isnothing(dset_sample) && !(dset_sample isa Base.Array)
-        dset_sample = Banyan.convert_to_unpooled(dset_sample)
+        dset_sample = Base.convert(Base.Array, (dset_sample)
     end
 
     loc_for_reading, metadata_for_reading = if dataset_to_read_from_exists

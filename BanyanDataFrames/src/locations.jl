@@ -350,7 +350,7 @@ function get_remote_table_source(
         for pn in Base.propertynames(s)
             sc = s[!, pn]
             if !(sc isa Base.Array)
-                s[!, pn] = Banyan.convert_to_unpooled(sc)
+                s[!, pn] = Base.convert(Base.Array, sc)
             end
         end
     end
