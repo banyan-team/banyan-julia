@@ -250,7 +250,7 @@ function Merge(
         part = Base.convert(Base.Array, part)
     end
     if batch_idx == 1
-        src = PartiallyMerged(Vector{typeof(part)}(undef, nbatches))
+        src = PartiallyMerged(Vector{Union{Missing,typeof(part)}}(undef, nbatches))
     else
         # Convert the type if needed
         PMT = eltype(src.pieces)
