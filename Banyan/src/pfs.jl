@@ -180,7 +180,7 @@ function rmdir_on_nfs(actualpath)
     # to remove all directories at the end of the session.
 end
 
-mutable struct PartiallyMerged where {T}
+mutable struct PartiallyMerged{T}
     pieces::Vector{Union{Missing,T}}
 end
 
