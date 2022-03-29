@@ -336,9 +336,18 @@ function send_request_get_response(method, content::Dict)
     # This is the path to the private SSH key on the cluster that the user should have added.
     if haskey(ENV, "BANYAN_GITHUB_TOKEN")
         headers["banyan-github-token"] = ENV["BANYAN_GITHUB_TOKEN"]
+        # Cache
+        configuration["banyan"]["banyan_github_token"] = ENV["BANYAN_GITHUB_TOKEN"]
+        write_config()
+    elseif haskey(configuration["banyan"], "banyan_github_token")
+        headers["banyan-github-token"] = configuration["banyan"]["banyan_github_token"]
     end
     if haskey(ENV, "BANYAN_SSH_KEY_PATH")
         headers["banyan-ssh-key-path"] = ENV["BANYAN_SSH_KEY_PATH"]
+        configuration["banyan"]["banyan_ssh_key_path"] = ENV["BANYAN_SSH_KEY_PATH"]
+        write_config()
+    elseif haskey(configuration["banyan"], "banyan_ssh_key_path")
+        headers["banyan-ssh-key-path"] = configuration["banyan"]["banyan_ssh_key_path"]
     end
     resp, data = request_json(
 	    url, input=IOBuffer(JSON.json(content)), method="POST", headers=headers
