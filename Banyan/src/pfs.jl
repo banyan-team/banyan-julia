@@ -144,7 +144,7 @@ ReadGroup(ReadBlock) = begin
                 store_splitting_divisions = false
             )
             if i == 1
-                parts = typeof(part)[]
+                parts = typeof(part)[part]
             else
                 push!(parts, part)
             end
