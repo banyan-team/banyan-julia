@@ -143,7 +143,7 @@ ReadGroup(ReadBlock) = begin
                 boundedupper = !hasdivision || batch_idx != lastbatchidx,
                 store_splitting_divisions = false
             )
-            if isempty(parts)
+            if i == 1
                 parts = typeof(part)[]
             else
                 push!(parts, part)
