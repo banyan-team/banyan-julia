@@ -157,8 +157,14 @@ end
         x = BanyanArrays.fill(10.0, 2048)
         y = BanyanArrays.fill(10.0, 2048)
         a = BanyanArrays.fill(10.0, 2048)
+        @show a
+        @show x
         x += y
+        @show x
+        @show a
         x += a
+        @show x
+        @show a
         y_sum_collect = compute(sum(y))
         @test y_sum_collect == 2048 * 10.0
         a = nothing

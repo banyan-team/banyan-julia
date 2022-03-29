@@ -263,7 +263,7 @@ function fill(v, dims::NTuple{N,Integer}) where {N}
         A = Base.fill(v, fillingdims)
     end
 
-    Array{typeof(v),N}(A, A_dims)
+    Array{typeof(compute(v)),N}(A, A_dims)
 end
 
 fill(v, dims::Int64...) = fill(v, Tuple(dims))
@@ -424,6 +424,8 @@ function Base.map(f, c::Array{<:Any,N}...; force_parallelism=false) where {T,N}
 
     @show Banyan.get_task()
     @show Banyan.get_task().mutation
+    @show c
+    @show typeof.(c)
 
     Array{eltype(sample(res)),N}(res, res_size)
 end

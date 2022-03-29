@@ -93,7 +93,7 @@ function partitioned_computation(
     resource_id = session.resource_id
 
     destination_dst_name::String = destination.dst_name
-    if fut.mutated || (destination_dst_name == "Client" && fut.stale) || destination-dst_name == "Remote"
+    if fut.mutated || (destination_dst_name == "Client" && fut.stale) || destination_dst_name == "Remote"
         # TODO: Check to ensure that `fut` is annotated
         # This creates an empty final task that ensures that the future
         # will be scheduled to get sent to its destination.
