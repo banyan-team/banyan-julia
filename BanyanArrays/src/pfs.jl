@@ -491,7 +491,7 @@ function Banyan.Rebalance(
     # Return the concatenated array
     res = merge_on_executor(
         map(
-            (displ, count) -> de(view(recvbuf.data, displ+1:displ+count)),
+            (displ, count) -> convert(Base.Array, de(view(recvbuf.data, displ+1:displ+count))),
             zip(recvbuf.displs, recvbuf.counts)
         );
         key = dim,
@@ -511,7 +511,7 @@ function Banyan.Consolidate(part::AbstractArray, src_params::Dict{String,Any}, d
         [
             begin
                 chunk = view(recvvbuf.data, (recvvbuf.displs[i]+1):(recvvbuf.displs[i]+recvvbuf.counts[i]))
-                is_buffer_type ? chunk : deserialize(IOBuffer(chunk))
+                convert(Base.Array, deserialize(IOBuffer(chunk)))
             end
             for i in 1:Banyan.get_nworkers(comm)
         ];
@@ -623,7 +623,7 @@ function Banyan.Shuffle(
 
         # Return the concatenated array
         things_to_concatenate = [
-            deserialize(IOBuffer(view(recvbuf.data, displ+1:displ+count))) for
+            convert(Base.Array, deserialize(IOBuffer(view(recvbuf.data, displ+1:displ+count)))) for
             (displ, count) in zip(recvbuf.displs, recvbuf.counts)
         ]
         if length(things_to_concatenate) == 1
