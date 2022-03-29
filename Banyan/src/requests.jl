@@ -247,8 +247,6 @@ function partitioned_computation(
         @time GC.gc()
     
         # Destroy everything that is to be destroyed in this task
-        @show sample(fut)
-        @show fut.value_id
         for req in session.pending_requests
             # Don't destroy stuff where a `DestroyRequest` was produced just
             # because of a `mutated(old, new)`
@@ -371,8 +369,6 @@ function partitioned_computation(
         end
 
         # This is where we update the location source.
-        @show is_merged_to_disk
-        @show sample(fut)
         if is_merged_to_disk
             sourced(fut, Disk())
         else
@@ -403,7 +399,6 @@ function partitioned_computation(
 
         # Reset the location destination to its default. This is where we
         # update the location destination.
-        @show sample(fut)
         destined(fut, None())
     end
 

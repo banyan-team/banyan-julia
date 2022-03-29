@@ -316,13 +316,16 @@ function Banyan.SplitBlock(
     loc_name::String,
     loc_params::Dict{String,Any},
 )
-    Banyan.split_on_executor(
+    @show size(src) typeof(src)
+    res = Banyan.split_on_executor(
         src,
         params["key"],
         batch_idx,
         nbatches,
         comm,
     )
+    @show size(res) typeof(res)
+    res
 end
 
 function Banyan.SplitGroup(

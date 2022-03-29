@@ -78,13 +78,11 @@ function write_csv(df::DataFrame, path; invalidate_source=true, invalidate_sampl
     # compute(df)
     # sourced(df, Remote(path)) # Allow data to be read from this path if needed in the future
     # destined(df, None())
-    @show sample(df)
     partitioned_computation(
         df,
         destination=RemoteTableDestination(path; invalidate_source=invalidate_source, invalidate_sample=invalidate_sample, kwargs...),
         new_source=_->RemoteTableSource(path)
     ) do f::Future
-        @show sample(f)
         pt(df, Partitioned(df))
     end
 end

@@ -644,29 +644,15 @@ function partitioned_code_region(
         try
             let ($(variables...),) = [$(assigning_samples...)]
                 begin
-                    for v in [$(variables...)]
-                        @show v
-                    end
                     # Run the computation
-                    for v in [$(variables...)]
-                        @show v
-                    end
                     $(esc(code))
                     # Move results from variables back into the samples. Also, update the
                     # memory usage accordingly.
                     # TODO: Determine if other sample properties need to be invalidated (or
                     # updated) after modified by an annotated code region.
                     for v in [$(variables...)]
-                        @show v
-                    end
                     $(reassigning_futures...)
-                    for v in [$(variables...)]
-                        @show v
-                    end
                 end
-            end
-            for v in [$(variables...)]
-                @show v
             end
         catch
             # I
@@ -785,7 +771,6 @@ function partitioned_code_region(
                 total_sampled_input_memory_usage::Int64 = 0
                 for fut in task.scaled
                     if task.effects[fut.value_id] == "CONST"
-                        @show sample(fut, :memory_usage)
                         total_sampled_input_memory_usage = sample(fut, :memory_usage)::Int64
                     end
                 end
@@ -950,14 +935,11 @@ macro partitioned(ex...)
             assigning_samples,
             quote
                 let unsplatted_future = unsplatted_futures[$i]
-                    @show typeof(unsplatted_future)
                     if unsplatted_future isa Vector
                         ufs = unsplatted_future
                         map(sample, ufs)
                     else
                         ufs = Future[unsplatted_future]
-                        @show typeof($variable)
-                        @show sample(ufs[1])
                         sample(ufs[1])
                     end
                 end
@@ -977,13 +959,11 @@ macro partitioned(ex...)
                         fe::Future = uf[j]
                         setsample!(fe, $variable[j])
                         setsample!(fe, :memory_usage, sample_memory_usage($variable[j]))
-                        @show sample(fe)
                     end
                 else
                     uf = Future[unsplatted_futures[$i]]
                     setsample!(uf[1], $variable)
                     setsample!(uf[1], :memory_usage, sample_memory_usage($variable))
-                    @show sample(uf[1])
                 end
             end
         )
