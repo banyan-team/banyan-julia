@@ -137,7 +137,7 @@ function DataFrames.select(gdf::GroupedDataFrame, args...; kwargs...)
     groupkwargs = gdf.groupkwargs
     res = Future(datatype="DataFrame")
     args = Future(args)
-    groupingkeys::Base.Vector{String} = names(sample(gdf_parent), compute(groupcols)::Base.Vector{String})
+    groupingkeys::Base.Vector{String} = names(sample(gdf_parent), compute(groupcols))
     res_groupingkeys::Base.Vector{String} = get(kwargs, :keepkeys, true) ? groupingkeys : String[]
     kwargs = Future(kwargs)
 

@@ -43,11 +43,9 @@
                 end
 
                 # Collect results
-                # sub_nrow = nrow(sub)
-                # sub2_nrow = nrow(sub2)
+                sub_nrow = nrow(sub)
+                sub2_nrow = nrow(sub2)
                 sepal_length_sub_sum = round(compute(reduce(+, sub[:, :sepal_length])))
-                @test sepal_length_sub_sum == 217
-                error()
                 sepal_length_sub2_sum = round(compute((reduce(+, sub2[:, :sepal_length]))))
                 sub2_species = Set(compute(sub2[:, [:species]])[:, :species])
 

@@ -134,18 +134,20 @@ ReadGroup(ReadBlock) = begin
 
             # Shuffle the batch and add it to the set of data for this partition
             params["divisions_by_worker"] = Banyan.to_jl_value_contents(curr_partition_divisions)
-            push!(
-                parts,
-                Shuffle(
-                    part,
-                    Dict{String,Any}(),
-                    params,
-                    comm,
-                    boundedlower = !hasdivision || batch_idx != firstbatchidx,
-                    boundedupper = !hasdivision || batch_idx != lastbatchidx,
-                    store_splitting_divisions = false
-                ),
+            part = Shuffle(
+                part,
+                Dict{String,Any}(),
+                params,
+                comm,
+                boundedlower = !hasdivision || batch_idx != firstbatchidx,
+                boundedupper = !hasdivision || batch_idx != lastbatchidx,
+                store_splitting_divisions = false
             )
+            if isempty(parts)
+                parts = typeof(part)[]
+            else
+                push!(parts, part)
+            end
             delete!(params, "divisions_by_worker")
         end
 
@@ -255,7 +257,8 @@ function Merge(
         # Convert the type if needed
         PMT = eltype(src.pieces)
         if !(T <: PMT)
-            src.pieces = convert(Vector{Union{T,PMT}}, src.pieces)
+            NT = Union{T,PMT}
+            src = PartiallyMerged(convert(Vector{NT}, src.pieces)::Vector{NT})
         end
     end
     src.pieces[batch_idx] = part

@@ -71,7 +71,7 @@ ReadBlockCSV, ReadBlockParquet, ReadBlockArrow = [
             comm::MPI.Comm,
             loc_name,
             loc_params,
-        )
+        )::DataFrames.DataFrame
             # TODO: Implement a Read for balanced=false where we can avoid duplicate
             # reading of the same range in different reads
 

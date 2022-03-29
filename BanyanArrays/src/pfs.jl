@@ -1,19 +1,15 @@
-function read_julia_array_file(path, header, rowrange, readrange, filerowrange, dfs, dim)
-    push!(
-        dfs,
-        let arr = deserialize(path)
-            arr[
-                [
-                    if i == dim
-                        (readrange.start-filerowrange.start+1):(readrange.stop-filerowrange.start+1)
-                    else
-                        Colon()
-                    end
-                    for i in 1:ndims(arr)
-                ]...
-            ]
+function read_julia_array_file(path, readrange, filerowrange, dim)
+    dim_selector::Base.Vector{Union{UnitRange{Int64},Colon}} = Union{UnitRange{Int64},Colon}[]
+    for i in 1:ndims(arr)
+        if i == dim
+            push!(dim_selector, readrange.start-filerowrange.start+1):(readrange.stop-filerowrange.start+1)
+        else
+            push!(dim_selector, Colon())
         end
-    )
+    end
+    let arr = deserialize(path)
+        convert(Base.Array, arr[dim_selector...])
+    end
 end
 
 function ReadBlockJuliaArray(
@@ -81,7 +77,7 @@ function ReadBlockJuliaArray(
         metadata["sample_size"][dim_partitioning]
     end
     rowrange = Banyan.split_len(nrows, batch_idx, nbatches, comm)
-    dfs = AbstractArray[]
+    dfs = Base.Array[]
     rowsscanned = 0
     for file in sort(loc_params["files"], by = filedict -> filedict["path"])
         newrowsscanned = rowsscanned + file["nrows"]
@@ -105,7 +101,12 @@ function ReadBlockJuliaArray(
             header = 1
             # TODO: Scale the memory usage appropriately when splitting with
             # this and garbage collect if too much memory is used.
-            read_julia_array_file(path, header, rowrange, readrange, filerowrange, dfs, dim)
+            arr = read_julia_array_file(path, readrange, filerowrange, dim)
+            if isempty(dfs)
+                dfs = typeof(arr)[arr]
+            else
+                push!(dfs, arr)
+            end
             if isinvestigating()[:losing_data]
                 println("In ReadBlockJuliaArray with path=$path with rowrange=$rowrange, readrange=$readrange, filerowrange=$filerowrange")
             end
