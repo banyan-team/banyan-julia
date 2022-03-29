@@ -332,8 +332,13 @@ function send_request_get_response(method, content::Dict)
     ]
     # Look for BANYAN_GITHUB_TOKEN environment variable if we are starting a session
     # Should be in the form https://<username>:<private_access_token>@github.com
+    # Also, look for BANYAN_SSH_KEY_PATH environment variable if we are starting as session.
+    # This is the path to the private SSH key on the cluster that the user should have added.
     if haskey(ENV, "BANYAN_GITHUB_TOKEN")
         headers["banyan-github-token"] = ENV["BANYAN_GITHUB_TOKEN"]
+    end
+    if haskey(ENV, "BANYAN_SSH_KEY_PATH")
+        headers["banyan-ssh-key-path"] = ENV["BANYAN_SSH_KEY_PATH"]
     end
     resp, data = request_json(
 	    url, input=IOBuffer(JSON.json(content)), method="POST", headers=headers
