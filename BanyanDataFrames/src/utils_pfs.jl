@@ -29,12 +29,17 @@ function Banyan.merge_on_executor(
     key = nothing
 ) where DF <: AnyDataFrame
     @show typeof(obj)
+    @show length(obj)
+    @show nrow.(obj)
+    @show names.(obj)
     res = if length(obj) == 1
         obj[1]
     else
         vcat(obj...)
     end
     @show typeof(res)
+    @show length(res)
+    @show typeof.(res)
     res
 end
 
