@@ -28,11 +28,14 @@ function Banyan.merge_on_executor(
     obj::Base.Vector{DF};
     key = nothing
 ) where DF <: AnyDataFrame
-    if length(obj) == 1
+    @show typeof(obj)
+    res = if length(obj) == 1
         obj[1]
     else
         vcat(obj...)
     end
+    @show typeof(res)
+    res
 end
 
 # Banyan.merge_on_executor(obj::Base.Vector{DataFrames.GroupedDataFrame{<:AbstractDataFrame}}; key = nothing) = nothing
