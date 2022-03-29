@@ -330,6 +330,11 @@ function send_request_get_response(method, content::Dict)
         "content-type" => "application/json",
         "Username-APIKey" => "$user_id-$api_key",
     ]
+    # Look for BANYAN_GITHUB_TOKEN environment variable if we are starting a session
+    # Should be in the form https://<username>:<private_access_token>@github.com
+    if haskey(ENV, "BANYAN_GITHUB_TOKEN")
+        headers["banyan-github-token"] = ENV["BANYAN_GITHUB_TOKEN"]
+    end
     resp, data = request_json(
 	    url, input=IOBuffer(JSON.json(content)), method="POST", headers=headers
     )
