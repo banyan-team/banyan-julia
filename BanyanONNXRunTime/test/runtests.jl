@@ -32,7 +32,7 @@ function use_session_for_testing(
     # configuring a session for testing. Different sample rates are typically used
     # to test different data sizes. Stress tests may need a much greater sample
     # rate.
-    session_config_hash = sample_rate
+    session_config_hash = "$sample_rate-$nworkers"
 
     # Set the session and create a new one if needed
     global sessions_for_testing
