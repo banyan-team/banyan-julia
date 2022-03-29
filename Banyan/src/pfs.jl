@@ -164,6 +164,7 @@ ReadGroup(ReadBlock) = begin
         splitting_divisions[res] =
             (Banyan.to_jl_value_contents(partition_divisions[partition_idx]), !hasdivision || partition_idx != firstdivisionidx, !hasdivision || partition_idx != lastdivisionidx)
 
+        println("In ReadGroup with typeof(res)=$(typeof(res)) and typeof(parts)=$(typeof(parts))")
         res
     end
     ReadGroup

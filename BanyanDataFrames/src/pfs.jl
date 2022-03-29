@@ -500,6 +500,8 @@ function Banyan.SplitGroup(
         )
     end
 
+    println("In SplitGroup with typeof(src)=$(typeof(src)) and typeof(res)=$(typeof(res))")
+
     res
 end
 
