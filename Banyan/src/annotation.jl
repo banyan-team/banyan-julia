@@ -650,7 +650,6 @@ function partitioned_code_region(
                     # memory usage accordingly.
                     # TODO: Determine if other sample properties need to be invalidated (or
                     # updated) after modified by an annotated code region.
-                    for v in [$(variables...)]
                     $(reassigning_futures...)
                 end
             end
