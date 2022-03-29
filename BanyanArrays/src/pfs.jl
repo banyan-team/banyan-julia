@@ -1,13 +1,13 @@
 function read_julia_array_file(path, readrange, filerowrange, dim)
-    dim_selector::Base.Vector{Union{UnitRange{Int64},Colon}} = Union{UnitRange{Int64},Colon}[]
-    for i in 1:ndims(arr)
-        if i == dim
-            push!(dim_selector, readrange.start-filerowrange.start+1):(readrange.stop-filerowrange.start+1)
-        else
-            push!(dim_selector, Colon())
-        end
-    end
     let arr = deserialize(path)
+        dim_selector::Base.Vector{Union{UnitRange{Int64},Colon}} = Union{UnitRange{Int64},Colon}[]
+        for i in 1:ndims(arr)
+            if i == dim
+                push!(dim_selector, readrange.start-filerowrange.start+1):(readrange.stop-filerowrange.start+1)
+            else
+                push!(dim_selector, Colon())
+            end
+        end
         convert(Base.Array, arr[dim_selector...])
     end
 end
