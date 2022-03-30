@@ -144,7 +144,7 @@ end
 
 ReadGroupJuliaArray = Banyan.ReadGroup(ReadBlockJuliaArray)
 
-function write_file_julia_array(part::Array{T,N}, path, dim, sortableidx, nrows) where {T,N}
+function write_file_julia_array(part::Base.Array{T,N}, path, dim, sortableidx, nrows) where {T,N}
     serialize(
         joinpath(path, "dim=$dim" * "_part$sortableidx" * "_nslices=$nrows"),
         part
@@ -171,7 +171,7 @@ end
 
 function WriteJuliaArray(
     src,
-    part::Array{T,N},
+    part::Base.Array{T,N},
     params::Dict{String,Any},
     batch_idx::Int64,
     nbatches::Int64,

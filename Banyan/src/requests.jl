@@ -112,7 +112,6 @@ function partitioned_computation(
         println("Time for getting tasks:")
         tasks::Vector{DelayedTask} = @time DelayedTask[req.task for req in session.pending_requests if req isa RecordTaskRequest]
         tasks_reverse::Vector{DelayedTask} = reverse(tasks)
-        @show length(tasks)
 
         # Call `partitioned_using_func`s in 2 passes - forwards and backwards.
         # This allows sample properties to propagate in both directions. We
@@ -274,7 +273,6 @@ function partitioned_computation(
         
                     # Remove information about the value's location including the
                     # sample taken from it
-                    @show req.value_id
                     delete!(session.locations, req_value_id)
                 end
             end
@@ -409,7 +407,6 @@ function partitioned_computation(
     # whenever we compute something we fully merge it. In fully merging it,
     # we spill it out of memory. Maybe it might be kept in memory and we don't
     # need to set the new source of something being `collect`ed to `Client`.
-    @show sample(fut)
 
     fut
 end
@@ -472,8 +469,6 @@ function send_evaluation(value_id::ValueId, session_id::SessionId)
     not_using_modules = get_session().not_using_modules
     main_modules = setdiff(get_loaded_packages(),  not_using_modules)
     using_modules = setdiff(used_packages, not_using_modules)
-    @show map(to_jl, get_session().pending_requests)
-    @show length(get_session().pending_requests)
     response = send_request_get_response(
         :evaluate,
         Dict{String,Any}(
@@ -630,7 +625,6 @@ function offloaded(given_function::Function, args...; distributed::Bool = false)
     error_for_main_stuck, error_for_main_stuck_time = nothing, nothing
     while true
         message, error_for_main_stuck = @time receive_next_message(gather_queue, p, error_for_main_stuck, error_for_main_stuck_time)
-        @show message
         message_type = message["kind"]::String
         if (message_type == "GATHER")
             value_id = message["value_id"]::Int64
