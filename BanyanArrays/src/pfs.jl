@@ -14,12 +14,12 @@ end
 
 function ReadBlockJuliaArray(
     src,
-    params,
+    params::Dict{String,Any},
     batch_idx::Int64,
     nbatches::Int64,
     comm::MPI.Comm,
-    loc_name,
-    loc_params,
+    loc_name::String,
+    loc_params::Dict{String,Any},
 )
     # TODO: Implement a Read for balanced=false where we can avoid duplicate
     # reading of the same range in different reads
@@ -144,40 +144,48 @@ end
 
 ReadGroupJuliaArray = Banyan.ReadGroup(ReadBlockJuliaArray)
 
-function write_file_julia_array(part, path, dim, sortableidx, nrows)
+function write_file_julia_array(part::Array{T,N}, path, dim, sortableidx, nrows) where {T,N}
     serialize(
         joinpath(path, "dim=$dim" * "_part$sortableidx" * "_nslices=$nrows"),
         part
     )
 end
+function write_file_julia_array(part::Empty, path, dim, sortableidx, nrows) end
 
-function write_metadata_for_julia_array(actualpath, part)
-    serialize(
-        joinpath(actualpath, "_metadata"),
-        Dict(
-            "sample_size" => size(part),
-            "eltype" => eltype(part)
+function write_metadata_for_julia_array(actualpath, part_size_and_eltype)
+    p = joinpath(actualpath, "_metadata")
+    part_size, part_eltype = part_size_and_eltype
+    # Only create the metadata file if it does not already exist or it does
+    # but now we have a proper size
+    if !isfile(p) || !(part_size isa Empty)
+        serialize(
+            p,
+            Dict(
+                # Note that this is not the whole size but just a sample size
+                "sample_size" => part_size isa Empty ? (0,) : part_size,
+                "eltype" => part_eltype isa Empty ? Any : part_eltype
+            )
         )
-    )
+    end
 end
 
 function WriteJuliaArray(
     src,
-    part,
-    params,
+    part::Array{T,N},
+    params::Dict{String,Any},
     batch_idx::Int64,
     nbatches::Int64,
     comm::MPI.Comm,
-    loc_name,
-    loc_params,
-)
+    loc_name::String,
+    loc_params::Dict{String,Any},
+) where {T,N}
     # Get rid of splitting divisions if they were used to split this data into
     # groups
     splitting_divisions = Banyan.get_splitting_divisions()
     delete!(splitting_divisions, part)
 
     # Get path of directory to write to
-    path = loc_params["path"]
+    path::String = loc_params["path"]
     if startswith(path, "http://") || startswith(path, "https://")
         error("Writing to http(s):// is not supported")
     elseif startswith(path, "s3://")
@@ -209,12 +217,16 @@ function WriteJuliaArray(
     # 3. Do another barrier on the last batch and delete the old directory
     # and link to the new one
 
-    # NOTE: This is only needed because we might be writing to the same
-    # place we are reading from. And so we want to make sure we finish
-    # reading before we write the last batch
-    if batch_idx == nbatches
-        MPI.Barrier(comm)
-    end
+    # # NOTE: This is only needed because we might be writing to the same
+    # # place we are reading from. And so we want to make sure we finish
+    # # reading before we write the last batch
+    # if batch_idx == nbatches
+    #     MPI.Barrier(comm)
+    # end
+
+    # Give the head worker a total size and eltype
+    size_and_eltype = part isa Empty ? (EMPTY, EMPTY) : (size(part), eltype(part))
+    size_and_eltype = MPI.Reduce(size_and_eltype, reduce_sizes_and_eltypes, 0, comm)
 
     if worker_idx == 1
         if nbatches == 1
@@ -233,15 +245,11 @@ function WriteJuliaArray(
             Banyan.rmdir_on_nfs(path)
             mkpath(path)
         end
-
-        if nbatches == 1
-            write_metadata_for_julia_array(actualpath, part)
-        end
     end
     MPI.Barrier(comm)
 
-    dim = params["key"]
-    nrows = size(part, dim)
+    dim::Int64 = params["key"]
+    nrows = part isa Empty ? 0 : size(part, dim)
     sortableidx = Banyan.sortablestring(idx, get_npartitions(nbatches, comm))
     write_file_julia_array(part, path, dim, sortableidx, nrows)
     if isinvestigating()[:losing_data]
@@ -274,16 +282,20 @@ function WriteJuliaArray(
         MPI.Barrier(comm)
         if worker_idx == 1
             Banyan.rmdir_on_nfs(path)
-            write_metadata_for_julia_array(actualpath, part)
         end
-        MPI.Barrier(comm)
     end
+
+    # Write metadata on each batch regardless of how many batches there are
+    if worker_idx == 1
+        write_metadata_for_julia_array(actualpath, size_and_eltype)
+    end
+    MPI.Barrier(comm)
     # TODO: Store the number of rows per file here with some MPI gathering
     src
     # TODO: Delete all other part* files for this value if others exist
 end
 
-CopyFromJuliaArray(src, params, batch_idx, nbatches, comm, loc_name, loc_params) = begin
+CopyFromJuliaArray(src, params::Dict{String,Any}, batch_idx::Int64, nbatches::Int64, comm::MPI.Comm, loc_name::String, loc_params::Dict{String,Any}) = begin
     params["key"] = 1
     ReadBlockJuliaArray(src, params, 1, 1, MPI.COMM_SELF, loc_name, loc_params)
 end
@@ -291,12 +303,12 @@ end
 function CopyToJuliaArray(
     src,
     part,
-    params,
+    params::Dict{String,Any},
     batch_idx::Int64,
     nbatches::Int64,
     comm::MPI.Comm,
-    loc_name,
-    loc_params,
+    loc_name::String,
+    loc_params::Dict{String,Any},
 )
     if Banyan.get_partition_idx(batch_idx, nbatches, comm) == 1
         params["key"] = 1
@@ -319,7 +331,7 @@ function Banyan.SplitBlock(
     @show size(src) typeof(src)
     res = Banyan.split_on_executor(
         src,
-        params["key"],
+        params["key"]::Int64,
         batch_idx,
         nbatches,
         comm,
@@ -330,13 +342,13 @@ end
 
 function Banyan.SplitGroup(
     src::AbstractArray,
-    params,
+    params::Dict{String,Any},
     batch_idx::Int64,
     nbatches::Int64,
     comm::MPI.Comm,
-    loc_name,
-    loc_params;
-    store_splitting_divisions = false
+    loc_name::String,
+    loc_params::Dict{String,Any};
+    store_splitting_divisions::Bool = false
 )
 
     partition_idx = Banyan.get_partition_idx(batch_idx, nbatches, comm)
@@ -378,11 +390,11 @@ function Banyan.SplitGroup(
     # Apply divisions to get only the elements relevant to this worker
     res = if ndims(src) > 1
         cat(
-            [
+            (
                 slice
                 for slice in eachslice(src, dims = key)
                 if partition_idx_getter(slice) == partition_idx
-            ]...;
+            )...;
             dims = key,
         )
     else
@@ -417,15 +429,15 @@ end
 de(x) = deserialize(IOBuffer(x))
 
 function Banyan.Rebalance(
-    part::AbstractArray,
+    part::Union{AbstractArray,Empty},
     src_params::Dict{String,Any},
     dst_params::Dict{String,Any},
     comm::MPI.Comm
 )
     # Get the range owned by this worker
-    dim = dst_params["key"]
+    dim::Int64 = dst_params["key"]
     worker_idx, nworkers = Banyan.get_worker_idx(comm), Banyan.get_nworkers(comm)
-    len = size(part, dim)
+    len = part isa Empty ? 0 : size(part, dim)
     scannedstartidx = MPI.Exscan(len, +, comm)
     startidx = worker_idx == 1 ? 1 : scannedstartidx + 1
     endidx = startidx + len - 1
@@ -457,23 +469,25 @@ function Banyan.Rebalance(
             max(startidx, partitionrange.start) <= min(endidx, partitionrange.stop)
 
         # If they do overlap, then serialize the overlapping slice
-        serialize(
-            io,
-            view(
-                part,
-                Base.fill(Colon(), dim - 1)...,
-                if rangesoverlap
-                    max(1, partitionrange.start - startidx + 1):min(
-                        size(part, dim),
-                        partitionrange.stop - startidx + 1,
-                    )
-                else
-                    # Return zero length for this dimension
-                    1:0
-                end,
-                Base.fill(Colon(), ndims(part) - dim)...,
-            ),
-        )
+        if !(part isa Empty)
+            serialize(
+                io,
+                view(
+                    part,
+                    Base.fill(Colon(), dim - 1)...,
+                    if rangesoverlap
+                        max(1, partitionrange.start - startidx + 1):min(
+                            size(part, dim),
+                            partitionrange.stop - startidx + 1,
+                        )
+                    else
+                        # Return zero length for this dimension
+                        1:0
+                    end,
+                    Base.fill(Colon(), ndims(part) - dim)...,
+                ),
+            )
+        end
 
         # Add the count of the size of this chunk in bytes
         push!(counts, io.size - nbyteswritten)
@@ -492,50 +506,73 @@ function Banyan.Rebalance(
     MPI.Alltoallv!(sendbuf, recvbuf, comm)
 
     # Return the concatenated array
-    res = merge_on_executor(
-        map(
-            (displ, count) -> convert(Base.Array, de(view(recvbuf.data, displ+1:displ+count))),
-            zip(recvbuf.displs, recvbuf.counts)
-        );
-        key = dim,
+    displs_and_counts = filter(
+        (displ, count) -> count > 0,
+        zip(recvbuf.displs, recvbuf.counts)
     )
-    res
+    if isempty(displs_and_counts)
+        # This case means that all the workers have Empty data
+        if worker_idx == 1
+            @warn "Rebalanced `Empty` data with unknown type; this could result from a call to `mapslices` or `reduce` for example."
+        end
+        Any[]
+    else
+        res = merge_on_executor(
+            map(
+                (displ, count) -> convert(Base.Array, de(view(recvbuf.data, displ+1:displ+count))),
+                displs_and_counts
+            );
+            key = dim,
+        )
+        res
+    end
 end
 
-function Banyan.Consolidate(part::AbstractArray, src_params::Dict{String,Any}, dst_params::Dict{String,Any}, comm::MPI.Comm)
+function Banyan.Consolidate(part::Union{AbstractArray,Empty}, src_params::Dict{String,Any}, dst_params::Dict{String,Any}, comm::MPI.Comm)
     io = IOBuffer()
-    serialize(io, part)
+    if !(part isa Empty)
+        serialize(io, part)
+    end
     sendbuf = MPI.Buffer(view(io.data, 1:io.size))
     recvvbuf = Banyan.buftovbuf(sendbuf, comm)
     # TODO: Maybe sometimes use gatherv if all sendbuf's are known to be equally sized
 
     MPI.Allgatherv!(sendbuf, recvvbuf, comm)
-    merge_on_executor(
-        [
-            begin
-                chunk = view(recvvbuf.data, (recvvbuf.displs[i]+1):(recvvbuf.displs[i]+recvvbuf.counts[i]))
-                convert(Base.Array, deserialize(IOBuffer(chunk)))
-            end
-            for i in 1:Banyan.get_nworkers(comm)
-        ];
-        key = src_params["key"],
+    displs_and_counts = filter(
+        (displ, count) -> count > 0,
+        zip(recvbuf.displs, recvbuf.counts)
     )
+    if isempty(displs_and_counts)
+        # This case means that all the workers have Empty data
+        if worker_idx == 1
+            @warn "Consolidated `Empty` data with unknown type; this could result from a call to `mapslices` or `reduce` for example."
+        end
+        Any[]
+    else
+        merge_on_executor(
+            map(
+                (displ, count) -> convert(Base.Array, de(view(recvbuf.data, displ+1:displ+count))),
+                displs_and_counts
+            );
+            key = src_params["key"],
+        )
+    end
 end
 
 function Banyan.Shuffle(
-    part::AbstractArray,
+    part::Union{AbstractArray,Empty},
     src_params::Dict{String,Any},
     dst_params::Dict{String,Any},
     comm::MPI.Comm;
-    boundedlower = false,
-    boundedupper = false,
-    store_splitting_divisions = true
+    boundedlower::Bool = false,
+    boundedupper::Bool = false,
+    store_splitting_divisions::Bool = true
 )
     # We don't have to worry about grouped data frames since they are always
     # block-partitioned.
 
     # Get the divisions to apply
-    key = dst_params["key"]
+    key::Int64 = dst_params["key"]
     rev::Bool = get(dst_params, "rev", false)
     worker_idx, nworkers = Banyan.get_worker_idx(comm), Banyan.get_nworkers(comm)
     divisions_by_worker = if haskey(dst_params, "divisions_by_worker")
@@ -558,17 +595,19 @@ function Banyan.Shuffle(
         # Group the data along the splitting axis (specified by the "key"
         # parameter)
         multidimensional = ndims(part) > 1
-        if multidimensional
-            partition_idx_to_e = Any[Any[] for partition_idx = 1:nworkers]
-            for e in eachslice(part, dims = key)
-                partition_idx = partition_idx_getter(e)
-                if partition_idx != -1
-                    push!(partition_idx_to_e[partition_idx], e)
+        if !(part isa Empty)
+            if multidimensional
+                partition_idx_to_e = Any[Any[] for partition_idx = 1:nworkers]
+                for e in eachslice(part, dims = key)
+                    partition_idx = partition_idx_getter(e)
+                    if partition_idx != -1
+                        push!(partition_idx_to_e[partition_idx], e)
+                    end
                 end
+            else
+                part_sortperm = sortperm(part, by=partition_idx_getter)
+                part_sortperm_idx = 1
             end
-        else
-            part_sortperm = sortperm(part, by=partition_idx_getter)
-            part_sortperm_idx = 1
         end
 
         # Construct buffer for sending data
@@ -576,37 +615,39 @@ function Banyan.Shuffle(
         nbyteswritten = 0
         a_counts::Base.Vector{Int64} = []
         for partition_idx = 1:nworkers
-            if multidimensional
-                # TODO: If `isbitstype(eltype(e))`, we may want to pass it in
-                # directly as an MPI buffer (if there is such a thing) instead of
-                # serializing
-                # Append to serialized buffer
-                e = partition_idx_to_e[partition_idx]
-                # NOTE: We ensure that we serialize something (even if its an
-                # empty array) for each partition to ensure that we can
-                # deserialize each item
-                dim_selector::Vector{Union{UnitRange{Int64},Colon}} = []
-                for d = 1:ndims(part)
-                    if d == key
-                        push!(dim_selector, 1:0)
-                    else
-                        push!(dim_selector, Colon())
+            if !(part isa Empty)
+                if multidimensional
+                    # TODO: If `isbitstype(eltype(e))`, we may want to pass it in
+                    # directly as an MPI buffer (if there is such a thing) instead of
+                    # serializing
+                    # Append to serialized buffer
+                    e = partition_idx_to_e[partition_idx]
+                    # NOTE: We ensure that we serialize something (even if its an
+                    # empty array) for each partition to ensure that we can
+                    # deserialize each item
+                    dim_selector::Vector{Union{UnitRange{Int64},Colon}} = []
+                    for d = 1:ndims(part)
+                        if d == key
+                            push!(dim_selector, 1:0)
+                        else
+                            push!(dim_selector, Colon())
+                        end
                     end
+                    serialize(
+                        io,
+                        if !isempty(e)
+                            cat(e...; dims = key)
+                        else
+                            view(part, dim_selector...)
+                        end,
+                    )
+                else
+                    next_part_sortperm_idx = part_sortperm_idx
+                    while partition_idx_getter(part_sortperm[part_sortperm_idx]) == partition_idx
+                        next_part_sortperm_idx += 1
+                    end
+                    serialize(io, part[@view part_sortperm[part_sortperm_idx:next_part_sortperm_idx-1]])
                 end
-                serialize(
-                    io,
-                    if !isempty(e)
-                        cat(e...; dims = key)
-                    else
-                        view(part, dim_selector...)
-                    end,
-                )
-            else
-                next_part_sortperm_idx = part_sortperm_idx
-                while partition_idx_getter(part_sortperm[part_sortperm_idx]) == partition_idx
-                    next_part_sortperm_idx += 1
-                end
-                serialize(io, part[@view part_sortperm[part_sortperm_idx:next_part_sortperm_idx-1]])
             end
 
             # Add the count of the size of this chunk in bytes
@@ -625,16 +666,23 @@ function Banyan.Shuffle(
         MPI.Alltoallv!(sendbuf, recvbuf, comm)
 
         # Return the concatenated array
-        things_to_concatenate = [
-            convert(Base.Array, deserialize(IOBuffer(view(recvbuf.data, displ+1:displ+count)))) for
-            (displ, count) in zip(recvbuf.displs, recvbuf.counts)
-        ]
-        if length(things_to_concatenate) == 1
-            things_to_concatenate[1]
+        displs_and_counts = filter(
+            (displ, count) -> count > 0,
+            zip(recvbuf.displs, recvbuf.counts)
+        )
+        if isempty(displs_and_counts)
+            # This case means that all the workers have Empty data
+            if worker_idx == 1
+                @warn "Shuffled `Empty` data with unknown type; this could result from a call to `mapslices` or `reduce` for example."
+            end
+            Any[]
         else
-            cat(
-                things_to_concatenate...;
-                dims = key,
+            merge_on_executor(
+                map(
+                    (displ, count) -> convert(Base.Array, de(view(recvbuf.data, displ+1:displ+count))),
+                    displs_and_counts
+                );
+                key = src_params["key"],
             )
         end
     end

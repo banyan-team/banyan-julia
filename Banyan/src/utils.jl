@@ -580,3 +580,28 @@ function get_branch_name()
     branchname = LibGit2.shortname(phead)
     branchname
 end
+
+struct Empty end
+const EMPTY = Empty()
+nonemptytype(::Type{T}) where {T} = typesplit(T, Empty)
+disallowempty(x::AbstractArray{T}) where {T} = convert(AbstractArray{nonemptytype(T)}, x)
+function empty_handler(op)
+    (a, b) -> if a isa Empty
+        b
+    elseif b isa Empty
+        a
+    else
+        op(a, b)
+    end
+end
+
+reduce_sizes_and_eltypes(a, b) =
+    begin
+        if a[1] isa Empty
+            b
+        elseif b[1] isa Empty
+            a
+        else
+            (a[1] .+ b[1], a[2])
+        end
+    end

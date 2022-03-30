@@ -10,12 +10,12 @@
 
 ReturnNull(
     src,
-    params,
+    params::Dict{String,Any},
     batch_idx::Int64,
     nbatches::Int64,
     comm::MPI.Comm,
-    loc_name,
-    loc_params,
+    loc_name::String,
+    loc_params::Dict{String,Any},
 ) = nothing
 
 ReturnNull(
@@ -35,9 +35,10 @@ end
 format_available_memory() =
     format_bytes(Sys.free_memory()) * " / " * format_bytes(Sys.total_memory())
 
-function sortablestring(val, maxval)
-    s = string(val)
-    maxs = string(maxval)
+sortablestring(val, maxval) = sortablestring(string(val), string(maxval))
+function _sortablestring(val::String, maxval::String)
+    s = val
+    maxs = maxval
     res = Base.fill('0', length(maxs))
     res[length(res)-length(s)+1:length(res)] .= Base.collect(s)
     join(res)
@@ -53,12 +54,12 @@ end
 ReadGroup(ReadBlock) = begin
     function ReadGroup(
         src,
-        params,
+        params::Dict{String,Any},
         batch_idx::Int64,
         nbatches::Int64,
         comm::MPI.Comm,
-        loc_name,
-        loc_params,
+        loc_name::String,
+        loc_params::Dict{String,Any},
     )
         # TODO: Store filters in parameters of the PT and use them to do
         # partition pruning, avoiding reads that are unnecessary
@@ -143,26 +144,30 @@ ReadGroup(ReadBlock) = begin
                 boundedupper = !hasdivision || batch_idx != lastbatchidx,
                 store_splitting_divisions = false
             )
-            if i == 1
-                parts = typeof(part)[part]
-            else
-                push!(parts, part)
+            if !(part isa Empty)
+                if isempty(parts)
+                    parts = typeof(part)[part]
+                else
+                    push!(parts, part)
+                end
             end
             delete!(params, "divisions_by_worker")
         end
 
         # Concatenate together the data for this partition
-        res = merge_on_executor(parts; key = key)
+        res = isempty(parts) ? EMPTY : merge_on_executor(parts; key = key)
 
         # If there are no divisions for any of the partitions, then they are all
         # bounded. For a partition to be unbounded on one side, there must be a
         # division(s) for that partition.
 
         # Store divisions
-        splitting_divisions = get_splitting_divisions()
-        partition_idx = get_partition_idx(batch_idx, nbatches, comm)
-        splitting_divisions[res] =
-            (Banyan.to_jl_value_contents(partition_divisions[partition_idx]), !hasdivision || partition_idx != firstdivisionidx, !hasdivision || partition_idx != lastdivisionidx)
+        if !(res isa Empty)
+            splitting_divisions = get_splitting_divisions()
+            partition_idx = get_partition_idx(batch_idx, nbatches, comm)
+            splitting_divisions[res] =
+                (Banyan.to_jl_value_contents(partition_divisions[partition_idx]), !hasdivision || partition_idx != firstdivisionidx, !hasdivision || partition_idx != lastdivisionidx)
+        end
 
         println("In ReadGroup with typeof(res)=$(typeof(res)) and typeof(parts)=$(typeof(parts))")
         res
@@ -197,6 +202,16 @@ SplitBlock(
     loc_params::Dict{String,Any},
 ) = nothing
 
+SplitBlock(
+    src::Empty,
+    params::Dict{String,Any},
+    batch_idx::Int64,
+    nbatches::Int64,
+    comm::MPI.Comm,
+    loc_name::String,
+    loc_params::Dict{String,Any},
+) = EMPTY
+
 # NOTE: The way we have `partial_merges` requires us to be splitting from
 # `nothing` and then merging back. If we are splitting from some value and
 # then expecting to merge back in some way then that won't work. If we are
@@ -221,6 +236,16 @@ SplitGroup(
     loc_params;
     store_splitting_divisions = false
 ) = nothing
+
+SplitGroup(
+    src::Empty,
+    params::Dict{String,Any},
+    batch_idx::Int64,
+    nbatches::Int64,
+    comm::MPI.Comm,
+    loc_name::String,
+    loc_params::Dict{String,Any},
+) = EMPTY
 
 Consolidate(part::Any, src_params::Dict{String,Any}, dst_params::Dict{String,Any}, comm::MPI.Comm) =
     error("Consolidating $(typeof(part)) not supported")
@@ -253,7 +278,8 @@ function Merge(
         part = Base.convert(Base.Array, part)
     end
     if batch_idx == 1
-        src = PartiallyMerged(Vector{Union{Missing,typeof(part)}}(undef, nbatches))
+        P = typeof(part)
+        src = PartiallyMerged{P}(Vector{Union{Empty,P}}(undef, nbatches))
     else
         # Convert the type if needed
         PMT = eltype(src.pieces)
@@ -268,8 +294,8 @@ function Merge(
 
         # Concatenate across batches
         @show typeof(src.pieces)
-        to_merge = Missings.disallowmissing(filter(piece -> !ismissing(piece), src.pieces))
-        src = isempty(to_merge) ? error("Result of merging is empty") : merge_on_executor(to_merge; key = key)
+        to_merge = disallowempty(filter(piece -> !isempty(piece), src.pieces))
+        src = isempty(to_merge) ? EMPTY : merge_on_executor(to_merge; key = key)
         # src = merge_on_executor(src.pieces; key = key)
         # TODO: Handle case where everything merges to become empty and also ensure WriteHDF5 is correct
 
@@ -286,7 +312,7 @@ function Merge(
 end
 
 Merge(
-    src::Any,
+    src,
     part::Any,
     params::Dict{String,Any},
     batch_idx::Int64,
@@ -415,7 +441,8 @@ function get_op!(params::Dict{String,Any})
     op
 end
 
-reduce_in_memory(src::Nothing, part::T, op::Function) where {T} = part
+reduce_in_memory(src::Union{Nothing,Empty}, part::T, op::Function) where {T} = part
+reduce_in_memory(src, part::Empty, op::Function) = src
 reduce_in_memory(src, part::T, op::Function) where {T} = op(src, part)
 
 function ReduceAndCopyToJulia(
@@ -549,7 +576,7 @@ function Reduce(
     comm::MPI.Comm
 ) where {T}
     # Get operator for reduction
-    op = get_op!(src_params)
+    op = empty_handler(get_op!(src_params))
 
     # TODO: Handle case where different processes have differently sized
     # sendbuf and where sendbuf is not isbitstype

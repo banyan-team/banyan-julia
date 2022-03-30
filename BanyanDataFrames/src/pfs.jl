@@ -1,22 +1,22 @@
 ReturnNullGrouping(
     src,
-    params,
+    params::Dict{String,Any},
     batch_idx::Int64,
     nbatches::Int64,
     comm::MPI.Comm,
-    loc_name,
-    loc_params,
+    loc_name::String,
+    loc_params::Dict{String,Any},
 ) = nothing
 
 ReturnNullGrouping(
     src,
     part,
-    params,
+    params::Dict{String,Any},
     batch_idx::Int64,
     nbatches::Int64,
     comm::MPI.Comm,
-    loc_name,
-    loc_params,
+    loc_name::String,
+    loc_params::Dict{String,Any},
 ) = begin
     src = nothing
     src
@@ -65,17 +65,17 @@ ReadBlockCSV, ReadBlockParquet, ReadBlockArrow = [
     begin
         function ReadBlock(
             src,
-            params,
+            params::Dict{String,Any},
             batch_idx::Int64,
             nbatches::Int64,
             comm::MPI.Comm,
-            loc_name,
-            loc_params,
+            loc_name::String,
+            loc_params::Dict{String,Any},
         )::DataFrames.DataFrame
             # TODO: Implement a Read for balanced=false where we can avoid duplicate
             # reading of the same range in different reads
 
-            path = Banyan.getpath(loc_params["path"], comm)
+            path = Banyan.getpath(loc_params["path"]::String, comm)
 
             if isinvestigating()[:losing_data]
                 println("In ReadBlock with path=$path, loc_params=$params")
@@ -89,7 +89,7 @@ ReadBlockCSV, ReadBlockParquet, ReadBlockArrow = [
                 # TODO: Only collect files and nrows info for this location associated
                 # with a unique name corresponding to the value ID - only if this is
                 # the first batch or loop iteration.
-                name = loc_params["path"]
+                name = loc_params["path"]::String
                 name_path = path
                 # TODO: isdir might not work for S3FS
                 if isdir(name_path)
@@ -123,18 +123,18 @@ ReadBlockCSV, ReadBlockParquet, ReadBlockArrow = [
 
             # Iterate through files and identify which ones correspond to the range of
             # rows for the batch currently being processed by this worker
-            nrows = loc_params["nrows"]
+            nrows::Int64 = loc_params["nrows"]
             rowrange = Banyan.split_len(nrows, batch_idx, nbatches, comm)
             dfs::Base.Vector{DataFrames.DataFrame} = DataFrames.DataFrame[]
             rowsscanned = 0
-            for file in sort(loc_params["files"], by = filedict -> filedict["path"])
-                newrowsscanned = rowsscanned + file["nrows"]
+            for file in sort(loc_params["files"]::Vector{Dict{String,Any}}, by = filedict -> filedict["path"]::String)
+                newrowsscanned = rowsscanned + file["nrows"]::Int64
                 filerowrange = (rowsscanned+1):newrowsscanned
                 # Check if the file corresponds to the range of rows for the batch
                 # currently being processed by this worker
                 if Banyan.isoverlapping(filerowrange, rowrange)
                     # Deterine path to read from
-                    file_path = file["path"]
+                    file_path = file["path"]::String
                     path = Banyan.getpath(file_path, comm)
 
                     # Read from location depending on data format
@@ -219,17 +219,22 @@ write_arrow_file(part, path, sortableidx, nrows) = Arrow.write(
     part
 )
 
+# We currently don't expect to ever have Empty dataframes. We only expect Empty arrays
+# and values resulting from mapslices or reduce. If we do have Empty dataframes arising
+# that can't just be empty `DataFrame()`, then we will modify functions in this file to
+# support Empty inputs.
+
 WriteParquet, WriteCSV, WriteArrow = [
     begin
         function Write(
             src,
             part,
-            params,
+            params::Dict{String,Any},
             batch_idx::Int64,
             nbatches::Int64,
             comm::MPI.Comm,
-            loc_name,
-            loc_params,
+            loc_name::String,
+            loc_params::Dict{String,Any},
         )
             # Get rid of splitting divisions if they were used to split this data into
             # groups
@@ -237,7 +242,7 @@ WriteParquet, WriteCSV, WriteArrow = [
             delete!(splitting_divisions, part)
 
             # Get path of directory to write to
-            path = loc_params["path"]
+            path::String = loc_params["path"]
             if startswith(path, "http://") || startswith(path, "https://")
                 error("Writing to http(s):// is not supported")
             elseif startswith(path, "s3://")
@@ -357,12 +362,12 @@ end
 function CopyToCSV(
     src,
     part,
-    params,
+    params::Dict{String,Any},
     batch_idx::Int64,
     nbatches::Int64,
     comm::MPI.Comm,
-    loc_name,
-    loc_params,
+    loc_name::String,
+    loc_params::Dict{String,Any},
 )
     if Banyan.get_partition_idx(batch_idx, nbatches, comm) == 1
         params["key"] = 1
@@ -376,12 +381,12 @@ end
 function CopyToParquet(
     src,
     part,
-    params,
+    params::Dict{String,Any},
     batch_idx::Int64,
     nbatches::Int64,
     comm::MPI.Comm,
-    loc_name,
-    loc_params,
+    loc_name::String,
+    loc_params::Dict{String,Any},
 )
     if Banyan.get_partition_idx(batch_idx, nbatches, comm) == 1
         params["key"] = 1
@@ -395,12 +400,12 @@ end
 function CopyToArrow(
     src,
     part,
-    params,
+    params::Dict{String,Any},
     batch_idx::Int64,
     nbatches::Int64,
     comm::MPI.Comm,
-    loc_name,
-    loc_params,
+    loc_name::String,
+    loc_params::Dict{String,Any},
 )
     if Banyan.get_partition_idx(batch_idx, nbatches, comm) == 1
         params["key"] = 1
@@ -435,9 +440,9 @@ function Banyan.SplitGroup(
     batch_idx::Int64,
     nbatches::Int64,
     comm::MPI.Comm,
-    loc_name,
-    loc_params;
-    store_splitting_divisions = false
+    loc_name::String,
+    loc_params::Dict{String,Any};
+    store_splitting_divisions::Bool = false
 )
 
     partition_idx = Banyan.get_partition_idx(batch_idx, nbatches, comm)
@@ -645,9 +650,9 @@ function Banyan.Shuffle(
     src_params::Dict{String,Any},
     dst_params::Dict{String,Any},
     comm::MPI.Comm;
-    boundedlower = false,
-    boundedupper = false,
-    store_splitting_divisions = true
+    boundedlower::Bool = false,
+    boundedupper::Bool = false,
+    store_splitting_divisions::Bool = true
 )::DataFrames.DataFrame
     # We don't have to worry about grouped data frames since they are always
     # block-partitioned.

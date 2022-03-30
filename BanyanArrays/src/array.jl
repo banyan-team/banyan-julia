@@ -462,8 +462,8 @@ function Base.mapslices(f, A::Array{T,N}; dims) where {T,N}
     @partitioned f A dims res res_size begin
         # We return nothing because `mapslices` doesn't work properly for
         # empty data
-        res = isempty(A) ? missing : Base.mapslices(f, A, dims=dims)
-        res_size = isempty(A) ? missing : Base.size(res)
+        res = isempty(A) ? EMPTY : Base.mapslices(f, A, dims=dims)
+        res_size = isempty(A) ? EMPTY : Base.size(res)
     end
 
     res_sample = sample(res)
@@ -608,9 +608,14 @@ function Base.reduce(op, A::Array{T,N}; dims=:, kwargs...) where {T,N}
             # @show size(A)
             # @show dims # TODO: Figure out why dims is sometimes a function
         end
-        res = Base.reduce(op, A; dims=dims, kwargs...)
-        if res isa AbstractArray
-            res_size = Base.size(res)
+        if isempty(A)
+            res = EMPTY
+            res_size = EMPTY
+        else
+            res = Base.reduce(op, A; dims=dims, kwargs...)
+            if res isa AbstractArray
+                res_size = Base.size(res)
+            end
         end
     end
 

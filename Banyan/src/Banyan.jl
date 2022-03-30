@@ -173,6 +173,15 @@ export is_debug_on,
     PartiallyMerged,
     isinvestigating
 
+# Utilities for handling empty case
+export
+    Empty,
+    EMPTY,
+    nonemptytype,
+    disallowempty,
+    empty_handler,
+    reduce_sizes_and_eltypes
+
 # Partitioning functions for usage in sessions that run on the cluster; dispatched
 # based on `res/pf_dispatch_table.json`.
 export ReturnNull,
