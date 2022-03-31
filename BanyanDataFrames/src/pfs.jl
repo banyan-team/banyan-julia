@@ -205,16 +205,16 @@ ReadGroupCSV, ReadGroupParquet, ReadGroupArrow = [
     for ReadBlock in [ReadBlockCSV, ReadBlockParquet, ReadBlockArrow]
 ]
 
-write_parquet_file(part, path, sortableidx, nrows) = if nrows > 0
+write_parquet_file(part::DataFrames.DataFrame, path, sortableidx, nrows) = if nrows > 0
     Parquet.write_parquet(joinpath(path, "part$sortableidx" * "_nrows=$nrows.parquet"), part)
 end
 
-write_csv_file(part, path, sortableidx, nrows) = CSV.write(
+write_csv_file(part::DataFrames.DataFrame, path, sortableidx, nrows) = CSV.write(
     joinpath(path, "part$sortableidx" * "_nrows=$nrows.csv"),
     part
 )
 
-write_arrow_file(part, path, sortableidx, nrows) = Arrow.write(
+write_arrow_file(part::DataFrames.DataFrame, path, sortableidx, nrows) = Arrow.write(
     joinpath(path, "part$sortableidx" * "_nrows=$nrows.arrow"),
     part
 )
@@ -228,7 +228,7 @@ WriteParquet, WriteCSV, WriteArrow = [
     begin
         function Write(
             src,
-            part,
+            part::Union{DataFrames.AbstractDataFrame,Empty},
             params::Dict{String,Any},
             batch_idx::Int64,
             nbatches::Int64,
@@ -309,9 +309,11 @@ WriteParquet, WriteCSV, WriteArrow = [
             end
             MPI.Barrier(comm)
 
-            nrows = size(part, 1)
+            nrows = part isa Empty ? 0 : size(part, 1)
             sortableidx = Banyan.sortablestring(idx, get_npartitions(nbatches, comm))
-            write_file(part, path, sortableidx, nrows)
+            if !(part isa Empty)
+                write_file(convert(DataFrames.DataFrame, part), path, sortableidx, nrows)
+            end
             MPI.Barrier(comm)
             if nbatches > 1 && batch_idx == nbatches
                 tmpdir = readdir(path)
@@ -344,24 +346,51 @@ WriteParquet, WriteCSV, WriteArrow = [
     for write_file in [write_parquet_file, write_csv_file, write_arrow_file]
 ]
 
-CopyFromArrow(src, params, batch_idx, nbatches, comm, loc_name, loc_params) = begin
+CopyFromArrow(
+    src,
+    part::Union{DataFrames.AbstractDataFrame,Empty},
+    params::Dict{String,Any},
+    batch_idx::Int64,
+    nbatches::Int64,
+    comm::MPI.Comm,
+    loc_name::String,
+    loc_params::Dict{String,Any},
+) = begin
     params["key"] = 1
     ReadBlockArrow(src, params, 1, 1, MPI.COMM_SELF, loc_name, loc_params)
 end
 
-CopyFromCSV(src, params, batch_idx, nbatches, comm, loc_name, loc_params) = begin
+CopyFromCSV(
+    src,
+    part::Union{DataFrames.AbstractDataFrame,Empty},
+    params::Dict{String,Any},
+    batch_idx::Int64,
+    nbatches::Int64,
+    comm::MPI.Comm,
+    loc_name::String,
+    loc_params::Dict{String,Any},
+) = begin
     params["key"] = 1
     ReadBlockCSV(src, params, 1, 1, MPI.COMM_SELF, loc_name, loc_params)
 end
 
-CopyFromParquet(src, params, batch_idx, nbatches, comm, loc_name, loc_params) = begin
+CopyFromParquet(
+    src,
+    part::Union{DataFrames.AbstractDataFrame,Empty},
+    params::Dict{String,Any},
+    batch_idx::Int64,
+    nbatches::Int64,
+    comm::MPI.Comm,
+    loc_name::String,
+    loc_params::Dict{String,Any},
+) = begin
     params["key"] = 1
     ReadBlockParquet(src, params, 1, 1, MPI.COMM_SELF, loc_name, loc_params)
 end
 
 function CopyToCSV(
     src,
-    part,
+    part::Union{DataFrames.AbstractDataFrame,Empty},
     params::Dict{String,Any},
     batch_idx::Int64,
     nbatches::Int64,
@@ -380,7 +409,7 @@ end
 
 function CopyToParquet(
     src,
-    part,
+    part::Union{DataFrames.AbstractDataFrame,Empty},
     params::Dict{String,Any},
     batch_idx::Int64,
     nbatches::Int64,
@@ -399,7 +428,7 @@ end
 
 function CopyToArrow(
     src,
-    part,
+    part::Union{DataFrames.AbstractDataFrame,Empty},
     params::Dict{String,Any},
     batch_idx::Int64,
     nbatches::Int64,
@@ -417,14 +446,14 @@ function CopyToArrow(
 end
 
 function Banyan.SplitBlock(
-    src::T,
+    src::DataFrames.AbstractDataFrame,
     params::Dict{String,Any},
     batch_idx::Int64,
     nbatches::Int64,
     comm::MPI.Comm,
     loc_name::String,
     loc_params::Dict{String,Any},
-) where {T}
+)
     Banyan.split_on_executor(
         src,
         1,
@@ -523,6 +552,42 @@ Banyan.Rebalance(
 
 de(x) = DataFrames.DataFrame(Arrow.Table(IOBuffer(x)))
 
+Banyan.Rebalance(
+    part::Empty,
+    src_params::Dict{String,Any},
+    dst_params::Dict{String,Any},
+    comm::MPI.Comm
+) = Banyan.Rebalance(
+    DataFrames.DataFrame(),
+    src_params,
+    dst_params,
+    comm
+)
+
+Banyan.Consolidate(
+    part::Empty,
+    src_params::Dict{String,Any},
+    dst_params::Dict{String,Any},
+    comm::MPI.Comm
+) = Banyan.Consolidate(
+    DataFrames.DataFrame(),
+    src_params,
+    dst_params,
+    comm
+)
+
+Banyan.Shuffle(
+    part::Empty,
+    src_params::Dict{String,Any},
+    dst_params::Dict{String,Any},
+    comm::MPI.Comm
+) = Banyan.Shuffle(
+    DataFrames.DataFrame(),
+    src_params,
+    dst_params,
+    comm
+)
+
 function Banyan.Rebalance(
     part::DataFrames.DataFrame,
     src_params::Dict{String,Any},
@@ -613,7 +678,7 @@ end
 # nothing.
 Banyan.Consolidate(part::Union{Nothing, DataFrames.GroupedDataFrame}, src_params::Dict{String,Any}, dst_params::Dict{String,Any}, comm::MPI.Comm) = nothing
 
-function Banyan.Consolidate(part::DataFrames.AbstractDataFrame, src_params::Dict{String,Any}, dst_params::Dict{String,Any}, comm::MPI.Comm)
+function Banyan.Consolidate(part::DataFrames.DataFrame, src_params::Dict{String,Any}, dst_params::Dict{String,Any}, comm::MPI.Comm)
     io = IOBuffer()
     Arrow.write(io, part)
     sendbuf = MPI.Buffer(view(io.data, 1:io.size))
@@ -621,23 +686,23 @@ function Banyan.Consolidate(part::DataFrames.AbstractDataFrame, src_params::Dict
     # TODO: Maybe sometimes use gatherv if all sendbuf's are known to be equally sized
 
     MPI.Allgatherv!(sendbuf, recvvbuf, comm)
-    results = [
-        view(
-            recvvbuf.data,
-            (recvvbuf.displs[i]+1):(recvvbuf.displs[i]+recvvbuf.counts[i])
-        ) |> IOBuffer |> Arrow.Table |> DataFrames.DataFrame
-        for i in 1:Banyan.get_nworkers(comm)
-    ]
     if isinvestigating()[:losing_data]
+        results = [
+            de(view(
+                recvvbuf.data,
+                (recvvbuf.displs[i]+1):(recvvbuf.displs[i]+recvvbuf.counts[i])
+            ))
+            for i in 1:Banyan.get_nworkers(comm)
+        ]
         @show length(results)
         @show nrow.(results)
     end
     res = merge_on_executor(
         [
-            view(
+            de(view(
                 recvvbuf.data,
                 (recvvbuf.displs[i]+1):(recvvbuf.displs[i]+recvvbuf.counts[i])
-            ) |> IOBuffer |> Arrow.Table |> DataFrames.DataFrame
+            ))
             for i in 1:Banyan.get_nworkers(comm)
         ];
         key = 1

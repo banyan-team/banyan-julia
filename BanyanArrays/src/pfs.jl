@@ -524,7 +524,7 @@ function Banyan.Rebalance(
     if isempty(displs_and_counts)
         # This case means that all the workers have Empty data
         if worker_idx == 1
-            @warn "Rebalanced `Empty` data with unknown type; this could result from a call to `mapslices` or `reduce` for example."
+            @warn "Rebalanced `Empty` array with unknown type; this could result from a call to `mapslices` or `reduce` for example."
         end
         Any[]
     else
@@ -556,7 +556,7 @@ function Banyan.Consolidate(part::Union{AbstractArray,Empty}, src_params::Dict{S
     if isempty(displs_and_counts)
         # This case means that all the workers have Empty data
         if worker_idx == 1
-            @warn "Consolidated `Empty` data with unknown type; this could result from a call to `mapslices` or `reduce` for example."
+            @warn "Consolidated `Empty` array with unknown type; this could result from a call to `mapslices` or `reduce` for example."
         end
         Any[]
     else
@@ -687,7 +687,7 @@ function Banyan.Shuffle(
         if isempty(displs_and_counts)
             # This case means that all the workers have Empty data
             if worker_idx == 1
-                @warn "Shuffled `Empty` data with unknown type; this could result from a call to `mapslices` or `reduce` for example."
+                @warn "Shuffled `Empty` array with unknown type; this could result from a call to `mapslices` or `reduce` for example."
             end
             Any[]
         else
