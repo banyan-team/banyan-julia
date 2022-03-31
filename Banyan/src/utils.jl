@@ -583,7 +583,7 @@ end
 
 struct Empty end
 const EMPTY = Empty()
-nonemptytype(::Type{T}) where {T} = typesplit(T, Empty)
+nonemptytype(::Type{T}) where {T} = Base.typesplit(T, Empty)
 disallowempty(x::AbstractArray{T}) where {T} = convert(AbstractArray{nonemptytype(T)}, x)
 function empty_handler(op)
     (a, b) -> if a isa Empty
