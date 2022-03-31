@@ -189,7 +189,7 @@ function rmdir_on_nfs(actualpath)
 end
 
 mutable struct PartiallyMerged{T}
-    pieces::Vector{Union{Missing,T}}
+    pieces::Vector{Union{Empty,T}}
 end
 
 SplitBlock(
