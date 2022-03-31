@@ -35,7 +35,7 @@ end
 format_available_memory() =
     format_bytes(Sys.free_memory()) * " / " * format_bytes(Sys.total_memory())
 
-sortablestring(val, maxval) = sortablestring(string(val), string(maxval))
+sortablestring(val, maxval) = _sortablestring(string(val), string(maxval))
 function _sortablestring(val::String, maxval::String)
     s = val
     maxs = maxval
