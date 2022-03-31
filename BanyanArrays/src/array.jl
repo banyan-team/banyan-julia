@@ -524,7 +524,7 @@ function Base.getindex(A::Array{T,N}, indices...) where {T,N}
 
     partitioned_with(scaled=[A, res]) do
         # Blocked PTs along dimensions _not_ being mapped along
-        bpt = Int64[bpt for bpt in Blocked(A) if (bpt.key)::Int64 in allowed_splitting_dims]
+        bpt = PartitionType[bpt for bpt in Blocked(A) if (bpt.key)::Int64 in allowed_splitting_dims]
 
         if !isempty(bpt)
             # balanced

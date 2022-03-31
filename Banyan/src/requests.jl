@@ -627,7 +627,7 @@ function offloaded(given_function::Function, args...; distributed::Bool = false)
         message, error_for_main_stuck = @time receive_next_message(gather_queue, p, error_for_main_stuck, error_for_main_stuck_time)
         message_type = message["kind"]::String
         if (message_type == "GATHER")
-            value_id = message["value_id"]::Int64
+            value_id = message["value_id"]::ValueId
             if (value_id == "-1")
                 memory_used = message["worker_memory_used"]::Int64
                 get_session().worker_memory_used = get_session().worker_memory_used + memory_used

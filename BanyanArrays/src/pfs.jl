@@ -286,14 +286,21 @@ function WriteJuliaArray(
             end
         end
         MPI.Barrier(comm)
-        if worker_idx == 1
-            Banyan.rmdir_on_nfs(path)
-        end
     end
 
     # Write metadata on each batch regardless of how many batches there are
     if worker_idx == 1
-        write_metadata_for_julia_array(actualpath, size_and_eltype)
+        write_metadata_for_julia_array(path, size_and_eltype)
+        if nbatches > 1
+            if batch_idx == nbatches
+                cp(
+                    joinpath(path, "_metadata"),
+                    joinpath(actualpath, "_metadata"),
+                    force=true
+                )
+                Banyan.rmdir_on_nfs(path)
+            end
+        end
     end
     MPI.Barrier(comm)
     # TODO: Store the number of rows per file here with some MPI gathering
