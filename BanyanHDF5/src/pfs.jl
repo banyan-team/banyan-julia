@@ -321,7 +321,7 @@ function WriteHDF5(
 
         partdsets = [
             begin
-                if !(part_length isa Empty)
+                if !(part_size isa Empty)
                     idx = Banyan.get_partition_idx(batch_idx, nbatches, worker_i)
                     group = group_prefix * "_part$idx" * "_dim=$dim"
                     # If there are multiple batches, each batch just gets written
