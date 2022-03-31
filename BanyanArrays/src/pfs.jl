@@ -510,10 +510,10 @@ function Banyan.Rebalance(
     MPI.Alltoallv!(sendbuf, recvbuf, comm)
 
     # Return the concatenated array
-    displs_and_counts = filter(
+    displs_and_counts = Base.collect(Iterators.filter(
         (displ, count) -> count > 0,
         zip(recvbuf.displs, recvbuf.counts)
-    )
+    ))
     if isempty(displs_and_counts)
         # This case means that all the workers have Empty data
         if worker_idx == 1
@@ -542,10 +542,10 @@ function Banyan.Consolidate(part::Union{AbstractArray,Empty}, src_params::Dict{S
     # TODO: Maybe sometimes use gatherv if all sendbuf's are known to be equally sized
 
     MPI.Allgatherv!(sendbuf, recvvbuf, comm)
-    displs_and_counts = filter(
+    displs_and_counts = Base.collect(Iterators.filter(
         (displ, count) -> count > 0,
         zip(recvvbuf.displs, recvvbuf.counts)
-    )
+    ))
     if isempty(displs_and_counts)
         # This case means that all the workers have Empty data
         if worker_idx == 1
@@ -670,10 +670,10 @@ function Banyan.Shuffle(
         MPI.Alltoallv!(sendbuf, recvbuf, comm)
 
         # Return the concatenated array
-        displs_and_counts = filter(
+        displs_and_counts = Base.collect(Iterators.filter(
             (displ, count) -> count > 0,
             zip(recvbuf.displs, recvbuf.counts)
-        )
+        ))
         if isempty(displs_and_counts)
             # This case means that all the workers have Empty data
             if worker_idx == 1
