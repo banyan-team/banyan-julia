@@ -348,42 +348,39 @@ WriteParquet, WriteCSV, WriteArrow = [
 
 CopyFromArrow(
     src,
-    part::Union{DataFrames.AbstractDataFrame,Empty},
     params::Dict{String,Any},
     batch_idx::Int64,
     nbatches::Int64,
     comm::MPI.Comm,
     loc_name::String,
     loc_params::Dict{String,Any},
-) = begin
+)::DataFrames.DataFrame = begin
     params["key"] = 1
     ReadBlockArrow(src, params, 1, 1, MPI.COMM_SELF, loc_name, loc_params)
 end
 
 CopyFromCSV(
     src,
-    part::Union{DataFrames.AbstractDataFrame,Empty},
     params::Dict{String,Any},
     batch_idx::Int64,
     nbatches::Int64,
     comm::MPI.Comm,
     loc_name::String,
     loc_params::Dict{String,Any},
-) = begin
+)::DataFrames.DataFrame = begin
     params["key"] = 1
     ReadBlockCSV(src, params, 1, 1, MPI.COMM_SELF, loc_name, loc_params)
 end
 
 CopyFromParquet(
     src,
-    part::Union{DataFrames.AbstractDataFrame,Empty},
     params::Dict{String,Any},
     batch_idx::Int64,
     nbatches::Int64,
     comm::MPI.Comm,
     loc_name::String,
     loc_params::Dict{String,Any},
-) = begin
+)::DataFrames.DataFrame = begin
     params["key"] = 1
     ReadBlockParquet(src, params, 1, 1, MPI.COMM_SELF, loc_name, loc_params)
 end
