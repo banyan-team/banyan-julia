@@ -369,7 +369,7 @@ function WriteHDF5(
         # Collect datasets from each batch and write into the final result dataset
         if batch_idx == nbatches
             # Get all intermediate datasets that have been written to by this worker
-            partdsets = Dict{Int64,HDF5.Dataset}
+            partdsets = Dict{Int64,HDF5.Dataset}()
             for batch_idx = 1:nbatches
                 # Determine what index partition this batch is
                 idx = Banyan.get_partition_idx(batch_idx, nbatches, comm)
