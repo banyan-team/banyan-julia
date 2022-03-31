@@ -234,6 +234,12 @@ function WriteHDF5(
             (0,)
         end
         whole_size = MPI.bcast(whole_size, nworkers - 1, comm) # Broadcast dataset size to all workers
+        @show offset
+        @show some_size
+        @show whole_size
+        @show part isa Empty
+        @show part isa Empty ? 0 : size(part, dim)
+        @show whole_eltype
         # whole_eltype = MPI.bcast(whole_eltype, nworkers - 1, comm)
 
         # Create dataset
@@ -249,6 +255,9 @@ function WriteHDF5(
                     push!(dim_selector, Colon())
                 end
             end
+            @show dim
+            @show ndims(dset)
+            @show dim_selector
             setindex!(
                 dset,
                 part,
