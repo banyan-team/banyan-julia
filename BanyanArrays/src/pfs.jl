@@ -544,7 +544,7 @@ function Banyan.Consolidate(part::Union{AbstractArray,Empty}, src_params::Dict{S
     MPI.Allgatherv!(sendbuf, recvvbuf, comm)
     displs_and_counts = filter(
         (displ, count) -> count > 0,
-        zip(recvbuf.displs, recvbuf.counts)
+        zip(recvvbuf.displs, recvvbuf.counts)
     )
     if isempty(displs_and_counts)
         # This case means that all the workers have Empty data
@@ -555,7 +555,7 @@ function Banyan.Consolidate(part::Union{AbstractArray,Empty}, src_params::Dict{S
     else
         merge_on_executor(
             map(
-                (displ, count) -> convert(Base.Array, de(view(recvbuf.data, displ+1:displ+count))),
+                (displ, count) -> convert(Base.Array, de(view(recvvbuf.data, displ+1:displ+count))),
                 displs_and_counts
             );
             key = src_params["key"],
