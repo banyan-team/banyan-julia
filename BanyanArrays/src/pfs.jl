@@ -511,7 +511,7 @@ function Banyan.Rebalance(
 
     # Return the concatenated array
     displs_and_counts = Base.collect(Iterators.filter(
-        (displ, count) -> count > 0,
+        displ_and_count -> displ_and_count[2] > 0,
         zip(recvbuf.displs, recvbuf.counts)
     ))
     if isempty(displs_and_counts)
@@ -543,7 +543,7 @@ function Banyan.Consolidate(part::Union{AbstractArray,Empty}, src_params::Dict{S
 
     MPI.Allgatherv!(sendbuf, recvvbuf, comm)
     displs_and_counts = Base.collect(Iterators.filter(
-        (displ, count) -> count > 0,
+        displ_and_count -> displ_and_count[2] > 0,
         zip(recvvbuf.displs, recvvbuf.counts)
     ))
     if isempty(displs_and_counts)
@@ -671,7 +671,7 @@ function Banyan.Shuffle(
 
         # Return the concatenated array
         displs_and_counts = Base.collect(Iterators.filter(
-            (displ, count) -> count > 0,
+            displ_and_count -> displ_and_count[2] > 0,
             zip(recvbuf.displs, recvbuf.counts)
         ))
         if isempty(displs_and_counts)
