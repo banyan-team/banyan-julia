@@ -594,14 +594,3 @@ function empty_handler(op)
         op(a, b)
     end
 end
-
-reduce_sizes_and_eltypes(a, b) =
-    begin
-        if a[1] isa Empty
-            b
-        elseif b[1] isa Empty
-            a
-        else
-            (a[1] .+ b[1], a[2])
-        end
-    end

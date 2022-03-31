@@ -181,6 +181,7 @@ function WriteHDF5(
 
         # Get offset length
         offset = MPI.Exscan(part isa Empty ? 0 : size(part, dim), +, comm)
+        offset = worker_idx == 1 ? 0 : offset
 
         # # Determine the offset into the resulting HDF5 dataset where this
         # # worker should write
@@ -394,6 +395,7 @@ function WriteHDF5(
             # Determine the offset into the resulting HDF5 dataset where this
             # worker should write
             offset::Int64 = MPI.Exscan(whole_batch_length, +, comm)
+            offset = worker_idx == 1 ? 0 : offset
             # offset_size = MPI.Exscan(whole_batch_size_and_eltype, reduce_sizes_and_eltypes, comm)
             # if worker_idx == nworkers && offset_size isa Empty && part isa Empty
             #     error("Cannot write an empty array to an HDF5 dataset")

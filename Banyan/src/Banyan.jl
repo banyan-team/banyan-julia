@@ -180,8 +180,7 @@ export
     EMPTY,
     nonemptytype,
     disallowempty,
-    empty_handler,
-    reduce_sizes_and_eltypes
+    empty_handler
 
 # Partitioning functions for usage in sessions that run on the cluster; dispatched
 # based on `res/pf_dispatch_table.json`.
