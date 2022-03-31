@@ -45,7 +45,7 @@ end
 Location(name::String, parameters::LocationParameters, total_memory_usage::Int64 = -1, sample::Sample = Sample())::Location =
     Location(name, name, parameters, parameters, total_memory_usage, sample)
 
-const NOTHING_LOCATION = Location("None", LocationParameters(), -1, NOTHING_SAMPLE)
+const NOTHING_LOCATION = Location("None", LocationParameters(), Int64(-1), NOTHING_SAMPLE)
 Base.isnothing(l::Location) = isnothing(l.sample)
 
 LocationSource(name::String, parameters::LocationParameters, total_memory_usage::Int64 = -1, sample::Sample = Sample())::Location =

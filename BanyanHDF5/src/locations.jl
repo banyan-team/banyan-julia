@@ -99,6 +99,10 @@ function get_remote_hdf5_source(
                 GC.gc()
             end
 
+            @show remote_sample
+            @show remote_sample.properties
+            @show typeof(remote_sample.properties[:rate])
+            @show typeof(sample(remote_sample, :rate))
             if isnothing(remote_sample)
                 # Collect sample
                 totalnrows = datalength

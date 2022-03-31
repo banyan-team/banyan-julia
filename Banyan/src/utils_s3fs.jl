@@ -167,7 +167,7 @@ function destroy_downloaded_path(temp_downloaded_path)
     # end
 end
 
-function use_downloaded_path_for_writing(uploading_path::S3Path, temp_downloaded_path)
-    cp(temp_downloaded_path, uploading_path, force=true)
-    destroy_downloaded_path(temp_downloaded_path)
+function use_downloaded_path_for_writing(uploading_path::S3Path, temp_downloaded_path::String)
+    cp(Path(temp_downloaded_path), uploading_path, force=true)
+    # destroy_downloaded_path(temp_downloaded_path)
 end

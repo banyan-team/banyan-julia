@@ -9,9 +9,17 @@ mutable struct Sample
     properties::Dict{Symbol,Any}
 
     function Sample(
+        value::Any,
+        properties::Dict{Symbol,Any}
+    )
+        @show typeof(properties[:rate])
+        new(value, properties)
+    end
+    
+    function Sample(
         value::Any = nothing;
         properties::Dict{Symbol,Any} = Dict{Symbol,Any}(),
-        sample_rate=get_session().sample_rate,
+        sample_rate::Int64 = get_session().sample_rate,
         total_memory_usage::Int64=-1
     )
         newsample = new(value, properties)
@@ -22,7 +30,9 @@ mutable struct Sample
         if total_memory_usage != -1
             setsample!(newsample, :memory_usage, convert(Int64, round(total_memory_usage / sample_rate))::Int64)
         end
+        @show typeof(sample_rate)
         setsample!(newsample, :rate, sample_rate)
+        @show typeof(newsample.properties[:rate])
 
         newsample
     end
@@ -33,8 +43,6 @@ mutable struct Sample
     #         for prop in properties
     #     ))
 end
-
-Base.isnothing(s::Sample) = sample(s, :rate)::Int64 == -1
 
 ExactSample(value::Any = nothing; kwargs...) = Sample(value; sample_rate=1, kwargs...)
 
@@ -85,6 +93,7 @@ function setsample!(sample::Sample, propertykeys...)
                 properties = get!(properties, propertykey, Dict())
             end
         end
+        @show typeof(propertyvalue)
         properties[last(propertykeys)] = propertyvalue
     end
 end
@@ -121,6 +130,7 @@ sample(as::Any, properties...) =
             # This is the default but the `Sample` constructor overrides this
             # before-hand to allow some samples to be "exact" with a sample
             # rate of 1
+            @show typeof(get_session().sample_rate)
             get_session().sample_rate
         elseif first(properties) == :keys
             sample_keys(as)
@@ -177,4 +187,6 @@ sample_max(as::Any, key) = impl_error("sample_max", as)
 
 @specialize
 
-const NOTHING_SAMPLE = Sample(nothing, sample_rate=-1)
+const NOTHING_SAMPLE = Sample(nothing, Dict{Symbol,Any}(:memory_usage => Int64(-1), :rate => Int64(-1)))
+
+Base.isnothing(s::Sample) = sample(s, :rate)::Int64 == -1

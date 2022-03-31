@@ -200,6 +200,9 @@ function WriteHDF5(
 
         # Create file if not yet created
         # TODO: Figure out why sometimes a deleted file still `isfile`
+        @show HDF5.has_parallel()
+        @show isfile(path)
+        @show path
         f = h5open(
             path,
             "cw",
