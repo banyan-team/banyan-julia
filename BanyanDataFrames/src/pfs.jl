@@ -127,7 +127,7 @@ ReadBlockCSV, ReadBlockParquet, ReadBlockArrow = [
             rowrange = Banyan.split_len(nrows, batch_idx, nbatches, comm)
             dfs::Base.Vector{DataFrames.DataFrame} = DataFrames.DataFrame[]
             rowsscanned = 0
-            for file in sort(loc_params["files"]::Vector{Dict{String,Any}}, by = filedict -> filedict["path"]::String)
+            for file in sort(loc_params["files"]::Base.Vector{Dict{String,Any}}, by = filedict -> filedict["path"]::String)
                 newrowsscanned = rowsscanned + file["nrows"]::Int64
                 filerowrange = (rowsscanned+1):newrowsscanned
                 # Check if the file corresponds to the range of rows for the batch
