@@ -169,6 +169,8 @@ function write_metadata_for_julia_array(actualpath, part_size_and_eltype)
     end
 end
 
+de(x) = deserialize(IOBuffer(x))
+
 function WriteJuliaArray(
     src,
     part::Base.Array{T,N},
@@ -224,9 +226,13 @@ function WriteJuliaArray(
     #     MPI.Barrier(comm)
     # end
 
-    # Give the head worker a total size and eltype
-    size_and_eltype = part isa Empty ? (EMPTY, EMPTY) : (size(part), eltype(part))
-    size_and_eltype = MPI.Reduce(size_and_eltype, reduce_sizes_and_eltypes, 0, comm)
+    # Give the head worker a size and eltype
+    size_and_eltype = part isa Empty ? ((0,), Any) : (size(part), eltype(part))
+    # Instead of reducing, we just do a bcast. We don't need to get the total
+    # size since this is just for metadata.
+    # size_and_eltype = MPI.Reduce(size_and_eltype, reduce_sizes_and_eltypes, 0, comm)
+    nonempty_worker_idx = find_worker_idx_where(!(part isa Empty); comm=comm)
+    size_and_eltype = MPI.bcast(size_and_eltype, nonempty_worker_idx-1, comm)
 
     if worker_idx == 1
         if nbatches == 1
@@ -425,8 +431,6 @@ function Banyan.SplitGroup(
 
     res
 end
-
-de(x) = deserialize(IOBuffer(x))
 
 function Banyan.Rebalance(
     part::Union{AbstractArray,Empty},

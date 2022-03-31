@@ -86,6 +86,31 @@ merge_on_executor(obj::Any; key = nothing) = error("Merging $(typeof(obj)) not s
 #     merge_on_executor(chunks...; key = key)
 # end
 
+reduce_worker_idx_and_val(worker_idx_and_val_a, worker_idx_and_val_b) =
+    begin
+        if worker_idx_and_val_a[2]
+            worker_idx_and_val_a
+        else
+            worker_idx_and_val_a
+        end
+    end
+
+function find_worker_idx_where(val::Bool; comm::MPI.Comm = MPI.COMM_WORLD, allreduce::Bool = true)
+    worker_idx = get_worker_idx(comm)
+    worker_idx_and_val = (worker_idx, val)
+    worker_idx, aggregated_val = if allreduce
+        MPI.Allreduce(worker_idx_and_val, reduce_worker_idx_and_val, comm)
+    else
+        res = MPI.Reduce(worker_idx_and_val, reduce_worker_idx_and_val, get_nworkers(comm)-1, comm)
+        if worker_idx == 1
+            res
+        else
+            (-1, false)
+        end
+    end
+    aggregated_val ? worker_idx : -1
+end
+
 function get_partition_idx_from_divisions(
     val,
     divisions;

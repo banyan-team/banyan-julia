@@ -170,20 +170,33 @@ function WriteHDF5(
     # are multiple batches per worker or just one per worker
     dim_selector::Base.Vector{Union{UnitRange{Int64},Colon}} = Union{UnitRange{Int64},Colon}[]
     if nbatches == 1
-        # Determine the offset into the resulting HDF5 dataset where this
-        # worker should write
-        offset_size, offset_eltype = MPI.Exscan(
-            (
-                part isa Empty ? EMPTY : size(part),
-                part isa Emtpy ? EMPTY : eltype(part)
-            ),
-            reduce_sizes_and_eltypes,
-            comm
-        )
-        if worker_idx == nworkers && offset_size isa Empty && part isa Empty
-            error("Cannot write an empty array to an HDF5 dataset")
-        end
-        offset = (worker_idx == 1 || offset_size isa Empty) ? 0 : offset_size[dim]
+        # Get some size and some eltype
+        size_and_eltype = part isa Empty ? ((0,), Any) : (size(part), eltype(part))
+        # Instead of reducing, we just do a bcast. We don't need to get the total
+        # size since this is just for metadata.
+        # size_and_eltype = MPI.Reduce(size_and_eltype, reduce_sizes_and_eltypes, 0, comm)
+        nonempty_worker_idx = find_worker_idx_where(!(part isa Empty); comm=comm)
+        nonempty_worker_idx != -1 || error("Cannot write entirely empty HDF5 dataset with unknown data type")
+        some_size, whole_eltype = MPI.bcast(size_and_eltype, nonempty_worker_idx-1, comm)
+
+        # Get offset length
+        offset = MPI.Exscan(part isa Empty ? 0 : size(part, dim), +, comm)
+
+        # # Determine the offset into the resulting HDF5 dataset where this
+        # # worker should write
+        # offset_size, offset_eltype = MPI.Exscan(
+        #     (
+        #         part isa Empty ? EMPTY : size(part),
+        #         part isa Emtpy ? EMPTY : eltype(part)
+        #     ),
+        #     reduce_sizes_and_eltypes,
+        #     comm
+        # )
+        # offset_size = MPI.Exscan
+        # if worker_idx == nworkers && offset_size isa Empty && part isa Empty
+        #     error("Cannot write an empty array to an HDF5 dataset")
+        # end
+        # offset = (worker_idx == 1 || offset_size isa Empty) ? 0 : offset_size[dim]
 
         # Create file if not yet created
         # TODO: Figure out why sometimes a deleted file still `isfile`
@@ -208,20 +221,17 @@ function WriteHDF5(
 
         # Get size of total dataset
 
-        whole_size, whole_eltype = if worker_idx == nworkers
-            (
-                if offset_size isa Empty
-                    size(part)
-                else
-                    Banyan.indexapply(+, offset_size, part isa Empty ? 0 : size(part, dim), index = dim)
-                end,
-                offset_eltype isa Empty ? eltype(part) : offset_eltype
+        whole_size = if worker_idx == nworkers
+            Banyan.indexapply(
+                _ -> offset + (part isa Empty ? 0 : size(part, dim)),
+                some_size,
+                index = dim
             )
         else
-            ((0,), Nothing)
+            (0,)
         end
         whole_size = MPI.bcast(whole_size, nworkers - 1, comm) # Broadcast dataset size to all workers
-        whole_eltype = MPI.bcast(whole_eltype, nworkers - 1, comm)
+        # whole_eltype = MPI.bcast(whole_eltype, nworkers - 1, comm)
 
         # Create dataset
         dset = create_dataset(f, group, whole_eltype, (whole_size, whole_size))
@@ -279,20 +289,22 @@ function WriteHDF5(
         f = h5open(path, "r+", comm, info)
         # Allocate all datasets needed by gathering all sizes to the head
         # node and making calls from there
-        part_sizes_and_eltypes = MPI.Allgather(
-            part isa Empty ? EMPTY : (size(part), eltype(part)),
+        part_sizes = MPI.Allgather(
+            part isa Empty ? EMPTY : size(part),
             comm
         )
-        part_lengths = map(
-            size_and_eltype -> begin
-                if size_and_eltype isa Empty
-                    EMPTY
-                else
-                    size_and_eltype[1][dim]
-                end
-            end,
-            part_sizes_and_eltypes
-        )
+        size_and_eltype = part isa Empty ? ((0,), Any) : (size(part), eltype(part))
+        # Instead of reducing, we just do a bcast. We don't need to get the total
+        # size since this is just for metadata.
+        # size_and_eltype = MPI.Reduce(size_and_eltype, reduce_sizes_and_eltypes, 0, comm)
+        nonempty_worker_idx = find_worker_idx_where(!(part isa Empty); comm=comm)
+        some_size, whole_eltype = if nonempty_worker_idx != -1
+            MPI.bcast(size_and_eltype, nonempty_worker_idx-1, comm)
+        else
+            # In this case, this batch doesn't have any workers that are non-empty and so no
+            # datasets will get written
+            ((0,), Any)
+        end
 
         partdsets = [
             begin
@@ -301,21 +313,19 @@ function WriteHDF5(
                     group = group_prefix * "_part$idx" * "_dim=$dim"
                     # If there are multiple batches, each batch just gets written
                     # to its own group
-                    dataspace_size =
-                        Banyan.indexapply(_ -> part_length, size(part), index = dim)
                     # TODO: Maybe pass in values for fapl_mpi and
                     # dxpl_mpio = HDF5.H5FD_MPIO_COLLECTIVE,
                     new_dset = create_dataset(
                         f,
                         group,
-                        eltype(part),
-                        (dataspace_size, dataspace_size),
+                        whole_eltype,
+                        (part_size, part_size),
                     )
                     new_dset
                 else
                     EMPTY
                 end
-            end for (worker_i, part_length) in enumerate(part_lengths)
+            end for (worker_i, part_size) in enumerate(part_sizes)
         ]
 
         # Wait for the head node to allocate all the datasets for this
@@ -360,43 +370,49 @@ function WriteHDF5(
 
             # Compute the size of all the batches on this worker
             # concatenated
-            whole_batch_size_and_eltype = reduce(
-                reduce_sizes_and_eltypes,
+            whole_batch_length::Int64 = sum(
                 map(
-                    partdset -> (size(partdset), eltype(partdset)),
+                    partdset -> size(partdset, dim),
                     values(partdsets)
-                ),
-                init = (EMPTY, EMPTY)
+                )
             )
-            whole_batch_size = whole_batch_size_and_eltype[1]
-            whole_batch_length = whole_batch_size isa Empty ? 0 : whole_batch_size[dim]
+            # whole_batch_size = whole_batch_size_and_eltype[1]
+            # whole_batch_length = whole_batch_size isa Empty ? 0 : whole_batch_size[dim]
 
             # Determine the offset into the resulting HDF5 dataset where this
             # worker should write
-            offset_size, offset_eltype = MPI.Exscan(whole_batch_size_and_eltype, reduce_sizes_and_eltypes, comm)
-            if worker_idx == nworkers && offset_size isa Empty && part isa Empty
-                error("Cannot write an empty array to an HDF5 dataset")
-            end
-            offset = (worker_idx == 1 || offset_size isa Empty) ? 0 : offset_size[dim]
+            offset::Int64 = MPI.Exscan(whole_batch_length, +, comm)
+            # offset_size = MPI.Exscan(whole_batch_size_and_eltype, reduce_sizes_and_eltypes, comm)
+            # if worker_idx == nworkers && offset_size isa Empty && part isa Empty
+            #     error("Cannot write an empty array to an HDF5 dataset")
+            # end
+            # offset = (worker_idx == 1 || offset_size isa Empty) ? 0 : offset_size[dim]
 
             # Make the last worker create the dataset (since it can compute
             # the total dataset size using its offset)
             # NOTE: It's important that we use the last node since the
             # last node has the scan result
-            whole_size, whole_eltype = if worker_idx == nworkers
-                (
-                    if offset_size isa Empty
-                        size(part)
-                    else
-                        Banyan.indexapply(+, offset_size, whole_batch_length, index = dim)
-                    end,
-                    offset_eltype isa Empty ? eltype(part) : offset_eltype
+            nonempty_worker_idx = find_worker_idx_where(!isempty(partdsets); comm=comm)
+            nonempty_worker_idx != -1 || error("Cannot write entirely empty HDF5 dataset with unknown data type")
+            size_and_eltype = if isempty(partdsets)
+                ((0,), Any)
+            else
+                let some_dataset = first(values(partdsets))
+                    (size(some_dataset), eltype(some_dataset))
+                end
+            end
+            some_size, whole_eltype = MPI.bcast(size_and_eltype, nworkers-1, comm)
+            whole_size = if worker_idx == nworkers
+                Banyan.indexapply(
+                    _ -> offset + whole_batch_length,
+                    some_size,
+                    index = dim
                 )
             else
-                ((0,), Nothing)
+                (0,)
             end
             whole_size = MPI.bcast(whole_size, nworkers - 1, comm) # Broadcast dataset size to all workers
-            whole_eltype = MPI.bcast(whole_eltype, nworkers - 1, comm)
+            # whole_eltype = MPI.bcast(whole_eltype, nworkers - 1, comm)
             # The permission used here is "r+" because we already
             # created the file on the head node
             # Delete the dataset if needed before we write the
