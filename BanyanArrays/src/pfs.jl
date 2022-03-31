@@ -555,7 +555,10 @@ function Banyan.Consolidate(part::Union{AbstractArray,Empty}, src_params::Dict{S
     else
         merge_on_executor(
             map(
-                (displ, count) -> convert(Base.Array, de(view(recvvbuf.data, displ+1:displ+count))),
+                displ_and_count -> convert(
+                    Base.Array,
+                    de(view(recvvbuf.data, displ_and_count[1]+1:displ_and_count[1]+displ_and_count[2]))
+                ),
                 displs_and_counts
             );
             key = src_params["key"],
