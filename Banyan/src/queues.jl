@@ -68,12 +68,12 @@ function get_next_message(
     error_for_main_stuck::Union{Nothing,String} = nothing,
     error_for_main_stuck_time::Union{Nothing,DateTime} = nothing
 )::Tuple{String,Union{Nothing,String}}
-    println("Time for sqs_receive_message_with_long_polling:")
+    println("Time for sqs_receive_message_with_long_polling from queue=$queue:")
     m = @time sqs_receive_message_with_long_polling(queue)
     @show m
     while (isnothing(m))
         error_for_main_stuck = check_worker_stuck(error_for_main_stuck, error_for_main_stuck_time)
-        println("Time for sqs_receive_message_with_long_polling:")
+        println("Time for sqs_receive_message_with_long_polling from queue=$queue:")
         m = @time sqs_receive_message_with_long_polling(queue)
         @show m
         # @debug "Waiting for message from SQS"
@@ -149,11 +149,12 @@ end
 # Used by Banyan/src/pfs.jl, intended to be called from the executor
 function receive_from_client(value_id::ValueId)
     # Send scatter message to client
+    message = Dict("kind" => "SCATTER_REQUEST", "value_id" => value_id)
     send_message(
         get_gather_queue(),
-        JSON.json(Dict("kind" => "SCATTER_REQUEST", "value_id" => value_id))
+        JSON.json(message)
     )
-    println("Sent message to get_gather_queue=$(get_gather_queue())")
+    println("Sent message=$(string(message)) to get_gather_queue=$(get_gather_queue())")
     # Receive response from client
     m = JSON.parse(get_next_message(get_scatter_queue())[1])
     v = from_jl_value_contents(m["contents"]::String)
@@ -167,6 +168,7 @@ end
 
 function send_message(queue_name, message)
     generated_message_id = generate_message_id()
+    println("Sent message=$(string(message)) to queue_name=$(string(queue_name)) with generated_message_id=$generated_message_id")
     sqs_send_message(
         queue_name,
         message,
