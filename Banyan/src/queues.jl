@@ -70,10 +70,12 @@ function get_next_message(
 )::Tuple{String,Union{Nothing,String}}
     println("Time for sqs_receive_message_with_long_polling:")
     m = @time sqs_receive_message_with_long_polling(queue)
+    @show m
     while (isnothing(m))
         error_for_main_stuck = check_worker_stuck(error_for_main_stuck, error_for_main_stuck_time)
         println("Time for sqs_receive_message_with_long_polling:")
         m = @time sqs_receive_message_with_long_polling(queue)
+        @show m
         # @debug "Waiting for message from SQS"
         if !isnothing(p)
             p::ProgressMeter.ProgressUnknown
@@ -151,6 +153,7 @@ function receive_from_client(value_id::ValueId)
         get_gather_queue(),
         JSON.json(Dict("kind" => "SCATTER_REQUEST", "value_id" => value_id))
     )
+    println("Sent message to get_gather_queue=$(get_gather_queue())")
     # Receive response from client
     m = JSON.parse(get_next_message(get_scatter_queue())[1])
     v = from_jl_value_contents(m["contents"]::String)

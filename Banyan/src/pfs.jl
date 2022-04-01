@@ -351,6 +351,7 @@ CopyFromClient(
     loc_name,
     loc_params,
 ) = begin
+    println("In CopyFromClient")
     received = get_worker_idx(comm) == 1 ? receive_from_client(loc_params["value_id"]) : nothing
     # TODO: Make Replicated not necessarily require it to be replicated _everywhere_
     received = MPI.bcast(received, 0, comm)
