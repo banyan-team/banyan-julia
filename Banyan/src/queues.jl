@@ -49,6 +49,7 @@ function sqs_receive_message_with_long_polling(queue)
         return nothing
     end
 
+    @show length(r)
     handle  = r[1]["ReceiptHandle"]
     id      = r[1]["MessageId"]
     message = r[1]["Body"]
@@ -154,8 +155,9 @@ function receive_from_client(value_id::ValueId)
         get_gather_queue(),
         JSON.json(message)
     )
-    println("Sent message=$(string(message)) to get_gather_queue=$(get_gather_queue())")
+    println("Sent message=$(string(message)) to get_gather_queue=$(string(get_gather_queue()))")
     # Receive response from client
+    @show string(get_scatter_queue())
     m = JSON.parse(get_next_message(get_scatter_queue())[1])
     v = from_jl_value_contents(m["contents"]::String)
     v
