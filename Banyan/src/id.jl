@@ -24,7 +24,7 @@ function generate_message_id()
     # v = randstring(8)
     global num_message_ids_issued
     num_message_ids_issued += 1
-    v = string(num_message_ids_issued)
+    v = "session_$(get_session_id())_message_$(string(num_message_ids_issued))"
     push!(generated_message_ids, v)
     return v
 end
