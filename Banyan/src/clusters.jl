@@ -213,7 +213,7 @@ function get_cluster_status(name::String=get_cluster_name(); kwargs...)
     global clusters
     if haskey(clusters, name)
         if clusters[name].status == :failed
-            @error c.status_explanation
+            @error clusters[name].status_explanation
         end
     end
     c = get_cluster(name; kwargs...)
