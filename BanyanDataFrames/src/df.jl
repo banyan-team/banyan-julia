@@ -1,4 +1,4 @@
-struct DataFrame <: AbstractFuture
+mutable struct DataFrame <: AbstractFuture
     data::Future
     nrows::Future
     # TODO: Add offset for indexing
@@ -370,6 +370,7 @@ function Base.filter(f, df::DataFrame; kwargs...)
     @time begin
     f = Future(f)
     res_nrows = Future()
+    @show objectid(res_nrows)
     res = Future(datatype="DataFrame")
     kwargs = Future(kwargs)
     println("Time for creating futures:")
@@ -407,7 +408,16 @@ function Base.filter(f, df::DataFrame; kwargs...)
 
     @show typeof(res)
     @show res
-    DataFrame(res, res_nrows)
+    @show typeof(df)
+    @show typeof(res_nrows)
+    @show res_nrows
+    @show objectid(res_nrows)
+    res = DataFrame(res, res_nrows)
+    finalizer(res) do f
+        println("Destoring DataFrame with result of filter objectid(f)=$(objectid(f))")
+        @show objectid(f)
+    end
+    res
 end
 
 # TODO: Make a `used` field and ensure that splitting/merging functions don't get used if their used are not provided
@@ -646,6 +656,9 @@ function Base.getindex(df::DataFrame, rows=:, cols=:)
         return copy(df)
     end
 
+    println("At start of getindex")
+    @show df.nrows
+
     df_nrows = df.nrows
     return_vector = cols isa Symbol || cols isa String || cols isa Integer
     select_columns = !(cols isa Colon)
@@ -746,8 +759,11 @@ function Base.getindex(df::DataFrame, rows=:, cols=:)
         res_size = res isa Base.Vector ? res_size : first(res_size)
     end
 
+    @show df.nrows
+
     if return_vector
-        res = BanyanArrays.Vector{eltype(sample(df)[!, compute(cols)])}(res, res_size)
+        T = eltype(sample(df)[!, compute(cols)])
+        res = BanyanArrays.Vector{T}(res, res_size)
     else
         res = DataFrame(res, res_size)
     end

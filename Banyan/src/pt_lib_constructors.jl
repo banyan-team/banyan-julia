@@ -247,7 +247,7 @@ function Grouped(
 
     # Prepare `by`
     by::Vector{K} = if isnothing(by)
-        sample(f, :groupingkeys)::Vector{K}
+        convert(Vector{K}, sample(f, :groupingkeys))::Vector{K}
     elseif by isa Colon
         sample(f, :keys)::Vector{K}
     elseif by isa Vector

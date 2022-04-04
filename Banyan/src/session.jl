@@ -7,7 +7,7 @@ mutable struct Session
     pending_requests::Vector{Request}
     # This is a `WeakKeyDict` so that futures can be GC-ed as long as all
     # references elsewhere are gone.
-    futures_on_client::WeakKeyDict{ValueId,Future}
+    futures_on_client::Dict{ValueId,Future}
     cluster_name::String
     worker_memory_used::Int64
     # To know the current status of the jsessionob, check if it is in the global

@@ -486,7 +486,7 @@ end
             end
 
             filtered_single_sepal_width = compute(filtered_single[:, :sepal_width])
-            # @test filtered_single_sepal_width == [3.0]
+            @test filtered_single_sepal_width == [3.0]
 
             has_schema = i != 2 || filetype == "arrow"
             has_num_cols = i != 2 || filetype != "parquet"
@@ -500,8 +500,8 @@ end
             # # Test downloading single row
             filtered_single_sepal_width = compute(filtered_single[:, :sepal_width])
             filtered_single_petal_width = compute(filtered_single[:, :petal_width])
-            # @test filtered_single_sepal_width == [3.0]
-            # @test filtered_single_petal_width == [0.2]
+            @test filtered_single_sepal_width == [3.0]
+            @test filtered_single_petal_width == [0.2]
 
             # When doing a groupby over an empty dataset, we can't
             # exaggurate size because the data is empty so the sample

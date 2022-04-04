@@ -227,6 +227,13 @@ function partitioned_computation(
             # Handle 
             empty!(t.mutation) # Drop references to `Future`s here as well
 
+            t.input_value_ids = ValueId[f.value_id for f in t.inputs]
+            t.output_value_ids = ValueId[f.value_id for f in t.outputs]
+            t.scaled_value_ids = ValueId[f.value_id for f in t.scaled]
+            empty!(t.inputs)
+            empty!(t.outputs)
+            empty!(t.scaled)
+
             # @show statements for displaying info about each task
             if isinvestigating()[:tasks]
                 @show t.memory_usage

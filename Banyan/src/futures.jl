@@ -7,6 +7,14 @@
 # location will have a memory usage that will tell the future how much memory
 # is used.
 
+function get_location(fut::Future)::Location
+    @show fut.datatype
+    @show get_session().locations
+    @show fut.value_id
+    @show NOTHING_LOCATION
+    get(get_session().locations, fut.value_id, NOTHING_LOCATION)
+end
+
 """
     Future()
     Future(value::Any)
@@ -20,9 +28,12 @@ function Future(;source::Location = None(), mutate_from::Union{Future,Nothing}=n
     value_id = generate_value_id()
 
     # Create new Future and assign a location to it
-    new_future = Future(datatype, nothing, value_id, false, true)
+    new_future = create_future(datatype, nothing, value_id, false, true)
+    @show objectid(new_future)
     sourced(new_future, source)
+    @show objectid(new_future)
     destined(new_future, None())
+    @show objectid(new_future)
 
     # TODO: Add Size location here if needed
     # Handle locations that have an associated value
@@ -30,6 +41,7 @@ function Future(;source::Location = None(), mutate_from::Union{Future,Nothing}=n
         new_future.value = source.sample.value
         new_future.stale = false
     end
+    @show objectid(new_future)
     
     if !isnothing(mutate_from)
         # Indicate that this future is the result of an in-place mutation of
@@ -46,7 +58,7 @@ function Future(;source::Location = None(), mutate_from::Union{Future,Nothing}=n
         # `partition` or implicitly through `Future` constructors
         mutated(new_future)
     end
-
+    @show objectid(new_future)
     new_future
 end
 
@@ -82,7 +94,7 @@ function Future(fut::AbstractFuture; @nospecialize(mutation::Function=identity))
     fut = convert(Future, fut)::Future
     if !fut.stale
         # Copy over value
-        new_future = Future(
+        new_future = create_future(
             fut.datatype,
             deepcopy(mutation(fut.value)),
             generate_value_id(),
@@ -100,5 +112,3 @@ function Future(fut::AbstractFuture; @nospecialize(mutation::Function=identity))
         Future(datatype=fut.datatype)
     end
 end
-
-get_location(fut::Future)::Location = get(get_session().locations, fut.value_id, NOTHING_LOCATION)

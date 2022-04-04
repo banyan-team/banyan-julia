@@ -54,7 +54,7 @@ end
 
 # Array type
 
-struct Array{T,N} <: AbstractFuture where {T,N}
+mutable struct Array{T,N} <: AbstractFuture where {T,N}
     data::Future
     size::Future
     # TODO: Add offset for indexing

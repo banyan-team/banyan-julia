@@ -21,6 +21,10 @@ mutable struct DelayedTask
     keep_same_sample_rate::Bool
     memory_usage_constraints::Vector{PartitioningConstraint}
     additional_memory_usage_constraints::Vector{PartitioningConstraint}
+    # Fields for final serialized task
+    input_value_ids::Vector{ValueId}
+    output_value_ids::Vector{ValueId}
+    scaled_value_ids::Vector{ValueId}
 end
 
 DelayedTask() = DelayedTask(
@@ -38,7 +42,10 @@ DelayedTask() = DelayedTask(
     Future[],
     true,
     PartitioningConstraint[],
-    PartitioningConstraint[]
+    PartitioningConstraint[],
+    ValueId[],
+    ValueId[],
+    ValueId[]
 )
 
 function to_jl(task::DelayedTask)
@@ -48,8 +55,8 @@ function to_jl(task::DelayedTask)
         "effects" => task.effects,
         "pa_union" => [to_jl(pa) for pa in task.pa_union],
         "memory_usage" => task.memory_usage,
-        "inputs" => [i.value_id for i in task.inputs],
-        "outputs" => [o.value_id for o in task.outputs],
+        "inputs" => task.input_value_ids,
+        "outputs" => task.output_value_ids,
         "keep_same_sample_rate" => task.keep_same_sample_rate,
     )
 end

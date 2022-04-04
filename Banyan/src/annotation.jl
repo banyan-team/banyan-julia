@@ -459,7 +459,7 @@ end
 # NOTE: `mutated` should not be used inside of `partitioned_with` or
 # `partitioned_using`
 
-mutated(f::Future) = mutated(f => f)
+mutated(f::Future) = mutated(f, f)
 mutated(ff::Pair{Future,Future}) = mutated(first(ff), last(ff))
 
 function mutated(old::Future, new::Future)
@@ -483,7 +483,7 @@ function apply_mutation(mutation::Dict{Future,Future})
 
             # Swap (1) references in `futures_on_client` if either side of the
             # mutation is on the client
-            futures_on_client::WeakKeyDict{ValueId,Future} = get_session().futures_on_client
+            futures_on_client::Dict{ValueId,Future} = get_session().futures_on_client
             if old.value_id in keys(futures_on_client) &&
                new.value_id in keys(futures_on_client)
                 futures_on_client[new.value_id], futures_on_client[old.value_id] =
@@ -536,12 +536,356 @@ function partitioned_using_modules(m::Vector{String})
     union!(curr_delayed_task.used_modules, m)
 end
 
+function finish_partitioned_code_region(splatted_futures::Vector{Future})
+    task::DelayedTask = get_task()
+
+    # Update mutated futures
+    for fut in splatted_futures
+        for m in values(task.mutation)
+            if fut.value_id == m.value_id
+                fut.stale = true
+                fut.mutated = true
+                break
+            end
+        end
+    end
+
+    # Apply all delayed source and destination assignment. This will
+    # perform any expensive sample collection that may require for example
+    # an expensive scan of S3. This will record `RecordLocationRequest`s.
+    for splatted_future in splatted_futures
+        apply_sourced_or_destined_funcs(splatted_future)
+    end
+
+    # Look at mutation, inputs, outputs, and constraints to determine
+    # initial/final/additional memory usage and also to issue destroy
+    # requests for all mutated values. Maybe also set to nothing and
+    # assign new value here for mutation. Also set new future's total
+    # memory usage.
+
+    # Get the initial memory usage
+    for fut in splatted_futures
+        fut_initial_memory_usage::Int64 = if is_total_memory_usage_known(fut)
+            fut.total_memory_usage
+        else
+            tmu::Int64 = try
+                get_location(fut).total_memory_usage
+            catch e
+                if e isa MethodError
+                    error("Future with value ID $(fut.value_id) has no initial memory usage even in location with source name $(get_location(fut).src_name)")
+                else
+                    rethrow()
+                end
+                -1
+            end
+            tmu
+        end
+        task.memory_usage[fut.value_id] = Dict{String,Int64}("initial" => fut_initial_memory_usage)
+    end
+
+    # Get the final memory usage if it is not dependent on a constraint or other sample rates
+    for fut in splatted_futures
+        # Figure out if the future is mutated by this code region
+        is_fut_mutated = task.effects[fut.value_id] == "MUT"
+
+        # Get the final memory usage
+        if !is_fut_mutated
+            # For non-mutated data, we will only look at the initial
+            # memory usage (in the scheduler) so it's fine to set the final
+            # memory usage to the initial memory usage.
+            task.memory_usage[fut.value_id]["final"] = task.memory_usage[fut.value_id]["initial"]
+        else
+            # Set memory usage based on a ScaleTo constraint if there is on
+            final_memory_usage_set::Bool = false
+            for c in task.memory_usage_constraints
+                if startswith(c.type, "SCALE_TO=") && length(c.args) == 1 && c.args[1] == fut.value_id
+                    final_memory_usage_set = true
+                    task.memory_usage[fut.value_id]["final"] = Base.convert(Int64, ceil(parse(Int64, c.type[length("SCALE_TO=")+1:end])))::Int64
+                end
+            end
+
+            # If not and if this isn't scaled, then just set it to the sampled size if the
+            # memory usage doesn't scale to larger values
+            is_fut_scaled::Bool = false
+            for f in task.scaled
+                fut.value_id == f.value_id
+                is_fut_scaled = true
+            end
+            if !final_memory_usage_set && !is_fut_scaled
+                task.memory_usage[fut.value_id]["final"] = sample(fut, :memory_usage)::Int64
+            end
+        end
+    end
+
+    # Apply SCALE_BY constraints to determine final memory usage
+    for fut in splatted_futures
+        if !haskey(task.memory_usage[fut.value_id], "final")
+            for c in task.memory_usage_constraints
+                if startswith(c.type, "SCALE_BY=") && length(c.args) == 2 && c.args[1] == fut.value_id
+                    relative_to = c.args[2]
+                    if haskey(task.memory_usage[relative_to], "final")
+                        factor::Float64 = parse(Float64, c.type[10:end])
+                        task.memory_usage[fut.value_id]["final"] = Base.convert(Int64, ceil(factor * task.memory_usage[relative_to]["final"]))
+                    end
+                end
+            end
+        end
+    end
+
+    # Default case for determining memory usage
+    if isinvestigating()[:memory_usage]
+        println("Computing memory usage for a new task")
+    end
+    for fut in splatted_futures
+        if isinvestigating()[:memory_usage]
+            @show fut.value_id
+        end
+        if !haskey(task.memory_usage[fut.value_id], "final")
+            total_sampled_input_memory_usage::Int64 = 0
+            for fut in task.scaled
+                if task.effects[fut.value_id] == "CONST"
+                    total_sampled_input_memory_usage = sample(fut, :memory_usage)::Int64
+                end
+            end
+            if isinvestigating()[:memory_usage]
+                @show total_sampled_input_memory_usage
+            end
+            if task.keep_same_sample_rate && total_sampled_input_memory_usage > 0
+                # This case applies for most computation like `filter` and `groupby`
+
+                total_input_memory_usage::Int64 = 0
+                for fut in task.scaled
+                    if task.effects[fut.value_id] == "CONST"
+                        total_input_memory_usage += task.memory_usage[fut.value_id]["initial"]
+                    end
+                end
+                if isinvestigating()[:memory_usage]
+                    @show total_input_memory_usage
+                end
+
+                # Use the sampels to figure out the rate of change in
+                # memory usage going from inputs to outputs
+                factor::Float64 = sample(fut, :memory_usage)::Int64 / total_sampled_input_memory_usage
+                if isinvestigating()[:memory_usage]
+                    @show factor
+                end
+
+                # Now we use that rate on the actual initial memory
+                # usage which might have been modified using past memory
+                # usage constraints like ScaleBy and ScaleTo.
+                task.memory_usage[fut.value_id]["final"] = Base.convert(Int64, ceil(factor * total_input_memory_usage))::Int64
+                # @show total_sampled_input_memory_usage factor total_input_memory_usage task.memory_usage[fut.value_id]["final"]
+            elseif task.memory_usage[fut.value_id]["initial"] != 0
+                # If the input is nonzero then the output is the same
+                # because we don't support a change in memory usage that
+                # isn't going from `nothing` to some assigned value.
+                # This case applies to the very last code region created in
+                # `partitioned_computation`.
+                if isinvestigating()[:memory_usage]
+                    @show task.memory_usage[fut.value_id]["initial"]
+                end
+                task.memory_usage[fut.value_id]["final"] = task.memory_usage[fut.value_id]["initial"]
+            else
+                # This case applies for `fill` and `innerjoin`.
+                if isinvestigating()[:memory_usage]
+                    @show sample(fut, :memory_usage)::Int64 * sample(fut, :rate)::Int64
+                end
+                task.memory_usage[fut.value_id]["final"] = sample(fut, :memory_usage)::Int64 * sample(fut, :rate)::Int64
+            end
+        end
+        if isinvestigating()[:memory_usage]
+            @show task.memory_usage[fut.value_id]
+            @show fut.value_id
+        end
+    end
+
+    # Compute additional memory usage
+    for fut in splatted_futures
+        additional_memory_usage::Int64 = 0
+        for c in task.additional_memory_usage_constraints
+            if startswith(c.type, "SCALE_TO=") && length(c.args) == 1 && c.args[1] == fut.value_id
+                additional::Int64 = parse(Int64, c.type[length("SCALE_TO=")+1:end])
+                additional_memory_usage += additional
+            elseif startswith(c.type, "SCALE_BY=") && length(c.args) == 2 && c.args[1] == fut.value_id
+                arg = c.args[2]
+                factor::Float64 = parse(Float64, c.type[length("SCALE_BY=")+1:end])
+                additional_memory_usage += Base.convert(Int64, ceil(factor * task.memory_usage[arg]["final"]))
+            end
+        end
+        task.memory_usage[fut.value_id]["additional"] = additional_memory_usage
+    end
+
+    # Ensure that all the outputs have the same sample rate
+    output_sample_rate::Int64 = -1
+    output_sample_rate_from_scaled = false
+    is_anything_mutated = false
+    for fut in splatted_futures
+        is_fut_mutated = task.effects[fut.value_id] == "MUT"
+        is_fut_scaled::Bool = false
+        for f in task.scaled
+            if fut.value_id == f.value_id
+                is_fut_scaled = true
+            end
+        end
+        is_anything_mutated = is_anything_mutated || is_fut_mutated
+        if !output_sample_rate_from_scaled && is_fut_mutated
+            output_sample_rate = sample(fut, :rate)::Int64
+            output_sample_rate_from_scaled = is_fut_scaled
+        end
+    end
+    (output_sample_rate != -1 || !is_anything_mutated) || error("Failed to compute output sample rate")
+    for fut in splatted_futures
+        # Skip over non-mutated futures and scaled futures
+        if task.effects[fut.value_id] != "MUT"
+            continue
+        end
+        for f in task.scaled
+            if fut.value_id == f.value_id
+                continue
+            end
+        end
+        # Set sample rate for futures that are mutated and not scaled
+        # (we already keep the same sample rate for scaled futures)
+        setsample!(fut, :rate, output_sample_rate)
+    end
+
+    # Destroy value IDs that are no longer needed because of mutation
+    for fut in splatted_futures
+        fut.total_memory_usage = task.memory_usage[fut.value_id]["final"]
+
+        # Issue destroy request for mutated futures that are no longer
+        # going to be used
+        is_fut_used::Bool = false
+        fut_value_id = fut.value_id
+        for f in keys(task.mutation)
+            if fut_value_id == f.value_id
+                is_fut_used = true
+            end
+        end
+        is_fut_to_be_used::Bool = false
+        for f in values(task.mutation)
+            if fut_value_id == f.value_id
+                is_fut_to_be_used = true
+            end
+        end
+        if is_fut_used && !is_fut_to_be_used
+            println("Recording request to destroy value with ID $(fut.value_id)")
+            record_request(DestroyRequest(fut.value_id))
+        end
+    end
+
+    # Record request to record task in backend's dependency graph and reset
+    println("At end of @partitioned")
+    @show task
+    @show task.mutation
+    record_request(RecordTaskRequest(task))
+    finish_task()
+
+    # Make a call to `apply_mutation` to handle calls to `mut` like
+    # `mutated(df, res)`
+    apply_mutation(task.mutation)
+end
+
+function get_splatted_futures(unsplatted_futures::Vector{Union{Future,Vector{Future}}})::Vector{Future}
+    splatted_futures::Vector{Future} = []
+    for unsplatted_future in unsplatted_futures
+        if unsplatted_future isa Vector
+            unsplatted_future::Vector{Future}
+            for uf in unsplatted_future
+                push!(splatted_futures, uf)
+            end
+        else
+            push!(splatted_futures, unsplatted_future)
+        end
+    end
+    splatted_futures
+end
+
+function prepare_task_for_partitioned_code_region(
+    unsplatted_futures::Vector{Union{Future,Vector{Future}}},
+    unsplatted_variable_names::Vector{String},
+    splatted_futures::Vector{Future},
+    code::String
+)
+    splatted_variable_names = String[]
+    task::DelayedTask = get_task()
+    println("At start of @partitioned")
+    @show task
+    @show task.mutation
+    # Get code to initialize the unsplatted variable in the code region
+    # TODO: Generate code in codegen that puts each code region in a
+    # seperate function (where we reuse functions with the hash of the
+    # function body) so that we don't have scoping-related bugs
+    task.code = ""
+    for j = 1:length(unsplatted_variable_names)
+        unsplatted_variable_name::String = unsplatted_variable_names[j]
+        task.code *= "$unsplatted_variable_name = "
+        if unsplatted_futures[j] isa Vector
+            uf::Vector{Future} = unsplatted_futures[j]
+            task.code *= "["
+            for i = 1:length(uf)
+                splatted_variable_name = unsplatted_variable_name * "_$i"
+                push!(splatted_variable_names, splatted_variable_name)
+                task.code *= "$splatted_variable_name, "
+            end
+            task.code *= "]\n"
+        else
+            push!(splatted_variable_names, unsplatted_variable_name)
+            task.code *= "$unsplatted_variable_name\n"
+        end
+    end
+    task.code *= code
+    if isinvestigating()[:code_execution][:finishing]
+        task.code *= "\nprintln(\"Finished code region on $(MPI.Initialized() ? MPI.Comm_rank(MPI.COMM_WORLD) : -1)\")\n"
+    end
+    task.value_names = map(
+        x -> (x[1].value_id, x[2]),
+        zip(splatted_futures, splatted_variable_names)
+    )
+
+    # Set `mutated` field of the `Future`s that have been mutated. This is
+    # to ensure that future calls to `evaluate` on those `Future`s with
+    # `mutated=true` and _only_ those `Future`s will result in an actual
+    # evaluation
+    for fut in splatted_futures
+        is_task_mutated::Bool = false
+        for m in values(task.mutation)
+            if fut.value_id == m.value_id
+                is_task_mutated = true
+            end
+        end
+        task.effects[fut.value_id] = is_task_mutated ? "MUT" : "CONST"
+    end
+end
+
+function reassign_futures(
+    unsplatted_futures::Vector{Union{Future,Vector{Future}}},
+    variables::Vector{Union{Any,Vector{Any}}}
+)
+    uf::Vector{Future} = Future[]
+    for i in 1:length(unsplatted_futures)
+        variable = variables[i]
+        if unsplatted_futures[i] isa Vector
+            uf = unsplatted_futures[i]
+            for j = 1:length(uf)
+                fe::Future = uf[j]
+                setsample!(fe, variable[j])
+                setsample!(fe, :memory_usage, sample_memory_usage(variable[j]))
+            end
+        else
+            uf = Future[unsplatted_futures[i]]
+            setsample!(uf[1], variable)
+            setsample!(uf[1], :memory_usage, sample_memory_usage(variable))
+        end
+    end
+end
+
 function partitioned_code_region(
     variables::Vector{Expr},
     variable_names::Vector{String},
     code::Expr,
     assigning_samples::Vector{Expr},
-    reassigning_futures::Vector{Expr}
+    # reassigning_futures::Vector{Expr}
 )
     quote
         # Convert arguments to `Future`s if they aren't already
@@ -554,17 +898,8 @@ function partitioned_code_region(
                 end,
                 [$(variables...)]
             )
-        splatted_futures::Vector{Future} = []
-        for unsplatted_future in unsplatted_futures
-            if unsplatted_future isa Vector
-                unsplatted_future::Vector{Future}
-                for uf in unsplatted_future
-                    push!(splatted_futures, uf)
-                end
-            else
-                push!(splatted_futures, unsplatted_future)
-            end
-        end
+        splatted_futures::Vector{Future} = get_splatted_futures(unsplatted_futures)
+        
 
         # TODO: Allow for any Julia object (even stuff that can't be converted
         # to `Future`s) to be passed into an @partitioned and by default have
@@ -585,57 +920,16 @@ function partitioned_code_region(
         # we haven't recorded a faulty task or messed up the state in any way.
 
         # Fill in task with code and value names pulled using the macror
-        unsplatted_variable_names = String[$(variable_names...)]
+        unsplatted_variable_names::Vector{String} = String[$(variable_names...)]
         @show typeof(unsplatted_variable_names)
-        splatted_variable_names = String[]
-        task::DelayedTask = get_task()
-        println("At start of @partitioned")
-        @show task
-        @show task.mutation
-        # Get code to initialize the unsplatted variable in the code region
-        # TODO: Generate code in codegen that puts each code region in a
-        # seperate function (where we reuse functions with the hash of the
-        # function body) so that we don't have scoping-related bugs
-        task.code = ""
-        for j = 1:length(unsplatted_variable_names)
-            unsplatted_variable_name::String = unsplatted_variable_names[j]
-            task.code *= "$unsplatted_variable_name = "
-            if unsplatted_futures[j] isa Vector
-                uf::Vector{Future} = unsplatted_futures[j]
-                task.code *= "["
-                for i = 1:length(uf)
-                    splatted_variable_name = unsplatted_variable_name * "_$i"
-                    push!(splatted_variable_names, splatted_variable_name)
-                    task.code *= "$splatted_variable_name, "
-                end
-                task.code *= "]\n"
-            else
-                push!(splatted_variable_names, unsplatted_variable_name)
-                task.code *= "$unsplatted_variable_name\n"
-            end
-        end
-        task.code *= $(string(code))
-        if isinvestigating()[:code_execution][:finishing]
-            task.code *= "\nprintln(\"Finished code region on $(MPI.Initialized() ? MPI.Comm_rank(MPI.COMM_WORLD) : -1)\")\n"
-        end
-        task.value_names = map(
-            x -> (x[1].value_id, x[2]),
-            zip(splatted_futures, splatted_variable_names)
+        
+        code::String = $(string(code))
+        prepare_task_for_partitioned_code_region(
+            unsplatted_futures,
+            unsplatted_variable_names,
+            splatted_futures,
+            code
         )
-
-        # Set `mutated` field of the `Future`s that have been mutated. This is
-        # to ensure that future calls to `evaluate` on those `Future`s with
-        # `mutated=true` and _only_ those `Future`s will result in an actual
-        # evaluation
-        for fut in splatted_futures
-            is_task_mutated::Bool = false
-            for m in values(task.mutation)
-                if fut.value_id == m.value_id
-                    is_task_mutated = true
-                end
-            end
-            task.effects[fut.value_id] = is_task_mutated ? "MUT" : "CONST"
-        end
 
         # TODO: When mutating a value, ensure that the old future has a sample
         # of the old value and the new future of the new
@@ -650,7 +944,8 @@ function partitioned_code_region(
                     # memory usage accordingly.
                     # TODO: Determine if other sample properties need to be invalidated (or
                     # updated) after modified by an annotated code region.
-                    $(reassigning_futures...)
+                    # $(reassigning_futures...)
+                    reassign_futures(unsplatted_futures, Any[$(variables...)])
                 end
             end
         catch
@@ -664,251 +959,7 @@ function partitioned_code_region(
         # whether it succeeds, we make sure to clear the task (so that future
         # usage in the REPL or notebook can proceed, generating new tasks) and
         # reassign all variables.
-
-        # Update mutated futures
-        for fut in splatted_futures
-            for m in values(task.mutation)
-                if fut.value_id == m.value_id
-                    fut.stale = true
-                    fut.mutated = true
-                    break
-                end
-            end
-        end
-
-        # Apply all delayed source and destination assignment. This will
-        # perform any expensive sample collection that may require for example
-        # an expensive scan of S3. This will record `RecordLocationRequest`s.
-        for splatted_future in splatted_futures
-            apply_sourced_or_destined_funcs(splatted_future)
-        end
-
-        # Look at mutation, inputs, outputs, and constraints to determine
-        # initial/final/additional memory usage and also to issue destroy
-        # requests for all mutated values. Maybe also set to nothing and
-        # assign new value here for mutation. Also set new future's total
-        # memory usage.
-
-        # Get the initial memory usage
-        for fut in splatted_futures
-            fut_initial_memory_usage::Int64 = if is_total_memory_usage_known(fut)
-                fut.total_memory_usage
-            else
-                tmu::Int64 = try
-                    get_location(fut).total_memory_usage
-                catch e
-                    if e isa MethodError
-                        error("Future with value ID $(fut.value_id) has no initial memory usage even in location with source name $(get_location(fut).src_name)")
-                    else
-                        rethrow()
-                    end
-                    -1
-                end
-                tmu
-            end
-            task.memory_usage[fut.value_id] = Dict{String,Int64}("initial" => fut_initial_memory_usage)
-        end
-
-        # Get the final memory usage if it is not dependent on a constraint or other sample rates
-        for fut in splatted_futures
-            # Figure out if the future is mutated by this code region
-            is_fut_mutated = task.effects[fut.value_id] == "MUT"
-
-            # Get the final memory usage
-            if !is_fut_mutated
-                # For non-mutated data, we will only look at the initial
-                # memory usage (in the scheduler) so it's fine to set the final
-                # memory usage to the initial memory usage.
-                task.memory_usage[fut.value_id]["final"] = task.memory_usage[fut.value_id]["initial"]
-            else
-                # Set memory usage based on a ScaleTo constraint if there is on
-                final_memory_usage_set::Bool = false
-                for c in task.memory_usage_constraints
-                    if startswith(c.type, "SCALE_TO=") && length(c.args) == 1 && c.args[1] == fut.value_id
-                        final_memory_usage_set = true
-                        task.memory_usage[fut.value_id]["final"] = Base.convert(Int64, ceil(parse(Int64, c.type[length("SCALE_TO=")+1:end])))::Int64
-                    end
-                end
-
-                # If not and if this isn't scaled, then just set it to the sampled size if the
-                # memory usage doesn't scale to larger values
-                is_fut_scaled::Bool = false
-                for f in task.scaled
-                    fut.value_id == f.value_id
-                    is_fut_scaled = true
-                end
-                if !final_memory_usage_set && !is_fut_scaled
-                    task.memory_usage[fut.value_id]["final"] = sample(fut, :memory_usage)::Int64
-                end
-            end
-        end
-
-        # Apply SCALE_BY constraints to determine final memory usage
-        for fut in splatted_futures
-            if !haskey(task.memory_usage[fut.value_id], "final")
-                for c in task.memory_usage_constraints
-                    if startswith(c.type, "SCALE_BY=") && length(c.args) == 2 && c.args[1] == fut.value_id
-                        relative_to = c.args[2]
-                        if haskey(task.memory_usage[relative_to], "final")
-                            factor::Float64 = parse(Float64, c.type[10:end])
-                            task.memory_usage[fut.value_id]["final"] = Base.convert(Int64, ceil(factor * task.memory_usage[relative_to]["final"]))
-                        end
-                    end
-                end
-            end
-        end
-
-        # Default case for determining memory usage
-        if isinvestigating()[:memory_usage]
-            println("Computing memory usage for a new task")
-        end
-        for fut in splatted_futures
-            if isinvestigating()[:memory_usage]
-                @show fut.value_id
-            end
-            if !haskey(task.memory_usage[fut.value_id], "final")
-                total_sampled_input_memory_usage::Int64 = 0
-                for fut in task.scaled
-                    if task.effects[fut.value_id] == "CONST"
-                        total_sampled_input_memory_usage = sample(fut, :memory_usage)::Int64
-                    end
-                end
-                if isinvestigating()[:memory_usage]
-                    @show total_sampled_input_memory_usage
-                end
-                if task.keep_same_sample_rate && total_sampled_input_memory_usage > 0
-                    # This case applies for most computation like `filter` and `groupby`
-
-                    total_input_memory_usage::Int64 = 0
-                    for fut in task.scaled
-                        if task.effects[fut.value_id] == "CONST"
-                            total_input_memory_usage += task.memory_usage[fut.value_id]["initial"]
-                        end
-                    end
-                    if isinvestigating()[:memory_usage]
-                        @show total_input_memory_usage
-                    end
-
-                    # Use the sampels to figure out the rate of change in
-                    # memory usage going from inputs to outputs
-                    factor::Float64 = sample(fut, :memory_usage)::Int64 / total_sampled_input_memory_usage
-                    if isinvestigating()[:memory_usage]
-                        @show factor
-                    end
-
-                    # Now we use that rate on the actual initial memory
-                    # usage which might have been modified using past memory
-                    # usage constraints like ScaleBy and ScaleTo.
-                    task.memory_usage[fut.value_id]["final"] = Base.convert(Int64, ceil(factor * total_input_memory_usage))::Int64
-                    # @show total_sampled_input_memory_usage factor total_input_memory_usage task.memory_usage[fut.value_id]["final"]
-                elseif task.memory_usage[fut.value_id]["initial"] != 0
-                    # If the input is nonzero then the output is the same
-                    # because we don't support a change in memory usage that
-                    # isn't going from `nothing` to some assigned value.
-                    # This case applies to the very last code region created in
-                    # `partitioned_computation`.
-                    if isinvestigating()[:memory_usage]
-                        @show task.memory_usage[fut.value_id]["initial"]
-                    end
-                    task.memory_usage[fut.value_id]["final"] = task.memory_usage[fut.value_id]["initial"]
-                else
-                    # This case applies for `fill` and `innerjoin`.
-                    if isinvestigating()[:memory_usage]
-                        @show sample(fut, :memory_usage)::Int64 * sample(fut, :rate)::Int64
-                    end
-                    task.memory_usage[fut.value_id]["final"] = sample(fut, :memory_usage)::Int64 * sample(fut, :rate)::Int64
-                end
-            end
-            if isinvestigating()[:memory_usage]
-                @show task.memory_usage[fut.value_id]
-                @show fut.value_id
-            end
-        end
-
-        # Compute additional memory usage
-        for fut in splatted_futures
-            additional_memory_usage::Int64 = 0
-            for c in task.additional_memory_usage_constraints
-                if startswith(c.type, "SCALE_TO=") && length(c.args) == 1 && c.args[1] == fut.value_id
-                    additional::Int64 = parse(Int64, c.type[length("SCALE_TO=")+1:end])
-                    additional_memory_usage += additional
-                elseif startswith(c.type, "SCALE_BY=") && length(c.args) == 2 && c.args[1] == fut.value_id
-                    arg = c.args[2]
-                    factor::Float64 = parse(Float64, c.type[length("SCALE_BY=")+1:end])
-                    additional_memory_usage += Base.convert(Int64, ceil(factor * task.memory_usage[arg]["final"]))
-                end
-            end
-            task.memory_usage[fut.value_id]["additional"] = additional_memory_usage
-        end
-
-        # Ensure that all the outputs have the same sample rate
-        output_sample_rate::Int64 = -1
-        output_sample_rate_from_scaled = false
-        is_anything_mutated = false
-        for fut in splatted_futures
-            is_fut_mutated = task.effects[fut.value_id] == "MUT"
-            is_fut_scaled::Bool = false
-            for f in task.scaled
-                if fut.value_id == f.value_id
-                    is_fut_scaled = true
-                end
-            end
-            is_anything_mutated = is_anything_mutated || is_fut_mutated
-            if !output_sample_rate_from_scaled && is_fut_mutated
-                output_sample_rate = sample(fut, :rate)::Int64
-                output_sample_rate_from_scaled = is_fut_scaled
-            end
-        end
-        (output_sample_rate != -1 || !is_anything_mutated) || error("Failed to compute output sample rate")
-        for fut in splatted_futures
-            # Skip over non-mutated futures and scaled futures
-            if task.effects[fut.value_id] != "MUT"
-                continue
-            end
-            for f in task.scaled
-                if fut.value_id == f.value_id
-                    continue
-                end
-            end
-            # Set sample rate for futures that are mutated and not scaled
-            # (we already keep the same sample rate for scaled futures)
-            setsample!(fut, :rate, output_sample_rate)
-        end
-
-        # Destroy value IDs that are no longer needed because of mutation
-        for fut in splatted_futures
-            fut.total_memory_usage = task.memory_usage[fut.value_id]["final"]
-
-            # Issue destroy request for mutated futures that are no longer
-            # going to be used
-            is_fut_used::Bool = false
-            fut_value_id = fut.value_id
-            for f in keys(task.mutation)
-                if fut_value_id == f.value_id
-                    is_fut_used = true
-                end
-            end
-            is_fut_to_be_used::Bool = false
-            for f in values(task.mutation)
-                if fut_value_id == f.value_id
-                    is_fut_to_be_used = true
-                end
-            end
-            if is_fut_used && !is_fut_to_be_used
-                record_request(DestroyRequest(fut.value_id))
-            end
-        end
-
-        # Record request to record task in backend's dependency graph and reset
-        println("At end of @partitioned")
-        @show task
-        @show task.mutation
-        record_request(RecordTaskRequest(task))
-        finish_task()
-
-        # Make a call to `apply_mutation` to handle calls to `mut` like
-        # `mutated(df, res)`
-        apply_mutation(task.mutation)
+        finish_partitioned_code_region(splatted_futures)
     end
 end
 
@@ -927,7 +978,7 @@ macro partitioned(ex...)
     # the list of futures they came from.
 
     assigning_samples = Expr[]
-    reassigning_futures = Expr[quote uf::Vector{Future} = Future[] end]
+    # reassigning_futures = Expr[quote uf::Vector{Future} = Future[] end]
     for (i, variable) in enumerate(variables)
         # Assign samples to variables used in annotated code
         push!(
@@ -945,27 +996,28 @@ macro partitioned(ex...)
             end
         )
 
-        # Re-assign futures to variables that were used in annotated code
-        # TODO: Ensure that it is okay for different `quote...end` blocks to refer
-        # to the same variable name. They shouldn't have different gensym-ed
-        # variable names in the macro expansion.
-        push!(
-            reassigning_futures,
-            quote
-                if unsplatted_futures[$i] isa Vector
-                    uf = unsplatted_futures[$i]
-                    for j = 1:length(uf)
-                        fe::Future = uf[j]
-                        setsample!(fe, $variable[j])
-                        setsample!(fe, :memory_usage, sample_memory_usage($variable[j]))
-                    end
-                else
-                    uf = Future[unsplatted_futures[$i]]
-                    setsample!(uf[1], $variable)
-                    setsample!(uf[1], :memory_usage, sample_memory_usage($variable))
-                end
-            end
-        )
+        # # Re-assign futures to variables that were used in annotated code
+        # # TODO: Ensure that it is okay for different `quote...end` blocks to refer
+        # # to the same variable name. They shouldn't have different gensym-ed
+        # # variable names in the macro expansion.
+        # # TODO: Only do this for mutated futures
+        # push!(
+        #     reassigning_futures,
+        #     quote
+        #         if unsplatted_futures[$i] isa Vector
+        #             uf = unsplatted_futures[$i]
+        #             for j = 1:length(uf)
+        #                 fe::Future = uf[j]
+        #                 setsample!(fe, $variable[j])
+        #                 setsample!(fe, :memory_usage, sample_memory_usage($variable[j]))
+        #             end
+        #         else
+        #             uf = Future[unsplatted_futures[$i]]
+        #             setsample!(uf[1], $variable)
+        #             setsample!(uf[1], :memory_usage, sample_memory_usage($variable))
+        #         end
+        #     end
+        # )
     end
 
     println("here")
@@ -974,7 +1026,7 @@ macro partitioned(ex...)
         variable_names,
         code,
         assigning_samples,
-        reassigning_futures
+        # reassigning_futures
     )
 end
 

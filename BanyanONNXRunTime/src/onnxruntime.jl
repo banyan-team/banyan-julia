@@ -1,4 +1,4 @@
-struct InferenceSession <: AbstractFuture
+mutable struct InferenceSession <: AbstractFuture
     inference_session::Future
     dynamic_axis::Bool
 end
