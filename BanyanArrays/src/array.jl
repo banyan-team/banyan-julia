@@ -187,7 +187,7 @@ function Banyan.sample_min(A::U, key) where U <: Base.AbstractArray{T,N} where {
     if isempty(A)
         nothing
     else
-        min_oh = orderinghash(eselectdim(A, key, 1:1))
+        min_oh = orderinghash(selectdim(A, key, 1:1))
         for e in eachslice(A, dims=key)
             min_oh = min(orderinghash(e), min_oh)
         end
@@ -198,7 +198,7 @@ function Banyan.sample_max(A::U, key) where U <: Base.AbstractArray{T,N} where {
     if isempty(A)
         nothing
     else
-        min_oh = orderinghash(eselectdim(A, key, 1:1))
+        min_oh = orderinghash(selectdim(A, key, 1:1))
         for e in eachslice(A, dims=key)
             min_oh = max(orderinghash(e), min_oh)
         end

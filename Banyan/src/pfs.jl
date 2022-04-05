@@ -65,7 +65,7 @@ ReadGroup(ReadBlock) = begin
         # partition pruning, avoiding reads that are unnecessary
 
         # Get information needed to read in the appropriate group
-        divisions = Banyan.from_jl_value_contents(params["divisions"])
+        divisions = params["divisions"]
         @show divisions
         @show typeof(divisions)
         key = params["key"]
@@ -134,7 +134,7 @@ ReadGroup(ReadBlock) = begin
             part = ReadBlock(src, params, i, nbatches, comm, loc_name, loc_params)
 
             # Shuffle the batch and add it to the set of data for this partition
-            params["divisions_by_worker"] = Banyan.to_jl_value_contents(curr_partition_divisions)
+            params["divisions_by_worker"] = curr_partition_divisions
             part = Shuffle(
                 part,
                 Dict{String,Any}(),
@@ -166,7 +166,7 @@ ReadGroup(ReadBlock) = begin
             splitting_divisions = get_splitting_divisions()
             partition_idx = get_partition_idx(batch_idx, nbatches, comm)
             splitting_divisions[res] =
-                (Banyan.to_jl_value_contents(partition_divisions[partition_idx]), !hasdivision || partition_idx != firstdivisionidx, !hasdivision || partition_idx != lastdivisionidx)
+                (partition_divisions[partition_idx], !hasdivision || partition_idx != firstdivisionidx, !hasdivision || partition_idx != lastdivisionidx)
         end
 
         println("In ReadGroup with typeof(res)=$(typeof(res)) and typeof(parts)=$(typeof(parts))")
