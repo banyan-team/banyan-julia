@@ -294,7 +294,7 @@ function Merge(
 
         # Concatenate across batches
         @show typeof(src.pieces)
-        to_merge = disallowempty(filter(piece -> !isempty(piece), src.pieces))
+        to_merge = disallowempty(filter(piece -> !(piece isa Empty), src.pieces))
         src = isempty(to_merge) ? EMPTY : merge_on_executor(to_merge; key = key)
         # src = merge_on_executor(src.pieces; key = key)
         # TODO: Handle case where everything merges to become empty and also ensure WriteHDF5 is correct
