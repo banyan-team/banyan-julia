@@ -615,6 +615,8 @@ function Base.reduce(op, A::Array{T,N}; dims=:, kwargs...) where {T,N}
             res = Base.reduce(op, A; dims=dims, kwargs...)
             if res isa AbstractArray
                 res_size = Base.size(res)
+            else
+                res_size = EMPTY
             end
         end
     end
