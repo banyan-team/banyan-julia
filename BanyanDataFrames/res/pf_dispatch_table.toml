@@ -10,6 +10,21 @@ scale_by = 0
 views = false
 locations = [ { datatype = "GroupedDataFrame" } ]
 
+[casts.ReturnNullGroupingConsolidated]
+src_expected = [ "key" ]
+scale_by_src = 1
+scale_by_dst = 3
+src_required = { name = "Distributing" }
+dst_required = { name = "Replicating", replication = "all" }
+locations = [ { datatype = "GroupedDataFrame" } ]
+
+[casts.ReturnNullGroupingRebalanced]
+scale_by_src = 1
+scale_by_dst = 3
+src_required = { name = "Distributing" }
+dst_required = { name = "Distributing", distribution = "blocked", balanced = true, id = "!" }
+locations = [ { datatype = "GroupedDataFrame" } ]
+
 # ReadBlock
 
 [splits.ReadBlockCSV]
@@ -137,4 +152,26 @@ views = false
 required = { name = "Replicating", replication = "all" }
 locations = [ { name = "Remote", format = "arrow" }, { name = "Disk", datatype = "DataFrame" } ]
 
-casts = { }
+[casts.ConsolidateDataFrame]
+src_expected = [ "key" ]
+scale_by_src = 1
+scale_by_dst = 3
+src_required = { name = "Distributing" }
+dst_required = { name = "Replicating", replication = "all" }
+locations = [ { datatype = "DataFrame" } ]
+
+[casts.RebalanceDataFrame]
+scale_by_src = 1
+scale_by_dst = 3
+src_required = { name = "Distributing" }
+dst_required = { name = "Distributing", distribution = "blocked", balanced = true, id = "!" }
+locations = [ { datatype = "DataFrame" } ]
+
+[casts.ShuffleDataFrame]
+dst_expected = [ "key", "divisions" ]
+scale_by_src = 3
+scale_by_dst = 3
+src_required = { name = "Distributing" }
+dst_required = { name = "Distributing", distribution = "grouped", id = "!" }
+dst_default = { rev = false }
+locations = [ { datatype = "DataFrame"} ]

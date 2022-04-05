@@ -121,8 +121,7 @@ function start_session(;
     println("Time for get_cluster_s3_bucket_name:")
     s3_bucket_name = @time get_cluster_s3_bucket_name(cluster_name; kwargs...)
 
-    # TODO: Construct this dictionary
-    environment_info = Dict{String,Any}()
+    environment_info = EMPTY_DICT
     # If a url is not provided, then use the local environment
     if isnothing(url)
         

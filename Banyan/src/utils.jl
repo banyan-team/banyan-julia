@@ -594,3 +594,7 @@ function empty_handler(op)
         op(a, b)
     end
 end
+
+isnotempty(x) = !isempty(x)
+
+const EMPTY_DICT = Dict{String,Any}()

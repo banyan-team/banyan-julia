@@ -16,9 +16,9 @@ export ReadBlockJuliaArray,
     CopyToJuliaArray,
     SplitBlock,
     SplitGroup,
-    Rebalance,
-    Consolidate,
-    Shuffle
+    RebalanceArray,
+    ConsolidateArray,
+    ShuffleArray
 
 include("array.jl")
 include("utils_pfs.jl")

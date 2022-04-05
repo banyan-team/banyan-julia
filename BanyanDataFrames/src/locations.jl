@@ -394,7 +394,7 @@ function get_remote_table_source(
             )
         )
     else
-        ("None", Dict{String,Any}())
+        ("None", EMPTY_DICT)
     end
 
     # Get remote sample

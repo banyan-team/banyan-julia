@@ -170,8 +170,18 @@ function write_metadata_for_julia_array(actualpath, part_size_and_eltype)
 end
 
 de(x) = deserialize(IOBuffer(x))
+de_array(displ_and_count, recvbuf_data) =
+    convert(
+        Base.Array,
+        de(
+            view(
+                recvbuf_data,
+                displ_and_count[1]+1:displ_and_count[1]+displ_and_count[2]
+            )
+        )
+    )
 
-function WriteJuliaArray(
+function WriteJuliaArrayHelper(
     src,
     part::Base.Array{T,N},
     params::Dict{String,Any},
@@ -180,6 +190,8 @@ function WriteJuliaArray(
     comm::MPI.Comm,
     loc_name::String,
     loc_params::Dict{String,Any},
+    path::String,
+    dim::Int64
 ) where {T,N}
     # Get rid of splitting divisions if they were used to split this data into
     # groups
@@ -187,7 +199,6 @@ function WriteJuliaArray(
     delete!(splitting_divisions, part)
 
     # Get path of directory to write to
-    path::String = loc_params["path"]
     if startswith(path, "http://") || startswith(path, "https://")
         error("Writing to http(s):// is not supported")
     elseif startswith(path, "s3://")
@@ -254,7 +265,6 @@ function WriteJuliaArray(
     end
     MPI.Barrier(comm)
 
-    dim::Int64 = params["key"]
     nrows = part isa Empty ? 0 : size(part, dim)
     sortableidx = Banyan.sortablestring(idx, get_npartitions(nbatches, comm))
     write_file_julia_array(part, path, dim, sortableidx, nrows)
@@ -308,6 +318,30 @@ function WriteJuliaArray(
     # TODO: Delete all other part* files for this value if others exist
 end
 
+function WriteJuliaArray(
+    src,
+    part::Base.Array{T,N},
+    params::Dict{String,Any},
+    batch_idx::Int64,
+    nbatches::Int64,
+    comm::MPI.Comm,
+    loc_name::String,
+    loc_params::Dict{String,Any},
+) where {T,N}
+    WriteJuliaArrayHelper(
+        src,
+        part,
+        params,
+        batch_idx,
+        nbatches,
+        comm,
+        loc_name,
+        loc_params,
+        loc_params["path"],
+        params["key"]
+    ) where {T,N}
+end
+
 CopyFromJuliaArray(src, params::Dict{String,Any}, batch_idx::Int64, nbatches::Int64, comm::MPI.Comm, loc_name::String, loc_params::Dict{String,Any}) = begin
     params["key"] = 1
     ReadBlockJuliaArray(src, params, 1, 1, MPI.COMM_SELF, loc_name, loc_params)
@@ -332,6 +366,26 @@ function CopyToJuliaArray(
     end
 end
 
+function SplitBlockArray(
+    src::AbstractArray,
+    params::Dict{String,Any},
+    batch_idx::Int64,
+    nbatches::Int64,
+    comm::MPI.Comm,
+    loc_name::String,
+    loc_params::Dict{String,Any},
+    key::Int64
+)
+    res = Banyan.split_on_executor(
+        src,
+        key,
+        batch_idx,
+        nbatches,
+        comm,
+    )
+    res
+end
+
 function Banyan.SplitBlock(
     src::AbstractArray,
     params::Dict{String,Any},
@@ -341,27 +395,33 @@ function Banyan.SplitBlock(
     loc_name::String,
     loc_params::Dict{String,Any},
 )
-    @show size(src) typeof(src)
-    res = Banyan.split_on_executor(
-        src,
-        params["key"]::Int64,
-        batch_idx,
-        nbatches,
-        comm,
+    SplitBlockArray(
+        src::AbstractArray,
+        params::Dict{String,Any},
+        batch_idx::Int64,
+        nbatches::Int64,
+        comm::MPI.Comm,
+        loc_name::String,
+        loc_params::Dict{String,Any},
+        params["key"]
     )
-    @show size(res) typeof(res)
-    res
 end
 
-function Banyan.SplitGroup(
+function SplitGroupArray(
     src::AbstractArray,
     params::Dict{String,Any},
     batch_idx::Int64,
     nbatches::Int64,
     comm::MPI.Comm,
     loc_name::String,
-    loc_params::Dict{String,Any};
-    store_splitting_divisions::Bool = false
+    loc_params::Dict{String,Any},
+    store_splitting_divisions::Bool,
+    src_divisions,
+    boundedlower::Bool,
+    boundedupper::Bool,
+    key::Int64,
+    rev::Bool,
+    splitting_divisions,
 )
 
     partition_idx = Banyan.get_partition_idx(batch_idx, nbatches, comm)
@@ -377,42 +437,35 @@ function Banyan.SplitGroup(
     end
 
     # Get divisions stored with src
-    splitting_divisions = Banyan.get_splitting_divisions()
-    src_divisions, boundedlower, boundedupper = get!(splitting_divisions, src) do
-        # This case lets us use `SplitGroup` in `DistributeAndShuffle`
-        (params["divisions"], false, false)
-    end
     divisions_by_partition = Banyan.get_divisions(src_divisions, npartitions)
 
     # Get the divisions to apply
-    key::Int64 = params["key"]
-    rev::Bool = get(params, "rev", false)
     if rev
         reverse!(divisions_by_partition)
     end
 
-    # Create helper function for getting index of partition that owns a given
-    # value
-    partition_idx_getter(val) = Banyan.get_partition_idx_from_divisions(
-        val,
-        divisions_by_partition,
-        boundedlower = boundedlower,
-        boundedupper = boundedupper,
-    )
-
     # Apply divisions to get only the elements relevant to this worker
     res = if ndims(src) > 1
         cat(
-            (
-                slice
-                for slice in eachslice(src, dims = key)
-                if partition_idx_getter(slice) == partition_idx
+            Iterators.filter(
+                slice -> Banyan.get_partition_idx_from_divisions(
+                    slice,
+                    divisions_by_partition,
+                    boundedlower,
+                    boundedupper,
+                ) == partition_idx,
+                eachslice(src, dims = key)
             )...;
             dims = key,
         )
     else
         filter(
-            e -> partition_idx_getter(e) == partition_idx,
+            slice -> Banyan.get_partition_idx_from_divisions(
+                slice,
+                divisions_by_partition,
+                boundedlower,
+                boundedupper,
+            ) == partition_idx,
             src
         )
     end
@@ -423,12 +476,11 @@ function Banyan.SplitGroup(
         # partition that has divisions, then they will all be skipped and -1 will
         # be returned. So these indices are only used if there are nonempty
         # divisions.
-        hasdivision = any(x->!isempty(x), divisions_by_partition)
-        firstdivisionidx = findfirst(x->!isempty(x), divisions_by_partition)
-        lastdivisionidx = findlast(x->!isempty(x), divisions_by_partition)
+        hasdivision = any(isnotempty, divisions_by_partition)
+        firstdivisionidx = findfirst(isnotempty, divisions_by_partition)
+        lastdivisionidx = findlast(isnotempty, divisions_by_partition)
 
         # Store divisions
-        splitting_divisions = Banyan.get_splitting_divisions()
         splitting_divisions[res] = (
             divisions_by_partition[partition_idx],
             !hasdivision || boundedlower || partition_idx != firstdivisionidx,
@@ -439,14 +491,47 @@ function Banyan.SplitGroup(
     res
 end
 
-function Banyan.Rebalance(
+function Banyan.SplitGroup(
+    src::AbstractArray,
+    params::Dict{String,Any},
+    batch_idx::Int64,
+    nbatches::Int64,
+    comm::MPI.Comm,
+    loc_name::String,
+    loc_params::Dict{String,Any};
+    store_splitting_divisions::Bool = false
+)
+    splitting_divisions = Banyan.get_splitting_divisions()
+    src_divisions, boundedlower, boundedupper = get!(splitting_divisions, src) do
+        # This case lets us use `SplitGroup` in `DistributeAndShuffle`
+        (params["divisions"], false, false)
+    end
+    SplitGroupArray(
+        src,
+        params,
+        batch_idx,
+        nbatches,
+        comm,
+        loc_name,
+        loc_params,
+        store_splitting_divisions,
+        src_divisions,
+        boundedlower,
+        boundedupper,
+        params["key"],
+        get(params, "rev", false),
+        splitting_divisions
+    )
+end
+
+function RebalanceArray(
     part::Union{AbstractArray,Empty},
     src_params::Dict{String,Any},
     dst_params::Dict{String,Any},
-    comm::MPI.Comm
+    comm::MPI.Comm,
+    dim::Int64
 )
     # Get the range owned by this worker
-    dim::Int64 = dst_params["key"]
     worker_idx, nworkers = Banyan.get_worker_idx(comm), Banyan.get_nworkers(comm)
     len = part isa Empty ? 0 : size(part, dim)
     scannedstartidx = MPI.Exscan(len, +, comm)
@@ -532,14 +617,33 @@ function Banyan.Rebalance(
             map(
                 (displ, count) -> convert(Base.Array, de(view(recvbuf.data, displ+1:displ+count))),
                 displs_and_counts
-            );
-            key = dim,
+            ),
+            dim
         )
         res
     end
 end
 
-function Banyan.Consolidate(part::Union{AbstractArray,Empty}, src_params::Dict{String,Any}, dst_params::Dict{String,Any}, comm::MPI.Comm)
+RebalanceArray(
+    part::Union{AbstractArray,Empty},
+    src_params::Dict{String,Any},
+    dst_params::Dict{String,Any},
+    comm::MPI.Comm
+) = RebalanceArray(
+    part,
+    src_params,
+    dst_params,
+    comm,
+    dst_params["key"]
+)
+
+function ConsolidateArray(
+    part::Union{AbstractArray,Empty},
+    src_params::Dict{String,Any},
+    dst_params::Dict{String,Any},
+    comm::MPI.Comm,
+    key
+)
     io = IOBuffer()
     if !(part isa Empty)
         serialize(io, part)
@@ -567,33 +671,34 @@ function Banyan.Consolidate(part::Union{AbstractArray,Empty}, src_params::Dict{S
                     de(view(recvvbuf.data, displ_and_count[1]+1:displ_and_count[1]+displ_and_count[2]))
                 ),
                 displs_and_counts
-            );
-            key = src_params["key"],
+            ),
+            key
         )
     end
 end
 
-function Banyan.Shuffle(
+ConsolidateArray(part::Union{AbstractArray,Empty}, src_params::Dict{String,Any}, dst_params::Dict{String,Any}, comm::MPI.Comm) =
+    ConsolidateArray(part, src_params, dst_params, comm, src_params["key"])
+
+function ShuffleArray(
     part::Union{AbstractArray,Empty},
     src_params::Dict{String,Any},
     dst_params::Dict{String,Any},
     comm::MPI.Comm;
-    boundedlower::Bool = false,
-    boundedupper::Bool = false,
-    store_splitting_divisions::Bool = true
-)
+    boundedlower::Bool,
+    boundedupper::Bool,
+    store_splitting_divisions::Bool,
+    src_key::Int64,
+    key::Int64,
+    rev::Bool,
+    divisions_by_worker::Base.Vector{Base.Vector{Division{V}}},
+    divisions::Base.Vector{Division{V}}
+) where {V}
     # We don't have to worry about grouped data frames since they are always
     # block-partitioned.
 
     # Get the divisions to apply
-    key::Int64 = dst_params["key"]
-    rev::Bool = get(dst_params, "rev", false)
     worker_idx, nworkers = Banyan.get_worker_idx(comm), Banyan.get_nworkers(comm)
-    divisions_by_worker = if haskey(dst_params, "divisions_by_worker")
-        dst_params["divisions_by_worker"] # list of min-max tuples
-    else 
-        Banyan.get_divisions(dst_params["divisions"], nworkers)
-    end # list of min-max tuple lists
     if rev
         reverse!(divisions_by_worker)
     end
@@ -602,8 +707,8 @@ function Banyan.Shuffle(
     partition_idx_getter(val) = Banyan.get_partition_idx_from_divisions(
         val,
         divisions_by_worker,
-        boundedlower = boundedlower,
-        boundedupper = boundedupper,
+        boundedlower,
+        boundedupper,
     )
     res = begin
         # Group the data along the splitting axis (specified by the "key"
@@ -691,12 +796,13 @@ function Banyan.Shuffle(
             end
             Any[]
         else
+            recvbuf_data = recvbuf.data
             merge_on_executor(
                 map(
-                    (displ, count) -> convert(Base.Array, de(view(recvbuf.data, displ+1:displ+count))),
+                    displ_and_count -> de_array(displ_and_count, recvbuf_data),
                     displs_and_counts
-                );
-                key = src_params["key"],
+                ),
+                src_key
             )
         end
     end
@@ -707,9 +813,9 @@ function Banyan.Shuffle(
         # partition that has divisions, then they will all be skipped and -1 will
         # be returned. So these indices are only used if there are nonempty
         # divisions.
-        hasdivision = any(x->!isempty(x), divisions_by_worker)
-        firstdivisionidx = findfirst(x->!isempty(x), divisions_by_worker)
-        lastdivisionidx = findlast(x->!isempty(x), divisions_by_worker)
+        hasdivision = any(isnotempty, divisions_by_worker)
+        firstdivisionidx = findfirst(isnotempty, divisions_by_worker)
+        lastdivisionidx = findlast(isnotempty, divisions_by_worker)
 
         # Store divisions
         splitting_divisions = Banyan.get_splitting_divisions()
@@ -719,3 +825,55 @@ function Banyan.Shuffle(
 
     res
 end
+
+function ShuffleArray(
+    part::Union{AbstractArray,Empty},
+    src_params::Dict{String,Any},
+    dst_params::Dict{String,Any},
+    comm::MPI.Comm,
+    boundedlower::Bool,
+    boundedupper::Bool,
+    store_splitting_divisions::Bool
+)
+    divisions = dst_params["divisions"]
+    has_divisions_by_worker = haskey(dst_params, "divisions_by_worker")
+    V = if !isempty(divisions)
+        typeof(divisions[1][1])
+    elseif has_divisions_by_worker
+        typeof(divisions_by_worker[1][1][1])
+    else
+        Any
+    end
+    ShuffleArray(
+        part,
+        src_params,
+        dst_params,
+        comm,
+        boundedlower,
+        boundedupper,
+        store_splitting_divisions,
+        src_params["key"],
+        dst_params["key"],
+        get(dst_params, "rev", false),
+        has_divisions_by_worker ? dst_params["divisions_by_worker"] : Base.Vector{Division{V}}[],
+        divisions
+    )
+end
+
+ShuffleArray(
+    part::Union{AbstractArray,Empty},
+    src_params::Dict{String,Any},
+    dst_params::Dict{String,Any},
+    comm::MPI.Comm;
+    boundedlower::Bool = false,
+    boundedupper::Bool = false,
+    store_splitting_divisions::Bool = true
+) = ShuffleArray(
+    part,
+    src_params,
+    dst_params,
+    comm,
+    boundedlower,
+    boundedupper,
+    store_splitting_divisions
+)

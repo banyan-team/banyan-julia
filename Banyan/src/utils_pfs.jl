@@ -63,7 +63,7 @@ split_across(obj, idx=get_worker_idx(), npartitions=get_nworkers()) = obj[split_
 sync_across(comm=MPI.COMM_WORLD) = MPI.Barrier(comm)
 reduce_across(func, val; to_worker_idx=1, comm=MPI.COMM_WORLD) = MPI.Reduce(val, func, to_worker_idx-1, comm)
 
-merge_on_executor(obj::Any; key = nothing) = error("Merging $(typeof(obj)) not supported")
+merge_on_executor(obj::Any, key) = error("Merging $(typeof(obj)) not supported")
 # merge_on_executor(obj::Vector{Missing}; key=nothing) = missing
 # merge_on_executor(obj::Vector; key=nothing) = if isempty(obj) missing else error("Merging $(typeof(obj)) not supported") end
 
@@ -113,17 +113,17 @@ end
 
 function get_partition_idx_from_divisions(
     val,
-    divisions;
-    boundedlower = false,
-    boundedupper = false,
+    divisions,
+    boundedlower,
+    boundedupper,
 )
     # The first and last partitions (used if this lacks a lower or upper bound)
     # must have actual division(s) associated with them. If there is no
     # partition that has divisions, then they will all be skipped and -1 will
     # be returned. So these indices are only used if there are nonempty
     # divisions.
-    firstdivisionidx = findfirst(x->!isempty(x), divisions)
-    lastdivisionidx = findlast(x->!isempty(x), divisions)
+    firstdivisionidx = findfirst(isnotempty, divisions)
+    lastdivisionidx = findlast(isnotempty, divisions)
 
     # The given divisions may be returned from `get_divisions`
     oh = orderinghash(val)

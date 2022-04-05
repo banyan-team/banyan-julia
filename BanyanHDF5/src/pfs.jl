@@ -92,7 +92,8 @@ function ReadBlockHDF5(
     dset
 end
 
-ReadGroupHDF5 = Banyan.ReadGroup(ReadBlockHDF5)
+ReadGroupHelperHDF5 = ReadGroupHelper(ReadBlockHDF5, ShuffleArray)
+ReadGroupHDF5 = ReadGroup(ReadGroupHelperHDF5)
 
 function WriteHDF5(
     src,

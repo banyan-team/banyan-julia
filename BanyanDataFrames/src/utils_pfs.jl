@@ -25,8 +25,8 @@ Banyan.split_on_executor(
 
 # If this is a dataframe then we ignore the grouping key
 function Banyan.merge_on_executor(
-    obj::Base.Vector{DF};
-    key = nothing
+    obj::Base.Vector{DF},
+    key
 ) where DF <: AnyDataFrame
     # @show typeof(obj)
     # @show length(obj)

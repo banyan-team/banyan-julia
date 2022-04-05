@@ -172,7 +172,10 @@ export is_debug_on,
     buftovbuf,
     indexapply,
     PartiallyMerged,
-    isinvestigating
+    isinvestigating,
+    Division,
+    isnotempty,
+    EMPTY_DICT
 
 # Utilities for handling empty case
 export
@@ -185,11 +188,10 @@ export
 # Partitioning functions for usage in sessions that run on the cluster; dispatched
 # based on `res/pf_dispatch_table.json`.
 export ReturnNull,
+    ReadGroupHelper,
     ReadGroup,
-    Shuffle,
     SplitBlock,
     SplitGroup,
-    Consolidate,
     Merge,
     CopyFrom,
     CopyFromValue,
@@ -206,7 +208,6 @@ export ReturnNull,
     DivideFromClient,
     Reduce,
     ReduceWithKey,
-    Rebalance,
     Distribute,
     DistributeAndShuffle
 

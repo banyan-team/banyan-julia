@@ -194,7 +194,7 @@ function get_remote_image_source(
             ),
         )
     else
-        ("None", Dict{String,Any}())
+        ("None", EMPTY_DICT)
     end
 
     # Get the remote sample

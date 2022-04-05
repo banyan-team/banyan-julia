@@ -70,10 +70,12 @@ export ReadBlockCSV,
     CopyTo,
     SplitBlock,
     SplitGroup,
-    Rebalance,
-    Consolidate,
-    Shuffle,
-    ReturnNullGrouping
+    RebalanceDataFrame,
+    ConsolidateDataFrame,
+    ShuffleDataFrame,
+    ReturnNullGrouping,
+    ReturnNullGroupingConsolidated,
+    ReturnNullGroupingRebalanced
 
 export RemoteTableSource, RemoteTableDestination
 

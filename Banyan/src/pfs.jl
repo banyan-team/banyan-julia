@@ -51,8 +51,8 @@ function get_splitting_divisions()
     splitting_divisions
 end
 
-ReadGroup(ReadBlock) = begin
-    function ReadGroup(
+ReadGroupHelper(ReadBlockFunc, ShuffleFunc) = begin
+    function ReadGroupHelperFunc(
         src,
         params::Dict{String,Any},
         batch_idx::Int64,
@@ -60,16 +60,14 @@ ReadGroup(ReadBlock) = begin
         comm::MPI.Comm,
         loc_name::String,
         loc_params::Dict{String,Any},
-    )
+        divisions::Base.Vector{Division{V}},
+        key::K,
+        rev
+    ) where {V,K}
         # TODO: Store filters in parameters of the PT and use them to do
         # partition pruning, avoiding reads that are unnecessary
 
         # Get information needed to read in the appropriate group
-        divisions = params["divisions"]
-        @show divisions
-        @show typeof(divisions)
-        key = params["key"]
-        rev::Bool = get(params, "rev", false) # Passed in ReadBlock
         nworkers = get_nworkers(comm)
         npartitions = nworkers * nbatches
         partition_divisions = get_divisions(divisions, npartitions)
@@ -82,9 +80,9 @@ ReadGroup(ReadBlock) = begin
         # partition that has divisions, then they will all be skipped and -1 will
         # be returned. So these indices are only used if there are nonempty
         # divisions.
-        hasdivision = any(x->!isempty(x), partition_divisions)
-        firstdivisionidx = findfirst(x->!isempty(x), partition_divisions)
-        lastdivisionidx = findlast(x->!isempty(x), partition_divisions)
+        hasdivision = any(isnotempty, partition_divisions)
+        firstdivisionidx = findfirst(isnotempty, partition_divisions)
+        lastdivisionidx = findlast(isnotempty, partition_divisions)
         firstbatchidx = nothing
         lastbatchidx = nothing
 
@@ -92,7 +90,7 @@ ReadGroup(ReadBlock) = begin
         # through the divisions in a stride and consolidating the list of divisions
         # for each partition. Then, ensure we use boundedlower=true only for the
         # first batch and boundedupper=true for the last batch.
-        curr_partition_divisions = []
+        curr_partition_divisions::Base.Vector{Base.Vector{Division{V}}} = []
         for worker_division_idx = 1:nworkers
             for batch_division_idx = 1:nbatches
                 # partition_division_idx =
@@ -131,18 +129,18 @@ ReadGroup(ReadBlock) = begin
         parts = []
         for i = 1:nbatches
             # Read in data for this batch
-            part = ReadBlock(src, params, i, nbatches, comm, loc_name, loc_params)
+            part = ReadBlockFunc(src, params, i, nbatches, comm, loc_name, loc_params)
 
             # Shuffle the batch and add it to the set of data for this partition
             params["divisions_by_worker"] = curr_partition_divisions
-            part = Shuffle(
+            part = ShuffleFunc(
                 part,
-                Dict{String,Any}(),
+                EMPTY_DICT,
                 params,
                 comm,
-                boundedlower = !hasdivision || batch_idx != firstbatchidx,
-                boundedupper = !hasdivision || batch_idx != lastbatchidx,
-                store_splitting_divisions = false
+                !hasdivision || batch_idx != firstbatchidx,
+                !hasdivision || batch_idx != lastbatchidx,
+                false
             )
             if !(part isa Empty)
                 if isempty(parts)
@@ -155,7 +153,7 @@ ReadGroup(ReadBlock) = begin
         end
 
         # Concatenate together the data for this partition
-        res = isempty(parts) ? EMPTY : merge_on_executor(parts; key = key)
+        res = isempty(parts) ? EMPTY : merge_on_executor(parts, key)
 
         # If there are no divisions for any of the partitions, then they are all
         # bounded. For a partition to be unbounded on one side, there must be a
@@ -172,7 +170,36 @@ ReadGroup(ReadBlock) = begin
         println("In ReadGroup with typeof(res)=$(typeof(res)) and typeof(parts)=$(typeof(parts))")
         res
     end
-    ReadGroup
+    ReadGroupHelperFunc
+end
+
+ReadGroup(ReadGroupHelperFunc) = begin
+    function ReadGroupFunc(
+        src,
+        params::Dict{String,Any},
+        batch_idx::Int64,
+        nbatches::Int64,
+        comm::MPI.Comm,
+        loc_name::String,
+        loc_params::Dict{String,Any},
+    )
+        divisions = params["divisions"]
+        key = params["key"]
+        rev::Bool = get(params, "rev", false) # Passed in ReadBlock
+        ReadGroupHelperFunc(
+            src,
+            params,
+            batch_idx,
+            nbatches,
+            comm,
+            loc_name,
+            loc_params,
+            divisions,
+            key,
+            rev
+        )
+    end
+    ReadGroupFunc
 end
 
 function rmdir_on_nfs(actualpath)
@@ -247,8 +274,48 @@ SplitGroup(
     loc_params::Dict{String,Any},
 ) = EMPTY
 
-Consolidate(part::Any, src_params::Dict{String,Any}, dst_params::Dict{String,Any}, comm::MPI.Comm) =
-    error("Consolidating $(typeof(part)) not supported")
+function MergeHelper(
+    src::PartiallyMerged,
+    part::T,
+    params::Dict{String,Any},
+    batch_idx::Int64,
+    nbatches::Int64,
+    comm::MPI.Comm,
+    loc_name::String,
+    loc_params::Dict{String,Any},
+    splitting_divisions,
+    key
+) where {T}
+
+    # TODO: To allow for mutation of a value, we may want to remove this
+    # condition
+    # We only need to concatenate partitions if the source is nothing.
+    # Because if the source is something, then part must be a view into it
+    # and no data movement is needed.
+
+    # Concatenate across batches
+    src.pieces[batch_idx] = part
+    if batch_idx == nbatches
+        delete!(splitting_divisions, part)
+
+        # Concatenate across batches
+        @show typeof(src.pieces)
+        to_merge = disallowempty(filter(piece -> !(piece isa Empty), src.pieces))
+        src = isempty(to_merge) ? EMPTY : merge_on_executor(to_merge, key)
+        # src = merge_on_executor(src.pieces; key = key)
+        # TODO: Handle case where everything merges to become empty and also ensure WriteHDF5 is correct
+
+        # Concatenate across workers
+        nworkers = get_nworkers(comm)
+        if nworkers > 1
+            src = Consolidate(src, params, EMPTY_DICT, comm)
+        end
+    end
+
+    # TODO: Handle Consolidate, Merge, WriteHDF5, WriteJuliaArray, WriteCSV/Parquet/Arrow receiving missing
+
+    src
+end
 
 function Merge(
     src::Union{Nothing,PartiallyMerged},
@@ -260,23 +327,6 @@ function Merge(
     loc_name::String,
     loc_params::Dict{String,Any},
 ) where {T}
-    @show typeof(src)
-    @show typeof(part)
-    @show T
-    splitting_divisions = get_splitting_divisions()
-
-    # TODO: To allow for mutation of a value, we may want to remove this
-    # condition
-    # We only need to concatenate partitions if the source is nothing.
-    # Because if the source is something, then part must be a view into it
-    # and no data movement is needed.
-
-    key = params["key"]
-
-    # Concatenate across batches
-    if part isa AbstractArray
-        part = Base.convert(Base.Array, part)
-    end
     if batch_idx == 1
         P = typeof(part)
         src = PartiallyMerged{P}(Vector{Union{Empty,P}}(undef, nbatches))
@@ -288,27 +338,18 @@ function Merge(
             src = PartiallyMerged(convert(Vector{NT}, src.pieces)::Vector{NT})
         end
     end
-    src.pieces[batch_idx] = part
-    if batch_idx == nbatches
-        delete!(splitting_divisions, part)
-
-        # Concatenate across batches
-        @show typeof(src.pieces)
-        to_merge = disallowempty(filter(piece -> !(piece isa Empty), src.pieces))
-        src = isempty(to_merge) ? EMPTY : merge_on_executor(to_merge; key = key)
-        # src = merge_on_executor(src.pieces; key = key)
-        # TODO: Handle case where everything merges to become empty and also ensure WriteHDF5 is correct
-
-        # Concatenate across workers
-        nworkers = get_nworkers(comm)
-        if nworkers > 1
-            src = Consolidate(src, params, Dict{String,Any}(), comm)
-        end
-    end
-
-    # TODO: Handle Consolidate, Merge, WriteHDF5, WriteJuliaArray, WriteCSV/Parquet/Arrow receiving missing
-
-    src
+    MergeHelper(
+        src,
+        part,
+        params,
+        batch_idx,
+        nbatches,
+        comm,
+        loc_name,
+        loc_params,
+        get_splitting_divisions(),
+        params["key"]
+    )
 end
 
 Merge(
@@ -351,11 +392,11 @@ CopyFromClient(
     loc_name,
     loc_params,
 ) = begin
-    println("In CopyFromClient")
-    received = get_worker_idx(comm) == 1 ? receive_from_client(loc_params["value_id"]) : nothing
+    v::ValueId = loc_params["value_id"]
+    received = get_worker_idx(comm) == 1 ? receive_from_client(v) : nothing
     # TODO: Make Replicated not necessarily require it to be replicated _everywhere_
-    received = MPI.bcast(received, 0, comm)
-    received
+    res = MPI.bcast(received, 0, comm)
+    res
 end
 
 CopyFromJulia(
@@ -367,7 +408,7 @@ CopyFromJulia(
     loc_name,
     loc_params,
 ) = begin
-    path = getpath(loc_params["path"], comm)
+    path = getpath(loc_params["path"]::String, comm)
     isfile(path) ? deserialize(path) : nothing
 end
 
@@ -450,24 +491,21 @@ reduce_in_memory(src, part::T, op::Function) where {T} = op(src, part)
 function ReduceAndCopyToJulia(
     src,
     part::T,
-    params,
+    params::Dict{String,Any},
     batch_idx::Int64,
     nbatches::Int64,
     comm::MPI.Comm,
-    loc_name,
-    loc_params,
+    loc_name::String,
+    loc_params::Dict{String,Any},
+    @nospecialize(op::Function)
 ) where {T}
     # Merge reductions from batches
-    op = get_op!(params)
     # TODO: Ensure that we handle reductions that can produce nothing
-    println("After reduce_in_memory with src=$src, part=$part")
     src = reduce_in_memory(src, part, op)
-    println("After reduce_in_memory with src=$src")
 
     # Merge reductions across workers
     if batch_idx == nbatches
-        src = Reduce(src, params, Dict{String,Any}(), comm)
-        println("After Reduce with src=$src")
+        src = Reduce(src, params, EMPTY_DICT, comm)
 
         if loc_name != "Memory"
             # We use 1 here so that it is as if we are copying from the head
@@ -487,6 +525,30 @@ function ReduceAndCopyToJulia(
     src
 end
 
+function ReduceAndCopyToJulia(
+    src,
+    part::T,
+    params::Dict{String,Any},
+    batch_idx::Int64,
+    nbatches::Int64,
+    comm::MPI.Comm,
+    loc_name::String,
+    loc_params::Dict{String,Any},
+) where {T}
+    op = get_op!(params)
+    ReduceAndCopyToJulia(
+        src,
+        part,
+        params,
+        batch_idx,
+        nbatches,
+        comm,
+        loc_name,
+        loc_params,
+        op
+    )
+end
+
 ReduceWithKeyAndCopyToJulia = ReduceAndCopyToJulia
 
 Divide(
@@ -499,7 +561,7 @@ Divide(
     loc_params::Dict{String,Any},
 ) = src[split_len(length(src), batch_idx, nbatches, comm)]
 
-function Divide(
+function DivideHelper(
     src::Tuple,
     params::Dict{String,Any},
     batch_idx::Int64,
@@ -507,16 +569,16 @@ function Divide(
     comm::MPI.Comm,
     loc_name::String,
     loc_params::Dict{String,Any},
+    dim::Int64
 )
     # This is for sizes which are tuples.
-    dim = params["key"]
     part = src
     # part = CopyFrom(src, params, batch_idx, nbatches, comm, loc_name, loc_params)
     newpartdim = length(split_len(part[dim], batch_idx, nbatches, comm))
     indexapply(_ -> newpartdim, part, index = dim)
 end
 
-function Divide(
+function DivideHelper(
     src,
     params::Dict{String,Any},
     batch_idx::Int64,
@@ -524,12 +586,31 @@ function Divide(
     comm::MPI.Comm,
     loc_name::String,
     loc_params::Dict{String,Any},
+    dim::Int64
 )
-    dim = params["key"]
     part = src
     # part = CopyFrom(src, params, batch_idx, nbatches, comm, loc_name, loc_params)
     length(split_len(part[dim], batch_idx, nbatches, comm))
 end
+
+Divide(
+    src,
+    params::Dict{String,Any},
+    batch_idx::Int64,
+    nbatches::Int64,
+    comm::MPI.Comm,
+    loc_name::String,
+    loc_params::Dict{String,Any},
+) = DivideHelper(
+    src,
+    params,
+    batch_idx,
+    nbatches,
+    comm,
+    loc_name,
+    loc_params,
+    params["key"]
+)
 
 function DivideFromValue(
     src::T,
@@ -602,27 +683,14 @@ end
 
 ReduceWithKey = Reduce
 
-Rebalance(
-    part::Any,
-    src_params::Dict{String,Any},
-    dst_params::Dict{String,Any},
-    comm::MPI.Comm
-) = error("Rebalancing $(typeof(part)) not supported")
+Distribute(part::nothing, src_params::Dict{String,Any}, dst_params::Dict{String,Any}, comm::MPI.Comm) = nothing
 
 function Distribute(part::T, src_params::Dict{String,Any}, dst_params::Dict{String,Any}, comm::MPI.Comm) where {T}
     # TODO: Determine whether copy is needed
-    copy(SplitBlock(part, dst_params, 1, 1, comm, "Memory", Dict{String,Any}()))
+    copy(SplitBlock(part, dst_params, 1, 1, comm, "Memory", EMPTY_DICT))
 end
 
-DistributeAndShuffle(part::T, src_params::Dict{String,Any}, dst_params::Dict{String,Any}, comm::MPI.Comm) where {T} =
-    SplitGroup(part, dst_params, 1, 1, comm, "Memory", Dict{String,Any}(), store_splitting_divisions = true)
+DistributeAndShuffle(part::nothing, src_params::Dict{String,Any}, dst_params::Dict{String,Any}, comm::MPI.Comm) = nothing
 
-Shuffle(
-    part::Any,
-    src_params::Dict{String,Any},
-    dst_params::Dict{String,Any},
-    comm::MPI.Comm;
-    boundedlower = false,
-    boundedupper = false,
-    store_splitting_divisions = true
-) = error("Shuffling $(typeof(part)) not supported")
+DistributeAndShuffle(part::T, src_params::Dict{String,Any}, dst_params::Dict{String,Any}, comm::MPI.Comm) where {T} =
+    SplitGroup(part, dst_params, 1, 1, comm, "Memory", EMPTY_DICT, store_splitting_divisions = true)

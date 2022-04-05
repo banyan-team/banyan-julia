@@ -142,32 +142,11 @@ scale_by_dst = 1
 src_required = { name = "Replicating", with_key = true }
 dst_required = { name = "Replicating", replication = "all" }
 
-[casts.Rebalance]
-scale_by_src = 1
-scale_by_dst = 3
-src_required = { name = "Distributing" }
-dst_required = { name = "Distributing", distribution = "blocked", balanced = true, id = "!" }
-
 [casts.Distribute]
 dst_expected = [ "key" ]
 scale_by_dst = 1
 src_required = { name = "Replicating", replication = "all" }
 dst_required = { name = "Distributing", distribution = "blocked", id = "!" }
-
-[casts.Consolidate]
-src_expected = [ "key" ]
-scale_by_src = 1
-scale_by_dst = 3
-src_required = { name = "Distributing" }
-dst_required = { name = "Replicating", replication = "all" }
-
-[casts.Shuffle]
-dst_expected = [ "key", "divisions" ]
-scale_by_src = 3
-scale_by_dst = 3
-src_required = { name = "Distributing" }
-dst_required = { name = "Distributing", distribution = "grouped", id = "!" }
-dst_default = { rev = false }
 
 [casts.DistributeAndShuffle]
 dst_expected = [ "key", "divisions" ]
