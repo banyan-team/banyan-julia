@@ -172,7 +172,7 @@ ReadBlockCSV, ReadBlockParquet, ReadBlockArrow = [
                 # Note that if we are reading disk-spilled Arrow data, we would have
                 # files for each of the workers that wrote that data. So there should
                 # be files but they might be empty.
-                if loc_name == "Disk"
+                res = if loc_name == "Disk"
                     files_sorted_by_nrow = sort(loc_params["files"], by = filedict -> filedict["nrows"])
                     if isempty(files_sorted_by_nrow)
                         # This should not be empty for disk-spilled data
@@ -185,6 +185,9 @@ ReadBlockCSV, ReadBlockParquet, ReadBlockArrow = [
                     # correct schema.
                     from_jl_value_contents(loc_params["emptysample"])
                 end
+                println("In ReadBlockCSV with empty dataframe")
+                @show res
+                res
             elseif length(dfs) == 1
                 dfs[1]
             else
@@ -312,6 +315,8 @@ WriteParquet, WriteCSV, WriteArrow = [
 
             nrows = part isa Empty ? 0 : size(part, 1)
             sortableidx = Banyan.sortablestring(idx, get_npartitions(nbatches, comm))
+            println("In WriteCSV")
+            @show part
             if !(part isa Empty)
                 write_file(convert(DataFrames.DataFrame, part), path, sortableidx, nrows)
             end

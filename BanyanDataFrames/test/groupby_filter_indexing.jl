@@ -735,12 +735,14 @@ end
         for i = 1:2
             # Read empty df
             df = read_file(path)
+            @show path
 
             if headertype == "header"
                 @test size(df) == (0, 2)
             elseif headertype == "no header"
                 @test size(df) == (0, 0)
             end
+            @show sample(df)
 
             # Filter empty df, which should result in empty df
             filtered_save_path = get_save_path(bucket, "filtered", path)
@@ -753,12 +755,15 @@ end
                 write_file(filtered_save_path, filtered)
             else
                 filtered = read_file(filtered_save_path)
+                @show filtered_save_path
             end
+            @show sample(filtered)
 
             # Groupby all columns and aggregrate to count number of rows
             filtered_size = size(filtered)
             filtered_grouped = groupby(filtered, All())
             filtered_grouped_nrow = size(combine(filtered_grouped, nrow))
+            @show sample(combine(filtered_grouped, nrow))
             filtered_grouped_length = length(groupby(df, All()))
 
             if headertype == "header"

@@ -963,6 +963,9 @@ function partitioned_code_region(
     end
 end
 
+get_samples(ufs::Base.Vector{Future}) = map(sample, ufs)
+get_samples(uf::Future) = sample(uf)
+
 macro partitioned(ex...)
     # Load in variables and code from macro
     vars::Vector{Symbol} = Base.collect(ex[1:end-1])
@@ -979,21 +982,11 @@ macro partitioned(ex...)
 
     assigning_samples = Expr[]
     # reassigning_futures = Expr[quote uf::Vector{Future} = Future[] end]
-    for (i, variable) in enumerate(variables)
+    for i in 1:length(variables)
         # Assign samples to variables used in annotated code
         push!(
             assigning_samples,
-            quote
-                let unsplatted_future = unsplatted_futures[$i]
-                    if unsplatted_future isa Vector
-                        ufs = unsplatted_future
-                        map(sample, ufs)
-                    else
-                        ufs = Future[unsplatted_future]
-                        sample(ufs[1])
-                    end
-                end
-            end
+            quote get_samples(unsplatted_futures[$i]) end
         )
 
         # # Re-assign futures to variables that were used in annotated code

@@ -57,6 +57,7 @@ function read_csv(path::String; kwargs...)
     #     # @show @isdefined RemoteTableSource
     #     RemoteTableSource(path; kw...)
     # end
+    println("In read_csv with path=$path")
     df_loc = RemoteTableSource(path; kwargs...)
     df_loc.src_name == "Remote" || error("$path does not exist")
     df_nrows = Future(df_loc.nrows)
