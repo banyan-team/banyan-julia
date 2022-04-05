@@ -459,11 +459,14 @@ function ReduceAndCopyToJulia(
     # Merge reductions from batches
     op = get_op!(params)
     # TODO: Ensure that we handle reductions that can produce nothing
+    println("After reduce_in_memory with src=$src, part=$part")
     src = reduce_in_memory(src, part, op)
+    println("After reduce_in_memory with src=$src")
 
     # Merge reductions across workers
     if batch_idx == nbatches
         src = Reduce(src, params, Dict{String,Any}(), comm)
+        println("After Reduce with src=$src")
 
         if loc_name != "Memory"
             # We use 1 here so that it is as if we are copying from the head
