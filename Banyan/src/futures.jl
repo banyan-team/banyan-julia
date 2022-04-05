@@ -8,10 +8,10 @@
 # is used.
 
 function get_location(fut::Future)::Location
-    @show fut.datatype
-    @show get_session().locations
-    @show fut.value_id
-    @show NOTHING_LOCATION
+    # @show fut.datatype
+    # @show get_session().locations
+    # @show fut.value_id
+    # @show NOTHING_LOCATION
     get(get_session().locations, fut.value_id, NOTHING_LOCATION)
 end
 

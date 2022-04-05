@@ -91,8 +91,8 @@ function get_remote_table_source(
 
     progressbar = Progress(length(files_to_read_from), isnothing(remote_sample) ? "Collecting sample from $remotepath" : "Collecting location information from $remotepath")
     @show files_to_read_from
-    @show remote_source
-    @show remote_sample
+    # @show remote_source
+    # @show remote_sample
     for (fileidx::Int64, filep::String) in enumerate(files_to_read_from)
         # Initialize
         filenrows = 0

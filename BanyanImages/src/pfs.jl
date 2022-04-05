@@ -8,7 +8,7 @@ function ReadBlockImage(
     loc_params,
 )
     # path = Banyan.getpath(loc_params["path"]) ? isa(loc_params["path"], String) : path
-    files::Union{Base.Vector{String},String} = loc_params["files"]
+    files::Union{Base.Vector{String},String,Base.Generator} = loc_params["files"]
     # ndims = loc_params["ndims"]
     # nbytes = loc_params["nbytes"]
     nimages::Int64 = loc_params["nimages"]

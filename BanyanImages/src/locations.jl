@@ -11,19 +11,20 @@ end
 MAX_EXACT_SAMPLE_NUM_IMAGES = 100
 
 function get_remote_image_source(
-    remotepath::String,
+    remotepath,
     remote_source::Location,
     remote_sample::Sample,
     shuffled::Bool
 )::Location
     # Initialize parameters if location is already cached
-    files::Union{Base.Vector{String},Tuple} = isnothing(remote_source) ? String[] : remote_source.files  # list, Tuple
+    files::Union{Base.Vector{String},Tuple,String} = isnothing(remote_source) ? String[] : remote_source.files  # list, Tuple
     nimages::Int64 = isnothing(remote_source) ? 0 : remote_source.nimages
     nbytes::Int64 = isnothing(remote_source) ? 0 : remote_source.nbytes
     ndims::Int64 = isnothing(remote_source) ? 0 : remote_source.ndims
     datasize = isnothing(remote_source) ? () : remote_source.size
     dataeltype = isnothing(remote_source) ? "" : remote_source.eltype
     format::String = isnothing(remote_source) ? "" : remote_source.format  # png, jpg
+    add_channelview::Bool = shuffled
 
 
     # TODO: I think if the above parameters were cached, they still get
@@ -172,7 +173,7 @@ function get_remote_image_source(
 
     # Serialize generator
     if isnothing(remote_source)
-        files = isa(remotepath, Tuple) ? Banyan.to_jl_value_contents(remotepath) : files_to_read_from
+        files = remotepath isa Tuple ? Banyan.to_jl_value_contents(remotepath) : files_to_read_from
     end
 
     empty_part_size = (0, (datasize[2:end])...)
@@ -217,15 +218,15 @@ function get_remote_image_source(
     )
 end
 
-function RemoteImageSource(remotepath; shuffled=false, source_invalid = false, sample_invalid = false, invalidate_source = false, invalidate_sample = false, add_channelview=false)::Location
+function RemoteImageSource(remotepath; source_invalid = false, sample_invalid = false, invalidate_source = false, invalidate_sample = false, add_channelview=false)::Location
     RemoteSource(
         get_remote_image_source,
         remotepath,
-        shuffled = shuffled,
-        source_invalid = source_invalid,
-        sample_invalid = sample_invalid,
-        invalidate_source = invalidate_source,
-        invalidate_sample = invalidate_sample
+        add_channelview,
+        source_invalid,
+        sample_invalid,
+        invalidate_source,
+        invalidate_sample
     )
 end
 
