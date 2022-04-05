@@ -25,6 +25,183 @@ end
 ReturnNullGroupingConsolidated(part, src_params::Dict{String,Any}, dst_params::Dict{String,Any}, comm::MPI.Comm) = nothing
 ReturnNullGroupingRebalanced(part, src_params::Dict{String,Any}, dst_params::Dict{String,Any}, comm::MPI.Comm) = nothing
 
+de(x) = DataFrames.DataFrame(Arrow.Table(IOBuffer(x)))
+
+ShuffleDataFrame(
+    part::Empty,
+    src_params::Dict{String,Any},
+    dst_params::Dict{String,Any},
+    comm::MPI.Comm,
+    boundedlower::Bool,
+    boundedupper::Bool,
+    store_splitting_divisions::Bool,
+    key::K,
+    rev::Bool,
+    divisions_by_worker::Base.Vector{Base.Vector{Division{V}}},
+    divisions::Base.Vector{Division{V}}
+) = ShuffleDataFrame(
+    DataFrames.DataFrame(),
+    src_params,
+    dst_params,
+    comm
+)
+
+function ShuffleDataFrame(
+    part::DataFrames.DataFrame,
+    src_params::Dict{String,Any},
+    dst_params::Dict{String,Any},
+    comm::MPI.Comm,
+    boundedlower::Bool,
+    boundedupper::Bool,
+    store_splitting_divisions::Bool,
+    key::K,
+    rev::Bool,
+    divisions_by_worker::Base.Vector{Base.Vector{Division{V}}},
+    divisions::Base.Vector{Division{V}},
+    splitting_divisions
+)::DataFrames.DataFrame where {K,V}
+    # We don't have to worry about grouped data frames since they are always
+    # block-partitioned.
+
+    # Get the divisions to apply
+    worker_idx, nworkers = Banyan.get_worker_idx(comm), Banyan.get_nworkers(comm)
+
+    # Perform shuffle
+    partition_idx_getter(val) = Banyan.get_partition_idx_from_divisions(
+        val,
+        divisions_by_worker,
+        boundedlower,
+        boundedupper,
+    )
+    res = begin
+        gdf::Union{DataFrames.GroupedDataFrame,Nothing} = if !isempty(part)
+            # Compute the partition to send each row of the dataframe to
+            DataFrames.transform!(part, key => ByRow(partition_idx_getter) => :banyan_shuffling_key)
+
+            # Group the dataframe's rows by what partition to send to
+            DataFrames.groupby(part, :banyan_shuffling_key, sort = true)
+        else
+            nothing
+        end
+
+        # Create buffer for sending dataframe's rows to all the partitions
+        io = IOBuffer()
+        nbyteswritten::Int64 = 0
+        df_counts::Base.Vector{Int64} = Int64[]
+        for partition_idx = 1:nworkers
+            Arrow.write(
+                io,
+                if !isnothing(gdf) && (banyan_shuffling_key = partition_idx,) in keys(gdf)
+                    gdf[(banyan_shuffling_key = partition_idx,)]
+                else
+                    empty(part)
+                end,
+            )
+            push!(df_counts, io.size - nbyteswritten)
+            nbyteswritten = io.size
+        end
+        sendbuf = MPI.VBuffer(view(io.data, 1:nbyteswritten), df_counts)
+
+        # Create buffer for receiving pieces
+        sizes = MPI.Alltoall(MPI.UBuffer(df_counts, 1), comm)
+        recvbuf = MPI.VBuffer(similar(io.data, sum(sizes)), sizes)
+
+        # Perform the shuffle
+        MPI.Alltoallv!(sendbuf, recvbuf, comm)
+
+        # Return the concatenated dataframe
+        res::DataFrames.DataFrame = if length(recvbuf.counts) == 1
+            DataFrames.DataFrame(
+                Arrow.Table(IOBuffer(view(recvbuf.data, :))),
+                copycols = false,
+            )
+        else
+            vcat(
+                (
+                    DataFrames.DataFrame(
+                        Arrow.Table(IOBuffer(view(recvbuf.data, displ+1:displ+count))),
+                        copycols = false,
+                    ) for (displ, count) in zip(recvbuf.displs, recvbuf.counts)
+                )...
+            )
+        end
+        if :banyan_shuffling_key in propertynames(res)
+            DataFrames.select!(res, Not(:banyan_shuffling_key))
+        end
+
+        res
+    end
+
+    if store_splitting_divisions
+        # The first and last partitions (used if this lacks a lower or upper bound)
+        # must have actual division(s) associated with them. If there is no
+        # partition that has divisions, then they will all be skipped and -1 will
+        # be returned. So these indices are only used if there are nonempty
+        # divisions.
+        hasdivision = any(isnotempty, divisions_by_worker)
+        firstdivisionidx = findfirst(isnotempty, divisions_by_worker)
+        lastdivisionidx = findlast(isnotempty, divisions_by_worker)
+
+        # Store divisions
+        splitting_divisions[res] =
+            (divisions_by_worker[worker_idx], !hasdivision || worker_idx != firstdivisionidx, !hasdivision || worker_idx != lastdivisionidx)
+    end
+
+    res
+end
+
+function ShuffleDataFrame(
+    part::Union{AbstractArray,Empty},
+    src_params::Dict{String,Any},
+    dst_params::Dict{String,Any},
+    comm::MPI.Comm,
+    boundedlower::Bool = false,
+    boundedupper::Bool = false,
+    store_splitting_divisions::Bool = true
+)
+    divisions = dst_params["divisions"]
+    has_divisions_by_worker = haskey(dst_params, "divisions_by_worker")
+    V = if !isempty(divisions)
+        typeof(divisions[1][1])
+    elseif has_divisions_by_worker
+        typeof(divisions_by_worker[1][1][1])
+    else
+        Any
+    end
+    ShuffleDataFrame(
+        part,
+        src_params,
+        dst_params,
+        comm,
+        boundedlower,
+        boundedupper,
+        store_splitting_divisions,
+        dst_params["key"],
+        get(dst_params, "rev", false),
+        haskey(dst_params, "divisions_by_worker") ? dst_params["divisions_by_worker"] : Base.Vector{Division{V}}[],
+        divisions,
+        Banyan.get_splitting_divisions()
+    )
+end
+
+ShuffleDataFrame(
+    part::Union{AbstractArray,Empty},
+    src_params::Dict{String,Any},
+    dst_params::Dict{String,Any},
+    comm::MPI.Comm;
+    boundedlower::Bool = false,
+    boundedupper::Bool = false,
+    store_splitting_divisions::Bool = true
+) = ShuffleDataFrame(
+    part,
+    src_params,
+    dst_params,
+    comm,
+    boundedlower,
+    boundedupper,
+    store_splitting_divisions
+)
+
 function read_csv_file(path, header, rowrange, readrange, filerowrange, dfs)
     f = CSV.File(
         path,
@@ -583,8 +760,6 @@ end
 # Grouped data frames can be block-partitioned but we will have to
 # redo the groupby if we try to do any sort of merging/splitting on it.
 
-de(x) = DataFrames.DataFrame(Arrow.Table(IOBuffer(x)))
-
 Banyan.RebalanceDataFrame(
     part::Empty,
     src_params::Dict{String,Any},
@@ -727,178 +902,3 @@ function ConsolidateDataFrame(part::DataFrames.DataFrame, src_params::Dict{Strin
     )
     res
 end
-
-ShuffleDataFrame(
-    part::Empty,
-    src_params::Dict{String,Any},
-    dst_params::Dict{String,Any},
-    comm::MPI.Comm,
-    boundedlower::Bool,
-    boundedupper::Bool,
-    store_splitting_divisions::Bool,
-    key::K,
-    rev::Bool,
-    divisions_by_worker::Base.Vector{Base.Vector{Division{V}}},
-    divisions::Base.Vector{Division{V}}
-) = ShuffleDataFrame(
-    DataFrames.DataFrame(),
-    src_params,
-    dst_params,
-    comm
-)
-
-function ShuffleDataFrame(
-    part::DataFrames.DataFrame,
-    src_params::Dict{String,Any},
-    dst_params::Dict{String,Any},
-    comm::MPI.Comm,
-    boundedlower::Bool,
-    boundedupper::Bool,
-    store_splitting_divisions::Bool,
-    key::K,
-    rev::Bool,
-    divisions_by_worker::Base.Vector{Base.Vector{Division{V}}},
-    divisions::Base.Vector{Division{V}},
-    splitting_divisions
-)::DataFrames.DataFrame where {K,V}
-    # We don't have to worry about grouped data frames since they are always
-    # block-partitioned.
-
-    # Get the divisions to apply
-    worker_idx, nworkers = Banyan.get_worker_idx(comm), Banyan.get_nworkers(comm)
-
-    # Perform shuffle
-    partition_idx_getter(val) = Banyan.get_partition_idx_from_divisions(
-        val,
-        divisions_by_worker,
-        boundedlower,
-        boundedupper,
-    )
-    res = begin
-        gdf::Union{DataFrames.GroupedDataFrame,Nothing} = if !isempty(part)
-            # Compute the partition to send each row of the dataframe to
-            DataFrames.transform!(part, key => ByRow(partition_idx_getter) => :banyan_shuffling_key)
-
-            # Group the dataframe's rows by what partition to send to
-            DataFrames.groupby(part, :banyan_shuffling_key, sort = true)
-        else
-            nothing
-        end
-
-        # Create buffer for sending dataframe's rows to all the partitions
-        io = IOBuffer()
-        nbyteswritten::Int64 = 0
-        df_counts::Base.Vector{Int64} = Int64[]
-        for partition_idx = 1:nworkers
-            Arrow.write(
-                io,
-                if !isnothing(gdf) && (banyan_shuffling_key = partition_idx,) in keys(gdf)
-                    gdf[(banyan_shuffling_key = partition_idx,)]
-                else
-                    empty(part)
-                end,
-            )
-            push!(df_counts, io.size - nbyteswritten)
-            nbyteswritten = io.size
-        end
-        sendbuf = MPI.VBuffer(view(io.data, 1:nbyteswritten), df_counts)
-
-        # Create buffer for receiving pieces
-        sizes = MPI.Alltoall(MPI.UBuffer(df_counts, 1), comm)
-        recvbuf = MPI.VBuffer(similar(io.data, sum(sizes)), sizes)
-
-        # Perform the shuffle
-        MPI.Alltoallv!(sendbuf, recvbuf, comm)
-
-        # Return the concatenated dataframe
-        res::DataFrames.DataFrame = if length(recvbuf.counts) == 1
-            DataFrames.DataFrame(
-                Arrow.Table(IOBuffer(view(recvbuf.data, :))),
-                copycols = false,
-            )
-        else
-            vcat(
-                (
-                    DataFrames.DataFrame(
-                        Arrow.Table(IOBuffer(view(recvbuf.data, displ+1:displ+count))),
-                        copycols = false,
-                    ) for (displ, count) in zip(recvbuf.displs, recvbuf.counts)
-                )...
-            )
-        end
-        if :banyan_shuffling_key in propertynames(res)
-            DataFrames.select!(res, Not(:banyan_shuffling_key))
-        end
-
-        res
-    end
-
-    if store_splitting_divisions
-        # The first and last partitions (used if this lacks a lower or upper bound)
-        # must have actual division(s) associated with them. If there is no
-        # partition that has divisions, then they will all be skipped and -1 will
-        # be returned. So these indices are only used if there are nonempty
-        # divisions.
-        hasdivision = any(isnotempty, divisions_by_worker)
-        firstdivisionidx = findfirst(isnotempty, divisions_by_worker)
-        lastdivisionidx = findlast(isnotempty, divisions_by_worker)
-
-        # Store divisions
-        splitting_divisions[res] =
-            (divisions_by_worker[worker_idx], !hasdivision || worker_idx != firstdivisionidx, !hasdivision || worker_idx != lastdivisionidx)
-    end
-
-    res
-end
-
-function ShuffleDataFrame(
-    part::Union{AbstractArray,Empty},
-    src_params::Dict{String,Any},
-    dst_params::Dict{String,Any},
-    comm::MPI.Comm,
-    boundedlower::Bool = false,
-    boundedupper::Bool = false,
-    store_splitting_divisions::Bool = true
-)
-    divisions = dst_params["divisions"]
-    has_divisions_by_worker = haskey(dst_params, "divisions_by_worker")
-    V = if !isempty(divisions)
-        typeof(divisions[1][1])
-    elseif has_divisions_by_worker
-        typeof(divisions_by_worker[1][1][1])
-    else
-        Any
-    end
-    ShuffleDataFrame(
-        part,
-        src_params,
-        dst_params,
-        comm,
-        boundedlower,
-        boundedupper,
-        store_splitting_divisions,
-        dst_params["key"],
-        get(dst_params, "rev", false),
-        haskey(dst_params, "divisions_by_worker") ? dst_params["divisions_by_worker"] : Base.Vector{Division{V}}[],
-        divisions,
-        Banyan.get_splitting_divisions()
-    )
-end
-
-ShuffleDataFrame(
-    part::Union{AbstractArray,Empty},
-    src_params::Dict{String,Any},
-    dst_params::Dict{String,Any},
-    comm::MPI.Comm;
-    boundedlower::Bool = false,
-    boundedupper::Bool = false,
-    store_splitting_divisions::Bool = true
-) = ShuffleDataFrame(
-    part,
-    src_params,
-    dst_params,
-    comm,
-    boundedlower,
-    boundedupper,
-    store_splitting_divisions
-)

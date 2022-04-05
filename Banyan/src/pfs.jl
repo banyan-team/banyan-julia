@@ -683,14 +683,14 @@ end
 
 ReduceWithKey = Reduce
 
-Distribute(part::nothing, src_params::Dict{String,Any}, dst_params::Dict{String,Any}, comm::MPI.Comm) = nothing
+Distribute(part::Nothing, src_params::Dict{String,Any}, dst_params::Dict{String,Any}, comm::MPI.Comm) = nothing
 
 function Distribute(part::T, src_params::Dict{String,Any}, dst_params::Dict{String,Any}, comm::MPI.Comm) where {T}
     # TODO: Determine whether copy is needed
     copy(SplitBlock(part, dst_params, 1, 1, comm, "Memory", EMPTY_DICT))
 end
 
-DistributeAndShuffle(part::nothing, src_params::Dict{String,Any}, dst_params::Dict{String,Any}, comm::MPI.Comm) = nothing
+DistributeAndShuffle(part::Nothing, src_params::Dict{String,Any}, dst_params::Dict{String,Any}, comm::MPI.Comm) = nothing
 
 DistributeAndShuffle(part::T, src_params::Dict{String,Any}, dst_params::Dict{String,Any}, comm::MPI.Comm) where {T} =
     SplitGroup(part, dst_params, 1, 1, comm, "Memory", EMPTY_DICT, store_splitting_divisions = true)
