@@ -501,6 +501,10 @@ end
 
 function Banyan.Consolidate(part::AbstractArray, src_params::Dict{String,Any}, dst_params::Dict{String,Any}, comm::MPI.Comm)
     is_buffer_type = ndims(part) == 1 && isbitstype(eltype(part))
+    if MPI.Initialized() && MPI.Comm_rank(comm) == 0
+        println("In Consolidate")
+        @show is_buffer_type
+    end
     sendbuf = if is_buffer_type
         MPI.Buffer(part)
     else
@@ -508,18 +512,33 @@ function Banyan.Consolidate(part::AbstractArray, src_params::Dict{String,Any}, d
         serialize(io, part)
         MPI.Buffer(view(io.data, 1:io.size))
     end
+    if MPI.Initialized() && MPI.Comm_rank(comm) == 0
+        println("Finished sendbuf")
+    end
     recvvbuf = Banyan.buftovbuf(sendbuf, comm)
+    if MPI.Initialized() && MPI.Comm_rank(comm) == 0
+        println("Finished recvvbuf")
+    end
     # TODO: Maybe sometimes use gatherv if all sendbuf's are known to be equally sized
 
     MPI.Allgatherv!(sendbuf, recvvbuf, comm)
+    if MPI.Initialized() && MPI.Comm_rank(comm) == 0
+        println("Finished Allgatherv")
+    end
+    the_chunks = [
+        begin
+            chunk = view(recvvbuf.data, (recvvbuf.displs[i]+1):(recvvbuf.displs[i]+recvvbuf.counts[i]))
+            is_buffer_type ? chunk : deserialize(IOBuffer(chunk))
+        end
+        for i in 1:Banyan.get_nworkers(comm)
+    ]
+    if MPI.Initialized() && MPI.Comm_rank(comm) == 0
+        @show length(the_chunks)
+        @show [size(a_chunk) for a_chunk in the_chunks if !isnothing(a_chunk)]
+        @show the_chunks
+    end
     merge_on_executor(
-        [
-            begin
-                chunk = view(recvvbuf.data, (recvvbuf.displs[i]+1):(recvvbuf.displs[i]+recvvbuf.counts[i]))
-                is_buffer_type ? chunk : deserialize(IOBuffer(chunk))
-            end
-            for i in 1:Banyan.get_nworkers(comm)
-        ]...;
+        the_chunks...;
         key = src_params["key"],
     )
 end

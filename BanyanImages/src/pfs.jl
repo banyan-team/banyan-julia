@@ -7,6 +7,7 @@ function ReadBlockImage(
     loc_name,
     loc_params,
 )
+    println("At start of ReadBlockImage")
     # path = Banyan.getpath(loc_params["path"]) ? isa(loc_params["path"], String) : path
     files = loc_params["files"]
     # ndims = loc_params["ndims"]
@@ -63,6 +64,7 @@ function ReadBlockImage(
             images[i, :, :] = image
         end
     end
+    println("At end of ReadBlockImage")
     images
 end
 

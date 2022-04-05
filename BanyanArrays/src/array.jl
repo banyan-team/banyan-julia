@@ -419,10 +419,34 @@ function Base.mapslices(f, A::Array{T,N}; dims) where {T,N}
     end
 
     @partitioned f A dims res res_size begin
+        try
+            if MPI.Initialized() && MPI.Comm_rank(MPI.COMM_WORLD) == 0
+                println("In mapslices:")
+                @show typeof(f)
+                @show typeof(A)
+                @show typeof(dims)
+            end
+        catch e
+            println("In mapslices:")
+            @show typeof(f)
+            @show typeof(A)
+            @show typeof(dims)
+        end
         # We return nothing because `mapslices` doesn't work properly for
         # empty data
         res = isempty(A) ? nothing : Base.mapslices(f, A, dims=dims)
         res_size = isempty(A) ? nothing : Base.size(res)
+        try
+            if MPI.Initialized() && MPI.Comm_rank(MPI.COMM_WORLD) == 0
+                println("At end of mapslices")
+                @show typeof(res)
+                @show typeof(res_size)
+            end
+        catch e
+            println("At end of mapslices")
+            @show typeof(res)
+            @show typeof(res_size)
+        end
     end
 
     res

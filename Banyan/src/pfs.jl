@@ -230,6 +230,15 @@ function Merge(
     loc_name::String,
     loc_params::Dict{String,Any},
 )
+    if MPI.Initialized() && MPI.Comm_rank(comm) == 0
+        println("$(MPI.Comm_rank(comm)): start Merge")
+        @show typeof(src)
+        @show typeof(part)
+        @show batch_idx
+        @show nbatches
+        @show loc_name
+    end
+
     splitting_divisions = get_splitting_divisions()
 
     # TODO: To allow for mutation of a value, we may want to remove this
@@ -249,7 +258,15 @@ function Merge(
         delete!(splitting_divisions, part)
 
         # Concatenate across batches
-        src = merge_on_executor((piece for piece in src.pieces if !isnothing(piece))...; key = key)
+        src_pieces = [piece for piece in src.pieces if !isnothing(piece)]
+        num_zero_length_pieces = sum([1 for piece in src_pieces if length(piece) == 0])
+        if MPI.Initialized() && MPI.Comm_rank(comm) == 0
+            println("$(MPI.Comm_rank(comm)): length(src_pieces)=$(length(src_pieces)), num_zero_length_pieces=$(num_zero_length_pieces)")
+        end
+        # println("typeof(piece): ", [typeof(piece) for piece in src_pieces])
+        # println("size(piece): ", [size(piece) for piece in src_pieces])
+        src = merge_on_executor(src_pieces...; key = key)
+        # src = merge_on_executor((piece for piece in src.pieces if !isnothing(piece))...; key = key)
 
         # Concatenate across workers
         nworkers = get_nworkers(comm)
@@ -258,6 +275,9 @@ function Merge(
         end
     end
 
+    if MPI.Initialized() && MPI.Comm_rank(comm) == 0
+        println("$(MPI.Comm_rank(comm)): end Merge")
+    end
     src
 end
 

@@ -1,13 +1,10 @@
 
 using ReTest
-using Banyan, BanyanArrays, BanyanONNXRunTime  #, BanyanImages
+using Banyan, BanyanArrays, BanyanONNXRunTime, BanyanImages
 using Downloads, JSON
 using ImageCore
 using IterTools
 
-# # Create a dummy test job for unit tests
-# test_job_id = "test_job_id"
-# Banyan.jobs[test_job_id] = Job(ENV["BANYAN_CLUSTER_NAME"], test_job_id, 2, 2)
 
 global sessions_for_testing = Dict()
 
@@ -35,7 +32,7 @@ function use_session_for_testing(
     # configuring a session for testing. Different sample rates are typically used
     # to test different data sizes. Stress tests may need a much greater sample
     # rate.
-    session_config_hash = sample_rate
+    session_config_hash = "$sample_rate-$nworkers"
 
     # Set the session and create a new one if needed
     global sessions_for_testing
@@ -52,9 +49,9 @@ function use_session_for_testing(
                 branch = get(ENV, "BANYAN_JULIA_BRANCH", Banyan.get_branch_name()),
                 directory = "banyan-julia/BanyanONNXRunTime/test",
                 dev_paths = [
-                    # "banyan-julia/BanyanImages",
                     "banyan-julia/Banyan",
                     "banyan-julia/BanyanArrays",
+                    "banyan-julia/BanyanImages",
                     "banyan-julia/BanyanONNXRunTime",
                 ],
                 # force_update_files=true,
@@ -105,6 +102,7 @@ function use_session_for_testing(
 end
 
 include("onnxruntime.jl")
+include("stress.jl")
 
 try
     runtests(Regex.(ARGS)...)
