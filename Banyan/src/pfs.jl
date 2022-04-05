@@ -443,6 +443,7 @@ function get_op!(params::Dict{String,Any})
 end
 
 reduce_in_memory(src::Union{Nothing,Empty}, part::T, op::Function) where {T} = part
+reduce_in_memory(src::Union{Empty, Nothing}, part::Empty, op::Function) = EMPTY
 reduce_in_memory(src, part::Empty, op::Function) = src
 reduce_in_memory(src, part::T, op::Function) where {T} = op(src, part)
 
