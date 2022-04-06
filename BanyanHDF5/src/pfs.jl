@@ -110,9 +110,9 @@ ReadBlockHDF5(
     comm,
     loc_name,
     loc_params,
-    loc_params["path"],
-    loc_params["subpath"],
-    params["key"]
+    loc_params["path"]::String,
+    loc_params["subpath"]::String,
+    params["key"]::Int64
 )
 
 ReadGroupHelperHDF5 = ReadGroupHelper(ReadBlockHDF5, ShuffleArray)
@@ -572,9 +572,9 @@ function WriteHDF5(
         comm,
         loc_name,
         loc_params,
-        loc_params["path"],
-        loc_params["subpath"],
-        params["key"]
+        loc_params["path"]::String,
+        loc_params["subpath"]::String,
+        params["key"]::Int64
     )
 end
 

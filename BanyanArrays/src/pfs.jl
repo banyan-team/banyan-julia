@@ -423,7 +423,7 @@ function Banyan.SplitBlock(
         comm::MPI.Comm,
         loc_name::String,
         loc_params::Dict{String,Any},
-        params["key"]
+        params["key"]::Int64
     )
 end
 
@@ -538,8 +538,8 @@ function Banyan.SplitGroup(
         src_divisions,
         boundedlower,
         boundedupper,
-        params["key"],
-        get(params, "rev", false),
+        params["key"]::Int64,
+        get(params, "rev", false)::Bool,
         splitting_divisions
     )
 end
@@ -654,7 +654,7 @@ RebalanceArray(
     src_params,
     dst_params,
     comm,
-    dst_params["key"]
+    dst_params["key"]::Int64
 )
 
 function ConsolidateArray(
@@ -698,7 +698,7 @@ function ConsolidateArray(
 end
 
 ConsolidateArray(part::Union{AbstractArray,Empty}, src_params::Dict{String,Any}, dst_params::Dict{String,Any}, comm::MPI.Comm) =
-    ConsolidateArray(part, src_params, dst_params, comm, src_params["key"])
+    ConsolidateArray(part, src_params, dst_params, comm, src_params["key"]::Int64)
 
 function ShuffleArrayHelper(
     part::Union{AbstractArray,Empty},
@@ -872,10 +872,10 @@ function ShuffleArray(
         boundedlower,
         boundedupper,
         store_splitting_divisions,
-        src_params["key"],
-        dst_params["key"],
-        get(dst_params, "rev", false),
-        has_divisions_by_worker ? dst_params["divisions_by_worker"] : Base.Vector{Division{V}}[],
+        src_params["key"]::Int64,
+        dst_params["key"]::Int64,
+        get(dst_params, "rev", false)::Bool,
+        has_divisions_by_worker ? dst_params["divisions_by_worker"]::Base.Vector{Base.Vector{Division{V}}} : Base.Vector{Division{V}}[],
         divisions
     )
 end

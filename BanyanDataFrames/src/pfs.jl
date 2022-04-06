@@ -646,7 +646,7 @@ function SplitGroupDataFrame(
     src_divisions,
     boundedlower::Bool,
     boundedupper::Bool,
-    key,
+    key::String,
     rev::Bool,
     splitting_divisions
 )
@@ -732,8 +732,8 @@ function Banyan.SplitGroup(
         src_divisions,
         boundedlower,
         boundedupper,
-        params["key"],
-        get(params, "rev", false),
+        params["key"]::String,
+        get(params, "rev", false)::Bool,
         splitting_divisions
     )
 end
