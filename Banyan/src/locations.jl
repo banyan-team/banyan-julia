@@ -121,7 +121,7 @@ function sourced(fut::Future, loc::Location)
                 loc.src_name,
                 "None",
                 loc.src_parameters,
-                EMPTY_DICT,
+                Dict{String,Any}(),
                 loc.total_memory_usage,
                 if !isnothing(loc.sample.value)
                     # If this location is like some remote location, then we need
@@ -171,7 +171,7 @@ function destined(fut::Future, loc::Location)
             Location(
                 "None",
                 loc.dst_name,
-                EMPTY_DICT,
+                Dict{String,Any},
                 loc.dst_parameters,
                 fut_location.total_memory_usage,
                 Sample(),
@@ -309,13 +309,13 @@ Size(val) = LocationSource(
     Sample(indexapply(getsamplenrows, val, index = 1)),
 )
 
-Client(val) = LocationSource("Client", EMPTY_DICT, total_memory_usage(val), ExactSample(val))
-Client() = LocationDestination("Client", EMPTY_DICT)
+Client(val) = LocationSource("Client", Dict{String,Any}(), total_memory_usage(val), ExactSample(val))
+Client() = LocationDestination("Client", Dict{String,Any}())
 # TODO: Un-comment only if Size is needed
 # Size(size) = Value(size)
 
-None() = Location("None", EMPTY_DICT, 0)
-Disk() = Location("None", EMPTY_DICT) # The scheduler intelligently determines when to split from and merge to disk even when no location is specified
+None() = Location("None", Dict{String,Any}(), 0)
+Disk() = Location("None", Dict{String,Any}()) # The scheduler intelligently determines when to split from and merge to disk even when no location is specified
 # Values assigned "None" location as well as other locations may reassigned
 # "Memory" or "Disk" locations by the scheduler depending on where the relevant
 # data is.

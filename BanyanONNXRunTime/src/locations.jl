@@ -28,7 +28,7 @@ function get_remote_onnx_source(
             ),
         )
     else
-        ("None", EMPTY_DICT)
+        ("None", Dict{String,Any}())
     end
 
     # Construct sample

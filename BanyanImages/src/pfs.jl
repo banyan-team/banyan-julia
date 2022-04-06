@@ -1,22 +1,22 @@
-function ReadBlockImage(
+function ReadBlockImageHelper(
     src,
-    params,
+    params::Dict{String,Any},
     batch_idx::Int64,
     nbatches::Int64,
     comm::MPI.Comm,
-    loc_name,
-    loc_params,
+    loc_name::String,
+    loc_params::Dict{String,Any},
+    files::Union{Base.Vector{String},String,Base.Generator},
+    nimages::Int64,
+    datasize,
+    empty_sample,
+    add_channelview::Bool
 )
     # path = Banyan.getpath(loc_params["path"]) ? isa(loc_params["path"], String) : path
-    files::Union{Base.Vector{String},String,Base.Generator} = loc_params["files"]
     # ndims = loc_params["ndims"]
     # nbytes = loc_params["nbytes"]
-    nimages::Int64 = loc_params["nimages"]
-    datasize = loc_params["size"]
-    empty_sample = Banyan.from_jl_value_contents(loc_params["emptysample"]::String)
     # dataeltype = loc_params["eltype"]
     # file_extension = "." * loc_params["format"]
-    add_channelview::Bool = loc_params["add_channelview"]
 
     # files is either a list of file paths or a serialized tuple containing
     # information to construct a generator
@@ -66,6 +66,28 @@ function ReadBlockImage(
     images
 end
 
+ReadBlockImage(
+    src,
+    params::Dict{String,Any},
+    batch_idx::Int64,
+    nbatches::Int64,
+    comm::MPI.Comm,
+    loc_name::String,
+    loc_params::Dict{String,Any},
+) = ReadBlockImageHelper(
+    src,
+    params,
+    batch_idx,
+    nbatches,
+    comm,
+    loc_name,
+    loc_params,
+    loc_params["files"],
+    loc_params["nimages"],
+    loc_params["size"],
+    Banyan.from_jl_value_contents(loc_params["emptysample"]::String),
+    loc_params["add_channelview"]
+)
 
 # function WriteImage(
 #     src,

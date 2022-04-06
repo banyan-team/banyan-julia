@@ -5,6 +5,8 @@ using Base: AbstractVecOrTuple
 
 timezones_built = false
 
+const EMPTY_DICT = Dict{String,Any}()
+
 ##############
 # CONVERSION #
 ##############
@@ -596,5 +598,3 @@ function empty_handler(op)
 end
 
 isnotempty(x) = !isempty(x)
-
-const EMPTY_DICT = Dict{String,Any}()

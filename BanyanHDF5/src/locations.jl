@@ -170,7 +170,7 @@ function get_remote_hdf5_source(
             ),
         )
     else
-        ("None", EMPTY_DICT)
+        ("None", Dict{String,Any}())
     end
 
     # Get the remote sample

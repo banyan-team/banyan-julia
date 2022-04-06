@@ -128,7 +128,7 @@ function Blocked(
 )::Vector{PartitionType}
     f = convert(Future, f)::Future
 
-    parameters = EMPTY_DICT
+    parameters = Dict{String,Any}()
     constraints = PartitioningConstraints()
 
     # # Prepare `along`
