@@ -13,7 +13,7 @@ global investigating = Dict(
     :losing_data => false,
     :setup_nyc_taxi_stress_test => false,
     :size_exaggurated_tests => false,
-    :tasks => true,
+    :tasks => false,
     :code_execution => Dict(
         :finishing => false
     ),

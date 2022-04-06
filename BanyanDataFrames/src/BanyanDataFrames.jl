@@ -16,12 +16,6 @@ using Banyan,
 using DataFrames, Missings, CSV, Parquet, Arrow
 using ProgressMeter
 
-include("locations.jl")
-include("df.jl")
-include("gdf.jl")
-include("utils_pfs.jl")
-include("pfs.jl")
-
 # Types
 export DataFrame, GroupedDataFrame
 
@@ -78,5 +72,16 @@ export ReadBlockCSV,
     ReturnNullGroupingRebalanced
 
 export RemoteTableSource, RemoteTableDestination
+
+include("locations.jl")
+include("df.jl")
+include("gdf.jl")
+include("utils_pfs.jl")
+include("pfs.jl")
+
+if Base.VERSION >= v"1.4.2"
+    include("precompile.jl")
+    _precompile_()
+end
 
 end # module

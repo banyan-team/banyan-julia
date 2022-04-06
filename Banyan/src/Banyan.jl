@@ -5,8 +5,6 @@
 # - pt, pc
 # - @partitioned
 
-__precompile__()
-
 module Banyan
 
 global BANYAN_JULIA_BRANCH_NAME = "v22.02.13"
@@ -279,6 +277,11 @@ function __init__()
        Downloads.Curl.setopt(easy, Downloads.Curl.CURLOPT_LOW_SPEED_TIME, 40)
 
     load_config()
+end
+
+if Base.VERSION >= v"1.4.2"
+    include("precompile.jl")
+    _precompile_()
 end
 
 end # module
