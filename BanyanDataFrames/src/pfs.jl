@@ -158,7 +158,7 @@ ShuffleDataFrameHelper(
 )
 
 function ShuffleDataFrame(
-    part::Union{AbstractArray,Empty},
+    part::Union{DataFrames.DataFrame,Empty},
     src_params::Dict{String,Any},
     dst_params::Dict{String,Any},
     comm::MPI.Comm,
@@ -192,7 +192,7 @@ function ShuffleDataFrame(
 end
 
 ShuffleDataFrame(
-    part::Union{AbstractArray,Empty},
+    part::Union{DataFrames.DataFrame,Empty},
     src_params::Dict{String,Any},
     dst_params::Dict{String,Any},
     comm::MPI.Comm,
