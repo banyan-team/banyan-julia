@@ -738,8 +738,8 @@ function Banyan.SplitGroup(
         src_divisions,
         boundedlower,
         boundedupper,
-        key,
-        rev,
+        params["key"],
+        get(params, "rev", false),
         splitting_divisions
     )
 end
