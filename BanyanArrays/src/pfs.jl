@@ -680,7 +680,7 @@ end
 ConsolidateArray(part::Union{AbstractArray,Empty}, src_params::Dict{String,Any}, dst_params::Dict{String,Any}, comm::MPI.Comm) =
     ConsolidateArray(part, src_params, dst_params, comm, src_params["key"])
 
-function ShuffleArray(
+function ShuffleArrayHelper(
     part::Union{AbstractArray,Empty},
     src_params::Dict{String,Any},
     dst_params::Dict{String,Any},
@@ -830,10 +830,10 @@ function ShuffleArray(
     part::Union{AbstractArray,Empty},
     src_params::Dict{String,Any},
     dst_params::Dict{String,Any},
-    comm::MPI.Comm,
-    boundedlower::Bool,
-    boundedupper::Bool,
-    store_splitting_divisions::Bool
+    comm::MPI.Comm;
+    boundedlower::Bool = false,
+    boundedupper::Bool = false,
+    store_splitting_divisions::Bool = true
 )
     divisions = dst_params["divisions"]
     has_divisions_by_worker = haskey(dst_params, "divisions_by_worker")
@@ -844,7 +844,7 @@ function ShuffleArray(
     else
         Any
     end
-    ShuffleArray(
+    ShuffleArrayHelper(
         part,
         src_params,
         dst_params,
@@ -859,21 +859,3 @@ function ShuffleArray(
         divisions
     )
 end
-
-ShuffleArray(
-    part::Union{AbstractArray,Empty},
-    src_params::Dict{String,Any},
-    dst_params::Dict{String,Any},
-    comm::MPI.Comm;
-    boundedlower::Bool = false,
-    boundedupper::Bool = false,
-    store_splitting_divisions::Bool = true
-) = ShuffleArray(
-    part,
-    src_params,
-    dst_params,
-    comm,
-    boundedlower,
-    boundedupper,
-    store_splitting_divisions
-)

@@ -27,26 +27,7 @@ ReturnNullGroupingRebalanced(part, src_params::Dict{String,Any}, dst_params::Dic
 
 de(x) = DataFrames.DataFrame(Arrow.Table(IOBuffer(x)))
 
-ShuffleDataFrame(
-    part::Empty,
-    src_params::Dict{String,Any},
-    dst_params::Dict{String,Any},
-    comm::MPI.Comm,
-    boundedlower::Bool,
-    boundedupper::Bool,
-    store_splitting_divisions::Bool,
-    key::K,
-    rev::Bool,
-    divisions_by_worker::Base.Vector{Base.Vector{Division{V}}},
-    divisions::Base.Vector{Division{V}}
-) = ShuffleDataFrame(
-    DataFrames.DataFrame(),
-    src_params,
-    dst_params,
-    comm
-)
-
-function ShuffleDataFrame(
+function ShuffleDataFrameHelper(
     part::DataFrames.DataFrame,
     src_params::Dict{String,Any},
     dst_params::Dict{String,Any},
@@ -150,6 +131,32 @@ function ShuffleDataFrame(
     res
 end
 
+ShuffleDataFrameHelper(
+    part::Empty,
+    src_params::Dict{String,Any},
+    dst_params::Dict{String,Any},
+    comm::MPI.Comm,
+    boundedlower::Bool,
+    boundedupper::Bool,
+    store_splitting_divisions::Bool,
+    key,
+    rev::Bool,
+    divisions_by_worker::Base.Vector,
+    divisions::Base.Vector
+) = ShuffleDataFrameHelper(
+    DataFrames.DataFrame(),
+    src_params,
+    dst_params,
+    comm,
+    boundedlower,
+    boundedupper,
+    store_splitting_divisions,
+    key,
+    rev,
+    divisions_by_worker,
+    divisions
+)
+
 function ShuffleDataFrame(
     part::Union{AbstractArray,Empty},
     src_params::Dict{String,Any},
@@ -168,7 +175,7 @@ function ShuffleDataFrame(
     else
         Any
     end
-    ShuffleDataFrame(
+    ShuffleDataFrameHelper(
         part,
         src_params,
         dst_params,
@@ -183,24 +190,6 @@ function ShuffleDataFrame(
         Banyan.get_splitting_divisions()
     )
 end
-
-ShuffleDataFrame(
-    part::Union{AbstractArray,Empty},
-    src_params::Dict{String,Any},
-    dst_params::Dict{String,Any},
-    comm::MPI.Comm;
-    boundedlower::Bool = false,
-    boundedupper::Bool = false,
-    store_splitting_divisions::Bool = true
-) = ShuffleDataFrame(
-    part,
-    src_params,
-    dst_params,
-    comm,
-    boundedlower,
-    boundedupper,
-    store_splitting_divisions
-)
 
 function read_csv_file(path, header, rowrange, readrange, filerowrange, dfs)
     f = CSV.File(
@@ -760,18 +749,6 @@ end
 # Grouped data frames can be block-partitioned but we will have to
 # redo the groupby if we try to do any sort of merging/splitting on it.
 
-Banyan.RebalanceDataFrame(
-    part::Empty,
-    src_params::Dict{String,Any},
-    dst_params::Dict{String,Any},
-    comm::MPI.Comm
-) = Banyan.Rebalance(
-    DataFrames.DataFrame(),
-    src_params,
-    dst_params,
-    comm
-)
-
 function RebalanceDataFrame(
     part::DataFrames.DataFrame,
     src_params::Dict{String,Any},
@@ -857,21 +834,21 @@ function RebalanceDataFrame(
     res
 end
 
-# If this is a grouped data frame or nothing (the result of merging
-# a grouped data frame is nothing), we consolidate by simply returning
-# nothing.
-
-ConsolidateDataFrame(
+RebalanceDataFrame(
     part::Empty,
     src_params::Dict{String,Any},
     dst_params::Dict{String,Any},
     comm::MPI.Comm
-) = Banyan.Consolidate(
+) = RebalanceDataFrame(
     DataFrames.DataFrame(),
     src_params,
     dst_params,
     comm
 )
+
+# If this is a grouped data frame or nothing (the result of merging
+# a grouped data frame is nothing), we consolidate by simply returning
+# nothing.
 
 function ConsolidateDataFrame(part::DataFrames.DataFrame, src_params::Dict{String,Any}, dst_params::Dict{String,Any}, comm::MPI.Comm)
     io = IOBuffer()
@@ -902,3 +879,15 @@ function ConsolidateDataFrame(part::DataFrames.DataFrame, src_params::Dict{Strin
     )
     res
 end
+
+ConsolidateDataFrame(
+    part::Empty,
+    src_params::Dict{String,Any},
+    dst_params::Dict{String,Any},
+    comm::MPI.Comm
+) = ConsolidateDataFrame(
+    DataFrames.DataFrame(),
+    src_params,
+    dst_params,
+    comm
+)
