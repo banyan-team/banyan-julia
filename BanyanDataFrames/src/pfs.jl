@@ -162,9 +162,9 @@ function ShuffleDataFrame(
     src_params::Dict{String,Any},
     dst_params::Dict{String,Any},
     comm::MPI.Comm,
-    boundedlower::Bool = false,
-    boundedupper::Bool = false,
-    store_splitting_divisions::Bool = true
+    boundedlower::Bool,
+    boundedupper::Bool,
+    store_splitting_divisions::Bool
 )
     divisions = dst_params["divisions"]
     has_divisions_by_worker = haskey(dst_params, "divisions_by_worker")
@@ -190,6 +190,24 @@ function ShuffleDataFrame(
         Banyan.get_splitting_divisions()
     )
 end
+
+ShuffleDataFrame(
+    part::Union{AbstractArray,Empty},
+    src_params::Dict{String,Any},
+    dst_params::Dict{String,Any},
+    comm::MPI.Comm,
+    boundedlower::Bool = false,
+    boundedupper::Bool = false,
+    store_splitting_divisions::Bool = true
+) = ShuffleDataFrame(
+    part,
+    src_params,
+    dst_params,
+    comm,
+    boundedlower,
+    boundedupper,
+    store_splitting_divisions
+)
 
 function read_csv_file(path, header, rowrange, readrange, filerowrange, dfs)
     f = CSV.File(
