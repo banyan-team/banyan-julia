@@ -12,7 +12,7 @@ function read_julia_array_file(path, readrange, filerowrange, dim)
     end
 end
 
-function ReadBlockJuliaArray(
+function ReadBlockHelperJuliaArray(
     src,
     params::Dict{String,Any},
     batch_idx::Int64,
@@ -20,11 +20,13 @@ function ReadBlockJuliaArray(
     comm::MPI.Comm,
     loc_name::String,
     loc_params::Dict{String,Any},
+    loc_params_path::String,
+    dim::Int64
 )
     # TODO: Implement a Read for balanced=false where we can avoid duplicate
     # reading of the same range in different reads
 
-    path = Banyan.getpath(loc_params["path"], comm)
+    path = Banyan.getpath(loc_params_path, comm)
 
     # Handle multi-file tabular datasets
 
@@ -35,14 +37,14 @@ function ReadBlockJuliaArray(
     # TODO: Only collect files and nrows info for this location associated
     # with a unique name corresponding to the value ID - only if this is
     # the first batch or loop iteration.
-    name = loc_params["path"]
+    name = loc_params_path
     name_path = path
     # TODO: isdir might not work for S3FS
     isdir(name_path) || error("Expected $path to be a directory containing files of Julia-serialized arrays")
 
     files = []
     nrows = 0
-    dim_partitioning = params["key"]
+    dim_partitioning = dim
     dim = -1
     for partfilename in readdir(name_path)
         if partfilename != "_metadata"
@@ -55,21 +57,19 @@ function ReadBlockJuliaArray(
             )
             push!(
                 files,
-                Dict("nrows" => part_nrows, "path" => joinpath(name, partfilename)),
+                (part_nrows, joinpath(name, partfilename))
             )
             nrows += part_nrows
         end
     end
     dim > 0 || error("Unable to find dimension of Julia-serialized array stored in directory $name_path")
     partitioned_on_dim = dim == dim_partitioning
-    loc_params["files"] = files
-    loc_params["nrows"] = nrows
 
     # Iterate through files and identify which ones correspond to the range of
     # rows for the batch currently being processed by this worker
     metadata = nothing
     nrows = if partitioned_on_dim
-        loc_params["nrows"]
+        nrows
     else
         metadata = deserialize(
             joinpath(name_path, "_metadata")
@@ -79,14 +79,14 @@ function ReadBlockJuliaArray(
     rowrange = Banyan.split_len(nrows, batch_idx, nbatches, comm)
     dfs = Base.Array[]
     rowsscanned = 0
-    for file in sort(loc_params["files"], by = filedict -> filedict["path"])
-        newrowsscanned = rowsscanned + file["nrows"]
+    for file in sort(files, by = filedict -> filedict[2])
+        newrowsscanned = rowsscanned + file[1]
         filerowrange = (rowsscanned+1):newrowsscanned
         # Check if the file corresponds to the range of rows for the batch
         # currently being processed by this worker
         if !partitioned_on_dim || Banyan.isoverlapping(filerowrange, rowrange)
             # Deterine path to read from
-            file_path = file["path"]
+            file_path = file[2]
             path = Banyan.getpath(file_path, comm)
 
             # Read from location depending on data format
@@ -141,6 +141,26 @@ function ReadBlockJuliaArray(
     end
     res
 end
+
+ReadBlockJuliaArray(
+    src,
+    params::Dict{String,Any},
+    batch_idx::Int64,
+    nbatches::Int64,
+    comm::MPI.Comm,
+    loc_name::String,
+    loc_params::Dict{String,Any},
+) = ReadBlockHelperJuliaArray(
+    src,
+    params,
+    batch_idx,
+    nbatches,
+    comm,
+    loc_name,
+    loc_params,
+    loc_params["path"],
+    params["key"]
+)
 
 ReadGroupJuliaArray = Banyan.ReadGroup(ReadBlockJuliaArray)
 
@@ -339,7 +359,7 @@ function WriteJuliaArray(
         loc_params,
         loc_params["path"],
         params["key"]
-    ) where {T,N}
+    )
 end
 
 CopyFromJuliaArray(src, params::Dict{String,Any}, batch_idx::Int64, nbatches::Int64, comm::MPI.Comm, loc_name::String, loc_params::Dict{String,Any}) = begin
