@@ -1,20 +1,23 @@
-function ReadBlockHDF5(
+function ReadBlockHelperHDF5(
     src,
-    params,
+    params::Dict{String,Any},
     batch_idx::Int64,
     nbatches::Int64,
     comm::MPI.Comm,
-    loc_name,
-    loc_params,
+    loc_name::String,
+    loc_params::Dict{String,Any},
+    loc_params_path::String,
+    loc_params_subpath::String,
+    dim::Int64
 )
     # Handle single-file nd-arrays
     # We check if it's a file because for items on disk, files are HDF5
     # datasets while directories contain Parquet, CSV, or Arrow datasets
-    path = Banyan.getpath(loc_params["path"], comm)
+    path = Banyan.getpath(loc_params_path, comm)
     if isinvestigating()[:parallel_hdf5]
         println("In ReadBlockHDF5 with path=$path, loc_name=$loc_name, isfile(path)=$(isfile(path))")
     end
-    if !((loc_name == "Remote" && (occursin(".h5", loc_params["path"]) || occursin(".hdf5", loc_params["path"]))) ||
+    if !((loc_name == "Remote" && (occursin(".h5", loc_params_path) || occursin(".hdf5", loc_params_path))) ||
         (loc_name == "Disk" && HDF5.ishdf5(path)))
         error("Expected HDF5 file to read in; failed to read from $path")
     end
@@ -28,7 +31,7 @@ function ReadBlockHDF5(
     if isinvestigating()[:parallel_hdf5]
         println("In ReadBlockHDF5 after h5open")
     end
-    dset = loc_name == "Disk" ? f["part"] : f[loc_params["subpath"]]
+    dset = loc_name == "Disk" ? f["part"] : f[loc_params_subpath]
 
     ismapping = false
     # TODO: Use `view` instead of `getindex` in the call to
@@ -41,7 +44,6 @@ function ReadBlockHDF5(
     #     close(f)
     #     dset = Banyan.split_on_executor(dset, params["key"], batch_idx, nbatches, comm)
     # else
-    dim = params["key"]
     dimsize = size(dset, dim)
     dimrange = Banyan.split_len(dimsize, batch_idx, nbatches, comm)
     dset = if length(dimrange) == 0
@@ -92,26 +94,46 @@ function ReadBlockHDF5(
     dset
 end
 
-ReadGroupHelperHDF5 = ReadGroupHelper(ReadBlockHDF5, ShuffleArray)
-ReadGroupHDF5 = ReadGroup(ReadGroupHelperHDF5)
-
-function WriteHDF5(
+ReadBlockHDF5(
     src,
-    part,
-    params,
+    params::Dict{String,Any},
     batch_idx::Int64,
     nbatches::Int64,
     comm::MPI.Comm,
+    loc_name::String,
+    loc_params::Dict{String,Any},
+) = ReadBlockHelperHDF5(
+    src,
+    params,
+    batch_idx,
+    nbatches,
+    comm,
     loc_name,
     loc_params,
+    loc_params["path"],
+    loc_params["subpath"],
+    params["key"]
 )
-    # Get rid of splitting divisions if they were used to split this data into
-    # groups
-    splitting_divisions = Banyan.get_splitting_divisions()
-    delete!(splitting_divisions, part)
+
+ReadGroupHelperHDF5 = ReadGroupHelper(ReadBlockHDF5, ShuffleArray)
+ReadGroupHDF5 = ReadGroup(ReadGroupHelperHDF5)
+
+function WriteHelperHDF5(
+    src,
+    part,
+    params::Dict{String,Any},
+    batch_idx::Int64,
+    nbatches::Int64,
+    comm::MPI.Comm,
+    loc_name::String,
+    loc_params::Dict{String,Any},
+    loc_params_path::String,
+    loc_params_subpath::String,
+    dim::Int64
+)
 
     # Get path of directory to write to
-    path::String = loc_params["path"]
+    path::String = loc_params_path
     if startswith(path, "http://") || startswith(path, "https://")
         error("Writing to http(s):// is not supported")
     elseif startswith(path, "s3://")
@@ -129,9 +151,8 @@ function WriteHDF5(
     (
         hasmethod(HDF5.datatype, (eltype(part),)) ||
         part isa Empty
-    ) || error("Unable to write array with element type $(eltype(part)) to HDF5 dataset at $(loc_params["path"])")
+    ) || error("Unable to write array with element type $(eltype(part)) to HDF5 dataset at $loc_params_path")
 
-    dim::Int64 = params["key"]
     # TODO: Ensure that wherever we are using MPI for reduction or
     # broadcasts, we should always ensure that we cast back into
     # the original data type. Even if we have an isbits type like a tuple,
@@ -150,7 +171,7 @@ function WriteHDF5(
     # batch to a separate group. TODO: If we need multiple batches, don't
     # write the last batch to its own group. Instead just write it into the
     # aggregated group.
-    group_prefix::String = loc_name == "Disk" ? "part" : loc_params["subpath"]
+    group_prefix::String = loc_name == "Disk" ? "part" : loc_params_subpath
     partition_idx = Banyan.get_partition_idx(batch_idx, nbatches, comm)
     worker_idx = Banyan.get_worker_idx(comm)
     nworkers = Banyan.get_nworkers(comm)
@@ -537,6 +558,36 @@ function WriteHDF5(
             MPI.Barrier(comm)
         end
     end
+end
+
+function WriteHDF5(
+    src,
+    part,
+    params::Dict{String,Any},
+    batch_idx::Int64,
+    nbatches::Int64,
+    comm::MPI.Comm,
+    loc_name::String,
+    loc_params::Dict{String,Any},
+)
+    # Get rid of splitting divisions if they were used to split this data into
+    # groups
+    splitting_divisions = Banyan.get_splitting_divisions()
+    delete!(splitting_divisions, part)
+
+    WriteHelperHDF5(
+        src,
+        part,
+        params,
+        batch_idx,
+        nbatches,
+        comm,
+        loc_name,
+        loc_params,
+        loc_params["path"],
+        loc_params["subpath"],
+        params["key"]
+    )
 end
 
 CopyFromHDF5(src, params::Dict{String,Any}, batch_idx::Int64, nbatches::Int64, comm::MPI.Comm, loc_name::String, loc_params::Dict{String,Any}) = begin

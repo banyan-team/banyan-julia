@@ -53,12 +53,12 @@
 
     images = ReadBlockImage(
         nothing,
-        Dict{}(),
+        Dict{String,Any}(),
         1,
         1,
         comm,
         "Remote",
-        Dict{}(
+        Dict{String,Any}(
             "path" => path,
             "files" => files,
             "nimages" => nimages,
