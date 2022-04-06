@@ -115,12 +115,8 @@ function DataFrames.groupby(df::DataFrame, cols::Any; kwargs...)::GroupedDataFra
     # # for writing to disk, just be sure to put everything into a dataframe such that it
     # # can be read back and have a column that specifies how to group by
 
-    @show typeof(gdf)
-    @show typeof(gdf_length)
-
     res = GroupedDataFrame(gdf, gdf_length, DataFrame(df, df_nrows), cols, kwargs)
-    @show res
-    @show typeof(res)
+    
     res
 end
 

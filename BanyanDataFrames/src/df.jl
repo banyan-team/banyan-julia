@@ -57,11 +57,9 @@ function read_csv(path::String; kwargs...)
     #     # @show @isdefined RemoteTableSource
     #     RemoteTableSource(path; kw...)
     # end
-    println("In read_csv with path=$path")
     df_loc = RemoteTableSource(path; kwargs...)
     df_loc.src_name == "Remote" || error("$path does not exist")
     df_nrows = Future(df_loc.nrows)
-    @show df_nrows
     DataFrame(Future(datatype="DataFrame", source=df_loc), df_nrows)
 end
 
@@ -371,7 +369,6 @@ function Base.filter(f, df::DataFrame; kwargs...)
     @time begin
     f = Future(f)
     res_nrows = Future()
-    @show objectid(res_nrows)
     res = Future(datatype="DataFrame")
     kwargs = Future(kwargs)
     println("Time for creating futures:")
@@ -390,13 +387,6 @@ function Base.filter(f, df::DataFrame; kwargs...)
     end
 
     @time begin
-        @show @macroexpand @partitioned df res res_nrows f kwargs begin
-            @time begin
-            res = DataFrames.filter(f, df; kwargs...)
-            res_nrows = DataFrames.nrow(res)
-            println("Time inside `filter` code region:")
-            end
-        end
     @partitioned df res res_nrows f kwargs begin
         @time begin
         res = DataFrames.filter(f, df; kwargs...)
@@ -407,18 +397,7 @@ function Base.filter(f, df::DataFrame; kwargs...)
     println("Time for `@partitioned``:")
     end
 
-    @show typeof(res)
-    @show res
-    @show typeof(df)
-    @show typeof(res_nrows)
-    @show res_nrows
-    @show objectid(res_nrows)
-    res = DataFrame(res, res_nrows)
-    finalizer(res) do f
-        println("Destoring DataFrame with result of filter objectid(f)=$(objectid(f))")
-        @show objectid(f)
-    end
-    res
+    DataFrame(res, res_nrows)
 end
 
 # TODO: Make a `used` field and ensure that splitting/merging functions don't get used if their used are not provided
@@ -657,9 +636,6 @@ function Base.getindex(df::DataFrame, rows=:, cols=:)
         return copy(df)
     end
 
-    println("At start of getindex")
-    @show df.nrows
-
     df_nrows = df.nrows
     return_vector = cols isa Symbol || cols isa String || cols isa Integer
     select_columns = !(cols isa Colon)
@@ -759,8 +735,6 @@ function Base.getindex(df::DataFrame, rows=:, cols=:)
         res_size = rows isa Colon ? df_nrows : size(res)
         res_size = res isa Base.Vector ? res_size : first(res_size)
     end
-
-    @show df.nrows
 
     if return_vector
         T = eltype(sample(df)[!, compute(cols)])

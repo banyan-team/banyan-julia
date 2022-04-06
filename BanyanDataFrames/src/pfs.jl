@@ -354,8 +354,6 @@ ReadBlockCSV, ReadBlockParquet, ReadBlockArrow = [
                     # correct schema.
                     from_jl_value_contents(loc_params["emptysample"])
                 end
-                println("In ReadBlockCSV with empty dataframe")
-                @show res
                 res
             elseif length(dfs) == 1
                 dfs[1]
@@ -487,8 +485,6 @@ WriteParquet, WriteCSV, WriteArrow = [
 
             nrows = part isa Empty ? 0 : size(part, 1)
             sortableidx = Banyan.sortablestring(idx, get_npartitions(nbatches, comm))
-            println("In WriteCSV")
-            @show part
             if !(part isa Empty)
                 write_file(convert(DataFrames.DataFrame, part), path, sortableidx, nrows)
             end
@@ -705,8 +701,6 @@ function SplitGroupDataFrame(
             !hasdivision || boundedupper || partition_idx != lastdivisionidx,
         )
     end
-
-    println("In SplitGroup with typeof(src)=$(typeof(src)) and typeof(res)=$(typeof(res))")
 
     res
 end

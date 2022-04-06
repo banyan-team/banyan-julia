@@ -318,8 +318,6 @@ function Grouped(
             if b
                 # Set divisions
                 # TODO: Change this if `divisions` is not a `Vector{Tuple{Any,Any}}`
-                @show sample(f, :statistics, key, :divisions)
-                @show typeof(sample(f, :statistics, key, :divisions))
                 parameters["divisions"] = to_jl_value(sample(f, :statistics, key, :divisions))
                 max_ngroups = sample(f, :statistics, key, :max_ngroups)::Int64
 

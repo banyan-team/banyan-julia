@@ -436,11 +436,8 @@ function RemoteSource(
     locationspath = joinpath(homedir(), ".banyan", "sources")
     samplespath = joinpath(homedir(), ".banyan", "samples")
     p_hash_string::String = string(hash(p))
-    println("In RemoteSourcew ith p=$p and p_hash_string=$p_hash_string")
     locationpath = joinpath(locationspath, p_hash_string)
     samplepath = joinpath(samplespath, p_hash_string)
-    @show locationpath
-    @show isfile(locationpath)
 
     # Get cached sample if it exists
     remote_sample::Sample = if isfile(samplepath) && !sample_invalid
@@ -457,9 +454,6 @@ function RemoteSource(
     end
     remote_source = get_remote_source_cached(get_remote_source, p, remote_source, remote_sample, shuffled)
     remote_sample = (remote_source.sample)::Sample
-
-    # @show remote_source
-    # @show remote_sample
 
     if isinvestigating()[:caching][:location_info] || isinvestigating()[:caching][:samples]
         println("In RemoteSource")
@@ -504,15 +498,9 @@ function RemoteDestination(
     invalidate_source::Bool = true,
     invalidate_sample::Bool = true
 )::Location
-    println("In RemoteDestination with p=$p")
     p_hash_string = string(hash(p))
-    @show invalidate_source
-    println("Removing at $p_hash_string")
     if invalidate_source
-        locationpath = joinpath(homedir(), ".banyan", "sources", p_hash_string)
-        @show locationpath
         rm(joinpath(homedir(), ".banyan", "sources", p_hash_string), force=true, recursive=true)
-        @show isfile(locationpath)
     end
     if invalidate_sample
         rm(joinpath(homedir(), ".banyan", "samples", p_hash_string), force=true, recursive=true)

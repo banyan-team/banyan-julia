@@ -223,9 +223,6 @@ function WriteHelperHDF5(
 
         # Create file if not yet created
         # TODO: Figure out why sometimes a deleted file still `isfile`
-        @show HDF5.has_parallel()
-        @show isfile(path)
-        @show path
         f = h5open(
             path,
             "cw",
@@ -257,12 +254,6 @@ function WriteHelperHDF5(
             (0,)
         end
         whole_size = MPI.bcast(whole_size, nworkers - 1, comm) # Broadcast dataset size to all workers
-        @show offset
-        @show some_size
-        @show whole_size
-        @show part isa Empty
-        @show part isa Empty ? 0 : size(part, dim)
-        @show whole_eltype
         # whole_eltype = MPI.bcast(whole_eltype, nworkers - 1, comm)
 
         # Create dataset
@@ -278,9 +269,6 @@ function WriteHelperHDF5(
                     push!(dim_selector, Colon())
                 end
             end
-            @show dim
-            @show ndims(dset)
-            @show dim_selector
             setindex!(
                 dset,
                 part,

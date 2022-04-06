@@ -12,7 +12,6 @@ mutable struct Sample
         value::Any,
         properties::Dict{Symbol,Any}
     )
-        @show typeof(properties[:rate])
         new(value, properties)
     end
     
@@ -30,9 +29,7 @@ mutable struct Sample
         if total_memory_usage != -1
             setsample!(newsample, :memory_usage, convert(Int64, round(total_memory_usage / sample_rate))::Int64)
         end
-        @show typeof(sample_rate)
         setsample!(newsample, :rate, sample_rate)
-        @show typeof(newsample.properties[:rate])
 
         newsample
     end
@@ -93,7 +90,6 @@ function setsample!(sample::Sample, propertykeys...)
                 properties = get!(properties, propertykey, Dict())
             end
         end
-        @show typeof(propertyvalue)
         properties[last(propertykeys)] = propertyvalue
     end
 end
@@ -130,7 +126,6 @@ sample(as::Any, properties...) =
             # This is the default but the `Sample` constructor overrides this
             # before-hand to allow some samples to be "exact" with a sample
             # rate of 1
-            @show typeof(get_session().sample_rate)
             get_session().sample_rate
         elseif first(properties) == :keys
             sample_keys(as)

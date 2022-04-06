@@ -382,9 +382,6 @@ function Base.map(f, c::Array{<:Any,N}...; force_parallelism=false) where {T,N}
         @partitioned c begin end
     end
 
-    @show Banyan.get_task()
-    @show Banyan.get_task().mutation
-
     res_size = deepcopy(first(c).size)
     f = Future(f)
     res = Future(datatype="Array")
@@ -421,11 +418,6 @@ function Base.map(f, c::Array{<:Any,N}...; force_parallelism=false) where {T,N}
     # @show sample(res)
     # @show typeof(sample(res))
     # @show eltype(sample(res))
-
-    @show Banyan.get_task()
-    @show Banyan.get_task().mutation
-    @show c
-    @show typeof.(c)
 
     Array{eltype(sample(res)),N}(res, res_size)
 end

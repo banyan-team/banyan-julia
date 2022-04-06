@@ -145,12 +145,9 @@ end
 
 function get_downloaded_path(downloaded_path::S3Path; only_for_writing=false)::String
     temp_downloaded_path = string(Path(tempname() * splitext(downloaded_path)[2]))
-    @show temp_downloaded_path
-    @show downloaded_path
     if !only_for_writing
         cp(downloaded_path, temp_downloaded_path, force=true)
     end
-    @show isfile(temp_downloaded_path)
     temp_downloaded_path
 end
 get_downloaded_path(downloaded_path)::String = string(downloaded_path)

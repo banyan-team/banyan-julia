@@ -769,15 +769,11 @@ function finish_partitioned_code_region(splatted_futures::Vector{Future})
             end
         end
         if is_fut_used && !is_fut_to_be_used
-            println("Recording request to destroy value with ID $(fut.value_id)")
             record_request(DestroyRequest(fut.value_id))
         end
     end
 
     # Record request to record task in backend's dependency graph and reset
-    println("At end of @partitioned")
-    @show task
-    @show task.mutation
     record_request(RecordTaskRequest(task))
     finish_task()
 
@@ -809,9 +805,6 @@ function prepare_task_for_partitioned_code_region(
 )
     splatted_variable_names = String[]
     task::DelayedTask = get_task()
-    println("At start of @partitioned")
-    @show task
-    @show task.mutation
     # Get code to initialize the unsplatted variable in the code region
     # TODO: Generate code in codegen that puts each code region in a
     # seperate function (where we reuse functions with the hash of the
@@ -921,7 +914,6 @@ function partitioned_code_region(
 
         # Fill in task with code and value names pulled using the macror
         unsplatted_variable_names::Vector{String} = String[$(variable_names...)]
-        @show typeof(unsplatted_variable_names)
         
         code::String = $(string(code))
         prepare_task_for_partitioned_code_region(
@@ -1013,7 +1005,6 @@ macro partitioned(ex...)
         # )
     end
 
-    println("here")
     partitioned_code_region(
         variables,
         variable_names,

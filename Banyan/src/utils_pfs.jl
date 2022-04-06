@@ -274,12 +274,8 @@ function get_divisions(divisions::Base.Vector{Division{V}}, npartitions::Int64):
 
             # Initialize divisions for each split
             V_nonstatic = Base.Vector{T}
-            @show V_nonstatic
-            @show V
-            @show division
             splitdivisions::Base.Vector{Division{V_nonstatic}} =
                 map(_ -> (convert(V_nonstatic, divisionbegin), convert(V_nonstatic, divisionend)), 1:ndivisionsplits)
-            @show splitdivisions
 
             # Adjust the divisions for each split to interpolate. The result
             # of an `orderinghash` call can be an array (in the case of
@@ -527,7 +523,6 @@ function getpath(path::String, comm::MPI.Comm)::String
         end
         # end
         # MPI.Barrier(comm)
-        # @show isfile(joined_path)
         joined_path
     elseif startswith(path, "s3://")
         replace(path, "s3://" => "/home/ec2-user/s3/")

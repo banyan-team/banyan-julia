@@ -49,7 +49,6 @@ function sqs_receive_message_with_long_polling(queue)
         return nothing
     end
 
-    @show length(r)
     handle  = r[1]["ReceiptHandle"]
     id      = r[1]["MessageId"]
     message = r[1]["Body"]
@@ -71,12 +70,10 @@ function get_next_message(
 )::Tuple{String,Union{Nothing,String}}
     println("Time for sqs_receive_message_with_long_polling from queue=$queue:")
     m = @time sqs_receive_message_with_long_polling(queue)
-    @show m
     while (isnothing(m))
         error_for_main_stuck = check_worker_stuck(error_for_main_stuck, error_for_main_stuck_time)
         println("Time for sqs_receive_message_with_long_polling from queue=$queue:")
         m = @time sqs_receive_message_with_long_polling(queue)
-        @show m
         # @debug "Waiting for message from SQS"
         if !isnothing(p)
             p::ProgressMeter.ProgressUnknown
@@ -86,7 +83,6 @@ function get_next_message(
     if delete
         println("Time for sqs_delete_message:")
         @time sqs_delete_message(queue, m)
-        @show delete
     end
     return m[:message]::String, error_for_main_stuck
 end
@@ -155,9 +151,7 @@ function receive_from_client(value_id::ValueId)
         get_gather_queue(),
         JSON.json(message)
     )
-    println("Sent message=$(string(message)) to get_gather_queue=$(string(get_gather_queue()))")
     # Receive response from client
-    @show string(get_scatter_queue())
     m = JSON.parse(get_next_message(get_scatter_queue())[1])
     v = from_jl_value_contents(m["contents"]::String)
     v
@@ -170,7 +164,6 @@ end
 
 function send_message(queue_name, message)
     generated_message_id = generate_message_id()
-    println("Sent message=$(string(message)) to queue_name=$(string(queue_name)) with generated_message_id=$generated_message_id")
     sqs_send_message(
         queue_name,
         message,

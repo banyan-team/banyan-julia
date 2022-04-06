@@ -166,8 +166,7 @@ ReadGroupHelper(ReadBlockFunc, ShuffleFunc) = begin
             splitting_divisions[res] =
                 (partition_divisions[partition_idx], !hasdivision || partition_idx != firstdivisionidx, !hasdivision || partition_idx != lastdivisionidx)
         end
-
-        println("In ReadGroup with typeof(res)=$(typeof(res)) and typeof(parts)=$(typeof(parts))")
+        
         res
     end
     ReadGroupHelperFunc
@@ -299,7 +298,6 @@ function MergeHelper(
         delete!(splitting_divisions, part)
 
         # Concatenate across batches
-        @show typeof(src.pieces)
         to_merge = disallowempty(filter(piece -> !(piece isa Empty), src.pieces))
         src = isempty(to_merge) ? EMPTY : merge_on_executor(to_merge, key)
         # src = merge_on_executor(src.pieces; key = key)
