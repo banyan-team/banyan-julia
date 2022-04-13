@@ -1,7 +1,9 @@
+@nospecialize
+
 # Functions for managing sessions
 
 # Process-local dictionary mapping from session IDs to instances of `Session`
-global sessions = Dict()
+global sessions = Dict{SessionId,Session}()
 
 # TODO: Allow for different threads to use different session by making this
 # thread-local. For now, we only allow a single `Session` for each process
@@ -29,7 +31,8 @@ function get_session_id()::SessionId
     current_session_id
 end
 
-function get_session(session_id=get_session_id())::Session
+function get_session()::Session
+    session_id = get_session_id()
     global sessions
     if !haskey(sessions, session_id)
         error("The selected session does not have any information; if it was started by this process, it has either failed or been destroyed.")
@@ -37,52 +40,73 @@ function get_session(session_id=get_session_id())::Session
     sessions[session_id]
 end
 
-get_cluster_name() = get_session().cluster_name
+get_cluster_name()::String = get_session().cluster_name
 
-function start_session(;
-    cluster_name::Union{String,Nothing} = nothing,
-    nworkers::Int64 = 16,
-    release_resources_after::Union{Integer,Nothing} = 20,
-    print_logs::Bool = false,
-    store_logs_in_s3::Bool = true,
-    store_logs_on_cluster::Bool = false,
-    log_initialization::Bool = false,
-    sample_rate::Int64 = nworkers,
-    session_name::Union{String,Nothing} = nothing,
-    files::Vector{String} = String[],
-    code_files::Vector{String} = String[],
-    force_update_files::Bool = false,
-    pf_dispatch_table::Union{Vector{String},Nothing} = nothing,
-    using_modules::Vector{String} = String[],
-    # We currently can't use modules that require GUI
-    not_using_modules::Vector{String} = NOT_USING_MODULES,
-    url::Union{String,Nothing} = nothing,
-    branch::Union{String,Nothing} = nothing,
-    directory::Union{String,Nothing} = nothing,
-    dev_paths::Vector{String} = String[],
-    force_sync::Bool = false,
-    force_pull::Bool = false,
-    force_install::Bool = false,
-    estimate_available_memory::Bool = false,
-    nowait::Bool = false,
-    email_when_ready::Union{Bool,Nothing} = nothing,
-    for_running::Bool = false,
-    kwargs...,
-)::SessionId
-    # Should save 5ms of overhead
-    @nospecialize
-
-    global BANYAN_JULIA_BRANCH_NAME
-    global BANYAN_JULIA_PACKAGES
-
-    global sessions
+function get_loaded_packages()
+    # for m in names(Main, imported=true)
+    #     @show try Main.eval(m) catch nothing end isa Module && !(m in [:Main, :Base, :Core, :InteractiveUtils, :IJulia])
+    # end
     global current_session_id
+    global sessions
+    loaded_packages::Set{String} = if !isnothing(current_session_id)
+        sessions[current_session_id].loaded_packages
+    else
+        Set{String}()
+    end
+    res::Vector{String} = Base.collect(loaded_packages)
+    for m in names(Main, imported=true)
+        m_string = string(m)
+        if !(m_string in loaded_packages)
+            is_used = try
+                Main.eval(m)
+            catch
+                nothing
+            end
+            if is_used isa Module && !(m in [:Main, :Base, :Core, :InteractiveUtils, :IJulia, :VSCodeServer])
+                push!(res, m_string)
+            end
+        end
+    end
+    res
+end
 
-    # Configure
-    configure(; kwargs...)
+const NOTHING_STRING = "NOTHING_STRING"
+
+function start_session(
+    cluster_name::String,
+    nworkers::Int64,
+    release_resources_after::Integer,
+    print_logs::Bool,
+    store_logs_in_s3::Bool,
+    store_logs_on_cluster::Bool,
+    log_initialization::Bool,
+    sample_rate::Int64,
+    session_name::String,
+    files::Vector{String},
+    code_files::Vector{String},
+    force_update_files::Bool,
+    pf_dispatch_table::Vector{String},
+    no_pf_dispatch_table::Bool,
+    using_modules::Vector{String},
+    # We currently can't use modules that require GUI
+    not_using_modules::Vector{String},
+    url::String,
+    branch::String,
+    directory::String,
+    dev_paths::Vector{String},
+    force_sync::Bool,
+    force_pull::Bool,
+    force_install::Bool,
+    estimate_available_memory::Bool,
+    nowait::Bool,
+    email_when_ready::Bool,
+    no_email::Bool,
+    for_running::Bool,
+    sessions::Dict{String,Session},
+)
+    @time begin
     # Construct parameters for starting session
-    cluster_name = if isnothing(cluster_name)
-        # running_clusters is dictionary
+    cluster_name = if cluster_name == NOTHING_STRING
         running_clusters = get_running_clusters()
         if length(running_clusters) == 0
             error("Failed to start session: you don't have any clusters created")
@@ -94,36 +118,44 @@ function start_session(;
 
     version = get_julia_version()
 
-    main_modules = [m for m in get_loaded_packages() if !(m in not_using_modules)]
-    using_modules = [m for m in using_modules if !(m in not_using_modules)]
+    not_in_modules = m -> !(m in not_using_modules)
+    main_modules = filter(not_in_modules, get_loaded_packages())
+    using_modules = filter(not_in_modules, using_modules)
     session_configuration = Dict{String,Any}(
         "cluster_name" => cluster_name,
         "num_workers" => nworkers,
-        "release_resources_after" => release_resources_after,
+        "release_resources_after" => release_resources_after == -1 ? nothing : release_resources_after,
         "return_logs" => print_logs,
         "store_logs_in_s3" => store_logs_in_s3,
         "store_logs_on_cluster" => store_logs_on_cluster,
         "log_initialization" => log_initialization,
-        "version" => version,
-        "benchmark" => get(ENV, "BANYAN_BENCHMARK", "0") == "1",
+        "julia_version" => julia_version,
+        "benchmark" => get(ENV, "BANYAN_BENCHMARK", "0")::String == "1",
         "main_modules" => main_modules,
         "using_modules" => using_modules,
         "reuse_resources" => !force_update_files,
         "estimate_available_memory" => estimate_available_memory,
         "language" => "jl"
     )
-    if !isnothing(session_name)
+    if session_name != NOTHING_STRING
         session_configuration["session_name"] = session_name
     end
-    if !isnothing(email_when_ready)
+    if !no_email
         session_configuration["email_when_ready"] = email_when_ready
     end
-    println("Time for get_cluster_s3_bucket_name:")
-    s3_bucket_name = @time get_cluster_s3_bucket_name(cluster_name; kwargs...)
+    println("Time for getting cluster:")
+    c::Cluster = @time get_cluster(cluster_name)
+    s3_bucket_name = s3_bucket_arn_to_name(c.s3_bucket_arn)
+    organization_id = c.organization_id
+    curr_cluster_instance_id = c.curr_cluster_instance_id
+    
+    session_configuration["organization_id"] = organization_id
+    session_configuration["curr_cluster_instance_id"] = curr_cluster_instance_id
 
     environment_info = Dict{String,Any}()
     # If a url is not provided, then use the local environment
-    if isnothing(url)
+    @time begin
+    if url == NOTHING_STRING
         
         # TODO: Optimize to not have to send tomls on every call
         local_environment_dir = get_julia_environment_dir()
@@ -155,24 +187,27 @@ function start_session(;
     else
         # Otherwise, use url and optionally a particular branch
         environment_info["url"] = url
-        if isnothing(directory)
+        if directory == NOTHING_STRING
             error("Directory must be provided for given URL $url")
         end
         environment_info["directory"] = directory
-        if !isnothing(branch)
+        if branch != NOTHING_STRING
             environment_info["branch"] = branch
         end
         environment_info["dev_paths"] = dev_paths
         environment_info["force_pull"] = force_pull
         environment_info["force_install"] = force_install
         environment_info["environment_hash"] = get_hash(
-            url * (if isnothing(branch) "" else branch end) * (if isnothing(dev_paths) "" else join(dev_paths) end)
+            url * (if branch == NOTHING_STRING "" else branch end) * join(dev_paths)
         )
     end
     environment_info["force_sync"] = force_sync
     session_configuration["environment_info"] = environment_info
+    println("Time to create environment_info Dict")
+    end
 
     # Upload files to S3
+    @time begin
     for f in vcat(files, code_files)
         s3_path = S3Path("s3://$(s3_bucket_name)/$(basename(f))", config=get_aws_config())
         if !isfile(s3_path) || force_update_files
@@ -181,40 +216,41 @@ function start_session(;
         end
     end
     # TODO: Optimize so that we only upload (and download onto cluster) the files if the filename doesn't already exist
-    # Example of f might be "C:/Users/ShaunTheSheep/.../src/clusters.py" --> "cluster.py" extracting out cluster.py
-    session_configuration["files"] = [basename(f) for f in files]
-    session_configuration["code_files"] = [basename(f) for f in code_files]
+    session_configuration["files"] = map(basename, files)
+    session_configuration["code_files"] = map(basename, code_files)
 
-    if isnothing(pf_dispatch_table)
-        branch_to_use = get(ENV, "BANYAN_TESTING", "0") == "1" ? get_branch_name() : BANYAN_JULIA_BRANCH_NAME
-        pf_dispatch_table = [
-            "https://raw.githubusercontent.com/banyan-team/banyan-julia/$branch_to_use/$dir/res/pf_dispatch_table.toml"
-            for dir in BANYAN_JULIA_PACKAGES
-        ]
+    if no_pf_dispatch_table
+        branch_to_use::String = get(ENV, "BANYAN_TESTING", "0")::String == "1" ? get_branch_name() : BANYAN_JULIA_BRANCH_NAME
+        pf_dispatch_table = String[]
+        for dir in BANYAN_JULIA_PACKAGES
+            push!(pf_dispatch_table, "https://raw.githubusercontent.com/banyan-team/banyan-julia/$branch_to_use/$dir/res/pf_dispatch_table.toml")
+        end
     end
-    println("Time for loading PF dispatch table")
-    pf_dispatch_table_loaded = @time load_toml(pf_dispatch_table)
+    @time begin
+    pf_dispatch_table_loaded = load_toml(pf_dispatch_table)
+    println("Time for loading PF dispatch table:")
+    end
+    pf_dispatch_table_loaded
     session_configuration["pf_dispatch_table"] = pf_dispatch_table_loaded
 
     # Start the session
     @debug "Sending request for session start"
-    println("Time for start_session")
+    println("Time for calling start_session Lambda function")
     response = @time send_request_get_response(:start_session, session_configuration)
-    session_id = response["session_id"]
-    resource_id = response["resource_id"]
-    organization_id = response["organization_id"]
-    cluster_instance_id = response["cluster_instance_id"]
-    cluster_name = response["cluster_name"]
+    session_id::SessionId = response["session_id"]
+    resource_id::ResourceId = response["resource_id"]
+    organization_id::String = response["organization_id"]
+    cluster_instance_id::String = response["cluster_instance_id"]
+    cluster_name::String = response["cluster_name"]
     if for_running
         @info "Running session with ID $session_id and $code_files"
     else
         @info "Starting session with ID $session_id on cluster named \"$cluster_name\""
     end
     # Store in global state
-    current_session_id = session_id
-    sessions[current_session_id] = Session(
+    sessions[session_id] = Session(
         cluster_name,
-        current_session_id,
+        session_id,
         resource_id,
         nworkers,
         sample_rate,
@@ -222,9 +258,11 @@ function start_session(;
         cluster_instance_id,
         not_using_modules
     )
+    println("Time to load session")
+    end
 
     println("Time for waiting for cluster:")
-    @time wait_for_cluster(cluster_name; kwargs...)
+    @time wait_for_cluster(cluster_name)
 
     if !nowait
         println("Time for waiting for session:")
@@ -232,7 +270,86 @@ function start_session(;
     end
 
     @debug "Finished starting session $session_id"
+    println("Time for starting session:")
+    end
     session_id
+end
+
+function start_session(;
+    cluster_name::String = NOTHING_STRING,
+    nworkers::Int64 = 16,
+    release_resources_after::Union{Integer,Nothing} = 20,
+    print_logs::Bool = false,
+    store_logs_in_s3::Bool = true,
+    store_logs_on_cluster::Bool = false,
+    log_initialization::Bool = false,
+    sample_rate::Int64 = nworkers,
+    session_name::String = NOTHING_STRING,
+    files::Vector{String} = String[],
+    code_files::Vector{String} = String[],
+    force_update_files::Bool = false,
+    pf_dispatch_table::Union{Vector{String},Nothing} = nothing,
+    using_modules::Vector{String} = String[],
+    # We currently can't use modules that require GUI
+    not_using_modules::Vector{String} = NOT_USING_MODULES,
+    url::String = NOTHING_STRING,
+    branch::String = NOTHING_STRING,
+    directory::String = NOTHING_STRING,
+    dev_paths::Vector{String} = String[],
+    force_sync::Bool = false,
+    force_pull::Bool = false,
+    force_install::Bool = false,
+    estimate_available_memory::Bool = false,
+    nowait::Bool = false,
+    email_when_ready::Union{Bool,Nothing} = nothing,
+    for_running::Bool = false,
+    kwargs...,
+)::SessionId
+    # Should save 5ms of overhead
+    @nospecialize
+
+    global BANYAN_JULIA_BRANCH_NAME
+    global BANYAN_JULIA_PACKAGES
+
+    global sessions
+    global current_session_id
+
+    # Configure
+    configure(; kwargs...)
+    
+    current_session_id = start_session(
+        cluster_name,
+        nworkers,
+        isnothing(release_resources_after) ? -1 : release_resources_after,
+        print_logs,
+        store_logs_in_s3,
+        store_logs_on_cluster,
+        log_initialization,
+        sample_rate,
+        session_name,
+        files,
+        code_files,
+        force_update_files,
+        isnothing(pf_dispatch_table) ? String[] : pf_dispatch_table,
+        isnothing(pf_dispatch_table),
+        using_modules,
+        # We currently can't use modules that require GUI
+        not_using_modules,
+        url,
+        branch,
+        directory,
+        dev_paths,
+        force_sync,
+        force_pull,
+        force_install,
+        estimate_available_memory,
+        nowait,
+        isnothing(email_when_ready) ? false : email_when_ready,
+        isnothing(email_when_ready),
+        for_running,
+        sessions
+    )
+    current_session_id
 end
 
 function end_session(session_id::SessionId = get_session_id(); failed = false, release_resources_now = false, release_resources_after = nothing, kwargs...)
@@ -372,7 +489,7 @@ end
 function get_session_status(session_id::String=get_session_id(); kwargs...)::String
     global sessions
     configure(; kwargs...)
-    filters = Dict("session_id" => session_id)
+    filters = Dict{String,Any}("session_id" => session_id)
     response = send_request_get_response(:describe_sessions, Dict{String,Any}("filters"=>filters))
     if !haskey(response["sessions"], session_id)
         @warn "Session with ID $session_id is assumed to still be creating"
@@ -419,8 +536,8 @@ function with_session(f::Function; kwargs...)
     # This is not a constructor; this is just a function that ensures that
     # every session is always destroyed even in the case of an error
     use_existing_session = :session in keys(kwargs)
-    end_session_on_error = get(kwargs, :end_session_on_error, true)
-    end_session_on_exit = get(kwargs, :end_session_on_exit, true)
+    end_session_on_error = get(kwargs, :end_session_on_error, true)::Bool
+    end_session_on_exit = get(kwargs, :end_session_on_exit, true)::Bool
     j = use_existing_session ? kwargs[:session] : start_session(; kwargs...)
     destroyed = false # because of weird catch/finally stuff
     try
@@ -523,3 +640,5 @@ function run_session(;
         end    
     end
 end
+
+@specialize

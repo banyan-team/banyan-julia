@@ -1,8 +1,8 @@
 using Banyan
 using BanyanArrays
+using FilePathsBase, AWSS3, DataFrames, CSV, Parquet, Arrow
 using BanyanDataFrames
 using ReTest
-using FilePathsBase, AWSS3, DataFrames, CSV, Parquet, Arrow
 using Random
 using Statistics
 

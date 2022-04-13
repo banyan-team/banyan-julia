@@ -39,7 +39,7 @@ function ShuffleDataFrameHelper(
     rev::Bool,
     divisions_by_worker::Base.Vector{Base.Vector{Division{V}}},
     divisions::Base.Vector{Division{V}},
-    splitting_divisions
+    splitting_divisions::IdDict{Any,Any}
 )::DataFrames.DataFrame where {K,V}
     # We don't have to worry about grouped data frames since they are always
     # block-partitioned.
@@ -72,7 +72,7 @@ function ShuffleDataFrameHelper(
         for partition_idx = 1:nworkers
             Arrow.write(
                 io,
-                if !isnothing(gdf) && (banyan_shuffling_key = partition_idx,) in keys(gdf)
+                if !isnothing(gdf) && haskey(gdf, (banyan_shuffling_key = partition_idx,))
                     gdf[(banyan_shuffling_key = partition_idx,)]
                 else
                     empty(part)
@@ -131,31 +131,6 @@ function ShuffleDataFrameHelper(
     res
 end
 
-ShuffleDataFrameHelper(
-    part::Empty,
-    src_params::Dict{String,Any},
-    dst_params::Dict{String,Any},
-    comm::MPI.Comm,
-    boundedlower::Bool,
-    boundedupper::Bool,
-    store_splitting_divisions::Bool,
-    key,
-    rev::Bool,
-    divisions_by_worker::Base.Vector,
-    divisions::Base.Vector
-) = ShuffleDataFrameHelper(
-    DataFrames.DataFrame(),
-    src_params,
-    dst_params,
-    comm,
-    boundedlower,
-    boundedupper,
-    store_splitting_divisions,
-    key,
-    rev,
-    divisions_by_worker,
-    divisions
-)
 
 function ShuffleDataFrame(
     part::Union{DataFrames.DataFrame,Empty},
@@ -191,429 +166,262 @@ function ShuffleDataFrame(
     )
 end
 
-function read_csv_file(path, header, rowrange, readrange, filerowrange, dfs)
-    f = CSV.File(
-        path,
-        header = header,
-        skipto = header + readrange.start - filerowrange.start + 1,
-        footerskip = filerowrange.stop - readrange.stop,
-    )
-    push!(dfs, DataFrames.DataFrame(f, copycols=false))
-end
+function ReadBlockHelper(@nospecialize(read_file::Function), file_extension::String)
+    function ReadBlock(
+        src,
+        params::Dict{String,Any},
+        batch_idx::Int64,
+        nbatches::Int64,
+        comm::MPI.Comm,
+        loc_name::String,
+        loc_params::Dict{String,Any},
+    )::DataFrames.DataFrame
+        # TODO: Implement a Read for balanced=false where we can avoid duplicate
+        # reading of the same range in different reads
 
-function read_parquet_file(path, header, rowrange, readrange, filerowrange, dfs)
-    f = Parquet.read_parquet(
-        path,
-        rows = (readrange.start-filerowrange.start+1):(readrange.stop-filerowrange.start+1),
-    )
-    push!(dfs, DataFrames.DataFrame(f, copycols=false))
-end
+        path = Banyan.getpath(loc_params["path"]::String, comm)
 
-function read_arrow_file(path, header, rowrange, readrange, filerowrange, dfs)
-    rbrowrange = filerowrange.start:(filerowrange.start-1)
-    for tbl in Arrow.Stream(path)
-        rbrowrange = (rbrowrange.stop+1):(rbrowrange.stop+Tables.rowcount(tbl))
-        if Banyan.isoverlapping(rbrowrange, rowrange)
-            readrange =
-                max(rowrange.start, rbrowrange.start):min(
-                    rowrange.stop,
-                    rbrowrange.stop,
-                )
-            df = let unfiltered = DataFrames.DataFrame(tbl, copycols=false)
-                unfiltered[
-                    (readrange.start-rbrowrange.start+1):(readrange.stop-rbrowrange.start+1),
-                    :,
-                ]
-            end
-            push!(dfs, df)
+        if Banyan.INVESTIGATING_LOSING_DATA
+            println("In ReadBlock with path=$path, loc_params=$params")
         end
-    end
-end
 
-ReadBlockCSV, ReadBlockParquet, ReadBlockArrow = [
-    begin
-        function ReadBlock(
-            src,
-            params::Dict{String,Any},
-            batch_idx::Int64,
-            nbatches::Int64,
-            comm::MPI.Comm,
-            loc_name::String,
-            loc_params::Dict{String,Any},
-        )::DataFrames.DataFrame
-            # TODO: Implement a Read for balanced=false where we can avoid duplicate
-            # reading of the same range in different reads
+        # Handle multi-file tabular datasets
 
-            path = Banyan.getpath(loc_params["path"]::String, comm)
-
-            if isinvestigating()[:losing_data]
-                println("In ReadBlock with path=$path, loc_params=$params")
-            end
-
-            # Handle multi-file tabular datasets
-
-            # Handle None location by finding all files in directory used for spilling
-            # this value to disk
-            if loc_name == "Disk"
-                # TODO: Only collect files and nrows info for this location associated
-                # with a unique name corresponding to the value ID - only if this is
-                # the first batch or loop iteration.
-                name = loc_params["path"]::String
-                name_path = path
-                # TODO: isdir might not work for S3FS
-                if isdir(name_path)
-                    files = []
-                    nrows = 0
-                    for partfilename in readdir(name_path)
-                        part_nrows = parse(
-                            Int64,
-                            replace(split(partfilename, "_nrows=")[end], ".arrow" => ""),
-                        )
-                        push!(
-                            files,
-                            Dict("nrows" => part_nrows, "path" => joinpath(name, partfilename)),
-                        )
-                        nrows += part_nrows
-                    end
-                    loc_params["files"] = files
-                    loc_params["nrows"] = nrows
-                else
-                    # This is the case where no data has been spilled to disk and this
-                    # is maybe just an intermediate variable only used for this stage.
-                    # We never spill tabular data to a single file - it's always a
-                    # directory of Arrow files.
-                    return nothing
+        # Handle None location by finding all files in directory used for spilling
+        # this value to disk
+        if loc_name == "Disk"
+            # TODO: Only collect files and nrows info for this location associated
+            # with a unique name corresponding to the value ID - only if this is
+            # the first batch or loop iteration.
+            name = loc_params["path"]::String
+            name_path = path
+            # TODO: isdir might not work for S3FS
+            if isdir(name_path)
+                files = []
+                nrows = 0
+                for partfilename in readdir(name_path)
+                    part_nrows = parse(
+                        Int64,
+                        replace(split(partfilename, "_nrows=")[end], ".arrow" => ""),
+                    )
+                    push!(
+                        files,
+                        Dict{String,Any}("nrows" => part_nrows, "path" => joinpath(name, partfilename)),
+                    )
+                    nrows += part_nrows
                 end
-            end
-
-            if isinvestigating()[:losing_data]
-                println("In ReadBlock after Disk case with path=$path, loc_params=$params")
-            end
-
-            # Iterate through files and identify which ones correspond to the range of
-            # rows for the batch currently being processed by this worker
-            nrows::Int64 = loc_params["nrows"]
-            rowrange = Banyan.split_len(nrows, batch_idx, nbatches, comm)
-            dfs::Base.Vector{DataFrames.DataFrame} = DataFrames.DataFrame[]
-            rowsscanned = 0
-            loc_params_files::Base.Vector{Dict{String,Any}} = convert(Base.Vector{Dict{String,Any}}, loc_params["files"])::Base.Vector{Dict{String,Any}}
-            for file in sort(loc_params_files, by = filedict -> filedict["path"]::String)
-                newrowsscanned = rowsscanned + file["nrows"]::Int64
-                filerowrange = (rowsscanned+1):newrowsscanned
-                # Check if the file corresponds to the range of rows for the batch
-                # currently being processed by this worker
-                if Banyan.isoverlapping(filerowrange, rowrange)
-                    # Deterine path to read from
-                    file_path = file["path"]::String
-                    path = Banyan.getpath(file_path, comm)
-
-                    # Read from location depending on data format
-                    readrange =
-                        max(rowrange.start, filerowrange.start):min(
-                            rowrange.stop,
-                            filerowrange.stop,
-                        )
-                    header = 1
-                    # TODO: Scale the memory usage appropriately when splitting with
-                    # this and garbage collect if too much memory is used.
-                    if endswith(file_path, file_extension)
-                        if isinvestigating()[:losing_data]
-                            println("In ReadBlock calling read_file with path=$path, filerowrange=$filerowrange, readrange=$readrange, rowrange=$rowrange")
-                        end
-                        read_file(path, header, rowrange, readrange, filerowrange, dfs)
-                    else
-                        error("Expected file with $file_extension extension")
-                    end
-                end
-                rowsscanned = newrowsscanned
-            end
-            if isinvestigating()[:losing_data]
-                println("In ReadBlock with rowrange=$rowrange, nrow.(dfs)=$(nrow.(dfs))")
-            end
-
-            # Concatenate and return
-            # NOTE: If this partition is empty, it is possible that the result is
-            # schemaless (unlike the case with HDF5 where the resulting array is
-            # guaranteed to have its ndims correct) and so if a split/merge/cast
-            # function requires the schema (for example for grouping) then it must be
-            # sure to take that account
-            res = if isempty(dfs)
-                # Note that if we are reading disk-spilled Arrow data, we would have
-                # files for each of the workers that wrote that data. So there should
-                # be files but they might be empty.
-                res = if loc_name == "Disk"
-                    files_sorted_by_nrow = sort(loc_params["files"], by = filedict -> filedict["nrows"])
-                    if isempty(files_sorted_by_nrow)
-                        # This should not be empty for disk-spilled data
-                        DataFrames.DataFrame()
-                    else
-                        empty(DataFrames.DataFrame(Arrow.Table(Banyan.getpath(first(files_sorted_by_nrow)["path"], comm)), copycols=false))
-                    end
-                else
-                    # When we construct the location, we store an empty data frame with The
-                    # correct schema.
-                    from_jl_value_contents(loc_params["emptysample"])
-                end
-                res
-            elseif length(dfs) == 1
-                dfs[1]
+                loc_params["files"] = files
+                loc_params["nrows"] = nrows
             else
-                vcat(dfs...)
+                # This is the case where no data has been spilled to disk and this
+                # is maybe just an intermediate variable only used for this stage.
+                # We never spill tabular data to a single file - it's always a
+                # directory of Arrow files.
+                return nothing
+            end
+        end
+
+        if Banyan.INVESTIGATING_LOSING_DATA
+            println("In ReadBlock after Disk case with path=$path, loc_params=$params")
+        end
+
+        # Iterate through files and identify which ones correspond to the range of
+        # rows for the batch currently being processed by this worker
+        nrows::Int64 = loc_params["nrows"]
+        rowrange = Banyan.split_len(nrows, batch_idx, nbatches, comm)
+        dfs::Base.Vector{DataFrames.DataFrame} = DataFrames.DataFrame[]
+        rowsscanned = 0
+        loc_params_files::Base.Vector{Dict{String,Any}} = convert(Base.Vector{Dict{String,Any}}, loc_params["files"])::Base.Vector{Dict{String,Any}}
+        for file in sort(loc_params_files, by = filedict -> filedict["path"]::String)
+            newrowsscanned = rowsscanned + file["nrows"]::Int64
+            filerowrange = (rowsscanned+1):newrowsscanned
+            # Check if the file corresponds to the range of rows for the batch
+            # currently being processed by this worker
+            if Banyan.isoverlapping(filerowrange, rowrange)
+                # Deterine path to read from
+                file_path = file["path"]::String
+                path = Banyan.getpath(file_path, comm)
+
+                # Read from location depending on data format
+                readrange =
+                    max(rowrange.start, filerowrange.start):min(
+                        rowrange.stop,
+                        filerowrange.stop,
+                    )
+                header = 1
+                # TODO: Scale the memory usage appropriately when splitting with
+                # this and garbage collect if too much memory is used.
+                if endswith(file_path, file_extension)
+                    if Banyan.INVESTIGATING_LOSING_DATA
+                        println("In ReadBlock calling read_file with path=$path, filerowrange=$filerowrange, readrange=$readrange, rowrange=$rowrange")
+                    end
+                    read_file(path, header, rowrange, readrange, filerowrange, dfs)
+                else
+                    error("Expected file with $file_extension extension")
+                end
+            end
+            rowsscanned = newrowsscanned
+        end
+        if Banyan.INVESTIGATING_LOSING_DATA
+            println("In ReadBlock with rowrange=$rowrange, nrow.(dfs)=$(nrow.(dfs))")
+        end
+
+        # Concatenate and return
+        # NOTE: If this partition is empty, it is possible that the result is
+        # schemaless (unlike the case with HDF5 where the resulting array is
+        # guaranteed to have its ndims correct) and so if a split/merge/cast
+        # function requires the schema (for example for grouping) then it must be
+        # sure to take that account
+        res = if isempty(dfs)
+            # Note that if we are reading disk-spilled Arrow data, we would have
+            # files for each of the workers that wrote that data. So there should
+            # be files but they might be empty.
+            res = if loc_name == "Disk"
+                files_sorted_by_nrow = sort(loc_params["files"], by = filedict -> filedict["nrows"])
+                if isempty(files_sorted_by_nrow)
+                    # This should not be empty for disk-spilled data
+                    DataFrames.DataFrame()
+                else
+                    empty(DataFrames.DataFrame(Arrow.Table(Banyan.getpath(first(files_sorted_by_nrow)["path"], comm)), copycols=false))
+                end
+            else
+                # When we construct the location, we store an empty data frame with The
+                # correct schema.
+                from_jl_value_contents(loc_params["emptysample"])
             end
             res
+        elseif length(dfs) == 1
+            dfs[1]
+        else
+            vcat(dfs...)
         end
-        ReadBlock
+        res
     end
-    for (read_file, file_extension) in [
-        (read_csv_file, ".csv"),
-        (read_parquet_file, ".parquet"),
-        (read_arrow_file, ".arrow")
-    ]
-]
-
-ReadGroupHelperCSV = ReadGroupHelper(ReadBlockCSV, ShuffleDataFrame)
-ReadGroupHelperParquet = ReadGroupHelper(ReadBlockParquet, ShuffleDataFrame)
-ReadGroupHelperArrow = ReadGroupHelper(ReadBlockArrow, ShuffleDataFrame)
-
-ReadGroupCSV = ReadGroup(ReadGroupHelperCSV)
-ReadGroupParquet = ReadGroup(ReadGroupHelperParquet)
-ReadGroupArrow = ReadGroup(ReadGroupHelperArrow)
-
-write_parquet_file(part::DataFrames.DataFrame, path, sortableidx, nrows) = if nrows > 0
-    Parquet.write_parquet(joinpath(path, "part$sortableidx" * "_nrows=$nrows.parquet"), part)
+    ReadBlock
 end
-
-write_csv_file(part::DataFrames.DataFrame, path, sortableidx, nrows) = CSV.write(
-    joinpath(path, "part$sortableidx" * "_nrows=$nrows.csv"),
-    part
-)
-
-write_arrow_file(part::DataFrames.DataFrame, path, sortableidx, nrows) = Arrow.write(
-    joinpath(path, "part$sortableidx" * "_nrows=$nrows.arrow"),
-    part
-)
 
 # We currently don't expect to ever have Empty dataframes. We only expect Empty arrays
 # and values resulting from mapslices or reduce. If we do have Empty dataframes arising
 # that can't just be empty `DataFrame()`, then we will modify functions in this file to
 # support Empty inputs.
 
-WriteParquet, WriteCSV, WriteArrow = [
-    begin
-        function Write(
-            src,
-            part::Union{DataFrames.AbstractDataFrame,Empty},
-            params::Dict{String,Any},
-            batch_idx::Int64,
-            nbatches::Int64,
-            comm::MPI.Comm,
-            loc_name::String,
-            loc_params::Dict{String,Any},
-        )
-            # Get rid of splitting divisions if they were used to split this data into
-            # groups
-            splitting_divisions = Banyan.get_splitting_divisions()
-            delete!(splitting_divisions, part)
+function WriteHelper(@nospecialize(write_file::Function))
+    function Write(
+        src,
+        part::Union{DataFrames.AbstractDataFrame,Empty},
+        params::Dict{String,Any},
+        batch_idx::Int64,
+        nbatches::Int64,
+        comm::MPI.Comm,
+        loc_name::String,
+        loc_params::Dict{String,Any},
+    )
+        # Get rid of splitting divisions if they were used to split this data into
+        # groups
+        splitting_divisions = Banyan.get_splitting_divisions()
+        delete!(splitting_divisions, part)
 
-            # Get path of directory to write to
-            path::String = loc_params["path"]
-            if startswith(path, "http://") || startswith(path, "https://")
-                error("Writing to http(s):// is not supported")
-            elseif startswith(path, "s3://")
-                path = Banyan.getpath(path, comm)
-                # NOTE: We expect that the ParallelCluster instance was set up
-                # to have the S3 filesystem mounted at ~/s3fs/<bucket name>
-            else
-                # Prepend "efs/" for local paths
-                path = Banyan.getpath(path, comm)
-            end
-
-            # Write file for this partition
-            worker_idx = Banyan.get_worker_idx(comm)
-            idx = Banyan.get_partition_idx(batch_idx, nbatches, comm)
-            actualpath = deepcopy(path)
-            if nbatches > 1
-                # Add _tmp to the end of the path
-                if endswith(path, ".parquet")
-                    path = replace(path, ".parquet" => "_tmp.parquet")
-                elseif endswith(path, ".csv")
-                    path = replace(path, ".csv" => "_tmp.csv")
-                elseif endswith(path, ".arrow")
-                    path = replace(path, ".arrow" => "_tmp.arrow")
-                else
-                    path = path * "_tmp"
-                end
-            end
-
-            # TODO: Delete existing files that might be in the directory but first
-            # finish writing to a path*"_new" directory and then linking ... or 
-            # something like that. Basically we need to handle the case where we
-            # have batching in the first PT and we are reading from and writing to
-            # the same directory.
-            # 1. Write all output to a new directory
-            # 2. On the last partition, do a barrier (or a gather) and then delete
-            # the old directory
-            # 3. Do another barrier on the last batch and delete the old directory
-            # and link to the new one
-
-            # NOTE: This is only needed because we might be writing to the same
-            # place we are reading from. And so we want to make sure we finish
-            # reading before we write the last batch
-            if batch_idx == nbatches
-                MPI.Barrier(comm)
-            end
-
-            if worker_idx == 1
-                if nbatches == 1
-                    # If there is no batching we can delete the original directory
-                    # right away. Otherwise, we must delete the original directory
-                    # only at the end.
-                    # TODO: When refactoring the locations, think about how to allow
-                    # stuff in the directory
-                    Banyan.rmdir_on_nfs(actualpath)
-                end
-
-                # Create directory if it doesn't exist
-                # TODO: Avoid this and other filesystem operations that would be costly
-                # since S3FS is being used
-                if batch_idx == 1
-                    Banyan.rmdir_on_nfs(path)
-                    mkpath(path)
-                end
-            end
-            MPI.Barrier(comm)
-
-            nrows = part isa Empty ? 0 : size(part, 1)
-            sortableidx = Banyan.sortablestring(idx, get_npartitions(nbatches, comm))
-            if !(part isa Empty)
-                write_file(convert(DataFrames.DataFrame, part), path, sortableidx, nrows)
-            end
-            MPI.Barrier(comm)
-            if nbatches > 1 && batch_idx == nbatches
-                tmpdir = readdir(path)
-                if worker_idx == 1
-                    Banyan.rmdir_on_nfs(actualpath)
-                    mkpath(actualpath)
-                end
-                MPI.Barrier(comm)
-                for batch_i = 1:nbatches
-                    idx = Banyan.get_partition_idx(batch_i, nbatches, worker_idx)
-                    sortableidx = Banyan.sortablestring(idx, get_npartitions(nbatches, comm))
-                    tmpdir_idx = findfirst(fn -> startswith(fn, "part$sortableidx"), tmpdir)
-                    if !isnothing(tmpdir_idx)
-                        tmpsrc = joinpath(path, tmpdir[tmpdir_idx])
-                        actualdst = joinpath(actualpath, tmpdir[tmpdir_idx])
-                        cp(tmpsrc, actualdst, force=true)
-                    end
-                end
-                MPI.Barrier(comm)
-                if worker_idx == 1
-                    Banyan.rmdir_on_nfs(path)
-                end
-                MPI.Barrier(comm)
-            end
-            src
-            # TODO: Delete all other part* files for this value if others exist
+        # Get path of directory to write to
+        path::String = loc_params["path"]
+        if startswith(path, "http://") || startswith(path, "https://")
+            error("Writing to http(s):// is not supported")
+        elseif startswith(path, "s3://")
+            path = Banyan.getpath(path, comm)
+            # NOTE: We expect that the ParallelCluster instance was set up
+            # to have the S3 filesystem mounted at ~/s3fs/<bucket name>
+        else
+            # Prepend "efs/" for local paths
+            path = Banyan.getpath(path, comm)
         end
-        Write
-    end
-    for write_file in [write_parquet_file, write_csv_file, write_arrow_file]
-]
 
-CopyFromArrow(
-    src,
-    params::Dict{String,Any},
-    batch_idx::Int64,
-    nbatches::Int64,
-    comm::MPI.Comm,
-    loc_name::String,
-    loc_params::Dict{String,Any},
-)::DataFrames.DataFrame = begin
-    params["key"] = 1
-    ReadBlockArrow(src, params, 1, 1, MPI.COMM_SELF, loc_name, loc_params)
-end
+        # Write file for this partition
+        worker_idx = Banyan.get_worker_idx(comm)
+        idx = Banyan.get_partition_idx(batch_idx, nbatches, comm)
+        actualpath = deepcopy(path)
+        if nbatches > 1
+            # Add _tmp to the end of the path
+            if endswith(path, ".parquet")
+                path = replace(path, ".parquet" => "_tmp.parquet")
+            elseif endswith(path, ".csv")
+                path = replace(path, ".csv" => "_tmp.csv")
+            elseif endswith(path, ".arrow")
+                path = replace(path, ".arrow" => "_tmp.arrow")
+            else
+                path = path * "_tmp"
+            end
+        end
 
-CopyFromCSV(
-    src,
-    params::Dict{String,Any},
-    batch_idx::Int64,
-    nbatches::Int64,
-    comm::MPI.Comm,
-    loc_name::String,
-    loc_params::Dict{String,Any},
-)::DataFrames.DataFrame = begin
-    params["key"] = 1
-    ReadBlockCSV(src, params, 1, 1, MPI.COMM_SELF, loc_name, loc_params)
-end
+        # TODO: Delete existing files that might be in the directory but first
+        # finish writing to a path*"_new" directory and then linking ... or 
+        # something like that. Basically we need to handle the case where we
+        # have batching in the first PT and we are reading from and writing to
+        # the same directory.
+        # 1. Write all output to a new directory
+        # 2. On the last partition, do a barrier (or a gather) and then delete
+        # the old directory
+        # 3. Do another barrier on the last batch and delete the old directory
+        # and link to the new one
 
-CopyFromParquet(
-    src,
-    params::Dict{String,Any},
-    batch_idx::Int64,
-    nbatches::Int64,
-    comm::MPI.Comm,
-    loc_name::String,
-    loc_params::Dict{String,Any},
-)::DataFrames.DataFrame = begin
-    params["key"] = 1
-    ReadBlockParquet(src, params, 1, 1, MPI.COMM_SELF, loc_name, loc_params)
-end
+        # NOTE: This is only needed because we might be writing to the same
+        # place we are reading from. And so we want to make sure we finish
+        # reading before we write the last batch
+        if batch_idx == nbatches
+            MPI.Barrier(comm)
+        end
 
-function CopyToCSV(
-    src,
-    part::Union{DataFrames.AbstractDataFrame,Empty},
-    params::Dict{String,Any},
-    batch_idx::Int64,
-    nbatches::Int64,
-    comm::MPI.Comm,
-    loc_name::String,
-    loc_params::Dict{String,Any},
-)
-    if Banyan.get_partition_idx(batch_idx, nbatches, comm) == 1
-        params["key"] = 1
-        WriteCSV(src, part, params, 1, 1, MPI.COMM_SELF, loc_name, loc_params)
-    end
-    if batch_idx == 1
+        if worker_idx == 1
+            if nbatches == 1
+                # If there is no batching we can delete the original directory
+                # right away. Otherwise, we must delete the original directory
+                # only at the end.
+                # TODO: When refactoring the locations, think about how to allow
+                # stuff in the directory
+                Banyan.rmdir_on_nfs(actualpath)
+            end
+
+            # Create directory if it doesn't exist
+            # TODO: Avoid this and other filesystem operations that would be costly
+            # since S3FS is being used
+            if batch_idx == 1
+                Banyan.rmdir_on_nfs(path)
+                mkpath(path)
+            end
+        end
         MPI.Barrier(comm)
-    end
-end
 
-function CopyToParquet(
-    src,
-    part::Union{DataFrames.AbstractDataFrame,Empty},
-    params::Dict{String,Any},
-    batch_idx::Int64,
-    nbatches::Int64,
-    comm::MPI.Comm,
-    loc_name::String,
-    loc_params::Dict{String,Any},
-)
-    if Banyan.get_partition_idx(batch_idx, nbatches, comm) == 1
-        params["key"] = 1
-        WriteParquet(src, part, params, 1, 1, MPI.COMM_SELF, loc_name, loc_params)
-    end
-    if batch_idx == 1
+        nrows = part isa Empty ? 0 : size(part, 1)
+        sortableidx = Banyan.sortablestring(idx, get_npartitions(nbatches, comm))
+        if !(part isa Empty)
+            write_file(convert(DataFrames.DataFrame, part), path, sortableidx, nrows)
+        end
         MPI.Barrier(comm)
+        if nbatches > 1 && batch_idx == nbatches
+            tmpdir = readdir(path)
+            if worker_idx == 1
+                Banyan.rmdir_on_nfs(actualpath)
+                mkpath(actualpath)
+            end
+            MPI.Barrier(comm)
+            for batch_i = 1:nbatches
+                idx = Banyan.get_partition_idx(batch_i, nbatches, worker_idx)
+                sortableidx = Banyan.sortablestring(idx, get_npartitions(nbatches, comm))
+                tmpdir_idx = findfirst(fn -> startswith(fn, "part$sortableidx"), tmpdir)
+                if !isnothing(tmpdir_idx)
+                    tmpsrc = joinpath(path, tmpdir[tmpdir_idx])
+                    actualdst = joinpath(actualpath, tmpdir[tmpdir_idx])
+                    cp(tmpsrc, actualdst, force=true)
+                end
+            end
+            MPI.Barrier(comm)
+            if worker_idx == 1
+                Banyan.rmdir_on_nfs(path)
+            end
+            MPI.Barrier(comm)
+        end
+        src
+        # TODO: Delete all other part* files for this value if others exist
     end
-end
-
-function CopyToArrow(
-    src,
-    part::Union{DataFrames.AbstractDataFrame,Empty},
-    params::Dict{String,Any},
-    batch_idx::Int64,
-    nbatches::Int64,
-    comm::MPI.Comm,
-    loc_name::String,
-    loc_params::Dict{String,Any},
-)
-    if Banyan.get_partition_idx(batch_idx, nbatches, comm) == 1
-        params["key"] = 1
-        WriteArrow(src, part, params, 1, 1, MPI.COMM_SELF, loc_name, loc_params)
-    end
-    if batch_idx == 1
-        MPI.Barrier(comm)
-    end
+    Write
 end
 
 function Banyan.SplitBlock(
@@ -643,13 +451,13 @@ function SplitGroupDataFrame(
     loc_name::String,
     loc_params::Dict{String,Any},
     store_splitting_divisions::Bool,
-    src_divisions,
+    src_divisions::Base.Vector{Division{V}},
     boundedlower::Bool,
     boundedupper::Bool,
     key::String,
     rev::Bool,
-    splitting_divisions
-)
+    splitting_divisions::IdDict{Any,Any}
+) where {V}
 
     partition_idx = Banyan.get_partition_idx(batch_idx, nbatches, comm)
     npartitions = get_npartitions(nbatches, comm)
@@ -852,7 +660,7 @@ function ConsolidateDataFrame(part::DataFrames.DataFrame, src_params::Dict{Strin
     # TODO: Maybe sometimes use gatherv if all sendbuf's are known to be equally sized
 
     MPI.Allgatherv!(sendbuf, recvvbuf, comm)
-    if isinvestigating()[:losing_data]
+    if Banyan.INVESTIGATING_LOSING_DATA
         results = [
             de(view(
                 recvvbuf.data,

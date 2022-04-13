@@ -1,9 +1,3 @@
-#############################
-# Partition type references #
-#############################
-
-const PartitionTypeReference = Tuple{ValueId,Int64}
-
 ############################
 # Partitioning constraints #
 ############################
@@ -21,19 +15,8 @@ pt_ref_to_jl(f::Future) = (f.value_id, 0)
 
 pt_refs_to_jl(refs::Vector{Future}) = map(pt_ref_to_jl, refs)
 
-struct PartitioningConstraint
-    type::String
-    args::Vector{PartitionTypeReference}
-    co_args::Vector{Vector{PartitionTypeReference}}
-end
-
-PartitioningConstraintOverGroup(type, args::Vector{PartitionTypeReference}) =
-    PartitioningConstraint(type, args, Vector{PartitionTypeReference}[])
-PartitioningConstraintOverGroups(type, co_args::Vector{Vector{PartitionTypeReference}}) =
-    PartitioningConstraint(type, PartitionTypeReference[], co_args)
-
 to_jl(pc::PartitioningConstraint)::Dict{String,Any} =
-    Dict("type" => pc.type, "args" => isempty(pc.co_args) ? pc.args : pc.co_cargs)
+    Dict{String,Any}("type" => pc.type, "args" => isempty(pc.co_args) ? pc.args : pc.co_cargs)
 
 # arg_to_jl_for_co(arg) =
 #     if arg isa Vector
@@ -65,7 +48,7 @@ MatchOn(on::String, args::Vector{Future}) =
         "MATCH_ON=" * string(on),
         pt_refs_to_jl(args),
     )
-AtMost(npartitions, f::Future) =
+AtMost(npartitions::Int64, f::Future) =
     PartitioningConstraintOverGroup(
         "AT_MOST=$npartitions",
         PartitionTypeReference[pt_ref_to_jl(f)]
@@ -85,9 +68,11 @@ AtMost(npartitions, f::Future) =
 Scale(arg::Future; to::Union{Real,String,Nothing}=nothing, by::Real=1.0, relative_to::Vector{Future}=Future[]) =
     Scale(arg, isnothing(to) ? -1.0 : parse_bytes(to), convert(Float64, by)::Float64, relative_to)
 function Scale(arg::Future, to::Float64, by::Float64, relative_to::Vector{Future})
+    new_relative_to::Vector{Future} = copy(relative_to)
+    push!(new_relative_to, arg)
     PartitioningConstraintOverGroup(
         to < 0.0 ? "SCALE_BY=$by" : "SCALE_TO=$to",
-        pt_refs_to_jl(Future[arg; relative_to])
+        pt_refs_to_jl(new_relative_to)
     )
 end
 # Fixed(args...) = PartitioningConstraintOverGroup("FIXED", pt_refs_to_jl(args))
@@ -123,70 +108,27 @@ end
 # while ScaleBy may not be used as PA-level constraints (constraints that are
 # applicable only for a single code region annotated with a PA)
 
-mutable struct PartitioningConstraints
-    constraints::Vector{Union{PartitioningConstraint, Function}}
-end
-
-PartitioningConstraints() = PartitioningConstraints(Union{PartitioningConstraint, Function}[])
-
 function to_jl(constraints::PartitioningConstraints)::Dict{String,Any}
-    return Dict(
+    return Dict{String,Any}(
         "constraints" =>
             Dict{String,Any}[
                 to_jl(constraint)
-                for constraint in convert(Vector{PartitioningConstraint}, constraints.constraints)
+                for constraint in constraints.constraints
             ],
     )
 end
 
-###################
-# Partition types #
-###################
+# # We probably need this so we can iterate over PTs produced by Grouped and then
+# # check the key property
+# function Base.getproperty(pt::PartitionType, name::Symbol)
+#     if hasfield(PartitionType, name)
+#         return getfield(pt, name)
+#     end
 
-const PartitionTypeParameters = Dict{String, Any}
-
-mutable struct PartitionType
-    parameters::PartitionTypeParameters
-    constraints::PartitioningConstraints
-
-    PartitionType(
-        parameters::Dict{String,Any} = PartitionTypeParameters(),
-        constraints::PartitioningConstraints = PartitioningConstraints(),
-    ) = new(parameters, constraints)
-    PartitionType(s::String) = new(Dict("name" => s), PartitioningConstraints())
-
-    function PartitionType(args::Union{String, Pair{String,<:Any}, PartitioningConstraint, Function}...)
-        parameters = Dict()
-        constraints = PartitioningConstraints()
-
-        # Construct parameters and constraints from arguments
-        for arg in args
-            if arg isa String
-                parameters["name"] = arg
-            elseif arg isa Pair
-                parameters[first(arg)] = last(arg)
-            elseif arg isa PartitioningConstraint || arg isa Function
-                push!(constraints.constraints, arg)
-            else
-                throw(ArgumentError("Expected either a partition type parameter or constraint"))
-            end
-        end
-
-        new(parameters, constraints)
-    end
-end
-
-# We probably need this so we can iterate over PTs produced by Grouped and then
-# check the key property
-function Base.getproperty(pt::PartitionType, name::Symbol)
-    if hasfield(PartitionType, name)
-        return getfield(pt, name)
-    end
-
-    n = string(name)
-    haskey(pt.parameters, n) || error("$name not found in partition type parameters")
-    pt.parameters[n]
-end
+#     n = string(name)
+#     haskey(pt.parameters, n) || error("$name not found in partition type parameters")
+#     pt.parameters[n]
+# end
 
 function to_jl(pt::PartitionType)::Dict{String,Any}
     # Interpret bangs as random IDs
@@ -204,11 +146,6 @@ end
 # Partition type composition #
 ##############################
 
-# This is mutable so that we can append PTs
-mutable struct PartitionTypeComposition
-    pts::Vector{PartitionType}
-end
-
 to_jl(ptc::PartitionTypeComposition)::Vector{Dict{String,Any}} = map(to_jl, ptc.pts)
 
 ##############################
@@ -217,38 +154,57 @@ to_jl(ptc::PartitionTypeComposition)::Vector{Dict{String,Any}} = map(to_jl, ptc.
 
 const PTOrPTUnion = Union{PartitionType,Vector{PartitionType}}
 
-Base.:&(a::PartitionType, b::PartitionType) =
-    if all(
-        a.parameters[param_name] == b.parameters[param_name] for
-        param_name in keys(a.parameters) if param_name in keys(b.parameters)
-    )
-        [PartitionType(
-            merge(a.parameters, b.parameters),
-            PartitioningConstraints(
-                [a.constraints.constraints; b.constraints.constraints]
-            )
-        )]
-    else
-        PartitionType[]
+function merge_pts!(a::PartitionType, b::PartitionType, pts_so_far::Vector{PartitionType})
+    all_params_matching = true
+    for param_name in keys(a.parameters)
+        if haskey(b.parameters, param_name)
+            all_params_matching = all_params_matching && a.parameters[param_name] == b.parameters[param_name]
+        end
+        if !all_params_matching
+            break
+        end
     end
+    if all_params_matching
+        push!(
+            pts_so_far,
+            PartitionType(
+                merge(a.parameters, b.parameters),
+                PartitioningConstraints(
+                    vcat(a.constraints.constraints, b.constraints.constraints)
+                )
+            )
+        )
+    end
+end
 
-Base.:&(a::Vector{PartitionType}, b::PartitionType)::Vector{PartitionType} =
-    vcat([pt & b for pt in a]...)
+function Base.:&(a::PartitionType, b::PartitionType)::Vector{PartitionType}
+    res::Vector{PartitionType} = PartitionType[]
+    merge_pts!(a, b, res)
+    res
+end
+
+function Base.:&(a::Vector{PartitionType}, b_pt::PartitionType)::Vector{PartitionType}
+    res::Vector{PartitionType} = PartitionType[]
+    for a_pt in a
+        merge_pts!(a_pt, b_pt, res)
+    end
+    res
+end
+function Base.:&(a::Vector{PartitionType}, b::Vector{PartitionType})::Vector{PartitionType}
+    res::Vector{PartitionType} = PartitionType[]
+    for a_pt in a
+        for b_pt in b
+            merge_pts!(a_pt, b_pt, res)
+        end
+    end
+    res
+end
 Base.:&(a::PartitionType, b::Vector{PartitionType})::Vector{PartitionType} = b & a
-Base.:&(a::Vector{PartitionType}, b::Vector{PartitionType})::Vector{PartitionType} =
-    vcat([aa & bb for aa in a for bb in b]...)
-Base.:|(a::PTOrPTUnion, b::PTOrPTUnion)::Vector{PartitionType} = [a; b]
+Base.:|(a::PTOrPTUnion, b::PTOrPTUnion)::Vector{PartitionType} = vcat(a, b)
 
 #########################
 # Partition annotations #
 #########################
-
-# TODO: Rename Partitions to PartitionTypeBinding and keep Partitioning as is
-mutable struct Partitions
-    # TODO: Only use either PT stack or PT composition to be consistent in
-    # terminology
-    pt_stacks::Dict{ValueId,PartitionTypeComposition}
-end
 
 Partitions() = Partitions(Dict{ValueId,PartitionTypeComposition}())
 
@@ -257,20 +213,28 @@ function to_jl(p::Partitions)::Dict{String,Any}
     # delayed
     return Dict{String,Any}(
         "pt_stacks" =>
-            Dict(v => to_jl(ptc) for (v, ptc) in p.pt_stacks),
+        Dict{String,Any}(v => to_jl(ptc) for (v, ptc) in p.pt_stacks),
     )
-end
-
-mutable struct PartitionAnnotation
-    partitions::Partitions
-    constraints::PartitioningConstraints
 end
 
 PartitionAnnotation() = PartitionAnnotation(Partitions(), PartitioningConstraints())
 
 function to_jl(pa::PartitionAnnotation)::Dict{String,Any}
-    return Dict(
+    return Dict{String,Any}(
         "partitions" => to_jl(pa.partitions),
         "constraints" => to_jl(pa.constraints),
     )
 end
+
+const NOTHING_PARTITIONED_USING_FUNC = PartitionedUsingFunc{Int64}(
+    false,
+    Future[],
+    false,
+    Int64[],
+    Dict{Future,Vector{Int64}}(),
+    false,
+    false,
+    true
+)
+
+Base.isnothing(f::PartitionedUsingFunc) = f.isnothing

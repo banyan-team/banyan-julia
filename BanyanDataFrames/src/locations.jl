@@ -1,19 +1,18 @@
-get_csv_chunks(localfilepathp::String)::Any = 
-    try
-        CSV.Chunks(localfilepathp)
-    catch e
-        # An ArgumentError may get thrown if the file cannot be
-        # read in with the multi-threaded chunked iterator for
-        # some reason. See
-        # https://github.com/JuliaData/CSV.jl/blob/main/src/context.jl#L583-L641
-        # for possible reasons for `ctx.threaded` in CSV.jl
-        # code to be false.
-        if isa(e, ArgumentError)
-            [CSV.File(localfilepathp)]
-        else
-            throw(e)
-        end
+read_chunk(localfilepathp::String, ::Val{:none}) = Any[]
+
+get_nrow(localfilepathp::String, ::Val{:none}) = 0
+
+get_file_ending(localfilepathp::String)::Symbol = begin
+    if endswith(localfilepathp, ".csv")
+        :csv
+    elseif endswith(localfilepathp, ".parquet")
+        :parquet
+    elseif endswith(localfilepathp, ".arrow")
+        :arrow
+    else
+        error("Expected .csv or .parquet or .arrow")
     end
+end
 
 function get_remote_table_source(
     remotepath::String,
@@ -21,7 +20,7 @@ function get_remote_table_source(
     remote_sample::Sample,
     shuffled::Bool
 )::Location
-    if isinvestigating()[:caching][:location_info] || isinvestigating()[:caching][:samples]
+    if Banyan.INVESTIGATING_CACHING_LOCATION_INFO || Banyan.INVESTIGATING_CACHING_SAMPLES
         println("Inside function passed to RemoteSource")
         @show remotepath isnothing(remote_source) isnothing(remote_sample) shuffled
     end
@@ -41,9 +40,9 @@ function get_remote_table_source(
 
     # Initialize location parameters with the case that we already have a
     # location
-    files::Base.Vector{Dict{String,Any}} = isnothing(remote_source) ? Dict{String,Any}[] : remote_source.files
-    totalnrows::Int64 = isnothing(remote_source) ? 0 : remote_source.nrows
-    nbytes::Int64 = isnothing(remote_source) ? 0 : remote_source.nbytes
+    files::Base.Vector{Dict{String,Any}} = isnothing(remote_source) ? Dict{String,Any}[] : remote_source.src_parameters["files"]
+    totalnrows::Int64 = isnothing(remote_source) ? 0 : remote_source.src_parameters["nrows"]
+    nbytes::Int64 = isnothing(remote_source) ? 0 : remote_source.src_parameters["nbytes"]
 
     # Determine whether this is a directory
     p_isfile = isfile(p)
@@ -92,7 +91,7 @@ function get_remote_table_source(
     progressbar = Progress(length(files_to_read_from), isnothing(remote_sample) ? "Collecting sample from $remotepath" : "Collecting location information from $remotepath")
     # @show remote_source
     # @show remote_sample
-    for (fileidx::Int64, filep::String) in enumerate(files_to_read_from)
+    for filep::String in files_to_read_from
         # Initialize
         filenrows = 0
 
@@ -106,18 +105,10 @@ function get_remote_table_source(
         # don't have a sample and the data _is_ shuffled, we want to
         # compute the sample later.
         if isnothing(remote_sample) && !shuffled
-            chunks::Any = if endswith(localfilepathp, ".csv")
-                get_csv_chunks(localfilepathp)
-            elseif endswith(localfilepathp, ".parquet")
-                Tables.partitions(Parquet.read_parquet(localfilepathp))
-            elseif endswith(localfilepathp, ".arrow")
-                Arrow.Stream(localfilepathp)
-            else
-                error("Expected .csv or .parquet or .arrow")
-            end
+            chunks::Any = read_chunk(localfilepathp, Val(get_file_ending(localfilepathp)))
 
             # Sample from each chunk
-            for (i, chunk) in enumerate(chunks)
+            for chunk in chunks
                 chunkdf::DataFrames.DataFrame = DataFrames.DataFrame(chunk, copycols=false)
                 chunknrows = nrow(chunkdf)
                 filenrows += chunknrows
@@ -183,15 +174,7 @@ function get_remote_table_source(
             # information that can subsequently be used in the second
             # pass to read in files until we have a sample.
 
-            filenrows = if endswith(localfilepathp, ".csv")
-                sum((1 for row in CSV.Rows(localfilepathp)))
-            elseif endswith(localfilepathp, ".parquet")
-                nrows(Parquet.File(localfilepathp))
-            elseif endswith(localfilepathp, ".arrow")
-                Tables.rowcount(Arrow.Table(localfilepathp))
-            else
-                error("Expected .csv or .parquet or .arrow")
-            end
+            filenrows = get_nrow(localfilepathp, Val(get_file_ending(localfilepathp)))
             totalnrows += filenrows
 
             # TODO: Update nbytes if there is no existing location and
@@ -232,20 +215,12 @@ function get_remote_table_source(
         for filep in reverse(files_to_read_from)
             localfilepath = p_isdir ? joinpath(p, filep) : p
             localfilepathp = get_downloaded_path(localfilepath)
-            chunks = if endswith(localfilepathp, ".csv")
-                get_csv_chunks(localfilepathp)
-            elseif endswith(localfilepathp, ".parquet")
-                Tables.partitions(Parquet.read_parquet(localfilepathp))
-            elseif endswith(localfilepathp, ".arrow")
-                Arrow.Stream(localfilepathp)
-            else
-                error("Expected .csv or .parquet or .arrow")
-            end
+            chunks::Any = read_chunk(localfilepathp, Val(get_file_ending(localfilepathp)))
 
             # Sample from each chunk
-            for (i, chunk) in enumerate(chunks)
+            for chunk in chunks
                 # Read in chunk
-                chunkdf = DataFrames.DataFrame(chunk, copycols=false)
+                chunkdf::DataFrames.DataFrame = DataFrames.DataFrame(chunk, copycols=false)
 
                 # Use `chunkdf` to initialize the schema of the sampels
                 # regardless of whethere `chunkdf` has any rows or not.
@@ -268,7 +243,7 @@ function get_remote_table_source(
                 # TODO: Maybe call GC.gc() here if we get an error when sampling really large datasets
                 memory_used_in_sampling += total_memory_usage(chunkdf)
                 memory_used_in_sampling_total = memory_used_in_sampling + 2 * total_memory_usage(randomsample)
-                chunkdf = nothing
+                chunkdf = DataFrames.DataFrame()
                 chunk = nothing
                 free_memory = Sys.free_memory()
                 if memory_used_in_sampling_total > cld(free_memory, 4)
@@ -400,9 +375,9 @@ function get_remote_table_source(
         remote_sample = if isnothing(loc_for_reading)
             Sample()
         elseif totalnrows <= Banyan.get_max_exact_sample_length()
-            ExactSample(randomsample, total_memory_usage = nbytes)
+            ExactSample(randomsample, nbytes)
         else
-            Sample(randomsample, total_memory_usage = nbytes)
+            Sample(randomsample, nbytes)
         end
     else
         # Adjust sample properties if this is a reused sample. But we only do
@@ -410,8 +385,8 @@ function get_remote_table_source(
         # value to some location that doesn't exist yet, we don't want to
         # change the sample or the sample rate.
         # TODO: Don't set the sample or sample properties if we are merely trying to overwrite something.
-        setsample!(remote_sample, :memory_usage, convert(Int64, ceil(nbytes / remote_sample_rate))::Int64)
-        setsample!(remote_sample, :rate, remote_sample_rate)
+        remote_sample.memory_usage = convert(Int64, ceil(nbytes / remote_sample_rate))::Int64
+        remote_sample.rate = remote_sample_rate
     end
 
     # Construct location with metadata
@@ -424,18 +399,18 @@ function get_remote_table_source(
 end
 
 function RemoteTableSource(remotepath; shuffled=false, source_invalid = false, sample_invalid = false, invalidate_source = false, invalidate_sample = false)::Location
-    if isinvestigating()[:caching][:location_info] || isinvestigating()[:caching][:samples]
+    if Banyan.INVESTIGATING_CACHING_LOCATION_INFO || Banyan.INVESTIGATING_CACHING_SAMPLES
         println("Before call to RemoteSource")
         @show remotepath source_invalid sample_invalid
     end
     RemoteSource(
         get_remote_table_source,
         remotepath,
-        shuffled=shuffled,
-        source_invalid = source_invalid,
-        sample_invalid = sample_invalid,
-        invalidate_source = invalidate_source,
-        invalidate_sample = invalidate_sample
+        shuffled,
+        source_invalid,
+        sample_invalid,
+        invalidate_source,
+        invalidate_sample
     )
 end
 

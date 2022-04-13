@@ -51,10 +51,10 @@ function RemoteONNXSource(remotepath; shuffled=false, source_invalid = false, in
     RemoteSource(
         get_remote_onnx_source,
         remotepath,
-        shuffled = shuffled,
-        source_invalid = source_invalid,
-        sample_invalid = true,
-        invalidate_source = invalidate_source,
-        invalidate_sample = invalidate_sample
+        shuffled,
+        source_invalid,
+        true,
+        invalidate_source,
+        invalidate_sample
     )
 end

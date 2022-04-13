@@ -9,8 +9,8 @@ module Banyan
 
 global BANYAN_JULIA_BRANCH_NAME = "v22.02.13"
 global BANYAN_JULIA_PACKAGES = String["Banyan", "BanyanArrays", "BanyanDataFrames", "BanyanImages", "BanyanONNXRunTime", "BanyanHDF5"]
-global NOT_USING_MODULES = String["ProfileView"]
-
+global NOT_USING_MODULES = String["ProfileView", "SnoopCompileCore"]
+@time begin
 using FilePathsBase: joinpath, isempty
 using Base: notnothing, env_project_file
 
@@ -22,7 +22,6 @@ using Base64
 using Dates
 using Downloads
 using JSON
-using Missings
 using Random
 using Serialization
 using StaticArrays
@@ -40,6 +39,8 @@ using ProgressMeter
 
 # For testing utils
 using LibGit2
+println("Time to `using` libraries for Banyan.jl")
+end
 
 global BANYAN_API_ENDPOINT
 
@@ -129,8 +130,7 @@ export Any,
 export Co, Cross, Equal, Sequential, Match, MatchOn, AtMost, Scale
 
 # Annotations
-export partitioned_using,
-    partitioned_with,
+export partitioned_with,
     keep_all_sample_keys,
     keep_all_sample_keys_renamed,
     keep_sample_keys_named,
@@ -164,7 +164,6 @@ export is_debug_on,
     to_jl_value,
     to_jl_value_contents,
     from_jl_value_contents,
-    to_vector,
     get_divisions,
     getpath,
     buftovbuf,
@@ -230,15 +229,23 @@ include("queues.jl")
 include("utils.jl")
 include("utils_pfs.jl")
 include("pfs.jl")
+include("utils_abstract_types.jl")
+
+# Structs
+include("sample.jl")
+include("location.jl")
+include("future.jl")
+include("utils_partitions_structs.jl")
+include("task.jl")
+include("request.jl")
+include("session.jl")
 
 # Sessions
-include("utils_abstract_types.jl")
 include("utils_s3fs.jl")
 include("clusters.jl")
 include("sessions.jl")
 
 # Futures
-include("future.jl")
 include("samples.jl")
 include("locations.jl")
 include("futures.jl")
@@ -251,9 +258,6 @@ include("annotation.jl")
 
 # Utilities
 include("requests.jl")
-
-# Session
-include("session.jl")
 
 # include("offloaded.jl")
 
@@ -282,6 +286,7 @@ end
 if Base.VERSION >= v"1.4.2"
     include("precompile.jl")
     _precompile_()
+    precompile(__init__, ()) || @warn "Banyan failed to precompile `__init__`"
 end
 
 end # module

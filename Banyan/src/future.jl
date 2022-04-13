@@ -7,6 +7,9 @@ mutable struct Future <: AbstractFuture
     total_memory_usage::Int64
 end
 
+const NOTHING_FUTURE = Future("", nothing, "", false, false, -1)
+Base.isnothing(f::Future) = isempty(f.value_id)
+
 Base.hash(f::Future) = hash(f.value_id)
 
 is_total_memory_usage_known(f::Future) = f.total_memory_usage != -1
@@ -29,3 +32,5 @@ function create_future(datatype::String, value::Any, value_id::ValueId, mutated:
 
     new_future
 end
+
+value_id_getter(f) = f.value_id

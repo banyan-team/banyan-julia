@@ -54,7 +54,7 @@ function sqs_receive_message_with_long_polling(queue)
     message = r[1]["Body"]
     md5     = r[1]["MD5OfBody"]
 
-    Dict(
+    Dict{Symbol,Any}(
         :message => message,
         :id => id,
         :handle => handle
@@ -146,7 +146,7 @@ end
 # Used by Banyan/src/pfs.jl, intended to be called from the executor
 function receive_from_client(value_id::ValueId)
     # Send scatter message to client
-    message = Dict("kind" => "SCATTER_REQUEST", "value_id" => value_id)
+    message = Dict{String,String}("kind" => "SCATTER_REQUEST", "value_id" => value_id)
     send_message(
         get_gather_queue(),
         JSON.json(message)
@@ -176,7 +176,7 @@ function send_to_client(value_id::ValueId, value, worker_memory_used = 0)
     send_message(
         get_gather_queue(),
         JSON.json(
-            Dict(
+            Dict{String,Any}(
                 "kind" => "GATHER",
                 "value_id" => value_id,
                 "contents" => to_jl_value_contents(value)::String,

@@ -91,11 +91,11 @@ reduce_worker_idx_and_val(worker_idx_and_val_a, worker_idx_and_val_b) =
         if worker_idx_and_val_a[2]
             worker_idx_and_val_a
         else
-            worker_idx_and_val_a
+            worker_idx_and_val_b
         end
     end
 
-function find_worker_idx_where(val::Bool; comm::MPI.Comm = MPI.COMM_WORLD, allreduce::Bool = true)
+function find_worker_idx_where(val::Bool; comm::MPI.Comm = MPI.COMM_WORLD, allreduce::Bool = true)::Int64
     worker_idx = get_worker_idx(comm)
     worker_idx_and_val = (worker_idx, val)
     worker_idx, aggregated_val = if allreduce
@@ -111,12 +111,12 @@ function find_worker_idx_where(val::Bool; comm::MPI.Comm = MPI.COMM_WORLD, allre
     aggregated_val ? worker_idx : -1
 end
 
-function get_partition_idx_from_divisions(
-    val,
-    divisions,
-    boundedlower,
-    boundedupper,
-)
+function get_oh_partition_idx_from_divisions(
+    oh::OH,
+    divisions::Base.Vector{Base.Vector{Tuple{OH,OH}}},
+    boundedlower::Bool,
+    boundedupper::Bool,
+)::Int64 where {OH}
     # The first and last partitions (used if this lacks a lower or upper bound)
     # must have actual division(s) associated with them. If there is no
     # partition that has divisions, then they will all be skipped and -1 will
@@ -126,7 +126,6 @@ function get_partition_idx_from_divisions(
     lastdivisionidx = findlast(isnotempty, divisions)
 
     # The given divisions may be returned from `get_divisions`
-    oh = orderinghash(val)
     for (i, div) in enumerate(divisions)
         # Now _this_ is a plausible cause. `get_divisions` can return a bunch
         # of empty arrays and in that case we should just skip that division.
@@ -136,8 +135,8 @@ function get_partition_idx_from_divisions(
 
         isfirstdivision = i == firstdivisionidx
         islastdivision = i == lastdivisionidx
-        if ((!boundedlower && isfirstdivision) || oh >= first(div)[1]) &&
-           ((!boundedupper && islastdivision) || oh < last(div)[2])
+        if ((!boundedlower && isfirstdivision) || oh >= div[1][1]) &&
+           ((!boundedupper && islastdivision) || oh < div[end][2])
             return i
         end
     end
@@ -145,6 +144,10 @@ function get_partition_idx_from_divisions(
     # We return -1 since this value doesn't belong to any of the partitions
     # represented by `divisions`.
     -1
+end
+
+function get_partition_idx_from_divisions(val::T, divisions::Base.Vector{Base.Vector{Tuple{OH,OH}}}, boundedlower::Bool, boundedupper::Bool)::Int64 where {T,OH}
+    get_oh_partition_idx_from_divisions(orderinghash(val), divisions, boundedlower, boundedupper)
 end
 
 isoverlapping(a::AbstractRange, b::AbstractRange) = a.start ≤ b.stop && b.start ≤ a.stop
@@ -155,16 +158,13 @@ isoverlapping(a::AbstractRange, b::AbstractRange) = a.start ≤ b.stop && b.star
 
 @nospecialize
 
-to_jl_value(jl) = Dict("is_banyan_value" => true, "contents" => to_jl_value_contents(jl))
+to_jl_value(jl::T) where {T} = Dict{String,Any}("is_banyan_value" => true, "contents" => to_jl_value_contents(jl))
 
 # NOTE: This function is shared between the client library and the PT library
-function to_jl_value_contents(jl)::String
+function to_jl_value_contents(jl::T)::String where {T}
     # Handle functions defined in a module
     # TODO: Document this special case
     # if jl isa Function && !(isdefined(Base, jl) || isdefined(Core, jl) || isdefined(Main, jl))
-    if jl isa Expr && eval(jl) isa Function
-        jl = Dict("is_banyan_udf" => true, "code" => jl)
-    end
 
     # Convert Julia object to string
     io = IOBuffer()
@@ -173,8 +173,6 @@ function to_jl_value_contents(jl)::String
     close(iob64_encode)
     String(take!(io))
 end
-
-@nospecialize
 
 # NOTE: This function is shared between the client library and the PT library
 function from_jl_value_contents(jl_value_contents::String)
@@ -186,11 +184,7 @@ function from_jl_value_contents(jl_value_contents::String)
     res = deserialize(iob64_decode)
 
     # Handle functions defined in a module
-    if res isa Dict && haskey(res, "is_banyan_udf") && res["is_banyan_udf"]::Bool
-        eval(res["code"])
-    else
-        res
-    end
+    res
 end
 
 
@@ -202,8 +196,10 @@ end
 # equally-sized numbers
 # NOTE: This is an "order-preserving hash function" (google that for more info)
 function orderinghash(x::T)::SVector{1,T} where {T} SVector{1,T}(x) end # This lets us handle numbers and dates
-orderinghash(x::Integer)::SVector{1,Int64} = SVector{1,Int64}(convert(Int64, x))
-function orderinghash(s::AbstractString)::SVector{32,UInt8}
+function orderinghash(x::I)::SVector{1,Int64} where I<:Integer
+    SVector{1,Int64}(convert(Int64, x))
+end
+function orderinghash(s::S)::SVector{32,UInt8} where S<:AbstractString
     s_view = view(s, 1:min(32,length(s)))
     a = codeunits(s_view)
     a_view = view(a, 1:min(32,length(a)))
@@ -211,10 +207,7 @@ function orderinghash(s::AbstractString)::SVector{32,UInt8}
     b = fill(0x20, b_length)
     vcat(a_view,b)
 end
-orderinghash(A::AbstractArray) = orderinghash(first(A))
-
-to_vector(v::Vector) = v
-to_vector(v) = [v]
+orderinghash(A::AA) where AA<:AbstractArray = orderinghash(first(A))
 
 const Division{V} = Tuple{V,V} where {V <: AbstractVector}
 
@@ -273,9 +266,9 @@ function get_divisions(divisions::Base.Vector{Division{V}}, npartitions::Int64):
             # @show divisionend
 
             # Initialize divisions for each split
-            V_nonstatic = Base.Vector{T}
-            splitdivisions::Base.Vector{Division{V_nonstatic}} =
-                map(_ -> (convert(V_nonstatic, divisionbegin), convert(V_nonstatic, divisionend)), 1:ndivisionsplits)
+            # V_nonstatic = Base.Vector{T}
+            splitdivisions::Base.Vector{Division{Base.Vector{T}}} =
+                map(_ -> (convert(Base.Vector{T}, divisionbegin), convert(Base.Vector{T}, divisionend)), 1:ndivisionsplits)
 
             # Adjust the divisions for each split to interpolate. The result
             # of an `orderinghash` call can be an array (in the case of
@@ -348,7 +341,7 @@ function get_divisions(divisions::Base.Vector{Division{V}}, npartitions::Int64):
                 # adding is the same or also empty. If it is the same or also
                 # empty, then we just add an empty divisions list. Otherwsie,
                 # we add in our novel split division.
-                if !isempty(allsplitdivisions) && last(allsplitdivisions) == splitdivision
+                if !isempty(allsplitdivisions) && allsplitdivisions[end] == splitdivision
                     push!(allsplitdivisions, Division{V}[])
                 else
                     push!(allsplitdivisions, Division{V}[(convert(V, splitdivision[1]), convert(V, splitdivision[2]))])

@@ -14,7 +14,7 @@ function ReadBlockHelperHDF5(
     # We check if it's a file because for items on disk, files are HDF5
     # datasets while directories contain Parquet, CSV, or Arrow datasets
     path = Banyan.getpath(loc_params_path, comm)
-    if isinvestigating()[:parallel_hdf5]
+    if Banyan.INVESTIGATING_PARALLEL_HDF5
         println("In ReadBlockHDF5 with path=$path, loc_name=$loc_name, isfile(path)=$(isfile(path))")
     end
     if !((loc_name == "Remote" && (occursin(".h5", loc_params_path) || occursin(".hdf5", loc_params_path))) ||
@@ -22,13 +22,13 @@ function ReadBlockHelperHDF5(
         error("Expected HDF5 file to read in; failed to read from $path")
     end
 
-    if isinvestigating()[:parallel_hdf5]
+    if Banyan.INVESTIGATING_PARALLEL_HDF5
         println("In ReadBlockHDF5 with HDF5.ishdf5(path)=$(HDF5.ishdf5(path))")
     end
        
     # @show isfile(path)
     f = h5open(path, "r")
-    if isinvestigating()[:parallel_hdf5]
+    if Banyan.INVESTIGATING_PARALLEL_HDF5
         println("In ReadBlockHDF5 after h5open")
     end
     dset = loc_name == "Disk" ? f["part"] : f[loc_params_subpath]
@@ -88,7 +88,7 @@ function ReadBlockHelperHDF5(
         dset[dim_selector...]
     end
     close(f)
-    if isinvestigating()[:parallel_hdf5]
+    if Banyan.INVESTIGATING_PARALLEL_HDF5
         println("In ReadBlockHDF5 at end with size(dset)=$(size(dset)), dimrange=$dimrange")
     end
     dset

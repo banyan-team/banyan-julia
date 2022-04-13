@@ -1,6 +1,15 @@
+struct Cluster
+    name::String
+    status::Symbol
+    status_explanation::String
+    s3_bucket_arn::String
+    organization_id::String
+    curr_cluster_instance_id::String
+end
+
 # Process-local dictionary mapping from cluster names to instances of `Cluster`
 # Might contain stale information
-global clusters = Dict()
+global clusters = Dict{String,Cluster}()
 
 @nospecialize
 
@@ -54,7 +63,7 @@ function create_cluster(;
     if !isnothing(s3_bucket_name)
         s3_bucket_arn = "arn:aws:s3:::$s3_bucket_name*"
     elseif !isnothing(s3_bucket_arn)
-        s3_bucket_name = last(split(s3_bucket_arn, ":"))
+        s3_bucket_name = split(s3_bucket_arn, ":")[end]
     end
     if isnothing(s3_bucket_arn)
         s3_bucket_arn = ""
@@ -63,7 +72,7 @@ function create_cluster(;
     end
 
     # Construct cluster creation
-    cluster_config = Dict(
+    cluster_config = Dict{String,Any}(
         "cluster_name" => name,
         "instance_type" => instance_type,
         "max_num_workers" => max_num_workers,
@@ -139,13 +148,6 @@ function assert_cluster_is_ready(name::String; kwargs...)
     send_request_get_response(:set_cluster_ready, Dict{String,Any}("cluster_name" => name))
 end
 
-struct Cluster
-    name::String
-    status::Symbol
-    status_explanation::String
-    s3_bucket_arn::String
-end
-
 parsestatus(status) =
     if status == "creating"
         :creating
@@ -169,22 +171,24 @@ parsestatus(status) =
         error("Unexpected status ", status)
     end
 
-function get_clusters(cluster_name=nothing; kwargs...)
+function _get_clusters(cluster_name::String)::Dict{String,Cluster}
     @debug "Downloading description of clusters"
-    configure(; kwargs...)
     filters = Dict()
-    if !isnothing(cluster_name)
+    if !isempty(cluster_name)
         filters["cluster_name"] = cluster_name
     end
     response = send_request_get_response(:describe_clusters, Dict{String,Any}("filters"=>filters))
-    clusters_dict = Dict(
-        name => Cluster(
+    clusters_dict::Dict{String,Cluster} = Dict{String,Cluster}()
+    for (name::String, c::Dict{String,Any}) in response["clusters"]::Dict{String,Any}
+        clusters_dict[name] = Cluster(
             name,
-            parsestatus(c["status"]),
-            haskey(c, "status_explanation") ? c["status_explanation"] : "",
-            c["s3_read_write_resource"],
-        ) for (name, c) in response["clusters"]
-    )
+            parsestatus(c["status"]::String),
+            haskey(c, "status_explanation") ? c["status_explanation"]::String : "",
+            c["s3_read_write_resource"]::String,
+            c["organization_id"]::String,
+            haskey(c, "curr_cluster_instance_id") ? c["curr_cluster_instance_id"]::String : ""
+        )
+    end
 
     # Cache info
     global clusters
@@ -192,7 +196,12 @@ function get_clusters(cluster_name=nothing; kwargs...)
         clusters[name] = c
     end
 
-    return clusters_dict
+    clusters_dict
+end
+
+function get_clusters(cluster_name=nothing; kwargs...)::Dict{String,Cluster}
+    configure(; kwargs...)
+    _get_clusters(isnothing(cluster_name) ? "" : cluster_name)
 end
 
 function get_cluster_s3_bucket_arn(cluster_name=get_cluster_name(); kwargs...)
@@ -201,7 +210,7 @@ function get_cluster_s3_bucket_arn(cluster_name=get_cluster_name(); kwargs...)
     global clusters
     # Check if cached, sine this property is immutable
     if !haskey(clusters, cluster_name)
-        get_cluster(cluster_name; kwargs...)
+        get_cluster(cluster_name)
     end
     return clusters[cluster_name].s3_bucket_arn
 end
@@ -212,34 +221,36 @@ function get_cluster_s3_bucket_name(cluster_name=get_cluster_name(); kwargs...)
     return s3_bucket_arn_to_name(get_cluster_s3_bucket_arn(cluster_name); kwargs...)
 end
 
-get_cluster(name::String=get_cluster_name(); kwargs...) = get_clusters(name; kwargs...)[name]
+get_cluster(name::String=get_cluster_name(); kwargs...)::Cluster = get_clusters(name; kwargs...)[name]
 
 get_running_clusters(args...; kwargs...) = filter(entry -> entry[2].status == :running, get_clusters(args...; kwargs...))
 
-function get_cluster_status(name::String=get_cluster_name(); kwargs...)
+function get_cluster_status(name::String)::Symbol
     global clusters
+    clusters::Dict{String,Cluster}
     if haskey(clusters, name)
         if clusters[name].status == :failed
             @error clusters[name].status_explanation
         end
     end
-    c = get_cluster(name; kwargs...)
+    c::Cluster = get_clusters(name)[name]
     if c.status == :failed
         @error c.status_explanation
     end
     c.status
 end
+get_cluster_status() = get_cluster_status(get_cluster_name())
 
-function wait_for_cluster(name::String=get_cluster_name(); kwargs...)
-    t = 5
-    cluster_status = get_cluster_status(name; kwargs...)
-    p = nothing
+function _wait_for_cluster(name::String)
+    t::Int64 = 5
+    cluster_status::Symbol = get_cluster_status(name)
+    p::ProgressUnknown = ProgressUnknown("Finding status of cluster $name", enabled=false)
     while (cluster_status == :creating || cluster_status == :updating)
-        if isnothing(p)
+        if !p.enabled
             if cluster_status == :creating
-                p = ProgressUnknown("Setting up cluster $(name)", spinner=true)
+                p = ProgressUnknown("Setting up cluster $name", spinner=true)
             else
-                p = ProgressUnknown("Updating cluster $(name)", spinner=true)
+                p = ProgressUnknown("Updating cluster $name", spinner=true)
             end
         end
         sleep(t)
@@ -247,9 +258,9 @@ function wait_for_cluster(name::String=get_cluster_name(); kwargs...)
         if t < 80
             t *= 2
         end
-        cluster_status = get_cluster_status(name; kwargs...)
+        cluster_status = get_cluster_status(name)
     end
-    if !isnothing(p)
+    if p.enabled
         finish!(p, spinner = (cluster_status == :running ? '✓' : '✗'))
     end
     if cluster_status == :running
@@ -262,10 +273,18 @@ function wait_for_cluster(name::String=get_cluster_name(); kwargs...)
         error("Cluster $name has unexpected status: $cluster_status")
     end
 end
+function wait_for_cluster(kwargs...)
+    configure(kwargs...)
+    _wait_for_cluster(get_cluster_name())
+end
+function wait_for_cluster(name::String, kwargs...)
+    configure(kwargs...)
+    _wait_for_cluster(name)
+end
 
 function upload_to_s3(src_path; dst_name=basename(src_path), cluster_name=get_cluster_name(), kwargs...)
     configure(; kwargs...)
-    bucket_name = get_cluster_s3_bucket_name(cluster_name; kwargs...)
+    bucket_name = get_cluster_s3_bucket_name(cluster_name)
     s3_dst_path = S3Path("s3://$bucket_name/$dst_name", config=get_aws_config())
     if startswith(src_path, "http://") || startswith(src_path, "https://")
         Base.download(

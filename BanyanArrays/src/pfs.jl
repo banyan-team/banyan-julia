@@ -107,7 +107,7 @@ function ReadBlockHelperJuliaArray(
             else
                 push!(dfs, arr)
             end
-            if isinvestigating()[:losing_data]
+            if Banyan.INVESTIGATING_LOSING_DATA
                 println("In ReadBlockJuliaArray with path=$path with rowrange=$rowrange, readrange=$readrange, filerowrange=$filerowrange")
             end
         end
@@ -136,7 +136,7 @@ function ReadBlockHelperJuliaArray(
     else
         cat(dfs...; dims=dim_partitioning)
     end
-    if isinvestigating()[:losing_data]
+    if Banyan.INVESTIGATING_LOSING_DATA
         println("In ReadBlockJuliaArray with size(res)=$(size(res)), length(dfs)=$(length(dfs)), loc_params=$loc_params, dim_partitioning=$dim_partitioning, dim=$dim, partitioned_on_dim=$partitioned_on_dim, size.(dfs)=$(size.(dfs))")
     end
     res
@@ -288,7 +288,7 @@ function WriteJuliaArrayHelper(
     nrows = part isa Empty ? 0 : size(part, dim)
     sortableidx = Banyan.sortablestring(idx, get_npartitions(nbatches, comm))
     write_file_julia_array(part, path, dim, sortableidx, nrows)
-    if isinvestigating()[:losing_data]
+    if Banyan.INVESTIGATING_LOSING_DATA
         println("In WriteJuliaArray with size(part)=$(size(part)), path=$path, dim=$dim, sortableidx=$sortableidx")
     end
     MPI.Barrier(comm)
@@ -298,7 +298,7 @@ function WriteJuliaArrayHelper(
             Banyan.rmdir_on_nfs(actualpath)
             mkpath(actualpath)
         end
-        if isinvestigating()[:losing_data]
+        if Banyan.INVESTIGATING_LOSING_DATA
             println("In WriteJuliaArray with tmpdir=$tmpdir, nbatches=$nbatches")
         end
         MPI.Barrier(comm)
@@ -310,7 +310,7 @@ function WriteJuliaArrayHelper(
                 tmpsrc = joinpath(path, tmpdir[tmpdir_idx])
                 actualdst = joinpath(actualpath, tmpdir[tmpdir_idx])
                 cp(tmpsrc, actualdst, force=true)
-                if isinvestigating()[:losing_data]
+                if Banyan.INVESTIGATING_LOSING_DATA
                     println("In WriteJuliaArray copying from tmpsrc=$tmpsrc to actualdst=$actualdst with tmpdir=$tmpdir")
                 end
             end

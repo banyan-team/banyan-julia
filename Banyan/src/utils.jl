@@ -65,7 +65,7 @@ end
 
 function s3_bucket_arn_to_name(s3_bucket_arn::String)::String
     # Get s3 bucket name from arn
-    s3_bucket_name = last(split(s3_bucket_arn, ":"))
+    s3_bucket_name = split(s3_bucket_arn, ":")[end]
     if endswith(s3_bucket_name, "/")
         s3_bucket_name = s3_bucket_name[1:end-1]
     elseif endswith(s3_bucket_name, "/*")
@@ -101,6 +101,8 @@ end
 global banyan_config = nothing
 global aws_config_in_usage = nothing
 
+@nospecialize
+
 function load_config(banyanconfig_path=nothing)
     global banyan_config
 
@@ -135,8 +137,8 @@ configure(; user_id=nothing, api_key=nothing, ec2_key_pair_name=nothing, banyanc
         isnothing(ec2_key_pair_name) ? "" : ec2_key_pair_name,
         isnothing(banyanconfig_path) ? "" : banyanconfig_path
     )
+
 function configure(user_id, api_key, ec2_key_pair_name, banyanconfig_path)
-    @nospecialize
     # This function allows for users to configure their authentication.
     # Authentication details are then saved in
     # `$HOME/.banyan/banyanconfig.toml` so they don't have to be entered in again
@@ -185,10 +187,10 @@ function configure(user_id, api_key, ec2_key_pair_name, banyanconfig_path)
     # return nothing
     existing_banyan_config = deepcopy(banyan_config)
     if !isempty(user_id) && !isempty(api_key)
-        aws_ec2_config = (!isempty(ec2_key_pair_name) && !isempty(ec2_key_pair_name)) ? Dict("ec2_key_pair_name" => ec2_key_pair_name) : Dict()
-        banyan_config = Dict(
+        aws_ec2_config = (!isempty(ec2_key_pair_name) && !isempty(ec2_key_pair_name)) ? Dict{String,String}("ec2_key_pair_name" => ec2_key_pair_name) : Dict{String,String}()
+        banyan_config = Dict{String,Any}(
             "banyan" =>
-                Dict("user_id" => user_id, "api_key" => api_key),
+                Dict{String,String}("user_id" => user_id, "api_key" => api_key),
             "aws" => aws_ec2_config,
         )
     else
@@ -211,6 +213,8 @@ function configure(user_id, api_key, ec2_key_pair_name, banyanconfig_path)
 
     return banyan_config
 end
+
+@specialize
 
 function get_aws_config()
     global aws_config_in_usage
@@ -305,16 +309,16 @@ end
 """
 Sends given request with given content
 """
-function request_body(url::String; kwargs...)
+function request_body(url::String; @nospecialize(kwargs...))
     global downloader
-    resp = nothing
-    body = sprint() do output
-        resp = request(url; output=output, throw=false, downloader=downloader, kwargs...)
-    end
+    s = IOBuffer(sizehint=0)
+    output = IOContext(s)
+    resp = request(url; output=output, throw=false, downloader=downloader, kwargs...)
+    body::String = String(resize!(s.data, s.size))
     return resp, body
 end
 
-function request_json(url::String; kwargs...)
+function request_json(url::String; @nospecialize(kwargs...))
     resp, body = request_body(url; kwargs...)
     return resp, JSON.parse(body)
 end
@@ -360,7 +364,7 @@ function send_request_get_response(method, content::Dict)
         push!(headers, "banyan-ssh-key-path" => configuration["banyan"]["banyan_ssh_key_path"])
     end
     resp, data = request_json(
-	    url, input=IOBuffer(JSON.json(content)), method="POST", headers=headers
+	    url; input=IOBuffer(JSON.json(content)), method="POST", headers=headers
     )
     if resp.status == 403
         error("Please use a valid user ID and API key. Sign into the dashboard to retrieve these credentials.")
@@ -438,7 +442,8 @@ function load_json(path::String)
 end
 
 function load_toml(path::String)
-    if startswith(path, "file://")
+    @time begin
+    res = if startswith(path, "file://")
         if !isfile(path[8:end])
             error("File $path does not exist")
         end
@@ -451,15 +456,29 @@ function load_toml(path::String)
     else
         error("Path $path must start with \"file://\", \"s3://\", or \"http(s)://\"")
     end
+    println("Time for loading a TOML file from $path with typeof(res)=$(typeof(res)):")
+    end
+    res
 end
 
 function load_json(paths::Vector{String})
     # Each file should have merges, splits, and casts. So we need to take those
     # and merge them.
-    mergewith(merge, [load_json(p) for p in paths]...)
+    mergewith(merge, map(load_json, paths)...)
 end
 
-load_toml(paths::Vector{String}) = mergewith(merge, [load_toml(p) for p in paths]...)
+function load_toml(paths::Vector{String})
+    npaths = length(paths)
+    loaded_dir = mktempdir()
+    @sync for i = 1:npaths
+        @async Base.download(paths[i], joinpath(loaded_dir, "part" * string(i)))
+    end
+    loaded = Vector{String}(undef, npaths)
+    for i = 1:npaths
+        loaded[i] = "file://" * joinpath(loaded_dir, "part$i")
+    end
+    mergewith(merge, map(load_toml, loaded)...)
+end
 
 # Loads file into String and returns
 function load_file(path::String)
@@ -487,19 +506,6 @@ function get_julia_version()
     return string(VERSION)
 end
 
-function get_loaded_packages()
-    # for m in names(Main, imported=true)
-    #     @show try Main.eval(m) catch nothing end isa Module && !(m in [:Main, :Base, :Core, :InteractiveUtils, :IJulia])
-    # end
-    modules = map(
-        m -> string(m),
-        filter(
-            m -> try Main.eval(m) catch nothing end isa Module && !(m in [:Main, :Base, :Core, :InteractiveUtils, :IJulia, :VSCodeServer]),
-            names(Main, imported=true)
-        )
-    )
-end
-
 # Returns the directory in which the Project.toml file is located
 function get_julia_environment_dir()
     return replace(Pkg.project().path, "Project.toml" => "")
@@ -519,22 +525,22 @@ function format_bytes(bytes, decimals = 2)
     return string(round((bytes / ^(k, i)), digits = dm)) * " " * sizes[i+1]
 end
 
-byte_sizes = Dict(
-    "kB" => 10 ^ 3,
-    "MB" => 10 ^ 6,
-    "GB" => 10 ^ 9,
-    "TB" => 10 ^ 12,
-    "PB" => 10 ^ 15,
-    "KiB" => 2 ^ 10,
-    "MiB" => 2 ^ 20,
-    "GiB" => 2 ^ 30,
-    "TiB" => 2 ^ 40,
-    "PiB" => 2 ^ 50,
-    "B" => 1,
-    "" => 1,
+byte_sizes = Dict{String,Int64}(
+    "kB" => Int64(10 ^ 3),
+    "MB" => Int64(10 ^ 6),
+    "GB" => Int64(10 ^ 9),
+    "TB" => Int64(10 ^ 12),
+    "PB" => Int64(10 ^ 15),
+    "KiB" => Int64(2 ^ 10),
+    "MiB" => Int64(2 ^ 20),
+    "GiB" => Int64(2 ^ 30),
+    "TiB" => Int64(2 ^ 40),
+    "PiB" => Int64(2 ^ 50),
+    "B" => Int64(1),
+    "" => Int64(1),
 )
 
-byte_sizes = Dict(lowercase(k) => v for (k, v) in byte_sizes)
+byte_sizes = Dict{String,Int64}(lowercase(k) => v for (k, v) in byte_sizes)
 merge!(byte_sizes, Dict(string(k[1]) => v for (k, v) in byte_sizes if !isempty(k) && !occursin("i", k)))
 merge!(byte_sizes, Dict(k[1:end-1] => v for (k, v) in byte_sizes if !isempty(k) && occursin("i", k)))
 
@@ -575,7 +581,7 @@ function parse_bytes(s::String)::Float64
     result
 end
 
-function get_branch_name()
+function get_branch_name()::String
     prepo = LibGit2.GitRepo(realpath(joinpath(@__DIR__, "../..")))
     phead = LibGit2.head(prepo)
     branchname = LibGit2.shortname(phead)

@@ -1,20 +1,28 @@
 module BanyanDataFrames
 
-using Banyan,
-    BanyanArrays,
-    AWS,
-    AWSCore,
-    AWSS3,
-    Banyan,
-    Downloads,
-    FileIO,
-    FilePathsBase,
-    MPI,
-    Random,
-    Serialization
+@time begin
+@time using Banyan
+@time using BanyanArrays
+@time using LRUCache
+@time using DataFrames
+@time using Dates
+@time using Downloads
+@time using FileIO
+@time using FilePathsBase
+@time using Memoize
+@time using Missings
+@time using MPI
+@time using ProgressMeter
+@time using Random
+@time using Requires
+@time using Serialization
+@time using StaticArrays
+println("Time to `using` packages for BanyanDataFrames.jl")
+end
 
-using DataFrames, Missings, CSV, Parquet, Arrow
-using ProgressMeter
+# TODO: Use Requires for these
+println("Times to using CSV, Parquet, and Arrow")
+@time using Arrow
 
 # Types
 export DataFrame, GroupedDataFrame
@@ -69,7 +77,8 @@ export ReadBlockCSV,
     ShuffleDataFrame,
     ReturnNullGrouping,
     ReturnNullGroupingConsolidated,
-    ReturnNullGroupingRebalanced
+    ReturnNullGroupingRebalanced,
+    add_sizes
 
 export RemoteTableSource, RemoteTableDestination
 
@@ -78,6 +87,14 @@ include("df.jl")
 include("gdf.jl")
 include("utils_pfs.jl")
 include("pfs.jl")
+
+# We can include arrow.jl because we anyway need the Arrow.jl package for pfs.jl
+include("arrow.jl")
+
+function __init__()
+    @require CSV="336ed68f-0bac-5ca0-87d4-7b16caf5d00b" include("csv.jl")
+    @require Parquet="626c502c-15b0-58ad-a749-f091afb673ae" include("parquet.jl")
+end
 
 if Base.VERSION >= v"1.4.2"
     include("precompile.jl")

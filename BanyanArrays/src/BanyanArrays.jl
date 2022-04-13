@@ -1,6 +1,8 @@
 module BanyanArrays
 
 using Banyan,
+    LRUCache,
+    Memoize,
     MPI,
     Serialization
 

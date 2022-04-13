@@ -44,7 +44,7 @@ function _sortablestring(val::String, maxval::String)
     join(res)
 end
 
-splitting_divisions = IdDict()
+splitting_divisions = IdDict{Any,Any}()
 
 function get_splitting_divisions()
     global splitting_divisions
@@ -166,7 +166,7 @@ ReadGroupHelper(ReadBlockFunc, ShuffleFunc) = begin
             splitting_divisions[res] =
                 (partition_divisions[partition_idx], !hasdivision || partition_idx != firstdivisionidx, !hasdivision || partition_idx != lastdivisionidx)
         end
-        
+
         res
     end
     ReadGroupHelperFunc

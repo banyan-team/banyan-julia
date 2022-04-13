@@ -21,7 +21,7 @@ tmp_paths = []
 # You should first call `download_remote_path` to get a remote path, then
 # call `with_downloaded_path_for_reading` for the local path to read from.
 
-function download_remote_path(remotepath)
+function download_remote_path(remotepath::String)
     global tmp_paths
 
     # This returns an AbstractPath that can be manipulated using any of the
@@ -51,7 +51,7 @@ end
 
 failed_to_use_s3fs = false
 
-function download_remote_s3_path(path)
+function download_remote_s3_path(path::String)
     global failed_to_use_s3fs
 
     # Get information about requested object

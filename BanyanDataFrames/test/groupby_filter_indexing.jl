@@ -518,12 +518,12 @@ end
             # so that no grouping splitting has to be done, we still have to do
             # a groupby-subset on an empty DataFrame with no schema and
             # DataFrames.jl doesn't support that.
-            if isinvestigating()[:size_exaggurated_tests]
+            if Banyan.INVESTIGATING_SIZE_EXAGGURATED_TESTS
                 println("In test on iteration $i")
             end
             if has_schema
                 # Groupby all columns and subset, resulting in empty df
-                if isinvestigating()[:size_exaggurated_tests]
+                if Banyan.INVESTIGATING_SIZE_EXAGGURATED_TESTS
                     CSV.write("test_res_filtered_empty.csv", sample(filtered_empty))
                     @show filtered_empty.data.value_id
                 end
@@ -533,7 +533,7 @@ end
             end
 
             # # Test size after filtering single-row dataset
-            # if isinvestigating()[:size_exaggurated_tests]
+            # if Banyan.INVESTIGATING_SIZE_EXAGGURATED_TESTS
             #     CSV.write("test_res_filtered_single.csv", sample(filtered_single))
             # end
             filtered_single_sub = subset(groupby(filtered_single, :species), :petal_length => pl -> pl .>= mean(pl))

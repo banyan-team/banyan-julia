@@ -30,12 +30,12 @@ function (is::InferenceSession)(inputs, output_names=nothing)
         pt(res, Blocked() & Balanced(), match=A, on="key")
 
         # unbalanced
-        pt(A, bpt & Unbalanced(scaled_by_same_as=res))
-        pt(res, Unbalanced(scaled_by_same_as=A), match=A)
+        pt(A, bpt & Unbalanced(res))
+        pt(res, Unbalanced(A), match=A)
 
         # replicated
         # TODO: Determine why this MatchOn constraint is not propagating
-        pt(res_size, ReducingWithKey(quote axis -> (a, b) -> indexapply(+, a, b, index=axis) end), match=A, on="key")
+        pt(res_size, ReducingWithKey(add_sizes_on_axis), match=A, on="key")
         pt(A, res, res_size, is, dynamic_axis, input_name, Replicated())
     end
 
@@ -48,7 +48,10 @@ function (is::InferenceSession)(inputs, output_names=nothing)
         res_size = Base.size(res)
     end
 
-    Dict(output_name => BanyanArrays.Array{eltype(sample(res)),ndims(sample(res))}(res, res_size))
+    res_sample = sample(res)
+    T = eltype(res_sample)
+    N = ndims(res_sample)
+    Dict{String,BanyanArrays.Array{T,N}}(output_name => BanyanArrays.Array{T,N}(res, res_size))
 end
 
 function load_inference(path; dynamic_axis::Bool=false)

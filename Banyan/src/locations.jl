@@ -2,46 +2,6 @@
 # Location type #
 #################
 
-const LocationParameters = Dict{String,Any}
-
-mutable struct Location
-    # A location may be usable as either a source or destination for data or
-    # both.
-
-    src_name::String
-    dst_name::String
-    src_parameters::LocationParameters
-    dst_parameters::LocationParameters
-    total_memory_usage::Int64
-    sample::Sample
-
-    # function Location(
-    #     src_name::String,
-    #     dst_name::String,
-    #     src_parameters::Dict{String,<:Any},
-    #     dst_parameters::Dict{String,<:Any},
-    #     total_memory_usage::Union{Int64,Nothing} = nothing,
-    #     sample::Sample = Sample(),
-    # )
-    #     # NOTE: A file might be None and None if it is simply to be cached on
-    #     # disk and then read from
-    #     # if src_name == "None" && dst_name == "None"
-    #     #     error(
-    #     #         "Location must either be usable as a source or as a destination for data",
-    #     #     )
-    #     # end
-
-    #     new(
-    #         src_name,
-    #         dst_name,
-    #         src_parameters,
-    #         dst_parameters,
-    #         total_memory_usage,
-    #         sample
-    #     )
-    # end
-end
-
 const NOTHING_LOCATION = Location("None", "None", LocationParameters(), LocationParameters(), Int64(-1), NOTHING_SAMPLE)
 
 Location(name::String, parameters::LocationParameters, total_memory_usage::Int64 = -1, sample::Sample = Sample())::Location =
@@ -57,33 +17,30 @@ LocationDestination(
     parameters::LocationParameters
 )::Location = Location("None", name, LocationParameters(), parameters, -1, Sample())
 
-function Base.getproperty(loc::Location, name::Symbol)
-    if hasfield(Location, name)
-        return getfield(loc, name)
-    end
+# function Base.getproperty(loc::Location, name::Symbol)
+#     if hasfield(Location, name)
+#         return getfield(loc, name)
+#     end
 
-    n = string(name)
-    # `n` might exist in both the source parameters _AND_ the destination
-    # parameters but we prioritize the source.
-    if haskey(loc.src_parameters, n)
-        loc.src_parameters[n]
-    elseif haskey(loc.dst_parameters, n)
-        loc.dst_parameters[n]
-    else
-        error("$name not found among location source $(loc.src_name) with parameters $(loc.src_parameters) and destination $(loc.dst_name) with parameters $(loc.dst_parameters)")
-    end
-end
+#     n = string(name)
+#     # `n` might exist in both the source parameters _AND_ the destination
+#     # parameters but we prioritize the source.
+#     if haskey(loc.src_parameters, n)
+#         loc.src_parameters[n]
+#     elseif haskey(loc.dst_parameters, n)
+#         loc.dst_parameters[n]
+#     else
+#         error("$name not found among location source $(loc.src_name) with parameters $(loc.src_parameters) and destination $(loc.dst_name) with parameters $(loc.dst_parameters)")
+#     end
+# end
 
-function Base.hasproperty(loc::Location, name::Symbol)
-    n = string(name)
-    hasfield(Location, name) || haskey(loc.src_parameters, n) || haskey(loc.dst_parameters, n)
-end
-
-# Accessing the sample of a location
-sample(loc::Location) = sample(loc.sample)
+# function Base.hasproperty(loc::Location, name::Symbol)
+#     n = string(name)
+#     hasfield(Location, name) || haskey(loc.src_parameters, n) || haskey(loc.dst_parameters, n)
+# end
 
 function to_jl(lt::Location)
-    return Dict(
+    return Dict{String,Any}(
         "src_name" => lt.src_name,
         "dst_name" => lt.dst_name,
         "src_parameters" => lt.src_parameters,
@@ -202,12 +159,12 @@ end
 global source_location_funcs = Dict{ValueId,Function}()
 global destination_location_funcs = Dict{ValueId,Function}()
 
-function sourced(fut::Future, location_func::Function)
+function sourced(fut::Future, @nospecialize(location_func::Function))
     global source_location_funcs
     source_location_funcs[fut.value_id] = location_func
 end
 
-function destined(fut::Future, location_func::Function)
+function destined(fut::Future, @nospecialize(location_func::Function))
     global destination_location_funcs
     destination_location_funcs[fut.value_id] = location_func
 end
@@ -218,11 +175,15 @@ function apply_sourced_or_destined_funcs(fut::Future)
     source_location_funcs::Dict{ValueId,Function}
     destination_location_funcs::Dict{ValueId,Function}
     if haskey(source_location_funcs, fut.value_id)
-        sourced(fut, source_location_funcs[fut.value_id](fut))
+        src_func::Function = source_location_funcs[fut.value_id]
+        new_source_location::Location = src_func(fut)
+        sourced(fut, new_source_location)
         pop!(source_location_funcs, fut.value_id)
     end
     if haskey(destination_location_funcs, fut.value_id)
-        destined(fut, source_location_funcs[fut.value_id](fut))
+        dst_func::Function = destination_location_funcs[fut.value_id]
+        new_destination_location::Location = dst_func(fut)
+        destined(fut, new_destination_location)
         pop!(destination_location_funcs, fut.value_id)
     end
 end
@@ -356,7 +317,7 @@ Disk() = Location("None", Dict{String,Any}()) # The scheduler intelligently dete
 # overall data size. This way, two arrays that have the same actual size will
 # be guaranteed to have the same sample size.
 
-get_max_exact_sample_length()::Int64 = parse(Int64, get(ENV, "BANYAN_MAX_EXACT_SAMPLE_LENGTH", "2048"))
+get_max_exact_sample_length()::Int64 = parse(Int64, get(ENV, "BANYAN_MAX_EXACT_SAMPLE_LENGTH", "2048")::String)
 
 getsamplenrows(totalnrows::Int64)::Int64 =
     if totalnrows <= get_max_exact_sample_length()
@@ -391,19 +352,8 @@ invalidate_sample(p) = rm(joinpath(homedir(), ".banyan", "samples", string(hash(
 
 @nospecialize
 
-RemoteSource(
-    get_remote_source::Function,
-    p;
-    shuffled::Bool = false,
-    source_invalid::Bool = false,
-    sample_invalid::Bool = false,
-    invalidate_source::Bool = false,
-    invalidate_sample::Bool = false
-)::Location =
-    RemoteSource(get_remote_source, p, shuffled, source_invalid, sample_invalid, invalidate_source, invalidate_sample)
-
 function RemoteSource(
-    get_remote_source::Function,
+    @nospecialize(get_remote_source::Function),
     p,
     shuffled::Bool,
     source_invalid::Bool,
@@ -453,9 +403,9 @@ function RemoteSource(
         NOTHING_LOCATION
     end
     remote_source = get_remote_source_cached(get_remote_source, p, remote_source, remote_sample, shuffled)
-    remote_sample = (remote_source.sample)::Sample
+    remote_sample = remote_source.sample
 
-    if isinvestigating()[:caching][:location_info] || isinvestigating()[:caching][:samples]
+    if Banyan.INVESTIGATING_CACHING_LOCATION_INFO || Banyan.INVESTIGATING_CACHING_SAMPLES
         println("In RemoteSource")
         @show locationpath samplepath isfile(samplepath) sample_invalid isfile(locationpath) source_invalid
     end
@@ -468,7 +418,7 @@ function RemoteSource(
     # the location will not be saved. But on future writes, the first write's
     # location will be used.
     remote_source_src_name::String = remote_source.src_name
-    remote_source_nbytes::Int64 = remote_source.nbytes
+    remote_source_nbytes::Int64 = remote_source.src_parameters["nbytes"]
     if !invalidate_source && remote_source_src_name == "Remote" && remote_source_nbytes > 0
         mkpath(locationspath)
         serialize(locationpath, remote_source)
@@ -493,7 +443,7 @@ function RemoteSource(
 end
 
 function RemoteDestination(
-    get_remote_destination::Function,
+    @nospecialize(get_remote_destination::Function),
     p::String;
     invalidate_source::Bool = true,
     invalidate_sample::Bool = true

@@ -4,7 +4,6 @@ using Banyan,
     BanyanArrays,
     HDF5,
     MPI,
-    Missings,
     Random
 
 # The main functions

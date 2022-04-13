@@ -1,5 +1,5 @@
 function Base.copy(fut::AbstractFuture)
-    res = Future(fut)
+    res = Future(from=fut)
 
     # partitioned_using() do
     #     keep_all_sample_keys(res, fut)
@@ -26,7 +26,7 @@ function Base.copy(fut::AbstractFuture)
 end
 
 function Base.deepcopy(fut::AbstractFuture)
-    res = Future(fut)
+    res = Future(from=fut)
 
     # partitioned_using() do
     #     keep_all_sample_keys(res, fut)
@@ -61,7 +61,7 @@ mutable struct Array{T,N} <: AbstractFuture where {T,N}
     # offset::Future
 
     Array{T,N}() where {T,N} = new(Future(datatype="Array"), Future())
-    Array{T,N}(A::Array{T,N}) where {T,N} = new(Future(datatype="Array"), Future(A.size))
+    Array{T,N}(A::Array{T,N}) where {T,N} = new(Future(datatype="Array"), Future(from=A.size))
     Array{T,N}(data::Future, size::Future) where {T,N} = new(data, size)
 end
 
@@ -83,7 +83,7 @@ function Banyan.sample_keys(A::Base.AbstractArray{T,N})::Base.Vector{Int64} wher
 # `sample_divisions`, `sample_percentile`, and `sample_max_ngroups` should
 # work with the `orderinghash` of values in the data they are used on
 
-function Banyan.sample_divisions(A::U, key) where U <: Base.AbstractArray{T,N} where {T,N}
+@memoize LRU{Tuple{Any,Int64},Any}(maxsize=16) function Banyan.sample_divisions(A::U, key::Int64) where U <: Base.AbstractArray{T,N} where {T,N}
     if isempty(A)
         return []
     end
@@ -107,7 +107,7 @@ function Banyan.sample_divisions(A::U, key) where U <: Base.AbstractArray{T,N} w
     ])
 end
 
-function Banyan.sample_percentile(A::U, key, minvalue, maxvalue)::Float64 where U <: Base.AbstractArray{T,N} where {T,N}
+@memoize LRU{Tuple{Any,Int64,Any,Any},Float64}(maxsize=16) function Banyan.sample_percentile(A::U, key::Int64, minvalue, maxvalue)::Float64 where U <: Base.AbstractArray{T,N} where {T,N}
     if isempty(A) || isnothing(minvalue) || isnothing(maxvalue)
         return 0.0
     end
@@ -155,7 +155,7 @@ end
 # something like sorting on multiple dimensions or grouping on multiple
 # dimensions you can just use the first dimension as the key.
 
-function Banyan.sample_max_ngroups(A::U, key)::Int64 where U <: Base.AbstractArray{T,N} where {T,N}
+@memoize LRU{Tuple{Any,Int64},Int64}(maxsize=16) function Banyan.sample_max_ngroups(A::U, key::Int64)::Int64 where U <: Base.AbstractArray{T,N} where {T,N}
     if isempty(A)
         return 0
     end
@@ -183,7 +183,18 @@ end
 # probably need to vary mapslices on the dim itself and then use eachslices,
 # get the orderinghash and then take minimum across that
 # TODO: Change to use eachslice everywhere and ensure we use key not d
-function Banyan.sample_min(A::U, key) where U <: Base.AbstractArray{T,N} where {T,N}
+@memoize LRU{Tuple{Any,Int64},Any}(maxsize=16) function Banyan.sample_min(A::Base.AbstractVector{T}, @nospecialize(key)) where {T}
+    if isempty(A)
+        nothing
+    else
+        min_oh = orderinghash(A[1])
+        for e in A
+            min_oh = min(orderinghash(e), min_oh)
+        end
+        min_oh
+    end
+end
+@memoize LRU{Tuple{Any,Int64},Any}(maxsize=16) function Banyan.sample_min(A::U, key::Int64) where U <: Base.AbstractArray{T,N} where {T,N}
     if isempty(A)
         nothing
     else
@@ -194,7 +205,18 @@ function Banyan.sample_min(A::U, key) where U <: Base.AbstractArray{T,N} where {
         min_oh
     end
 end
-function Banyan.sample_max(A::U, key) where U <: Base.AbstractArray{T,N} where {T,N}
+@memoize LRU{Tuple{Any,Int64},Any}(maxsize=16) function Banyan.sample_max(A::Base.AbstractVector{T}, @nospecialize(key)) where {T}
+    if isempty(A)
+        nothing
+    else
+        min_oh = orderinghash(A[1])
+        for e in A
+            min_oh = max(orderinghash(e), min_oh)
+        end
+        min_oh
+    end
+end
+@memoize LRU{Tuple{Any,Int64},Any}(maxsize=16) function Banyan.sample_max(A::U, key::Int64) where U <: Base.AbstractArray{T,N} where {T,N}
     if isempty(A)
         nothing
     else
@@ -214,28 +236,7 @@ function Banyan.compute_inplace(A::Array{T,N}) where {T,N}
     end
 end
 
-function fill(v, dims::NTuple{N,Integer}) where {N}
-    fillingdims = Future(source=Size(dims))
-    A = Future(datatype="Array")
-    A_dims = Future(dims)
-    v = Future(v)
-    dims = Future(dims)
-
-    # For futures that contains dims or nrows, we initialize them to store the
-    # dimensions or # of rows of the whole value. Then if we need to mutate,
-    # we reassign to the dimensions or # of rows of the part and assign a
-    # reducing PT.
-
-    # NOTE: If a value is being created for the first time in a code region, it
-    # is being mutated. The only exception is a value that is already created
-    # on the client and is merely being replicated in the code region.
-    # partition(A, Replicated())
-    # partition(dims, Replicated())
-    
-    # for axis in 1:min(4, ndims(A))
-    #     # Partition with distribution of either balanced, grouped, or unknown
-    #     partition(A, Blocked(key=a))
-    # end
+function partitioned_for_fill(A::Future, fillingdims::Future, v::Future)
     # We use `partitioned_with` here to ensure that a sample of A is produced
     # first so that we can use the Blocked PT constructor which depends on A
     # having its sample taken
@@ -262,17 +263,39 @@ function fill(v, dims::NTuple{N,Integer}) where {N}
     @partitioned A v fillingdims begin
         A = Base.fill(v, fillingdims)
     end
+end
 
-    Array{typeof(compute(v)),N}(A, A_dims)
+function fill(v, dims::NTuple{N,Integer}) where {N}
+    fillingdims = Future(source=Size(dims))
+    A = Future(datatype="Array")
+    A_dims = Future(dims)
+    v_sample = copy(v)
+    v = Future(v)
+    dims = Future(dims)
+
+    # For futures that contains dims or nrows, we initialize them to store the
+    # dimensions or # of rows of the whole value. Then if we need to mutate,
+    # we reassign to the dimensions or # of rows of the part and assign a
+    # reducing PT.
+
+    # NOTE: If a value is being created for the first time in a code region, it
+    # is being mutated. The only exception is a value that is already created
+    # on the client and is merely being replicated in the code region.
+    # partition(A, Replicated())
+    # partition(dims, Replicated())
+    
+    # for axis in 1:min(4, ndims(A))
+    #     # Partition with distribution of either balanced, grouped, or unknown
+    #     partition(A, Blocked(key=a))
+    # end
+    partitioned_for_fill(A, fillingdims, v)
+
+    Array{typeof(v_sample),N}(A, A_dims)
 end
 
 fill(v, dims::Int64...) = fill(v, Tuple(dims))
 
-function collect(r::AbstractRange)
-    # Create output futures
-    r = Future(r)
-    A = Future(datatype="Array")
-
+function partitioned_for_collect(A::Future, r::Future)
     # Define how the data can be partitioned (mentally taking into account
     # data imbalance and grouping)
     partitioned_with(scaled=A) do
@@ -283,10 +306,21 @@ function collect(r::AbstractRange)
 
     # Offload the partitioned computation
     @partitioned r A begin A = Base.collect(r) end
+end
+
+function collect(r::AbstractRange)
+    # Create output futures
+    r_sample = copy(r)
+    r = Future(r)
+    A = Future(datatype="Array")
+
+    partitioned_for_collect(A, r)
 
     # Return a Banyan vector as the result
-    Vector{eltype(compute(r))}(A, Future((length(compute(r)),)))
+    Vector{eltype(r_sample)}(A, Future((length(r_sample),)))
 end
+
+@nospecialize
 
 zeros(::Type{T}, args...; kwargs...) where {T} = fill(zero(T), args...; kwargs...)
 zeros(args...; kwargs...) where {T} = zeros(Float64, args...; kwargs...)
@@ -294,6 +328,8 @@ ones(::Type{T}, args...; kwargs...) where {T} = fill(one(T), args...; kwargs...)
 ones(args...; kwargs...) where {T} = ones(Float64, args...; kwargs...)
 trues(args...; kwargs...) where {T} = fill(true, args...; kwargs...)
 falses(args...; kwargs...) where {T} = fill(false, args...; kwargs...)
+
+@specialize
 
 # Array properties
 
@@ -309,7 +345,7 @@ function pts_for_copying(A, res)
 
     # unbalanced
     pt(A, Blocked(A, balanced=false, scaled_by_same_as=res))
-    pt(res, Unbalanced(scaled_by_same_as=A), match=A)
+    pt(res, Unbalanced(A), match=A)
     
     # replicated
     pt(A, res, Replicated())
@@ -347,6 +383,51 @@ end
 
 # Array operations
 
+function make_map_res(res_sample::Base.AbstractArray{T,N}, res::Future, res_size::Future)::Array{T,N} where {T,N}
+    Array{T,N}(res, res_size)
+end
+
+function make_map_res(res_sample::Any, res::Future, res_size::Future)::Future
+    res
+end
+
+function add_sizes_on_axis(axis::Int64)
+    (a, b) -> Banyan.indexapply(+, a, b, index=axis)
+end
+
+@nospecialize
+
+function partitioned_for_map(c::Base.Vector{Future}, r::Base.Vector{Future}, f::Future, no_replication::Bool)
+    c_and_res = copy(c)
+    push!(c_and_res, res)
+    partitioned_with(scaled=c_and_res) do
+        # balanced
+        c_first::Future = first(c)
+        pt(c_first, Blocked(c_first, balanced=true))
+        pt(c[2:end]..., Blocked() & Balanced(), match=c_first, on=["key"])
+        for res in r
+            pt(res, Blocked() & Balanced(), match=c_first)
+        end
+
+        # unbalanced
+        pt(c_first, Blocked(c_first))
+        pt(c[2:end]..., ScaledBySame(c_first), match=c_first)
+        for res in r
+            pt(res, ScaledBySame(), match=c_first)
+        end
+
+        # replicated
+        if no_replication
+            pt(f, Replicated())
+        else
+            pt(c..., f, Replicated())
+            for res in r
+                pt(res, Replicated())
+            end
+        end
+    end
+end
+
 function Base.map(f, c::Array{<:Any,N}...; force_parallelism=false) where {T,N}
     # We shouldn't need to keep sample keys since we are only allowing data
     # to be blocked for now. The sample rate is kept because it might be
@@ -357,53 +438,27 @@ function Base.map(f, c::Array{<:Any,N}...; force_parallelism=false) where {T,N}
     # TODO: Instead just make the Array constructor have a code region using
     # the data in a replicated way.
 
+    c_args::Vector{Future} = convert(Vector{Future}, c)
+    f = Future(f)
+
     if force_parallelism
         # If we are forcing parallelism, we have an empty code region to
         # allow for copying from sources like client side and then casting
         # from replicated partitioning to distributed partitioning
 
-        for c_arg in c
-            mutated(convert(Future, c_arg))
+        for c_arg in c_args
+            mutated(c_arg)
         end
 
-        partitioned_with(scaled=[c...]) do
-            # balanced
-            pt(first(c), Blocked(first(c), balanced=true))
-            pt(c[2:end]..., Blocked() & Balanced(), match=first(c), on=["key"])
-    
-            # unbalanced
-            pt(first(c), Blocked(first(c)))
-            pt(c[2:end]..., ScaledBySame(as=first(c)), match=first(c))
-
-            # replicated
-            pt(c..., Replicated())
-        end
+        partitioned_for_map(c_args, Future[], f, false)
 
         @partitioned c begin end
     end
 
     res_size = deepcopy(first(c).size)
-    f = Future(f)
     res = Future(datatype="Array")
 
-    partitioned_with(scaled=[res, c...]) do
-        # balanced
-        pt(first(c), Blocked(first(c), balanced=true))
-        pt(c[2:end]..., Blocked() & Balanced(), match=first(c), on=["key"])
-        pt(res, Blocked() & Balanced(), match=first(c))
-
-        # unbalanced
-        pt(first(c), Blocked(first(c)))
-        pt(c[2:end]..., ScaledBySame(as=first(c)), match=first(c))
-        pt(res, ScaledBySame(as=first(c)), match=first(c))
-
-        # replicated
-        if force_parallelism
-            pt(f, Replicated())
-        else
-            pt(c..., res, f, Replicated())
-        end
-    end
+    partitioned_for_map(c_args, Future[res], f, force_parallelism)
 
     # println(@macroexpand begin @partitioned f c res begin
     #     res = Base.map(f, c...)
@@ -419,21 +474,13 @@ function Base.map(f, c::Array{<:Any,N}...; force_parallelism=false) where {T,N}
     # @show typeof(sample(res))
     # @show eltype(sample(res))
 
-    Array{eltype(sample(res)),N}(res, res_size)
+    make_map_res(sample(res), res, res_size)
 end
 
-function Base.mapslices(f, A::Array{T,N}; dims) where {T,N}
-    if isempty(dims) return map(f, A) end
-
-    f = Future(f)
-    res_size = Future()
-    # TODO: Ensure that this usage of Any is correct here and elsewhere
-    res = Future(datatype="Array")
-    dims = Future(dims)
-
+function _mapslices(f::Future, A::Future, res_size::Future, res::Future, dims_sample_isa_colon::Bool, dims_sample::Vector{Int64}, dims::Future)
     partitioned_with(scaled=[A, res]) do
         # Blocked PTs along dimensions _not_ being mapped along
-        bpt = [bpt for bpt in Blocked(A) if !(compute(dims) isa Colon) && !(bpt.key in [compute(dims)...])]
+        bpt = [bpt for bpt in Blocked(A) if !(dims_sample_isa_colon) && !(bpt.key in dims_sample)]
 
         if !isempty(bpt)
             # balanced
@@ -441,13 +488,13 @@ function Base.mapslices(f, A::Array{T,N}; dims) where {T,N}
             pt(res, Blocked() & Balanced(), match=A, on="key")
 
             # unbalanced
-            pt(A, bpt & Unbalanced(scaled_by_same_as=res))
-            pt(res, Unbalanced(scaled_by_same_as=A), match=A)
+            pt(A, bpt & Unbalanced(res))
+            pt(res, Unbalanced(A), match=A)
         end
 
         # replicated
         # TODO: Determine why this MatchOn constraint is not propagating
-        pt(res_size, ReducingWithKey(quote axis -> (a, b) -> if !isnothing(a) && !isnothing(b) Banyan.indexapply(+, a, b, index=axis) else isnothing(a) ? b : a end end), match=A, on="key")
+        pt(res_size, ReducingWithKey(add_sizes_on_axis), match=A, on="key")
         pt(A, res, res_size, f, dims, Replicated())
     end
 
@@ -458,8 +505,21 @@ function Base.mapslices(f, A::Array{T,N}; dims) where {T,N}
         res_size = isempty(A) ? EMPTY : Base.size(res)
     end
 
-    res_sample = sample(res)
-    Array{eltype(res_sample),ndims(res_sample)}(res, res_size)
+    make_map_res(sample(res), res, res_size)
+end
+
+function Base.mapslices(f, A::Array{T,N}; dims) where {T,N}
+    if isempty(dims) return map(f, A) end
+
+    f = Future(f)
+    res_size = Future()
+    # TODO: Ensure that this usage of Any is correct here and elsewhere
+    res = Future(datatype="Array")
+    dims_sample_isa_colon = dims isa Colon
+    dims_sample = dims isa Colon ? Int64[] : Base.collect(tuple(dims))
+    dims = Future(dims)
+
+    _mapslices(f, A.data, res_size, res, dims_sample_isa_colon, dims_sample, dims)
 end
 
 # function getindex_size(A_s, indices...)
@@ -494,6 +554,44 @@ end
 #     end
 # end
 
+function _getindex(A::Future, allowed_splitting_dims::Bool, indices::Future, res_size::Future, res::Future)
+    partitioned_with(scaled=[A, res]) do
+        # Blocked PTs along dimensions _not_ being mapped along
+        bpt = PartitionType[bpt for bpt in Blocked(A) if (bpt.key)::Int64 in allowed_splitting_dims]
+
+        if !isempty(bpt)
+            # balanced
+            pt(A, bpt & Balanced())
+            pt(res, Blocked() & Balanced(), match=A, on="key")
+
+            # unbalanced
+            pt(A, bpt & Unbalanced(res))
+            pt(res, Unbalanced(A), match=A)
+
+            # # Keep the same kind of size
+            # pt(A_size, Replicating())
+            # pt(res_size, PartitionType(), match=A_size)
+            # TODO: See if `quote` is no longer needed
+            pt(res_size, ReducingWithKey(add_sizes_on_axis), match=A, on="key")
+        end
+
+        pt(A, res, res_size, indices, Replicated())
+    end
+
+    # TODO: Add back in A_size and try to use it with mutation= in the `Future`
+    # constructor to avoid having to do a reduction to compute size
+    @partitioned A indices res res_size begin
+        res = Base.getindex(A, indices...)
+        # res_size = BanyanArrays.getindex_size(A_size, indices...)
+        if res isa AbstractArray
+            res_size = size(res)
+        end
+    end
+
+    res_sample = sample(res)
+    make_map_res(res_sample, res, res_size)
+end
+
 function Base.getindex(A::Array{T,N}, indices...) where {T,N}
     # If we are doing linear indexing, then the data can only be split on the
     # last dimension because of the column-major ordering
@@ -514,58 +612,12 @@ function Base.getindex(A::Array{T,N}, indices...) where {T,N}
     res_size = Future()
     res = Future(datatype="Array")
 
-    partitioned_with(scaled=[A, res]) do
-        # Blocked PTs along dimensions _not_ being mapped along
-        bpt = PartitionType[bpt for bpt in Blocked(A) if (bpt.key)::Int64 in allowed_splitting_dims]
-
-        if !isempty(bpt)
-            # balanced
-            pt(A, bpt & Balanced())
-            pt(res, Blocked() & Balanced(), match=A, on="key")
-
-            # unbalanced
-            pt(A, bpt & Unbalanced(scaled_by_same_as=res))
-            pt(res, Unbalanced(scaled_by_same_as=A), match=A)
-
-            # # Keep the same kind of size
-            # pt(A_size, Replicating())
-            # pt(res_size, PartitionType(), match=A_size)
-            # TODO: See if `quote` is no longer needed
-            pt(res_size, ReducingWithKey(quote axis -> (a, b) -> if !isnothing(a) && !isnothing(b) Banyan.indexapply(+, a, b, index=axis) else isnothing(a) ? b : a end end), match=A, on="key")
-        end
-
-        pt(A, res, res_size, indices, Replicated())
-    end
-
-    # TODO: Add back in A_size and try to use it with mutation= in the `Future`
-    # constructor to avoid having to do a reduction to compute size
-    @partitioned A indices res res_size begin
-        res = Base.getindex(A, indices...)
-        # res_size = BanyanArrays.getindex_size(A_size, indices...)
-        if res isa AbstractArray
-            res_size = size(res)
-        end
-    end
-
-    if sample(res) isa AbstractArray
-        res_sample = sample(res)
-        Array{eltype(res_sample),ndims(res_sample)}(res, res_size)
-    else
-        res
-    end
+    _getindex(A.data, allowed_splitting_dims, indices, res_size, res)
 end
 
 # TODO: Implement reduce and sortslices
 
-function Base.reduce(op, A::Array{T,N}; dims=:, kwargs...) where {T,N}
-    if :init in keys(kwargs) throw(ArgumentError("Reducing with an initial value is not currently supported")) end
-
-    op = Future(op)
-    res_size = Future()
-    res = dims isa Colon ? Future() : Future(datatype="Array")
-    dims = Future(dims)
-    kwargs = Future(kwargs)
-
+function _reduce(op_sample::Function, op::Future, A::Future, res_size::Future, res::Future, dims_sample::Vector{Int64}, dims_sample_isa_colon::Bool, dims::Future, kwargs::Future)
     partitioned_with(scaled=[A, res]) do
         # TODO: Duplicate annotations to handle the balanced and unbalanced cases
         # seperately
@@ -576,17 +628,17 @@ function Base.reduce(op, A::Array{T,N}; dims=:, kwargs...) where {T,N}
 
         for bpt in Blocked(A)
             pt(A, bpt)
-            if compute(dims) isa Colon || bpt.key in [compute(dims)...]
+            if dims_sample_isa_colon || bpt.key in dims_sample
                 # NOTE: Be careful about trying to serialize things that would
                 # require serializing the whole Banyan module. For example, if
                 # this where Reducing(op) or if we tried Future(op) where op
                 # could refer to a + function overloaded by BanyanArrays.
-                pt(res, Reducing(compute(op)))
+                pt(res, Reducing(op_sample))
             else
-                pt(res, bpt.balanced ? Balanced() : Unbalanced(scaled_by_same_as=A), match=A)
+                pt(res, bpt.balanced ? Balanced() : Unbalanced(A), match=A)
             end
         end
-        pt(res_size, ReducingWithKey(quote axis -> (a, b) -> Banyan.indexapply(+, a, b, index=axis) end), match=A, on="key")
+        pt(res_size, ReducingWithKey(add_sizes_on_axis), match=A, on="key")
         # TODO: Allow replication
         if !is_debug_on()
             pt(A, res, res_size, dims, kwargs, op, Replicated())
@@ -613,31 +665,31 @@ function Base.reduce(op, A::Array{T,N}; dims=:, kwargs...) where {T,N}
         end
     end
 
-    if sample(res) isa AbstractArray
-        res_sample = sample(res)
-        Array{eltype(res_sample),ndims(res_sample)}(res, res_size)
-    else
-        res
-    end
+    res_sample = sample(res)
+    make_map_res(res_sample, res, res_size)
 end
 
-function Base.sortslices(A::Array{T,N}, dims; kwargs...) where {T,N}
-    get(kwargs, :by, identity) == identity || throw(ArgumentError("Sorting by a function is not supported"))
-    !haskey(kwargs, :order) || throw(ArgumentError("Sorting by an order is not supported"))
+function Base.reduce(op, A::Array{T,N}; dims=:, kwargs...) where {T,N}
+    if haskey(kwargs, :init) throw(ArgumentError("Reducing with an initial value is not currently supported")) end
 
-    # Determine what to sort by and whether to sort in reverse
-    sortingdim::Int64 = dims isa Colon ? 1 : convert(Int64, first(dims))::Int64
-    isreversed = get(kwargs, :rev, false)::Bool
-
-    res_size = deepcopy(A.size)
-    res = Future(datatype="Array")
+    op_sample::Function = copy(op)
+    op = Future(op)
+    res_size = Future()
+    res = dims isa Colon ? Future() : Future(datatype="Array")
+    dims_sample_isa_colon = dims isa Colon
+    dims_sample = dims isa Colon ? Int64[] : Base.collect(tuple(dims))
     dims = Future(dims)
     kwargs = Future(kwargs)
 
+    _reduce(op_sample, op, A, res_size, res, dims_sample, dims_sample_isa_colon, dims, kwargs)
+end
+
+function _sortslices(data::Array{T,N}, sortingdim::Int64, isreversed::Bool, res_size::Future, res::Future, dims::Future, kwargs::Future)::Array{T,N} where {T,N}
+    A::Future = data.data
     partitioned_with(scaled=[A, res], keys=sortingdim) do
         # unbalanced -> unbalanced
         pt(A, Grouped(A, by=sortingdim, rev=isreversed, scaled_by_same_as=res, balanced=false))
-        pt(res, Blocked() & Unbalanced(scaled_by_same_as=A), match=A, on=["key", "divisions", "id"])
+        pt(res, Blocked() & Unbalanced(A), match=A, on=["key", "divisions", "id"])
 
         # balanced -> balanced
         pt(A, Grouped(A, by=sortingdim, rev=isreversed, balanced=true))
@@ -652,6 +704,22 @@ function Base.sortslices(A::Array{T,N}, dims; kwargs...) where {T,N}
     end
 
     Array{T,N}(res, res_size)
+end
+
+function Base.sortslices(A::Array{T,N}, dims; kwargs...)::Array{T,N} where {T,N}
+    get(kwargs, :by, identity)::Function == identity || throw(ArgumentError("Sorting by a function is not supported"))
+    !haskey(kwargs, :order) || throw(ArgumentError("Sorting by an order is not supported"))
+
+    # Determine what to sort by and whether to sort in reverse
+    sortingdim::Int64 = dims isa Colon ? 1 : convert(Int64, first(dims))::Int64
+    isreversed = get(kwargs, :rev, false)::Bool
+
+    res_size = deepcopy(A.size)
+    res = Future(datatype="Array")
+    dims = Future(dims)
+    kwargs = Future(kwargs)
+
+    _sortslices(A, sortingdim, isreversed, res_size, res, dims, kwargs)
 end
 
 Base.sort(A::Array{T,N}; kwargs...) where {T,N} = sortslices(A, dims=Colon(); kwargs...)
@@ -747,6 +815,8 @@ for op in [:+, :-]
         Base.$op(A::Array{T,N}, B::Array{T,N}) where {T,N} = map($op, A, B)
     end
 end
+
+@specialize
 
 # TODO: Add broadcasting support
 

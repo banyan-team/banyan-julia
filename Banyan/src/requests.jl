@@ -46,7 +46,7 @@ function check_worker_stuck(
 end
 
 function partitioned_computation(
-    handler::Function,
+    @nospecialize(handler::Function),
     fut::AbstractFuture;
     destination::Location,
     new_source::Union{Location,Function}=NOTHING_LOCATION
@@ -118,25 +118,27 @@ function partitioned_computation(
         # must also make sure to apply mutations in each task appropriately.
         @time begin
         for t in tasks_reverse
-            apply_mutation(invert(t.mutation))
+            println("Time for inverting mutation")
+            println("Time for applying inverted mutation")
+            @time apply_mutation(t.mutation, true)
         end
         for t in tasks
             set_task(t)
             if !isnothing(t.partitioned_using_func)
-                partitioned_using_func = t.partitioned_using_func
-                partitioned_using_func()
+                println("Time to call apply_partitioned_using_func")
+                @time apply_partitioned_using_func(t.partitioned_using_func)
             end
-            apply_mutation(t.mutation)
+            apply_mutation(t.mutation, false)
         end
         for t in tasks_reverse
             set_task(t)
-            apply_mutation(invert(t.mutation))
+            apply_mutation(t.mutation, true)
             if !isnothing(t.partitioned_using_func)
-                partitioned_using_func = t.partitioned_using_func
-                partitioned_using_func()
+                println("Time to call apply_partitioned_using_func")
+                @time apply_partitioned_using_func(t.partitioned_using_func)
             end
         end
-        println("Applying mutation time:")
+        println("Applying partitioned_using_func:")
         end
 
         # Do further processing on tasks now that all samples have been
@@ -145,19 +147,24 @@ function partitioned_computation(
         # properties like divisions
         @time begin
         for t::DelayedTask in tasks
-            apply_mutation(t.mutation)
+            apply_mutation(t.mutation, false)
             
             # Call `partitioned_with_func` to create additional PAs for each task
+            @time begin
             set_task(t)
-            if !isnothing(t.partitioned_with_func)
+            @show t
+            if t.partitioned_with_func != identity
                 partitioned_with_func::Function = t.partitioned_with_func
                 partitioned_with_func()
+            end
+            println("Ran partitioned_with_func")
             end
 
             # Cascade PAs backwards. In other words, if as we go from first to
             # last PA we come across one that's annotating a value not
             # annotated in a previous PA, we copy over the annotation (the
             # assigned PT stack) to the previous PA.
+            @time begin
             for (j, pa::PartitionAnnotation) in enumerate(t.pa_union)
                 # For each PA in this PA union for this task, we consider the
                 # PAs before it
@@ -204,6 +211,8 @@ function partitioned_computation(
                     end
                 end
             end
+            println("Cascaded PTs")
+            end
         end
         println("Time for applying PAs:")
         end
@@ -221,21 +230,21 @@ function partitioned_computation(
             end
 
             # Destroy all closures so that all references to `Future`s are dropped
-            t.partitioned_using_func = nothing
-            t.partitioned_with_func = nothing
+            t.partitioned_using_func = NOTHING_PARTITIONED_USING_FUNC
+            t.partitioned_with_func = identity
 
             # Handle 
             empty!(t.mutation) # Drop references to `Future`s here as well
 
-            t.input_value_ids = ValueId[f.value_id for f in t.inputs]
-            t.output_value_ids = ValueId[f.value_id for f in t.outputs]
-            t.scaled_value_ids = ValueId[f.value_id for f in t.scaled]
+            t.input_value_ids = map(value_id_getter, t.inputs)
+            t.output_value_ids = map(value_id_getter, t.outputs)
+            t.scaled_value_ids = map(value_id_getter, t.scaled)
             empty!(t.inputs)
             empty!(t.outputs)
             empty!(t.scaled)
 
             # @show statements for displaying info about each task
-            if isinvestigating()[:tasks]
+            if Banyan.INVESTIGATING_TASKS
                 @show t.memory_usage
                 @show t.inputs
                 @show t.outputs
@@ -257,31 +266,24 @@ function partitioned_computation(
             # Don't destroy stuff where a `DestroyRequest` was produced just
             # because of a `mutated(old, new)`
             if req isa DestroyRequest
-                is_mutated = false
                 req_value_id::ValueId = req.value_id
-                for t in tasks
-                    if req_value_id in values(t.mutation)
-                        is_mutated = true
-                    end
+                # If this value was to be downloaded to or uploaded from the
+                # client side, delete the reference to its data. We do the
+                # `GC.gc()` before this and store `futures_on_client` in a
+                # `WeakKeyDict` just so that we can ensure that we can actually
+                # garbage-collect a value if it's done and only keep it around if
+                # a later call to `collect` it may happen and in that call to
+                # `collect` we will be using `partitioned_computation` to
+                # communicate with the executor and fill in the value for that
+                # future as needed and then return `the_future.value`.
+                if haskey(session.futures_on_client, req_value_id)
+                    delete!(session.futures_on_client, req_value_id)
                 end
-                if !is_mutated
-                    # If this value was to be downloaded to or uploaded from the
-                    # client side, delete the reference to its data. We do the
-                    # `GC.gc()` before this and store `futures_on_client` in a
-                    # `WeakKeyDict` just so that we can ensure that we can actually
-                    # garbage-collect a value if it's done and only keep it around if
-                    # a later call to `collect` it may happen and in that call to
-                    # `collect` we will be using `partitioned_computation` to
-                    # communicate with the executor and fill in the value for that
-                    # future as needed and then return `the_future.value`.
-                    if haskey(session.futures_on_client, req_value_id)
-                        delete!(session.futures_on_client, req_value_id)
-                    end
-        
-                    # Remove information about the value's location including the
-                    # sample taken from it
-                    delete!(session.locations, req_value_id)
-                end
+    
+                # Remove information about the value's location including the
+                # sample taken from it
+                delete!(session.locations, req_value_id)
+                delete_same_stastics(req_value_id)
             end
         end
         println("Time for preparing tasks:")
@@ -429,18 +431,19 @@ function configure_scheduling(;kwargs...)
     global encourage_parallelism
     global encourage_parallelism_with_batches
     global exaggurate_size
-    report_schedule = get(kwargs, :report_schedule, false) || haskey(kwargs, :name)
-    if get(kwargs, :encourage_parallelism, false) || get(kwargs, :name, "") == "parallelism encouraged"
+    kwargs_name::String = get(kwargs, :name, "")
+    report_schedule = get(kwargs, :report_schedule, false)::Bool || haskey(kwargs, :name)
+    if get(kwargs, :encourage_parallelism, false)::Bool || kwargs_name == "parallelism encouraged"
         encourage_parallelism = true
     end
-    if haskey(kwargs, :encourage_parallelism_with_batches) || get(kwargs, :name, "") == "parallelism and batches encouraged"
+    if haskey(kwargs, :encourage_parallelism_with_batches) || kwargs_name == "parallelism and batches encouraged"
         encourage_parallelism = true
         encourage_parallelism_with_batches = true
     end
-    if get(kwargs, :exaggurate_size, false) || get(kwargs, :name, "") == "size exaggurated"
+    if get(kwargs, :exaggurate_size, false)::Bool || kwargs_name == "size exaggurated"
         exaggurate_size = true
     end
-    if get(kwargs, :name, "") == "default scheduling"
+    if kwargs_name == "default scheduling"
         encourage_parallelism = false
         encourage_parallelism_with_batches = false
         exaggurate_size = false
@@ -482,7 +485,7 @@ function send_evaluation(value_id::ValueId, session_id::SessionId)
             "value_id" => value_id,
             "session_id" => session_id,
             "requests" => map(to_jl, get_session().pending_requests),
-            "options" => Dict(
+            "options" => Dict{String,Bool}(
                 "report_schedule" => report_schedule,
                 "encourage_parallelism" => encourage_parallelism,
                 "encourage_parallelism_with_batches" => encourage_parallelism_with_batches,
@@ -565,10 +568,9 @@ function compute(f::Future)
     f.value
 end
 
+assign_replicated(f::Future) = pt(f, Replicated())
 function compute_inplace(fut::AbstractFuture)
-    partitioned_computation(fut, destination=Disk()) do f::Future
-        pt(f, Replicated())
-    end
+    partitioned_computation(assign_replicated, fut, destination=Disk())
 end
 
 
@@ -604,7 +606,7 @@ function offloaded(given_function::Function, args...; distributed::Bool = false)
         Dict{String,Any}(
             "value_id" => -1,
             "session_id" => Banyan.get_session_id(),
-            "options" => Dict( ),
+            "options" => Dict{String,Any}(),
             "num_bang_values_issued" => get_num_bang_values_issued(),
             "main_modules" => main_modules,
             "requests" => [],
@@ -651,31 +653,16 @@ end
 # Other requests to be sent with request to evaluate a Future #
 ###############################################################
 
-struct RecordTaskRequest
-    task::DelayedTask
-end
-
-struct RecordLocationRequest
-    value_id::ValueId
-    location::Location
-end
-
-struct DestroyRequest
-    value_id::ValueId
-end
-
-const Request = Union{RecordTaskRequest,RecordLocationRequest,DestroyRequest}
-
-to_jl(req::RecordTaskRequest) = Dict("type" => "RECORD_TASK", "task" => to_jl(req.task))
+to_jl(req::RecordTaskRequest) = Dict{String,Any}("type" => "RECORD_TASK", "task" => to_jl(req.task))
 
 to_jl(req::RecordLocationRequest) =
-    Dict(
+    Dict{String,Any}(
         "type" => "RECORD_LOCATION",
         "value_id" => req.value_id,
         "location" => to_jl(req.location),
     )
 
-to_jl(req::DestroyRequest) = Dict("type" => "DESTROY", "value_id" => req.value_id)
+to_jl(req::DestroyRequest) = Dict{String,Any}("type" => "DESTROY", "value_id" => req.value_id)
 
 function record_request(@nospecialize(request::Request))
     push!(get_session().pending_requests, request)

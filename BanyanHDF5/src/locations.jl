@@ -174,9 +174,9 @@ function get_remote_hdf5_source(
         remote_sample::Sample = if isnothing(loc_for_reading)
             Sample()
         elseif totalnrows <= Banyan.get_max_exact_sample_length()
-            ExactSample(dset_sample, total_memory_usage = nbytes)
+            ExactSample(dset_sample, nbytes)
         else
-            Sample(dset_sample, total_memory_usage = nbytes)
+            Sample(dset_sample, nbytes)
         end
     end
 
@@ -193,11 +193,11 @@ function RemoteHDF5Source(remotepath; shuffled=false, source_invalid = false, sa
     RemoteSource(
         get_remote_hdf5_source,
         remotepath,
-        shuffled=shuffled,
-        source_invalid = source_invalid,
-        sample_invalid = sample_invalid,
-        invalidate_source = invalidate_source,
-        invalidate_sample = invalidate_sample
+        shuffled,
+        source_invalid,
+        sample_invalid,
+        invalidate_source,
+        invalidate_sample
     )
 end
 

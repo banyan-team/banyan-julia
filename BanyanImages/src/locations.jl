@@ -17,13 +17,13 @@ function get_remote_image_source(
     shuffled::Bool
 )::Location
     # Initialize parameters if location is already cached
-    files::Union{Base.Vector{String},Tuple,String} = isnothing(remote_source) ? String[] : remote_source.files  # list, Tuple
-    nimages::Int64 = isnothing(remote_source) ? 0 : remote_source.nimages
-    nbytes::Int64 = isnothing(remote_source) ? 0 : remote_source.nbytes
-    ndims::Int64 = isnothing(remote_source) ? 0 : remote_source.ndims
-    datasize = isnothing(remote_source) ? () : remote_source.size
-    dataeltype = isnothing(remote_source) ? "" : remote_source.eltype
-    format::String = isnothing(remote_source) ? "" : remote_source.format  # png, jpg
+    files::Union{Base.Vector{String},Tuple,String} = isnothing(remote_source) ? String[] : remote_source.src_parameters["files"]  # list, Tuple
+    nimages::Int64 = isnothing(remote_source) ? 0 : remote_source.src_parameters["nimages"]
+    nbytes::Int64 = isnothing(remote_source) ? 0 : remote_source.src_parameters["nbytes"]
+    ndims::Int64 = isnothing(remote_source) ? 0 : remote_source.src_parameters["ndims"]
+    datasize = isnothing(remote_source) ? () : remote_source.src_parameters["size"]
+    dataeltype = isnothing(remote_source) ? "" : remote_source.src_parameters["eltype"]
+    format::String = isnothing(remote_source) ? "" : remote_source.src_parameters["format"]  # png, jpg
     add_channelview::Bool = shuffled
 
 
@@ -203,9 +203,9 @@ function get_remote_image_source(
         remote_sample = if isnothing(loc_for_reading)
             Sample()
         elseif nimages <= MAX_EXACT_SAMPLE_NUM_IMAGES
-            ExactSample(randomsample, total_memory_usage = nbytes)
+            ExactSample(randomsample, nbytes)
         else
-            Sample(randomsample, total_memory_usage = nbytes)
+            Sample(randomsample, nbytes)
         end
     end
 

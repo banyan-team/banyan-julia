@@ -2,7 +2,7 @@ using Statistics
 
 function test_csv_from_internet_latency()
     use_session_for_testing(scheduling_config_name = "default scheduling", sample_rate=256) do
-        for i in 1:2
+        for i in 1:1
             println(i == 1 ? "Cold start" : "Warm start")
             @time begin
                 println("read_csv with source and sample invalid but shuffled")
@@ -31,7 +31,7 @@ function test_csv_from_internet_latency()
                 # DataFrame. Collects the result back to the client and materializes in
                 # the variable `avg_pl`.
                 avg_pl = @time compute(res)
-                println("Total time:")
+                println("Total time: after starting session")
             end
         end
     end

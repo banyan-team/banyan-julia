@@ -17,6 +17,7 @@ mutable struct Session
     organization_id::String
     cluster_instance_id::String
     not_using_modules::Vector{String}
+    loaded_packages::Set{String}
 
     # This struct just stores local state for the session.
     function Session(
@@ -25,23 +26,24 @@ mutable struct Session
         resource_id::ResourceId,
         nworkers::Int64,
         sample_rate::Int64,
-        organization_id = "",
-        cluster_instance_id = "",
-        not_using_modules = NOT_USING_MODULES
+        organization_id::String = "",
+        cluster_instance_id::String = "",
+        not_using_modules::Vector{String} = NOT_USING_MODULES
     )::Session
         new(
             session_id,
             resource_id,
             nworkers,
             sample_rate,
-            Dict(),
+            Dict{ValueId,Location}(),
             [],
-            Dict(),
+            Dict{ValueId,Future}(),
             cluster_name,
             0,
             organization_id,
             cluster_instance_id,
-            not_using_modules
+            not_using_modules,
+            Set{String}()
         )
     end
 end
