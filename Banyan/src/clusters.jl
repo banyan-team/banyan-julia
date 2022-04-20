@@ -11,6 +11,11 @@ end
 # Might contain stale information
 global clusters = Dict{String,Cluster}()
 
+function get_clusters_dict()::Dict{String,Cluster}
+    global clusters
+    clusters
+end
+
 @nospecialize
 
 function create_cluster(;
@@ -106,10 +111,9 @@ function create_cluster(;
     end
 
     # Cache info
-    global clusters
     get_cluster(name; kwargs...)
 
-    return clusters[name]
+    return get_clusters_dict()[name]
 end
 
 function destroy_cluster(name::String; kwargs...)
@@ -191,9 +195,9 @@ function _get_clusters(cluster_name::String)::Dict{String,Cluster}
     end
 
     # Cache info
-    global clusters
+    curr_clusters_dict = get_clusters_dict()
     for (name, c) in clusters_dict
-        clusters[name] = c
+        curr_clusters_dict[name] = c
     end
 
     clusters_dict
@@ -205,14 +209,13 @@ function get_clusters(cluster_name=nothing; kwargs...)::Dict{String,Cluster}
 end
 
 function get_cluster_s3_bucket_arn(cluster_name=get_cluster_name(); kwargs...)
-    # Do not call configure here, because if cluster_name is in the clusters dict,
-    # then we do not need to call get_cluster, since the info is cached in memory
-    global clusters
+    configure(; kwargs...)
+    clusters_dict = get_clusters_dict()
     # Check if cached, sine this property is immutable
-    if !haskey(clusters, cluster_name)
+    if !haskey(clusters_dict, cluster_name)
         get_cluster(cluster_name)
     end
-    return clusters[cluster_name].s3_bucket_arn
+    return clusters_dict[cluster_name].s3_bucket_arn
 end
 
 function get_cluster_s3_bucket_name(cluster_name=get_cluster_name(); kwargs...)
@@ -226,11 +229,11 @@ get_cluster(name::String=get_cluster_name(); kwargs...)::Cluster = get_clusters(
 get_running_clusters(args...; kwargs...) = filter(entry -> entry[2].status == :running, get_clusters(args...; kwargs...))
 
 function get_cluster_status(name::String)::Symbol
-    global clusters
+    clusters_dict = get_clusters_dict()
     clusters::Dict{String,Cluster}
-    if haskey(clusters, name)
-        if clusters[name].status == :failed
-            @error clusters[name].status_explanation
+    if haskey(clusters_dict, name)
+        if clusters_dict[name].status == :failed
+            @error clusters_dict[name].status_explanation
         end
     end
     c::Cluster = get_clusters(name)[name]

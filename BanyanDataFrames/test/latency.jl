@@ -31,6 +31,7 @@ function test_csv_from_internet_latency()
                 # DataFrame. Collects the result back to the client and materializes in
                 # the variable `avg_pl`.
                 avg_pl = @time compute(res)
+                # avg_pl = @time compute(combine(gdf, :petal_length => mean))
                 println("Total time: after starting session")
             end
         end

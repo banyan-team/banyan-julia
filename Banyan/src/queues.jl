@@ -4,37 +4,43 @@
 
 
 get_scatter_queue(resource_id::Union{ResourceId,Nothing}=nothing) =
-    get_scatter_queue(isnothing(resource_id) ? get_session().resource_id : resource_id)
-function get_scatter_queue(resource_id::ResourceId)
-    if isnothing(resource_id)
-        resource_id = get_session().resource_id
-    end
-    return sqs_get_queue_with_retries(
-        get_aws_config(),
-        string("banyan_", resource_id, "_scatter.fifo"),
-    )
-end
+    get_session().scatter_queue_url
+# get_scatter_queue(resource_id::Union{ResourceId,Nothing}=nothing) =
+#     get_scatter_queue(isnothing(resource_id) ? get_session().resource_id : resource_id)
+# function get_scatter_queue(resource_id::ResourceId)
+#     if isnothing(resource_id)
+#         resource_id = get_session().resource_id
+#     end
+#     return sqs_get_queue_with_retries(
+#         get_aws_config(),
+#         string("banyan_", resource_id, "_scatter.fifo"),
+#     )
+# end
 
 get_gather_queue(resource_id::Union{ResourceId,Nothing}=nothing) =
-    get_gather_queue(isnothing(resource_id) ? get_session().resource_id : resource_id)
-function get_gather_queue(resource_id::ResourceId)
-    if isnothing(resource_id)
-        resource_id = get_session().resource_id
-    end
-    return sqs_get_queue_with_retries(
-        get_aws_config(),
-        string("banyan_", resource_id, "_gather.fifo"),
-    )
-end
+    get_session().gather_queue_url
+# get_gather_queue(resource_id::Union{ResourceId,Nothing}=nothing) =
+#     get_gather_queue(isnothing(resource_id) ? get_session().resource_id : resource_id)
+# function get_gather_queue(resource_id::ResourceId)
+#     if isnothing(resource_id)
+#         resource_id = get_session().resource_id
+#     end
+#     return sqs_get_queue_with_retries(
+#         get_aws_config(),
+#         string("banyan_", resource_id, "_gather.fifo"),
+#     )
+# end
 
 get_execution_queue(resource_id::Union{ResourceId,Nothing}=nothing) =
-    get_execution_queue(isnothing(resource_id) ? get_session().resource_id : resource_id)
-function get_execution_queue(resource_id::ResourceId)
-    return sqs_get_queue_with_retries(
-        get_aws_config(),
-        string("banyan_", resource_id, "_execution.fifo"),
-    )
-end
+    get_session().execution_queue_url
+# get_execution_queue(resource_id::Union{ResourceId,Nothing}=nothing) =
+#     get_execution_queue(isnothing(resource_id) ? get_session().resource_id : resource_id)
+# function get_execution_queue(resource_id::ResourceId)
+#     return sqs_get_queue_with_retries(
+#         get_aws_config(),
+#         string("banyan_", resource_id, "_execution.fifo"),
+#     )
+# end
 
 
 ###################

@@ -43,15 +43,24 @@ ReducingWithKey(op::Function)::PartitionType =
 
 Distributing()::PartitionType = PartitionType("name" => "Distributing")
 const BLOCKED = PartitionType("name" => "Distributing", "distribution" => "blocked")
-Blocked()::PartitionType = deepcopy(BLOCKED)
-Blocked(along::Int64)::PartitionType =
+BlockedAlong()::PartitionType = deepcopy(BLOCKED)
+BlockedAlong(along::Int64)::PartitionType =
     PartitionType(
         "name" => "Distributing",
         "distribution" => "blocked",
         "key" => along,
     )
-const GROUPED = PartitionType("name" => "Distributing", "distribution" => "grouped")
-Grouped()::PartitionType = deepcopy(GROUPED)
+BlockedAlong(along::Int64, balanced::Bool)::PartitionType =
+    PartitionType(
+        "name" => "Distributing",
+        "distribution" => "blocked",
+        "key" => along,
+        "balanced" => balanced,
+    )
+# const GROUPED = PartitionType("name" => "Distributing", "distribution" => "grouped")
+# Grouped()::PartitionType = deepcopy(GROUPED)
+GroupedBy(key) = PartitionType("name" => "Distributing", "distribution" => "grouped", "key" => key)
+GroupedBy(key, balanced::Bool) = PartitionType("name" => "Distributing", "distribution" => "grouped", "key" => key, "balanced" => balanced)
 # Blocked(;balanced) = PartitionType("name" => "Distributing", "distribution" => "blocked", "balanced" => balanced)
 # Grouped(;balanced) = PartitionType("name" => "Distributing", "distribution" => "grouped", "balanced" => balanced)
 
@@ -84,114 +93,156 @@ Unbalanced(scaled_by_same_as::AbstractFuture)::PartitionType =
 # MutatedTo(f, mutated_to) = MutatedRelativeTo(f, mutated_to)
 # MutatedFrom(f, mutated_from) = MutatedRelativeTo(f, mutated_from)
 
+function _distributed(
+    samples_for_grouping::SampleForGrouping{T,K},
+    balanced_res::Vector{Bool},
+    filtered_relative_to_res::Vector{SampleForGrouping{TF,KF}},
+    filtered_from_res::Vector{Future},
+    filtered_to_res::Vector{Future},
+    filtered_from::Bool,
+    scaled_by_same_as_res::Vector{Future},
+    rev::Bool,
+    rev_is_nothing::Bool,
+)::Vector{PartitionType} where {T,K,TF,KF}
+    @time begin
+    blocked_pts::Vector{PartitionType} = 
+        make_blocked_pts(samples_for_grouping.future, samples_for_grouping.axes, balanced_res, filtered_from_res, filtered_to_res, scaled_by_same_as_res)
+    println("Time to call make_blocked_pts from Distributed")
+    end
+    @time begin
+    grouped_pts::Vector{PartitionType} =
+        make_grouped_pts(
+            samples_for_grouping,
+            balanced_res,
+            rev,
+            rev_is_nothing,
+            filtered_relative_to_res,
+            filtered_from,
+            scaled_by_same_as_res,
+        )
+    println("Time to call make_grouped_pts from Distributed")
+    end
+    @time begin
+    res = vcat(blocked_pts, grouped_pts)
+    println("Concatenating lists PTs")
+    end
+    res
+end
+
 function Distributed(
-    f::AbstractFuture;
+    samples_for_grouping::SampleForGrouping{T,K};
+    # Parameters for splitting into groups
     balanced::Union{Nothing,Bool} = nothing,
-    filtered_from::Union{Nothing,AbstractFuture} = nothing,
-    filtered_to::Union{Nothing,AbstractFuture} = nothing,
-    scaled_by_same_as::Union{AbstractFuture,Nothing} = nothing,
-)::Vector{PartitionType}
-    blocked_pts::Vector{PartitionType} = Blocked(
-        f,
-        balanced=balanced,
-        filtered_from=filtered_from,
-        filtered_to=filtered_to,
-        scaled_by_same_as=scaled_by_same_as
+    rev::Union{Nothing,Bool} = nothing,
+    # Options to deal with skew
+    filtered_relative_to::Union{SampleForGrouping{TF,KF},Vector{SampleForGrouping{TF,KF}}} = SampleForGrouping{Nothing,Int64}[],
+    filtered_from::Bool = false,
+    scaled_by_same_as::Union{Future,Nothing} = nothing,
+)::Vector{PartitionType} where {T,TF,K,KF}
+    # @nospecialize
+    # filtered_relative_to_futures::Vector{Future} = !isnothing(filtered_relative_to) ? Future[filtered_relative_to.future] : Future[]
+    @time begin
+    balanced_res::Vector{Bool} = isnothing(balanced) ? Bool[true, false] : Bool[balanced]
+    filtered_relative_to_res::Vector{SampleForGrouping{TF,KF}} = filtered_relative_to isa Vector ? filtered_relative_to : SampleForGrouping{TF,KF}[filtered_relative_to]
+    filtered_from_res::Vector{Future} = (filtered_from && !isempty(filtered_relative_to_res)) ? Future[filtered_relative_to_res[1].future] : Future[]
+    filtered_to_res::Vector{Future} = (!filtered_from && !isempty(filtered_relative_to_res)) ? Future[filtered_relative_to_res[1].future] : Future[]
+    scaled_by_same_as_res::Vector{Future} = (!isnothing(scaled_by_same_as)) ? Future[scaled_by_same_as] : Future[]
+    println("Time to prepare for calling _distributed")
+    end
+    @time begin
+    res = _distributed(
+        samples_for_grouping,
+        balanced_res,
+        filtered_relative_to_res,
+        filtered_from_res,
+        filtered_to_res,
+        filtered_from,
+        scaled_by_same_as_res,
+        isnothing(rev) ? false : rev,
+        isnothing(rev)
     )
-    grouped_pts::Vector{PartitionType} = Grouped(
-        f,
-        balanced=balanced,
-        filtered_from=filtered_from,
-        filtered_to=filtered_to,
-        scaled_by_same_as=scaled_by_same_as
-    )
-    vcat(blocked_pts, grouped_pts)
+    println("Time to call _distributed")
+    end
+    res
 end
 
 Partitioned(f::AbstractFuture) = begin
-    res = Distributed(f)
+    res = Distributed(sample_for_grouping(convert(Future, f)))
     push!(res, Replicated())
     res
+end
+
+function get_factor_for_blocked(f_s::Sample, filtered::Vector{Future}, filtered_from::Bool)::Float64
+    factor::Float64 = -1
+    for ff in filtered
+        ff_factor::Float64 = get_location(ff).sample.memory_usage / f_s.memory_usage
+        ff_factor_relative::Float64 = filtered_from ? ff_factor : 1/ff_factor
+        factor = max(factor, ff_factor_relative)
+    end
+    factor != -1 || error("Factor of scaling should not be -1")
+    factor
 end
 
 function make_blocked_pt(
     f::Future,
     axis::Int64,
-    b::Bool,
     filtered_from::Vector{Future},
     filtered_to::Vector{Future},
     scaled_by_same_as::Vector{Future},
 )::PartitionType
     # Initialize parameters
-    new_pt = Blocked()
-    parameters::Dict{String,Any} = new_pt.parameters
-    parameters["key"] = axis
-    parameters["balanced"] = b
-    constraints = new_pt.constraints
-    f_s::Sample = get_location(f).sample
+    new_pt = BlockedAlong(axis, false)
+    constraints = new_pt.constraints.constraints
 
     # Create `ScaleBy` constraints
-    if b
-        push!(constraints.constraints, Scale(f, by=1.0))
-        # TODO: Add an AtMost constraint in the case that there are very few rows.
-        # That AtMost constraint would only go here in Blocked
-    else
-        factor::Float64 = -1
-        if !isempty(filtered_from)
-            # If 100 elements get filtered to 20 elements and the
-            # original data was block-partitioned in a balanced
-            # way, the result may all be on one partition in the
-            # msot extreme case (not balanced at all) and so we
-            # should adjust the memory usage of the result by
-            # multiplying it by the size of the original / the size
-            # of the result (100 / 20 = 5).
-            for ff in filtered_from
-                ff_factor::Float64 = get_location(ff).sample.memory_usage / f_s.memory_usage
-                if ff_factor > factor
-                    factor = ff_factor
-                end
-            end
-            factor != -1 || error("Factor of scaling should not be -1")
-
-            # The factor will be infinite or NaN if either what we are
-            # filtering from or filtering to has an empty sample. In
-            # that case, it wouldn't make sense to have a `ScaleBy`
-            # constraint. A value with an empty sample must either be
-            # replicated (if it is from an empty dataset) or
-            # grouped/blocked but not balanced (since if it were
-            # balanced, we might try to use its divisions - which would
-            # be empty - for other PTs and think that they to are balanced).
-            if factor != Inf && factor != NaN
-                push!(constraints.constraints, Scale(f, by=factor, relative_to=filtered_from))
-            end
-        elseif !isempty(filtered_to)
-            for ft in filtered_to
-                ft_factor::Float64 = f_s.memory_usage / get_location(ft).sample.memory_usage
-                if ft_factor > factor
-                    factor = ft_factor
-                end
-            end
-
-            # The factor will be infinite or NaN if either what we are
-            # filtering from or filtering to has an empty sample. In
-            # that case, it wouldn't make sense to have a `ScaleBy`
-            # constraint. A value with an empty sample must either be
-            # replicated (if it is from an empty dataset) or
-            # grouped/blocked but not balanced (since if it were
-            # balanced, we might try to use its divisions - which would
-            # be empty - for other PTs and think that they to are balanced).
-            if factor != Inf && factor != NaN
-                push!(constraints.constraints, Scale(f, by=factor, relative_to=filtered_to))
-            end
-        elseif !isempty(scaled_by_same_as)
-            push!(constraints.constraints, Scale(f, by=1.0, relative_to=scaled_by_same_as))
+    filtered_relative_to::Vector{Future} = !isempty(filtered_from) ? filtered_from : filtered_to
+    factor::Float64 = if !isempty(filtered_relative_to)
+        # If 100 elements get filtered to 20 elements and the
+        # original data was block-partitioned in a balanced
+        # way, the result may all be on one partition in the
+        # msot extreme case (not balanced at all) and so we
+        # should adjust the memory usage of the result by
+        # multiplying it by the size of the original / the size
+        # of the result (100 / 20 = 5).
+        @time begin
+        res = get_factor_for_blocked(get_location(f).sample, filtered_relative_to, !isempty(filtered_from))
+        println("Time for get_factor_for_blocked in make_blocked_pt")
         end
+        res
+
+        # The factor will be infinite or NaN if either what we are
+        # filtering from or filtering to has an empty sample. In
+        # that case, it wouldn't make sense to have a `ScaleBy`
+        # constraint. A value with an empty sample must either be
+        # replicated (if it is from an empty dataset) or
+        # grouped/blocked but not balanced (since if it were
+        # balanced, we might try to use its divisions - which would
+        # be empty - for other PTs and think that they to are balanced).
+    elseif !isempty(scaled_by_same_as)
+        1.0
+    else
+        NaN
+    end
+
+    if factor != Inf && factor != NaN
+        push!(
+            constraints,
+            Scale(
+                f,
+                by=factor,
+                relative_to = if !isempty(filtered_relative_to)
+                    filtered_relative_to
+                else
+                    scaled_by_same_as
+                end
+            )
+        )
     end
     
     new_pt
 end
 
-function Blocked(
+function make_blocked_pts(
     f::Future,
     along::Vector{Int64},
     balanced::Vector{Bool},
@@ -216,7 +267,13 @@ function Blocked(
         # Handle combinations of `balanced` and `filtered_from`/`filtered_to`
         for b in balanced
             # Append new PT to PT union being produced
-            push!(pts, make_blocked_pt(f, axis, b, filtered_from, filtered_to, scaled_by_same_as))
+            if b
+                new_pt = BlockedAlong(axis, true)
+                push!(new_pt.constraints.constraints, noscale(f))
+                push!(pts,new_pt)
+            else
+                push!(pts, make_blocked_pt(f, axis, filtered_from, filtered_to, scaled_by_same_as))
+            end
         end
     end
 
@@ -226,23 +283,17 @@ function Blocked(
 end
 
 function Blocked(
-    f::AbstractFuture;
-    along::Union{Colon,Vector{Int64},Int64} = :,
+    f::Future;
+    along::Vector{Int64} = sample_axes(sample(f)),
     balanced::Union{Nothing,Bool} = nothing,
-    filtered_from::Union{Nothing,AbstractFuture} = nothing,
-    filtered_to::Union{Nothing,AbstractFuture} = nothing,
-    scaled_by_same_as::Union{AbstractFuture,Nothing} = nothing,
+    filtered_from::Union{Nothing,Future} = nothing,
+    filtered_to::Union{Nothing,Future} = nothing,
+    scaled_by_same_as::Union{Nothing,Future} = nothing,
 )::Vector{PartitionType}
-    f = convert(Future, f)::Future
+    # f = convert(Future, f)::Future
 
     # Prepare `along`
-    along_res::Vector{Int64} = if along isa Colon
-        sample_axes(sample(f))::Vector{Int64}
-    elseif along isa Vector
-        along
-    else
-        Int64[along]
-    end
+    # along_res::Vector{Int64} = along
     # TODO: Ensure that axes returns [1] for DataFrame and axes for Array
     # while keys returns keys for DataFrame and axes for Array
     # TODO: Maybe assert that along isa Vector{String} or Vector{Symbol}
@@ -250,15 +301,29 @@ function Blocked(
     balanced_res::Vector{Bool} = isnothing(balanced) ? Bool[true, false] : Bool[balanced]
 
     filtered_from_res::Vector{Future} =
-        isnothing(filtered_from) ? Future[] : Future[convert(Future, filtered_from)]
+        isnothing(filtered_from) ? Future[] : Future[filtered_from] # Future[convert(Future, filtered_from)]
     filtered_to_res::Vector{Future} =
-        isnothing(filtered_to) ? Future[] : Future[convert(Future, filtered_to)]
+        isnothing(filtered_to) ? Future[] : Future[filtered_to] # Future[convert(Future, filtered_to)]
     scaled_by_same_as_res::Vector{Future} =
-        isnothing(scaled_by_same_as) ? Future[] : Future[convert(Future, scaled_by_same_as)]
+        isnothing(scaled_by_same_as) ? Future[] : Future[scaled_by_same_as] # Future[convert(Future, scaled_by_same_as)]
 
     # Create PTs for each axis that can be used to block along
-    Blocked(f, along_res, balanced_res, filtered_from_res, filtered_to_res, scaled_by_same_as_res)
+    make_blocked_pts(f, along, balanced_res, filtered_from_res, filtered_to_res, scaled_by_same_as_res)
 end
+   
+# BlockedOnAny(
+#     f::Future;
+#     balanced::Union{Nothing,Bool} = nothing,
+#     filtered_from::Union{Nothing,Future} = nothing,
+#     filtered_to::Union{Nothing,Future} = nothing,
+#     scaled_by_same_as::Union{Future,Nothing} = nothing,
+# )::Vector{PartitionType} =
+#     Blocked(
+#         f, along=sample_axes(sample(f))::Vector{Int64},
+#         balanced=balanced,
+#         filtered_from=filtered_from, filtered_to=filtered_to,
+#         scaled_by_same_as=scaled_by_same_as
+#     )
 
 # NOTE: A reason to use Grouped for element-wise computation (with no
 # filtering) is to allow for the input to be re-balanced. If you just use
@@ -268,14 +333,13 @@ end
 
 const FutureByOptionalKey{K} = Dict{Future,Vector{K}}
 
-function get_factor(
+function _get_factor(
     factor::Float64,
-    f_sample::T,
-    ff_sample::U,
-    fkey::K,
-    key::K,
-)::Float64 where {T,U,K}
-
+    f::Tuple{T,K},
+    frt::Tuple{TF,KF}
+)::Float64 where {T,TF,K,KF}
+    f_sample, key = f
+    frt_sample, frtkey = frt
     # IF what wea re filtering to is empty, we don't know
     # anything about the skew of data being filtered.
     # Everything could be in a single partition or evenly
@@ -296,149 +360,219 @@ function get_factor(
     # - maybe add in a ScaleBy(-1j) to prevent usage of an empty data
 
     # Compute the amount to scale memory usage by based on data skew
-    min_filtered_to = sample_min(f_sample, key)
-    max_filtered_to = sample_max(f_sample, key)
+    @time begin
+    min_frt = sample_min(f_sample, key)
+    println("Time for calling sample_min")
+    end
+    @time begin
+    max_frt = sample_max(f_sample, key)
+    println("Time for calling sample_max")
+    end
     # divisions_filtered_from = sample(ff, :statistics, key, :divisions)
-    ff_percentile = sample_percentile(ff_sample, fkey, min_filtered_to, max_filtered_to)::Float64
-    ffactor::Float64 = 1 / ff_percentile
-    max(factor, ffactor)
+    @time begin
+    frt_percentile = sample_percentile(frt_sample, frtkey, min_frt, max_frt)::Float64
+    println("Time for calling sample_percentile")
+    end
+    frtfactor::Float64 = 1 / frt_percentile
+    max(factor, frtfactor)
+end
+
+function get_factor(
+    factor::Float64,
+    f_sample::T,
+    key::K,
+    frt_samples::SampleForGrouping{TF,K},
+    filtered_from::Bool
+)::Float64 where {T,TF,K}
+    # We want to find the factor of scaling to account for data skew when
+    # filtering from/to some other future. So 
+    f_pair = (f_sample, key)
+    frt_sample = frt_samples.sample
+    frt_pair = if key in frt_samples.keys
+        (frt_sample, key)
+    else
+        (frt_sample, frt_samples.keys[1])
+    end
+    @time begin
+    res = _get_factor(
+        factor,
+        filtered_from ? f_pair : frt_pair,
+        filtered_from ? frt_pair : f_pair
+    )
+    println("Time for calling _get_factor")
+    end
+    res
+end
+
+function get_factor(
+    factor::Float64,
+    f_sample::T,
+    key::K,
+    frt_samples::SampleForGrouping{TF,KF},
+    filtered_from::Bool
+)::Float64 where {T,TF,K,KF}
+    frt_sample = frt_samples.sample
+    fkey = frt_samples.keys[1]
+    f_pair = (f_sample, key)
+    frt_pair = (frt_sample, fkey)
+    @time begin
+    res = _get_factor(
+        factor,
+        filtered_from ? f_pair : frt_pair,
+        filtered_from ? frt_pair : f_pair
+    )
+    println("Time for calling _get_factor")
+    end
+    res
+end
+
+function make_grouped_balanced_pt(
+    samples_for_grouping::SampleForGrouping{T,K},
+    key::K,
+    rev::Bool,
+    rev_is_nothing::Bool,
+)::PartitionType where {T,K}
+    new_pt = GroupedBy(key, true)
+    parameters::Dict{String,Any} = new_pt.parameters
+    constraints = new_pt.constraints.constraints
+
+    f::Future = samples_for_grouping.future
+    f_sample = samples_for_grouping.sample
+    
+    # Set divisions
+    # TODO: Change this if `divisions` is not a `Vector{Tuple{Any,Any}}`
+    @time begin
+    sampled_divisions = sample_divisions(f_sample, key)
+    println("Time for sample_divisions( in make_grouped_balanced_pt")
+    end
+    @time begin
+    parameters["divisions"] = to_jl_value(sampled_divisions)
+    println("Time for to_jl_value( in make_grouped_balanced_pt")
+    end
+    @time begin
+    max_ngroups = sample_max_ngroups(f_sample, key)::Int64
+    println("Time for sample_max_ngroups")
+    end
+
+    # Set flag for reversing the order of the groups
+    if !rev_is_nothing
+        parameters["rev"] = rev
+    end
+
+    # Add constraints
+    # In the future if the element size can be really big (like a multi-dimensional array
+    # that is very wide or data frame with many columns), we may want to have a constraint
+    # where the partition size must be larger than that minimum element size.
+
+    # Note that if the sample is empty, the maximum # of groups
+    # will be zero and so this AtMost constraint will cause the PA
+    # to fail to be used. This is expected. You can't have a PA
+    # where empty data is balanced. If the empty data arises
+    # because of an empty dataset being queried/processed, we
+    # should be using replication. If the empty data arises because
+    # of highly selective filtering, we will filter from some data
+    # that _is_ balanced.
+    @time begin
+    push!(constraints, AtMost(max_ngroups, f))
+    println("Time for AtMost")
+    end
+    @time begin
+    push!(constraints, Scale(f, by=1.0))
+    println("Time for Scale")
+    end
+
+    # TODO: Make AtMost only accept a value (we can support PT references in the future if needed)
+    # TODO: Make scheduler check that the values in AtMost or ScaledBy are actually present to ensure
+    # that the constraint can be satisfied for this PT to be used
+
+    new_pt
+end
+
+function make_grouped_filtered_pt(
+    samples_for_grouping::SampleForGrouping{T,K},
+    key::K,
+    filtered_relative_to::Vector{SampleForGrouping{TF,KF}},
+    filtered_from::Bool,
+)::PartitionType where {T,TF,K,KF}
+    new_pt = GroupedBy(key, false)
+
+    # Create `ScaleBy` constraint and also compute `divisions` and
+    # `AtMost` constraint if balanced
+
+    # TODO: Support joins
+    factor::Float64 = 0
+    f_sample = samples_for_grouping.sample
+    relative_to::Vector{Future} = Future[]
+    for frt in filtered_relative_to
+        push!(relative_to, frt.future)
+        @time begin
+        factor = get_factor(
+            factor,
+            f_sample,
+            key,
+            frt,
+            filtered_from
+        )
+        println("Finished running get_factor")
+        end
+    end
+
+    # If the sample of what we are filtering into is empty, the
+    # factor will be infinity. In that case, we shouldn't be
+    # creating a ScaleBy constraint.
+    f::Future = samples_for_grouping.future
+    if factor != Inf
+        push!(new_pt.constraints.constraints, Scale(f, by=factor, relative_to=relative_to))
+    end
+
+    new_pt
 end
 
 function make_grouped_pt(
     f::Future,
-    f_sample::T,
     key::K,
-    b::Bool,
-    rev::Bool,
-    rev_is_nothing::Bool,
-    filtered_from::FutureByOptionalKey{K},
-    filtered_to::FutureByOptionalKey{K},
     scaled_by_same_as::Vector{Future},
-) where {T,K}
-    new_pt = Grouped()
-    parameters::Dict{String,Any} = new_pt.parameters
-    parameters["key"] = key
-    parameters["balanced"] = b
-    constraints = new_pt.constraints
-
-    # Create `ScaleBy` constraint and also compute `divisions` and
-    # `AtMost` constraint if balanced
-    if b
-        # Set divisions
-        # TODO: Change this if `divisions` is not a `Vector{Tuple{Any,Any}}`
-        parameters["divisions"] = to_jl_value(sample_divisions(f_sample, key))
-        max_ngroups = sample_max_ngroups(f_sample, key)::Int64
-
-        # Set flag for reversing the order of the groups
-        if !rev_is_nothing
-            rev::Bool
-            parameters["rev"] = rev
-        end
-
-        # Add constraints
-        # In the future if the element size can be really big (like a multi-dimensional array
-        # that is very wide or data frame with many columns), we may want to have a constraint
-        # where the partition size must be larger than that minimum element size.
-
-        # Note that if the sample is empty, the maximum # of groups
-        # will be zero and so this AtMost constraint will cause the PA
-        # to fail to be used. This is expected. You can't have a PA
-        # where empty data is balanced. If the empty data arises
-        # because of an empty dataset being queried/processed, we
-        # should be using replication. If the empty data arises because
-        # of highly selective filtering, we will filter from some data
-        # that _is_ balanced.
-        push!(constraints.constraints, AtMost(max_ngroups, f))
-        push!(constraints.constraints, Scale(f, by=1.0))
-
-        # TODO: Make AtMost only accept a value (we can support PT references in the future if needed)
-        # TODO: Make scheduler check that the values in AtMost or ScaledBy are actually present to ensure
-        # that the constraint can be satisfied for this PT to be used
-    else
-        # TODO: Support joins
-        factor::Float64 = 0
-        if !isempty(filtered_from)
-            from::Vector{Future} = Base.collect(keys(filtered_from))
-            for (ff, fby) in filtered_from
-                fkey::K = isempty(fby) ? key : fby[1]
-                # We have ::T here but not in the `ft` case below
-                # because of getindex (which is the only case where we
-                # call Grouped constructor and have filtered_to being an array while the
-                # main future is a data frame)
-                ff_sample::T = sample(ff, fkey)
-                factor = get_factor(
-                    factor,
-                    f_sample,
-                    ff_sample,
-                    key,
-                    fkey
-                )
-            end
-
-            # If the sample of what we are filtering into is empty, the
-            # factor will be infinity. In that case, we shouldn't be
-            # creating a ScaleBy constraint.
-            if factor != Inf
-                push!(constraints.constraints, Scale(f, by=factor, relative_to=from))
-            end
-        elseif !isempty(filtered_to)
-            # TODO: Revisit this and ensure it's okay to just take the
-            # maximum and we don't have to actually multiply all of the
-            # factors by which this fails to scale.
-            to::Vector{Future} = Base.collect(keys(filtered_to))
-            for (ft, fby) in filtered_to
-                fkey::K = isempty(fby) ? key : fby[1]
-                ft_sample = sample(ft, fkey)
-                # Compute the amount to scale memory usage by based on data skew
-                factor = get_factor(
-                    factor,
-                    ft_sample,
-                    f_sample, 
-                    key,
-                    fkey
-                )
-            end
-            # TODO: Return all filtered_from/filtered_to but with the appropriate factor and without pairs
-
-            # If the sample of what we are filtering into is empty, the
-            # factor will be infinity. In that case, we shouldn't be
-            # creating a ScaleBy constraint.
-            if factor != Inf
-                push!(constraints.constraints, Scale(f, by=factor, relative_to=to))
-            end
-        elseif !isempty(scaled_by_same_as)
-            push!(constraints.constraints, Scale(f, by=1.0, relative_to=scaled_by_same_as))
-        end
-    end
-
+) where {K}
+    new_pt = GroupedBy(key, false)
+    push!(new_pt.constraints.constraints, Scale(f, by=1.0, relative_to=scaled_by_same_as))
     new_pt
 end
 
 const NONE = PartitionType("key" => nothing, "balanced" => false, f -> AtMost(0, f))
 
 function make_grouped_pts(
-    f::Future,
     # This parameter is passed in just so that we can have type stability in
     # `f_sample` local variable
-    f_s::T,
-    by::Vector{K},
+    samples_for_grouping::SampleForGrouping{T,K},
     balanced::Vector{Bool},
     rev::Bool,
     rev_isnothing::Bool,
-    filtered_from::FutureByOptionalKey{K},
-    filtered_to::FutureByOptionalKey{K},
+    filtered_relative_to::Vector{SampleForGrouping{TF,KF}},
+    filtered_from::Bool,
     scaled_by_same_as::Vector{Future},
-)::Vector{PartitionType} where {T,K}
+)::Vector{PartitionType} where {K,T,KF,TF}
+    @time begin
     # Create PTs for each key that can be used to group by
     pts::Vector{PartitionType} = []
-    for key in by
-        f_sample::T = sample(f, key)
-        @time begin
+    for key in samples_for_grouping.keys
         # Handle combinations of `balanced` and `filtered_from`/`filtered_to`
         for b in balanced
-            push!(pts, make_grouped_pt(f, f_sample, key, b, rev, rev_isnothing, filtered_from, filtered_to, scaled_by_same_as))
-        end
-        println("Finished Grouped for a key")
+            if b
+                @time begin
+                push!(pts, make_grouped_balanced_pt(samples_for_grouping, key, rev, rev_isnothing))
+                println("Finished calling make_grouped_balanced_pt")
+                end
+            elseif !isempty(filtered_relative_to)
+                @time begin
+                push!(pts, make_grouped_filtered_pt(samples_for_grouping, key, filtered_relative_to, filtered_from))
+                println("Finished calling make_grouped_filtered_pt")
+                end
+            elseif !isempty(scaled_by_same_as)
+                @time begin
+                push!(pts, make_grouped_pt(samples_for_grouping.future, key, scaled_by_same_as))
+                println("Finished calling make_grouped_pt")
+                end
+            end
         end
     end
 
@@ -451,107 +585,122 @@ function make_grouped_pts(
         push!(pts, deepcopy(NONE))
     end
 
-    println("Finished Grouped")
+    println("Finished inside of make_grouped_pts")
+    end
 
     pts
 end
 
-function Grouped(
-    f::Future,
-    f_s::Sample,
-    f_sample::U,
-    f_keys::Base.Vector{K},
-    # Parameters for splitting into groups
-    by::Union{Nothing,Colon,T,Vector{T}},
-    balanced::Base.Vector{Bool},
-    rev::Union{Nothing,Bool},
-    # Options to deal with skew
-    filtered_from::Union{Nothing,AbstractFuture,Dict{<:AbstractFuture,T}},
-    filtered_to::Union{Nothing,AbstractFuture,Dict{<:AbstractFuture,T}},
-    scaled_by_same_as::Vector{Future},
-)::Vector{PartitionType} where {T,U,K}
-    @time begin
+# function convert_to_future_by_optional(::Type{K}, filtered_from::Nothing)::FutureByOptionalKey{K} where {K} FutureByOptionalKey{K}() end
+# function convert_to_future_by_optional(::Type{K}, filtered_from::Future)::FutureByOptionalKey{K} where {K}
+#     FutureByOptionalKey{K}(filtered_from => K[])
+# end
+# function convert_to_future_by_optional(::Type{K}, filtered_from::Dict{Future,K})
+#     filtered_from_res::FutureByOptionalKey{K} = FutureByOptionalKey{K}()
+#     for (f::Future, key::K) in filtered_from_res
+#         filtered_from_res[f] = key
+#     end
+#     filtered_from_res
+# end
 
-    # Prepare `by`
-    by_res::Vector{K} = if isnothing(by)
-        convert(Vector{K}, f_s.groupingkeys)::Vector{K}
-    elseif by isa Colon
-        f_keys::Vector{K}
-    elseif by isa Vector
-        by
-    else
-        K[by]
-    end
-    intersect!(by_res, f_keys::Vector{K})
-    by_res = by_res[1:min(8,end)]
+# function Grouped(
+#     f::AbstractFuture,
+#     samples_for_grouping::Vector{Tuple{K,T}},
+#     # Parameters for splitting into groups
+#     balanced::Union{Nothing,Bool},
+#     rev::Union{Nothing,Bool},
+#     # Options to deal with skew
+#     filtered_from::Union{Nothing,Future,Dict{Future,K}},
+#     filtered_to::Union{Nothing,Future,Dict{Future,K}},
+#     scaled_by_same_as::Union{Nothing,Vector{Future}},
+# )::Vector{PartitionType} where {T,K}
+#     @time begin
 
-    filtered_from_res::FutureByOptionalKey{K} =
-        if isnothing(filtered_from)
-            FutureByOptionalKey{K}()
-        elseif filtered_from isa Dict
-            FutureByOptionalKey{K}(
-                convert(Future, f) => key
-                for (f, key) in filtered_from
-            )
-        else
-            FutureByOptionalKey{K}(convert(Future, filtered_from) => K[])
-        end
-    filtered_to_res::FutureByOptionalKey{K} =
-        if isnothing(filtered_to)
-            FutureByOptionalKey{K}()
-        elseif filtered_to isa Dict
-            FutureByOptionalKey{K}(
-                convert(Future, f) => key
-                for (f, key) in filtered_to
-            )
-        else
-            FutureByOptionalKey{K}(convert(Future, filtered_to) => K[])
-        end
+#     filtered_from_res::FutureByOptionalKey{K} = convert_to_future_by_optional(K, filtered_from)
+#     filtered_to_res::FutureByOptionalKey{K} = convert_to_future_by_optional(K, filtered_to)
     
-    println("Finished general Grouped")
-    end
+#     println("Finished general Grouped")
+#     end
 
-    make_grouped_pts(
-        f,
-        f_sample,
-        by_res,
-        balanced,
-        isnothing(rev) ? false : rev,
-        isnothing(rev),
-        filtered_from_res,
-        filtered_to_res,
-        scaled_by_same_as,
-    )
-end
+#     make_grouped_pts(
+#         convert(Future, f),
+#         samples_for_grouping,
+#         isnothing(balanced) ? Bool[true, false] : Bool[balanced],
+#         isnothing(rev) ? false : rev,
+#         isnothing(rev),
+#         filtered_from_res,
+#         filtered_to_res,
+#         isnothing(scaled_by_same_as) ? Future[] : scaled_by_same_as,
+#     )
+# end
 
 function Grouped(
-    f::AbstractFuture;
+    samples_for_grouping::SampleForGrouping{T,K};
     # Parameters for splitting into groups
-    by::Union{Nothing,Colon,T,Vector{T}} = nothing,
     balanced::Union{Nothing,Bool} = nothing,
     rev::Union{Nothing,Bool} = nothing,
     # Options to deal with skew
-    filtered_from::Union{Nothing,AbstractFuture,Dict{<:AbstractFuture,T}} = nothing,
-    filtered_to::Union{Nothing,AbstractFuture,Dict{<:AbstractFuture,T}} = nothing,
-    scaled_by_same_as::Union{AbstractFuture,Nothing} = nothing,
-)::Vector{PartitionType} where {T}
-    f_res::Future = convert(Future, f)
-    f_s::Sample = get_location(f_res).sample
-    f_sample = f_s.value
-    f_keys::Base.Vector{String} = sample_keys(f_sample)
-    balanced_res::Base.Vector{Bool} = isnothing(balanced) ? Bool[true, false] : Bool[balanced]
-    scaled_by_same_as_res::Vector{Future} =
-        isnothing(scaled_by_same_as) ? Future[] : Future[convert(Future, scaled_by_same_as)]
-    Grouped(
-        f_res,
-        f_s,
-        f_sample,
-        f_keys,
-        by,
-        balanced_res,
-        rev,
+    filtered_relative_to::Union{SampleForGrouping{TF,KF},Vector{SampleForGrouping{TF,KF}}} = SampleForGrouping{Nothing,Int64}[],
+    filtered_from::Bool = false,
+    scaled_by_same_as::Union{Future,Nothing} = nothing,
+)::Vector{PartitionType} where {K,T,KF,TF}
+# function Grouped(
+#     samples_for_grouping::SampleForGrouping{T,K};
+#     # Parameters for splitting into groups
+#     balanced::Union{Nothing,Bool} = nothing,
+#     rev::Union{Nothing,Bool} = nothing,
+#     # Options to deal with skew
+#     filtered_relative_to::Union{SampleForGrouping{TF,KF},Vector{SampleForGrouping{TF,KF}}} = SampleForGrouping{Nothing,Int64}[],
+#     filtered_from::Bool = false,
+#     scaled_by_same_as::Union{Future,Nothing} = nothing,
+# )::Vector{PartitionType} where {K,T,KF,TF}
+    # @nospecialize
+    # Grouped(
+    #     f,
+    #     samples_for_grouping,
+    #     balanced,
+    #     rev,
+    #     filtered_from,
+    #     filtered_to,
+    #     scaled_by_same_as
+    # )
+    # @time begin
+
+    # # filtered_relative_to::FutureByOptionalKey{K} = convert_to_future_by_optional(K, filtered)
+    
+    # println("Finished convert_to_future_by_optional")
+    # end
+
+    @time begin
+    # res = make_grouped_pts(
+    #     samples_for_grouping,
+    #     isnothing(balanced) ? Bool[true, false] : Bool[balanced],
+    #     isnothing(rev) ? false : rev,
+    #     isnothing(rev),
+    #     filtered_relative_to isa Base.Vector ? filtered_relative_to : [filtered_relative_to],
+    #     filtered_from,
+    #     isnothing(scaled_by_same_as) ? Future[] : Future[scaled_by_same_as],
+    # )
+    res = make_grouped_pts(
+        samples_for_grouping,
+        isnothing(balanced) ? Bool[true, false] : Bool[balanced],
+        isnothing(rev) ? false : rev,
+        isnothing(rev),
+        filtered_relative_to isa Base.Vector ? filtered_relative_to : SampleForGrouping{TF,KF}[filtered_relative_to],
         filtered_from,
-        filtered_to,
-        scaled_by_same_as_res
+        isnothing(scaled_by_same_as) ? Future[] : Future[scaled_by_same_as],
     )
+    println("Finished calling make_grouped_pts")
+    end
+    res
 end
+
+# sample_for_grouping called from annotation code on the main future as well as all things being filtered to/from
+# T, K, TF, KF
+# make_grouped_pts should call make_grouped_pt on each grouping key from the sample
+# make_grouped_pt shuld have a special case for where the key types are the same - try to use the right sample; otherwise just use any sample
+# make_grouped_pt should be broken into helper functions that don't rely on T and maybe just rely on K
+
+# Three use-cases of Grouped / filtered_from/filtered_to:
+# - pts_for_filtering for getindex - sample of filtered_to can be different and any key 
+# - Grouped with filtered_to for innerjoin - key is specified for each future

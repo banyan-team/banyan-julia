@@ -18,6 +18,11 @@ mutable struct Session
     cluster_instance_id::String
     not_using_modules::Vector{String}
     loaded_packages::Set{String}
+    is_cluster_ready::Bool
+    is_session_ready::Bool
+    scatter_queue_url::String
+    gather_queue_url::String
+    execution_queue_url::String
 
     # This struct just stores local state for the session.
     function Session(
@@ -28,7 +33,12 @@ mutable struct Session
         sample_rate::Int64,
         organization_id::String = "",
         cluster_instance_id::String = "",
-        not_using_modules::Vector{String} = NOT_USING_MODULES
+        not_using_modules::Vector{String} = NOT_USING_MODULES,
+        is_cluster_ready::Bool = false,
+        is_session_ready::Bool = false;
+        scatter_queue_url::String = "",
+        gather_queue_url::String = "",
+        execution_queue_url::String = ""
     )::Session
         new(
             session_id,
@@ -43,7 +53,12 @@ mutable struct Session
             organization_id,
             cluster_instance_id,
             not_using_modules,
-            Set{String}()
+            Set{String}(),
+            is_cluster_ready,
+            is_session_ready,
+            scatter_queue_url,
+            gather_queue_url,
+            execution_queue_url,
         )
     end
 end

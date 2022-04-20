@@ -11,6 +11,7 @@ function setsample!(fut::Future, value::Any)
     rate::Int64 = s.rate
     s.value = value
     s.memory_usage = convert(Int64, round(memory_usage / rate))::Int64
+    s.objectid = objectid(value)
 end
 
 # sample* functions always return a concrete value or a dict with properties.
@@ -83,8 +84,6 @@ sample(fut::Future) = get_location(fut).sample.value
 # function call. This makes it easier for the `sample` and `setsample!`
 # functions for `Future`s to compute and cache samples.
 
-@nospecialize
-
 # sample(as::Any, properties...) =
 #     if length(properties) <= 2 && first(properties) == :statistics
 #         # If the statistic is not cached in `Sample.properties`, then we just
@@ -141,12 +140,12 @@ impl_error(fn_name, as) = error("$fn_name not implemented for $(typeof(as))")
 
 # Functions to implement for Any (e.g., for DataFrame or
 # Array)
-sample_memory_usage(as::Any) = total_memory_usage(as)
-sample_axes(as::Any) = impl_error("sample_axes", as)
+sample_memory_usage(as::Any)::Int64 = total_memory_usage(as)
+sample_axes(as::Any)::Vector{Int64} = impl_error("sample_axes", as)
 sample_keys(as::Any) = impl_error("sample_keys", as)
 sample_divisions(as::Any, key) = impl_error("sample_divisions", as)
-sample_percentile(as::Any, key, minvalue, maxvalue) = impl_error("sample_percentile", as)
-sample_max_ngroups(as::Any, key) = impl_error("sample_max_ngroups", as)
+sample_percentile(as::Any, key, minvalue, maxvalue)::Float64 = impl_error("sample_percentile", as)
+sample_max_ngroups(as::Any, key)::Int64 = impl_error("sample_max_ngroups", as)
 sample_min(as::Any, key) = impl_error("sample_min", as)
 sample_max(as::Any, key) = impl_error("sample_max", as)
 
@@ -156,31 +155,18 @@ Base.isnothing(s::Sample) = s.rate == -1
 
 # Caching samples with same statistics
 
-# Global map from future-key pair to a sample that has the same statistics
-# properties for that particular key
-same_statistics = Dict{Tuple{ValueId,<:Any},Any}()
-
-function keep_same_statistics(a::Future, a_key::Any, b::Future, b_key::Any)
-    global same_statistics
-    a_map_key = (a.value_id, a_key)
-    b_map_key = (b.value_id, b_key)
-    sample_with_same_statistics = if haskey(same_statistics, a_map_key)
-        same_statistics[a_map_key]
-    elseif haskey(same_statistics, b_map_key)
-        same_statistics[b_map_key]
-    else
-        sample(a)
-    end
-    same_statistics[a_map_key] = sample_with_same_statistics
-    same_statistics[b_map_key] = sample_with_same_statistics
+# A sample with memoized statistics for 
+# Must be mutable so that the Future finalizer runs
+mutable struct SampleForGrouping{T,K}
+    future::Future
+    # samples only for the keys that could be used for grouping
+    sample::T
+    # keys
+    keys::Vector{K}
+    axes::Vector{Int64}
 end
 
-function delete_same_stastics(v::ValueId)
-    global same_statistics
-    for gk in get_location(v).sample.groupingkeys
-        delete!(same_statistics, (v, gk))
-    end
-end
+# Note that filtered_to's sample might be a vector
 
 # This functions is for retrieving a sample of a future with same
 # statistics properties with this key. Note that this function is not
@@ -190,12 +176,128 @@ end
 # separate function to actually process its statistics. This creates a function
 # barrier and type inference will still happen at run time but it will only
 # happen once.
-function sample(f::Future, key::K) where {K}
-    global same_statistics
-    f_map_key = (f.value_id, key)
-    if haskey(same_statistics, f_map_key)
-        same_statistics[f_map_key]
+function sample_for_grouping(f::Future, keys::Vector{K}, f_sample::T)::SampleForGrouping{T,K} where {T,K}
+    # keys::Vector{K} = keys[1:min(8,end)]
+    # global same_statistics
+    # f_sample 
+    # # TODO: In the future we may need to allow grouping keys to be shared between futures
+    # # with different sample types but same grouping keys and same statistics.
+    # # For example, we might do an array resizing operation and keep some dimensions
+    # # that can still be having the same grouping keys. If we do this, we should immediately
+    # # ge ta type error here and will have to change the T to an Any.
+    # res::Dict{K,T} = Dict{K,T}()
+    # for key in keys
+    #     f_map_key::Tuple{ValueId,K} = (f.value_id, key)
+    #     s::T = haskey(same_statistics, f_map_key) ? same_statistics[f_map_key]::T : f_sample
+    #     res[key] = s
+    # end
+    SampleForGrouping{T,K}(f, f_sample, keys, sample_axes(f_sample))
+end
+function sample_for_grouping(f::Future, keys::Vector{K}) where {K} sample_for_grouping(f, keys, sample(f)) end
+function sample_for_grouping(f::Future, key::K) where {K} sample_for_grouping(f, K[key]) end
+function sample_for_grouping(f::Future, ::Type{K}) where {K} sample_for_grouping(f, (get_location(f).sample.groupingkeys)::Vector{K}) end
+sample_for_grouping(f::Future) = sample_for_grouping(f, Int64)
+
+# struct SampleComputationCache
+#     floats::Dict{UInt,Float64}
+#     ints::Dict{UInt,Int}
+#     anys::Dict{UInt,Any}
+# end
+
+# global sample_computation_cache = SampleComputationCache(Dict{UInt,Float64}(), Dict{UInt,Int64}(), Dict{UInt,Any}())
+
+struct SampleComputationCache
+    computation::Dict{UInt,Any}
+    same_keys::Dict{UInt,Vector{UInt}}
+end
+
+global sample_computation_cache = SampleComputationCache(Dict{UInt,Any}(), Dict{UInt,Vector{UInt}}())
+# global sample_computation_cache_same_keys = Dict{UInt,Vector{UInt}}()
+
+function get_sample_computation_cache()::SampleComputationCache
+    global sample_computation_cache
+    sample_computation_cache
+end
+# function get_sample_computation_cache_same_keys()::Dict{UInt,UInt}
+#     global sample_computation_cache_same_keys
+#     sample_computation_cache_same_keys
+# end
+# function get_cached_sample_computation(key::UInt)
+#     computation_cache = get_sample_computation_cache()
+#     same_key_cache = get_sample_computation_cache()
+# end
+
+# function get_futures(samples_for_grouping::SampleForGrouping{T,K})
+#     Future[samples_for_grouping.future]
+# end
+# function get_futures(samples_for_grouping::Vector{SampleForGrouping{T,K}})
+#     res = Future[]
+#     for s in samples_for_grouping
+#         push!(res, s.future)
+#     end
+#     res
+# end
+
+# # Global map from future-key pair to a sample that has the same statistics
+# # properties for that particular key
+# same_statistics = Dict{Tuple{ValueId,<:Any},Any}()
+
+function insert_in_sample_computation_cache(cache::SampleComputationCache, key::UInt, other_key::UInt)
+    if !haskey(cache.same_keys, key)
+        cache.same_keys[key] = UInt[key, other_key]
     else
-        sample(f)
+        push!(cache.same_keys[key], other_key)
     end
 end
+
+function get_key_for_sample_computation_cache(cache::SampleComputationCache, key::UInt)::UInt
+    if !haskey(cache.same_keys, key)
+        cache.same_keys[key] = UInt[key]
+        return 0
+    end
+
+    for other_key in cache.same_keys[key]
+        if haskey(cache.computation, other_key)
+            return other_key
+        end
+    end
+
+    return 0
+end
+
+# TODO: Finish this
+
+function keep_same_statistics(a::Future, a_key::Any, b::Future, b_key::Any)
+    cache = get_sample_computation_cache()
+    # Note that this runs after all samples have been computed so the objectid's
+    # of the values should be right.
+    a_objectid::UInt = get_location(a).sample.objectid
+    b_objectid::UInt = get_location(b).sample.objectid
+    for computation_func in [:sample_divisions, :orderinghashes]
+        a_cache_key = hash((computation_func, a_objectid, a_key))
+        b_cache_key = hash((computation_func, b_objectid, b_key))
+        insert_in_sample_computation_cache(cache, a_cache_key, b_cache_key)
+        insert_in_sample_computation_cache(cache, b_cache_key, a_cache_key)
+    end
+    # global same_statistics
+    # a_map_key = (a.value_id, a_key)
+    # b_map_key = (b.value_id, b_key)
+    # sample_with_same_statistics = if haskey(same_statistics, a_map_key)
+    #     same_statistics[a_map_key]
+    # elseif haskey(same_statistics, b_map_key)
+    #     same_statistics[b_map_key]
+    # else
+    #     sample(a)
+    # end
+    # same_statistics[a_map_key] = sample_with_same_statistics
+    # same_statistics[b_map_key] = sample_with_same_statistics
+end
+
+# TODO: Look at keep_same_statistics and use the right sample but then use the caching appropriately
+
+# function delete_same_stastics(v::ValueId)
+#     global same_statistics
+#     for gk in get_location(v).sample.groupingkeys
+#         delete!(same_statistics, (v, gk))
+#     end
+# end

@@ -83,6 +83,13 @@ function Banyan.sample_keys(A::Base.AbstractArray{T,N})::Base.Vector{Int64} wher
 # `sample_divisions`, `sample_percentile`, and `sample_max_ngroups` should
 # work with the `orderinghash` of values in the data they are used on
 
+@memoize LRU{Tuple{Any,Int64},Any}(maxsize=16) function orderinghashes(A::Base.AbstractArray{T,N}, key::Int64) where {T,N}
+    map(orderinghash, eachslice(A, dims=key))
+end
+@memoize LRU{Tuple{Any,Int64},Any}(maxsize=16) function orderinghashes(A::Base.AbstractVector{T}, key::Int64) where {T}
+    map(orderinghash, A)
+end
+
 @memoize LRU{Tuple{Any,Int64},Any}(maxsize=16) function Banyan.sample_divisions(A::U, key::Int64) where U <: Base.AbstractArray{T,N} where {T,N}
     if isempty(A)
         return []
@@ -90,7 +97,7 @@ function Banyan.sample_keys(A::Base.AbstractArray{T,N})::Base.Vector{Int64} wher
 
     max_ngroups = sample_max_ngroups(A, key)
     ngroups = min(max_ngroups, 512)
-    data = sort(map(orderinghash, eachslice(A, dims=key)))
+    data = sort(orderinghashes(A, key))
     OHT = eltype(data)
     datalength = length(data)
     grouplength = div(datalength, ngroups)
@@ -113,8 +120,7 @@ end
     end
 
     c::Int64 = 0
-    for e in eachslice(A, dims=key)
-        oh = orderinghash(e)
+    for oh in orderinghashes(A, key)
         if oh >= minvalue && oh <= maxvalue
             c += 1
         end
@@ -160,7 +166,7 @@ end
         return 0
     end
 
-    data = sort(map(orderinghash, eachslice(A, dims=key)))
+    data = sort(orderinghashes(A, key))
     currgroupsize::Int64 = 1
     maxgroupsize::Int64 = 0
     prev = nothing
@@ -183,48 +189,18 @@ end
 # probably need to vary mapslices on the dim itself and then use eachslices,
 # get the orderinghash and then take minimum across that
 # TODO: Change to use eachslice everywhere and ensure we use key not d
-@memoize LRU{Tuple{Any,Int64},Any}(maxsize=16) function Banyan.sample_min(A::Base.AbstractVector{T}, @nospecialize(key)) where {T}
+function Banyan.sample_min(A::U, key::Int64) where U <: Base.AbstractArray{T,N} where {T,N}
     if isempty(A)
         nothing
     else
-        min_oh = orderinghash(A[1])
-        for e in A
-            min_oh = min(orderinghash(e), min_oh)
-        end
-        min_oh
+        minimum(orderinghashes(A, key))
     end
 end
-@memoize LRU{Tuple{Any,Int64},Any}(maxsize=16) function Banyan.sample_min(A::U, key::Int64) where U <: Base.AbstractArray{T,N} where {T,N}
+function Banyan.sample_max(A::U, key::Int64) where U <: Base.AbstractArray{T,N} where {T,N}
     if isempty(A)
         nothing
     else
-        min_oh = orderinghash(selectdim(A, key, 1:1))
-        for e in eachslice(A, dims=key)
-            min_oh = min(orderinghash(e), min_oh)
-        end
-        min_oh
-    end
-end
-@memoize LRU{Tuple{Any,Int64},Any}(maxsize=16) function Banyan.sample_max(A::Base.AbstractVector{T}, @nospecialize(key)) where {T}
-    if isempty(A)
-        nothing
-    else
-        min_oh = orderinghash(A[1])
-        for e in A
-            min_oh = max(orderinghash(e), min_oh)
-        end
-        min_oh
-    end
-end
-@memoize LRU{Tuple{Any,Int64},Any}(maxsize=16) function Banyan.sample_max(A::U, key::Int64) where U <: Base.AbstractArray{T,N} where {T,N}
-    if isempty(A)
-        nothing
-    else
-        min_oh = orderinghash(selectdim(A, key, 1:1))
-        for e in eachslice(A, dims=key)
-            min_oh = max(orderinghash(e), min_oh)
-        end
-        min_oh
+        maximum(orderinghashes(A, key))
     end
 end
 
@@ -240,7 +216,7 @@ function partitioned_for_fill(A::Future, fillingdims::Future, v::Future)
     # We use `partitioned_with` here to ensure that a sample of A is produced
     # first so that we can use the Blocked PT constructor which depends on A
     # having its sample taken
-    partitioned_with(scaled=A) do
+    partitioned_with(scaled=[A]) do
         # blocked
         # TODO: Ensure that we are properly creating new PAs
         # We have to create the array in a balanced manner or we have
@@ -298,7 +274,7 @@ fill(v, dims::Int64...) = fill(v, Tuple(dims))
 function partitioned_for_collect(A::Future, r::Future)
     # Define how the data can be partitioned (mentally taking into account
     # data imbalance and grouping)
-    partitioned_with(scaled=A) do
+    partitioned_with(scaled=[A]) do
         pt(A, Blocked(A, balanced=true))
         pt(r, Divided())
         pt(A, r, Replicated())
@@ -338,7 +314,7 @@ Base.size(A::Array{T,N}) where {T,N} = compute(A.size)
 Base.length(V::Array{T,N}) where {T,N} = prod(compute(V.size))
 Base.eltype(A::Array{T,N}) where {T,N} = eltype(sample(A))
 
-function pts_for_copying(A, res)
+function pts_for_copying(A::Future, res::Future)
     # balanced
     pt(A, Blocked(A, balanced=true))
     pt(res, Balanced(), match=A)
@@ -355,8 +331,8 @@ function Base.copy(A::Array{T,N})::Array{T,N} where {T,N}
     res_size = deepcopy(A.size)
     res = Future(datatype="Array")
 
-    partitioned_with(scaled=[A, res], keep_same_keys=true) do
-        pts_for_copying(A, res)
+    partitioned_with(scaled=[A.data, res], keep_same_keys=true) do
+        pts_for_copying(A.data, res)
     end
 
     @partitioned A res begin
@@ -370,8 +346,8 @@ function Base.deepcopy(A::Array{T,N})::Array{T,N} where {T,N}
     res_size = deepcopy(A.size)
     res = Future(datatype="Array")
 
-    partitioned_with(scaled=[A, res], keep_same_keys=true) do
-        pts_for_copying(A, res)
+    partitioned_with(scaled=[A.data, res], keep_same_keys=true) do
+        pts_for_copying(A.data, res)
     end
 
     @partitioned A res begin
@@ -404,9 +380,9 @@ function partitioned_for_map(c::Base.Vector{Future}, r::Base.Vector{Future}, f::
         # balanced
         c_first::Future = first(c)
         pt(c_first, Blocked(c_first, balanced=true))
-        pt(c[2:end]..., Blocked() & Balanced(), match=c_first, on=["key"])
+        pt(c[2:end]..., BlockedAlong() & Balanced(), match=c_first, on=["key"])
         for res in r
-            pt(res, Blocked() & Balanced(), match=c_first)
+            pt(res, BlockedAlong() & Balanced(), match=c_first)
         end
 
         # unbalanced
@@ -485,7 +461,7 @@ function _mapslices(f::Future, A::Future, res_size::Future, res::Future, dims_sa
         if !isempty(bpt)
             # balanced
             pt(A, bpt & Balanced())
-            pt(res, Blocked() & Balanced(), match=A, on="key")
+            pt(res, BlockedAlong() & Balanced(), match=A, on="key")
 
             # unbalanced
             pt(A, bpt & Unbalanced(res))
@@ -562,7 +538,7 @@ function _getindex(A::Future, allowed_splitting_dims::Bool, indices::Future, res
         if !isempty(bpt)
             # balanced
             pt(A, bpt & Balanced())
-            pt(res, Blocked() & Balanced(), match=A, on="key")
+            pt(res, BlockedAlong() & Balanced(), match=A, on="key")
 
             # unbalanced
             pt(A, bpt & Unbalanced(res))
@@ -687,13 +663,17 @@ end
 function _sortslices(data::Array{T,N}, sortingdim::Int64, isreversed::Bool, res_size::Future, res::Future, dims::Future, kwargs::Future)::Array{T,N} where {T,N}
     A::Future = data.data
     partitioned_with(scaled=[A, res], keys=sortingdim) do
+        # Some mapping computation might produce an AbstractArray that isn't
+        # a Base.Array and then we would have to change this type annotation
+        A_sample::SampleForGrouping{Base.Array{T,N},Int64} = sample_for_grouping(A, sortingdim)
+
         # unbalanced -> unbalanced
-        pt(A, Grouped(A, by=sortingdim, rev=isreversed, scaled_by_same_as=res, balanced=false))
-        pt(res, Blocked() & Unbalanced(A), match=A, on=["key", "divisions", "id"])
+        pt(A, Grouped(A_sample, rev=isreversed, scaled_by_same_as=res, balanced=false))
+        pt(res, BlockedAlong() & Unbalanced(A), match=A, on=["key", "divisions", "id"])
 
         # balanced -> balanced
-        pt(A, Grouped(A, by=sortingdim, rev=isreversed, balanced=true))
-        pt(res, Blocked() & Balanced(), match=A, on=["key", "divisions", "id"])
+        pt(A, Grouped(A_sample, rev=isreversed, balanced=true))
+        pt(res, BlockedAlong() & Balanced(), match=A, on=["key", "divisions", "id"])
 
         # replicated
         pt(A, res, dims, kwargs, Replicated())

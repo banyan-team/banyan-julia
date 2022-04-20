@@ -260,23 +260,30 @@ get_dst_parameters(fut)::LocationParameters = get_location(fut).dst_parameters
 # Simple locations #
 ####################
 
-Value(val) = LocationSource("Value", Dict{String,Any}("value" => to_jl_value(val)), total_memory_usage(val), ExactSample(val))
+function Value(val::T)::Location where {T}
+    LocationSource("Value", Dict{String,Any}("value" => to_jl_value(val)), total_memory_usage(val), ExactSample(val))
+end
 
 # TODO: Implement Size
-Size(val) = LocationSource(
+Size(val)::Location = LocationSource(
     "Value",
     Dict{String,Any}("value" => to_jl_value(val)),
     0,
     Sample(indexapply(getsamplenrows, val, index = 1)),
 )
 
-Client(val) = LocationSource("Client", Dict{String,Any}(), total_memory_usage(val), ExactSample(val))
-Client() = LocationDestination("Client", Dict{String,Any}())
+function Client(val::T)::Location where {T}
+    LocationSource("Client", Dict{String,Any}(), total_memory_usage(val), ExactSample(val))
+end
+const CLIENT = Location("None", "Client", LocationParameters(), LocationParameters(), Int64(0), Sample(nothing, Int64(0), Int64(1)))
+Client()::Location = deepcopy(CLIENT)
 # TODO: Un-comment only if Size is needed
 # Size(size) = Value(size)
-
-None() = Location("None", Dict{String,Any}(), 0)
-Disk() = Location("None", Dict{String,Any}()) # The scheduler intelligently determines when to split from and merge to disk even when no location is specified
+const NONE_LOCATION = Location("None", "None", LocationParameters(), LocationParameters(), Int64(0), Sample(nothing, Int64(0), Int64(1)))
+None()::Location = deepcopy(NONE_LOCATION)
+# The scheduler intelligently determines when to split from and merge to disk even when no location is specified
+const DISK = NONE_LOCATION
+Disk()::Location = deepcopy(DISK)
 # Values assigned "None" location as well as other locations may reassigned
 # "Memory" or "Disk" locations by the scheduler depending on where the relevant
 # data is.

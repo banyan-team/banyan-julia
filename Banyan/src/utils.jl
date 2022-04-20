@@ -103,13 +103,10 @@ global aws_config_in_usage = nothing
 
 @nospecialize
 
-function load_config(banyanconfig_path=nothing)
+function load_config(banyanconfig_path::String)
     global banyan_config
 
     if isnothing(banyan_config)
-        if isnothing(banyanconfig_path)
-            banyanconfig_path = joinpath(homedir(), ".banyan", "banyanconfig.toml")
-        end
         if isfile(banyanconfig_path)
             banyan_config = TOML.parsefile(banyanconfig_path)
         end
@@ -117,25 +114,24 @@ function load_config(banyanconfig_path=nothing)
     banyan_config
 end
 
-function write_config(banyanconfig_path=nothing)
+function write_config(banyanconfig_path::String)
     global banyan_config
 
     # Write to banyanconfig.toml
-    if isnothing(banyanconfig_path)
-        banyanconfig_path = joinpath(homedir(), ".banyan", "banyanconfig.toml")
-    end
     mkpath(joinpath(homedir(), ".banyan"))
     f = open(banyanconfig_path, "w")
     TOML.print(f, banyan_config)
     close(f)
 end
 
+get_banyanconfig_path()::String = joinpath(homedir(), ".banyan", "banyanconfig.toml")
+
 configure(; user_id=nothing, api_key=nothing, ec2_key_pair_name=nothing, banyanconfig_path=nothing) =
     configure(
         isnothing(user_id) ? "" : user_id,
         isnothing(api_key) ? "" : api_key,
         isnothing(ec2_key_pair_name) ? "" : ec2_key_pair_name,
-        isnothing(banyanconfig_path) ? "" : banyanconfig_path
+        isnothing(banyanconfig_path) ? get_banyanconfig_path() : banyanconfig_path
     )
 
 function configure(user_id, api_key, ec2_key_pair_name, banyanconfig_path)
@@ -335,7 +331,7 @@ end
 # times out and `nothing` is returned.
 function send_request_get_response(method, content::Dict)
     # Prepare request
-    configuration = load_config()
+    configuration = load_config(get_banyanconfig_path())
     user_id = configuration["banyan"]["user_id"]
     api_key = configuration["banyan"]["api_key"]
     content["debug"] = is_debug_on()
@@ -477,7 +473,9 @@ function load_toml(paths::Vector{String})
     for i = 1:npaths
         loaded[i] = "file://" * joinpath(loaded_dir, "part$i")
     end
-    mergewith(merge, map(load_toml, loaded)...)
+    res = mergewith(merge, map(load_toml, loaded)...)
+    rm(loaded_dir, recursive=true)
+    res
 end
 
 # Loads file into String and returns

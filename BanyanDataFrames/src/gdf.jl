@@ -37,13 +37,14 @@ DataFrames.valuecols(gdf::GroupedDataFrame) = valuecols(sample(gdf)::GroupedData
 # GroupedDataFrame creation
 
 function partitioned_for_groupby(df::Future, gdf::Future, groupingkeys::Base.Vector{String}, gdf_length::Future, cols::Future, kwargs::Future)
-    partitioned_with(scaled=[df, gdf], modules="DataFrames") do
-        pt(df, Grouped(df, by=groupingkeys, scaled_by_same_as=gdf))
+    partitioned_with(scaled=[df, gdf], modules=["DataFrames"], keytype=String) do
+        df_sample_for_grouping::DFSampleForGrouping = sample_for_grouping(df, groupingkeys)
+        pt(df, Grouped(df_sample_for_grouping, scaled_by_same_as=gdf))
         # TODO: Avoid circular dependency
         # TODO: Specify key for Blocked
         # TODO: Ensure that bangs in splitting functions in PF library are used
         # appropriately
-        pt(gdf, Blocked(1) & ScaledBySame(df))
+        pt(gdf, BlockedAlong(1) & ScaledBySame(df))
         pt(gdf_length, Reducing(+)) # TODO: See if we can `using Banyan` on the cluster and avoid this
         pt(df, gdf, gdf_length, cols, kwargs, Replicated())
     end
@@ -129,9 +130,10 @@ end
 # GroupedDataFrame column manipulation
 
 function partitioned_with_for_select(gdf_parent::Future, gdf::Future, res::Future, res_groupingkeys::Base.Vector{String}, groupcols::Future, groupkwargs::Future, args::Future, kwargs::Future, groupingkeys::Base.Vector{String})
-    partitioned_with(scaled=[gdf_parent, gdf, res], grouped=[gdf_parent, res], keys=res_groupingkeys, drifted=true, modules="DataFrames") do
-        pt(gdf_parent, Grouped(gdf_parent, by=groupingkeys, scaled_by_same_as=res), match=res)
-        pt(gdf, Blocked(1) & ScaledBySame(res))
+    partitioned_with(scaled=[gdf_parent, gdf, res], grouped=[gdf_parent, res], keys=res_groupingkeys, drifted=true, modules=["DataFrames"], keytype=String) do
+        gdf_parent_sample_for_grouping_keys::DFSampleForGrouping = sample_for_grouping(gdf_parent, groupingkeys)
+        pt(gdf_parent, Grouped(gdf_parent_sample_for_grouping_keys, scaled_by_same_as=res), match=res)
+        pt(gdf, BlockedAlong(1) & ScaledBySame(res))
         pt(res, ScaledBySame(gdf_parent))
         pt(gdf_parent, gdf, res, groupcols, groupkwargs, args, kwargs, Replicated())
     end
@@ -208,11 +210,11 @@ function DataFrames.transform(gdf::GroupedDataFrame, args...; kwargs...)::DataFr
 end
 
 function partitioned_with_for_combine(gdf_parent::Future, gdf::Future, res_nrows::Future, res::Future, res_groupingkeys::Base.Vector{String}, groupcols::Future, groupkwargs::Future, args::Future, kwargs::Future, groupingkeys::Base.Vector{String})
-    partitioned_with(scaled=[gdf_parent, gdf, res], grouped=[gdf_parent, res], keys=res_groupingkeys, drifted=true, modules="DataFrames") do
+    partitioned_with(scaled=[gdf_parent, gdf, res], grouped=[gdf_parent, res], keys=res_groupingkeys, drifted=true, modules=["DataFrames"], keytype=String) do
         # TODO: If we want to support `keepkeys=false`, we need to make the
         # result be Blocked and `filtered_from` the input
         pts_for_filtering(gdf_parent, res, groupingkeys)
-        pt(gdf, Blocked(1) & ScaledBySame(gdf_parent))
+        pt(gdf, BlockedAlong(1) & ScaledBySame(gdf_parent))
         pt(res_nrows, Reducing(+)) # TODO: Change to + if possible
         # pt(gdf_parent, res, gdf, res_nrows, groupcols, groupkwargs, args, kwargs, Replicated())
         pt(gdf_parent, res, gdf, res_nrows, groupcols, groupkwargs, args, kwargs, Replicated())

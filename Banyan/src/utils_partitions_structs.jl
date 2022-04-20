@@ -84,10 +84,15 @@ struct PartitionedUsingFunc{K}
     grouped::Vector{Future}
     keep_same_keys::Bool
     keys::Vector{K}
-    keys_by_future::Dict{Future,Vector{K}}
+    keys_by_future::Vector{Tuple{Future,Vector{K}}}
     renamed::Bool
     # Asserts that output has a unique partitioning compared to inputs
     # (not relevant if you never have unbalanced partitioning)
     drifted::Bool
     isnothing::Bool
+end
+
+struct PartitionedWithFunc
+    func::Function
+    future_
 end

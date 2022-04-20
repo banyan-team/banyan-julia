@@ -6,6 +6,7 @@ module BanyanDataFrames
 @time using LRUCache
 @time using DataFrames
 @time using Dates
+@time using DataStructures
 @time using Downloads
 @time using FileIO
 @time using FilePathsBase
@@ -16,7 +17,6 @@ module BanyanDataFrames
 @time using Random
 @time using Requires
 @time using Serialization
-@time using StaticArrays
 println("Time to `using` packages for BanyanDataFrames.jl")
 end
 

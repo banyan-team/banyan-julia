@@ -164,14 +164,19 @@ function merge_pts!(a::PartitionType, b::PartitionType, pts_so_far::Vector{Parti
             break
         end
     end
+    new_constraints::Vector{PartitioningConstraint} = PartitioningConstraint[]
+    for c in a.constraints.constraints
+        push!(new_constraints, c)
+    end
+    for c in b.constraints.constraints
+        push!(new_constraints, c)
+    end
     if all_params_matching
         push!(
             pts_so_far,
             PartitionType(
                 merge(a.parameters, b.parameters),
-                PartitioningConstraints(
-                    vcat(a.constraints.constraints, b.constraints.constraints)
-                )
+                PartitioningConstraints(new_constraints)
             )
         )
     end
@@ -231,7 +236,7 @@ const NOTHING_PARTITIONED_USING_FUNC = PartitionedUsingFunc{Int64}(
     Future[],
     false,
     Int64[],
-    Dict{Future,Vector{Int64}}(),
+    Tuple{Future,Vector{Int64}}[],
     false,
     false,
     true

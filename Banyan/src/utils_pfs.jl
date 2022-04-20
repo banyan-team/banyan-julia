@@ -158,10 +158,10 @@ isoverlapping(a::AbstractRange, b::AbstractRange) = a.start ≤ b.stop && b.star
 
 @nospecialize
 
-to_jl_value(jl::T) where {T} = Dict{String,Any}("is_banyan_value" => true, "contents" => to_jl_value_contents(jl))
+to_jl_value(jl) = Dict{String,Any}("is_banyan_value" => true, "contents" => to_jl_value_contents(jl))
 
 # NOTE: This function is shared between the client library and the PT library
-function to_jl_value_contents(jl::T)::String where {T}
+function to_jl_value_contents(jl)::String
     # Handle functions defined in a module
     # TODO: Document this special case
     # if jl isa Function && !(isdefined(Base, jl) || isdefined(Core, jl) || isdefined(Main, jl))
@@ -195,11 +195,12 @@ end
 # NOTE: `orderinghash` must either return a number or a vector of
 # equally-sized numbers
 # NOTE: This is an "order-preserving hash function" (google that for more info)
-function orderinghash(x::T)::SVector{1,T} where {T} SVector{1,T}(x) end # This lets us handle numbers and dates
-function orderinghash(x::I)::SVector{1,Int64} where I<:Integer
-    SVector{1,Int64}(convert(Int64, x))
+function orderinghash(x::T)::Vector{T} where {T} T[x] end # This lets us handle numbers and dates
+function orderinghash(x::I)::Vector{Int64} where I<:Integer
+    Int64[convert(Int64, x)]
 end
-function orderinghash(s::S)::SVector{32,UInt8} where S<:AbstractString
+orderinghash(s::AbstractString)::Vector{UInt8} = orderinghash(convert(String, s))
+function orderinghash(s::String)::Vector{UInt8}
     s_view = view(s, 1:min(32,length(s)))
     a = codeunits(s_view)
     a_view = view(a, 1:min(32,length(a)))

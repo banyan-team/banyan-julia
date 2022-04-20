@@ -24,7 +24,6 @@ using Downloads
 using JSON
 using Random
 using Serialization
-using StaticArrays
 using TOML
 
 using FileIO
@@ -83,7 +82,7 @@ export Session,
 export AbstractFuture, Future, partitioned_computation, compute_inplace, compute
 
 # Samples
-export Sample, ExactSample, sample, setsample!
+export Sample, ExactSample, sample, sample_for_grouping, SampleForGrouping, setsample!
 export sample_memory_usage,
     total_memory_usage,
     sample_axes,
@@ -92,7 +91,11 @@ export sample_memory_usage,
     sample_percentile,
     sample_max_ngroups,
     sample_min,
-    sample_max
+    sample_max,
+    get_sample_computation_cache,
+    SampleComputationCache,
+    insert_in_sample_computation_cache,
+    get_key_for_sample_computation_cache
 export NOTHING_SAMPLE
 
 # Locations
@@ -123,7 +126,9 @@ export Any,
     Unbalanced,
     Distributed,
     Blocked,
+    BlockedAlong,
     Grouped,
+    GroupedBy,
     Partitioned
 
 # Partitioning constraints
@@ -279,8 +284,6 @@ function __init__()
     downloader = Downloads.Downloader()
     downloader.easy_hook = (easy, info) ->
        Downloads.Curl.setopt(easy, Downloads.Curl.CURLOPT_LOW_SPEED_TIME, 40)
-
-    load_config()
 end
 
 if Base.VERSION >= v"1.4.2"

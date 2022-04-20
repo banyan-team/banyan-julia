@@ -45,8 +45,7 @@ function create_new_future(source::Location, mutate_from::Future, datatype::Stri
     new_future
 end
 
-function create_future_from_sample(value::Any, datatype::String)::Future
-    @nospecialize
+function create_future_from_sample(value::T, datatype::String)::Future where T
     location::Location = if total_memory_usage(value) ≤ 4 * 1024
         Value(value)
     else

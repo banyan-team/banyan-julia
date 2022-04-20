@@ -31,13 +31,18 @@ function get_session_id()::SessionId
     current_session_id
 end
 
+function get_sessions_dict()::Dict{SessionId,Session}
+    global sessions
+    sessions
+end
+
 function get_session()::Session
     session_id = get_session_id()
-    global sessions
-    if !haskey(sessions, session_id)
+    sessions_dict = get_sessions_dict()
+    if !haskey(sessions_dict, session_id)
         error("The selected session does not have any information; if it was started by this process, it has either failed or been destroyed.")
     end
-    sessions[session_id]
+    sessions_dict[session_id]
 end
 
 get_cluster_name()::String = get_session().cluster_name
@@ -47,9 +52,8 @@ function get_loaded_packages()
     #     @show try Main.eval(m) catch nothing end isa Module && !(m in [:Main, :Base, :Core, :InteractiveUtils, :IJulia])
     # end
     global current_session_id
-    global sessions
     loaded_packages::Set{String} = if !isnothing(current_session_id)
-        sessions[current_session_id].loaded_packages
+        get_sessions_dict()[current_session_id].loaded_packages
     else
         Set{String}()
     end
@@ -72,7 +76,7 @@ end
 
 const NOTHING_STRING = "NOTHING_STRING"
 
-function start_session(
+function _start_session(
     cluster_name::String,
     nworkers::Int64,
     release_resources_after::Integer,
@@ -242,6 +246,8 @@ function start_session(
     organization_id::String = response["organization_id"]
     cluster_instance_id::String = response["cluster_instance_id"]
     cluster_name::String = response["cluster_name"]
+    reusing_resources::Bool = response["reusing_resources"]
+    cluster_potentially_not_ready = response["stale_cluster_status"] != "running"
     if for_running
         @info "Running session with ID $session_id and $code_files"
     else
@@ -256,17 +262,20 @@ function start_session(
         sample_rate,
         organization_id,
         cluster_instance_id,
-        not_using_modules
+        not_using_modules,
+        !cluster_potentially_not_ready,
+        false
     )
     println("Time to load session")
     end
 
-    println("Time for waiting for cluster:")
-    @time wait_for_cluster(cluster_name)
-
     if !nowait
-        println("Time for waiting for session:")
-        @time wait_for_session(session_id)
+        @time begin
+        wait_for_session(session_id)
+        println("Time for waiting for cluster and session:")
+        end
+    elseif reusing_resources
+        @warn "Starting this session requires creating new cloud computing resources which will take 10-30 minutes for the first computation."
     end
 
     @debug "Finished starting session $session_id"
@@ -300,7 +309,7 @@ function start_session(;
     force_pull::Bool = false,
     force_install::Bool = false,
     estimate_available_memory::Bool = false,
-    nowait::Bool = false,
+    nowait::Bool = true,
     email_when_ready::Union{Bool,Nothing} = nothing,
     for_running::Bool = false,
     kwargs...,
@@ -311,13 +320,13 @@ function start_session(;
     global BANYAN_JULIA_BRANCH_NAME
     global BANYAN_JULIA_PACKAGES
 
-    global sessions
+    sessions = get_sessions_dict()
     global current_session_id
 
     # Configure
     configure(; kwargs...)
     
-    current_session_id = start_session(
+    current_session_id = _start_session(
         cluster_name,
         nworkers,
         isnothing(release_resources_after) ? -1 : release_resources_after,
@@ -353,7 +362,7 @@ function start_session(;
 end
 
 function end_session(session_id::SessionId = get_session_id(); failed = false, release_resources_now = false, release_resources_after = nothing, kwargs...)
-    global sessions
+    sessions = get_sessions_dict()
     global current_session_id
 
     # Configure using parameters
@@ -487,10 +496,14 @@ function end_all_sessions(cluster_name::String; release_resources_now = false, r
 end
 
 function get_session_status(session_id::String=get_session_id(); kwargs...)::String
-    global sessions
+    sessions = get_sessions_dict()
     configure(; kwargs...)
     filters = Dict{String,Any}("session_id" => session_id)
-    response = send_request_get_response(:describe_sessions, Dict{String,Any}("filters"=>filters))
+    params = Dict{String,Any}("filters"=>filters)
+    if haskey(sessions, session_id)
+        params["organization_id"] = sessions[session_id].organization_id
+    end
+    response = send_request_get_response(:describe_sessions, params)
     if !haskey(response["sessions"], session_id)
         @warn "Session with ID $session_id is assumed to still be creating"
         return "creating"
@@ -508,7 +521,8 @@ function get_session_status(session_id::String=get_session_id(); kwargs...)::Str
     session_status
 end
 
-function wait_for_session(session_id::SessionId=get_session_id(), kwargs...)
+function _wait_for_session(session_id::SessionId=get_session_id(), kwargs...)
+    sessions_dict = get_sessions_dict()
     t = 2
     session_status = get_session_status(session_id; kwargs...)
     p = ProgressUnknown("Preparing session with ID $session_id", spinner=true)
@@ -523,12 +537,31 @@ function wait_for_session(session_id::SessionId=get_session_id(), kwargs...)
     finish!(p, spinner = session_status == "running" ? '✓' : '✗')
     if session_status == "running"
         @debug "Session with ID $session_id is ready"
+        if haskey(sessions_dict, session_id)
+            sessions_dict[session_id].is_session_ready = true
+        end
     elseif session_status == "completed"
         error("Session with ID $session_id has already completed")
     elseif session_status == "failed"
         error("Session with ID $session_id has failed.")
     else
         error("Unknown session status $session_status")
+    end
+end
+
+function wait_for_session(session_id::SessionId=get_session_id(), kwargs...)
+    sessions_dict = get_sessions_dict()
+    is_session_ready = if haskey(sessions_dict, session_id)
+        session_info::Session = sessions_dict[session_id]
+        if !session_info.is_cluster_ready
+            wait_for_cluster(session_info.cluster_name, kwargs...)
+        end
+        session_info.is_session_ready
+    else
+        false
+    end
+    if !is_session_ready
+        _wait_for_session(session_id, kwargs...)
     end
 end
 

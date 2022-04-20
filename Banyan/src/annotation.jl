@@ -17,17 +17,15 @@ function get_task()::DelayedTask
 end
 
 function finish_task()
-    global curr_delayed_task
-    curr_delayed_task = DelayedTask()
+    set_task(DelayedTask())
 end
 
 function get_pa()::PartitionAnnotation
-    global curr_delayed_task
-    curr_delayed_task.pa_union[end]
+    get_task().pa_union[end]
 end
 
 function finish_pa()
-    global curr_delayed_task
+    curr_delayed_task = get_task()
     push!(curr_delayed_task.pa_union, PartitionAnnotation())
 end
 
@@ -58,22 +56,19 @@ end
 # information about sample properties and that's why we have a lot of these
 # keep_* functions.
 
-function get_new_p_groupingkeys!(p::Future, p_s::Sample, participants::Base.Vector{Future}, drifted::Bool, p_sample::T, p_keys::Base.Vector{K}) where {T,K}
+function _get_new_p_groupingkeys!(p::Future, p_s::Sample, participants::Base.Vector{Future}, drifted::Bool, p_keys::Base.Vector{K}, keeping_same_statistics::Vector{Tuple{Future,K,Future,K}}) where {K}
     new_p_groupingkeys = K[]
     for op in participants
-        op_groupingkeys = get_location(op).sample.groupingkeys
-        OK = eltype(op_groupingkeys)
-        if OK == K
-            for op_groupingkey in op_groupingkeys
-                if op_groupingkeys in p_keys && !(op_groupingkey in new_p_groupingkeys)
-                    push!(new_p_groupingkeys, op_groupingkey)
+        op_groupingkeys::Vector{K} = get_location(op).sample.groupingkeys
+        for op_groupingkey in op_groupingkeys
+            if op_groupingkey in p_keys && !(op_groupingkey in new_p_groupingkeys)
+                push!(new_p_groupingkeys, op_groupingkey)
 
-                    # Only allow keys that are actually in the keys of the participants
-                    # TODO: Maybe replace this with a function that doesn't require calling
-                    # a potentially expensive function to iterate through _all_ columns.
-                    if !drifted
-                        keep_same_statistics(p, op_groupingkey, op, op_groupingkey)
-                    end
+                # Only allow keys that are actually in the keys of the participants
+                # TODO: Maybe replace this with a function that doesn't require calling
+                # a potentially expensive function to iterate through _all_ columns.
+                if !drifted
+                    push!(keeping_same_statistics, (p, op_groupingkey, op, op_groupingkey))
                 end
             end
         end
@@ -81,11 +76,11 @@ function get_new_p_groupingkeys!(p::Future, p_s::Sample, participants::Base.Vect
     p_s.groupingkeys = new_p_groupingkeys
 end
 
-function get_new_p_groupingkeys!(p::Future, p_s::Sample, participants::Base.Vector{Future}, drifted::Bool, p_sample::T) where {T}
-    get_new_p_groupingkeys!(p, p_s, participants, drifted, p_sample, sample_keys(p_sample))
+function get_new_p_groupingkeys!(p::Future, p_s::Sample, participants::Base.Vector{Future}, drifted::Bool, p_sample::T, keeping_same_statistics::Vector{Tuple{Future,K,Future,K}}) where {T,K}
+    _get_new_p_groupingkeys!(p, p_s, participants, drifted, sample_keys(p_sample), keeping_same_statistics)
 end
 
-function keep_all_sample_keys(participants::Base.Vector{Future}, drifted::Bool)
+function keep_all_sample_keys(participants::Base.Vector{Future}, drifted::Bool, keeping_same_statistics::Vector{Tuple{Future,K,Future,K}}) where {K}
     if isempty(participants)
         return
     end
@@ -102,17 +97,29 @@ function keep_all_sample_keys(participants::Base.Vector{Future}, drifted::Bool)
     for p in participants
         p_s::Sample = get_location(p).sample
         p_sample = p_s.value
-        get_new_p_groupingkeys!(p, p_s::Sample, participants::Base.Vector{Future}, drifted, p_sample)
+        get_new_p_groupingkeys!(p, p_s, participants, drifted, p_sample, keeping_same_statistics)
+    end
+end
+
+function apply_keeping_same_statistics(keeping_same_statistics::Vector{Tuple{Future,K,Future,K}}) where {K}
+    for same in keeping_same_statistics::Vector{Tuple{Future,K,Future,K}}
+        keep_same_statistics(same[1], same[2], same[3], same[4])
     end
 end
 
 # TODO: Use LRUCache.jl and Memoize.jl and make sample_* functions
 # Then, ensure we have functionality to check for same statistics first
 
-function keep_all_sample_keys_renamed_helper(old::Future, old_sample::T, old_keys::Base.Vector{K}, new::Future, new_sample::T, new_keys::Base.Vector{K}) where {T,K}
-    old_groupingkeys::Vector{K} = convert(Vector{K}, old_sample.groupingkeys)
+function keep_all_sample_keys_renamed(
+    o::Tuple{Future,Sample,Vector{K}},
+    n::Tuple{Future,Sample,Vector{K}},
+    keeping_same_statistics::Vector{Tuple{Future,K,Future,K}}
+) where {K}
+    old, old_sample, old_keys = o
+    new, new_sample, new_keys = n
+    old_groupingkeys::Vector{K} = old_sample.groupingkeys
     old_groupingkeys_changed = false
-    new_groupingkeys::Vector{K} = convert(Vector{K}, new_sample.groupingkeys)
+    new_groupingkeys::Vector{K} = new_sample.groupingkeys
     new_groupingkeys_changed = false
     length(old_keys) == length(new_keys) || error("Expected renaming operation to not change the number of keys/axes/columns of this data")
     for i = 1:length(old_keys)
@@ -120,12 +127,12 @@ function keep_all_sample_keys_renamed_helper(old::Future, old_sample::T, old_key
         nk::K = new_keys[i]
         if ok in old_groupingkeys
             push!(new_groupingkeys, nk)
-            keep_same_statistics(new, nk, old, ok)
+            push!(keeping_same_statistics, (new, nk, old, ok))
             new_groupingkeys_changed = true
         end
         if nk in new_groupingkeys
             push!(old_groupingkeys, ok)
-            keep_same_statistics(old, ok, new, nk)
+            push!(keeping_same_statistics, (old, ok, new, nk))
             old_groupingkeys_changed = true
         end
     end
@@ -137,19 +144,42 @@ function keep_all_sample_keys_renamed_helper(old::Future, old_sample::T, old_key
     end
 end
 
-function keep_all_sample_keys_renamed(old::Future, old_sample::T, new::Future, new_sample::T) where {T}
-    old_keys = sample_keys(old_sample)
-    new_keys = sample_keys(new_sample)
-    keep_all_sample_keys_renamed_helper(old, old_sample, old_keys, new, new_sample, new_keys)
+function keep_all_sample_keys_renamed(
+    o::Tuple{Future,Sample,T},
+    n::Tuple{Future,Sample,T},
+    ::Type{K},
+    keeping_same_statistics::Vector{Tuple{Future,K,Future,K}}
+) where {K,T}
+    _keep_all_sample_keys_renamed(
+        (o[1], o[2], sample_keys(o[3])),
+        (n[1], n[2], sample_keys(n[3])),
+        keeping_same_statistics
+    )
 end
 
-keep_all_sample_keys_renamed(old::Future, new::Future) =
-    keep_all_sample_keys_renamed(old, sample(old), new, sample(new))
+keep_all_sample_keys_renamed(
+    old::Future,
+    new::Future,
+    ::Type{K},
+    keeping_same_statistics::Vector{Tuple{Future,K,Future,K}}
+) where {K} = begin
+    old_s = get_location(old).sample
+    new_s = get_location(old).sample
+    keep_all_sample_keys_renamed((old, old_s, old_s.value), (new, new_s, new_s.value), K, keeping_same_statistics)
+end
+
+# function keep_keytype(participants::Vector{Future}, K::DataType)
+#     for p in participants
+#         p_sample::Sample = get_location(p).sample
+#         p_sample.groupingkeys = convert(Vector{K}, p_sample.groupingkeys)::Vector{K}
+#     end
+# end
 
 function keep_sample_keys_named(
-    participants::Dict{Future,Vector{T}},
+    participants::Vector{Tuple{Future,Vector{K}}},
     drifted::Bool,
-) where {T}
+    keeping_same_statistics::Vector{Tuple{Future,K,Future,K}}
+) where {K}
     # println("In keep_sample_keys_named")
     # `participants` maps from futures to lists of key names such that all
     # participating futures have the same sample properties for the keys at
@@ -159,22 +189,28 @@ function keep_sample_keys_named(
     #     (participant, key_names) in participants
     # ]
     # @show participants
-    nkeys = length(first(participants)[2])
+    first_participant_pair = first(participants)
+    first_participant::Future = first_participant_pair[1]
+    first_keys::Vector{K} = first_participant_pair[2]
+    nkeys = length(first_keys)
     for i = 1:nkeys
         # Copy over allowed grouping keys
-        for (p::Future, keys::Vector{T}) in participants
-            p_key::Vector{T} = keys[i:i]
+        for (p::Future, keys::Vector{K}) in participants
+            p_key::K = keys[i]
             # @show p
             # @show p_key
             # @show union(sample(p, :groupingkeys), [p_key])
             p_sample = get_location(p).sample
-            p_sample_groupingkeys = union(convert(Vector{T}, p_sample.groupingkeys)::Vector{T}, p_key)
+            p_sample_groupingkeys::Vector{K} = p_sample.groupingkeys
+            if !(p_key in p_sample_groupingkeys)
+                push!(p_sample_groupingkeys, p_key)
+            end
             p_sample.groupingkeys = p_sample_groupingkeys
 
             # Copy over statistics if they haven't changed
             if !drifted
-                for gk in p_sample.groupingkeys
-                    keep_same_statistics(p, gk, first(participants)[1], first(participants)[2][i])
+                for gk::K in p_sample_groupingkeys
+                    push!(keeping_same_statistics, (p, gk, first_participant, first_keys[i]))
                 end
             end
         end
@@ -185,8 +221,8 @@ end
 # assumed that they are the same. For example, column vectors from the result
 # of a join should have the same sample rate and the same data skew.
 
-keep_sample_keys(keys::Vector{T}, participants::Vector{Future}, drifted::Bool) where T =
-    keep_sample_keys_named(Dict{Future,Vector{T}}(p => keys for p in participants), drifted)
+keep_sample_keys(keys::Vector{K}, participants::Vector{Future}, drifted::Bool, keeping_same_statistics::Vector{Tuple{Future,K,Future,K}}) where K =
+    keep_sample_keys_named(Tuple{Future,Vector{K}}[(p, keys) for p in participants], drifted, keeping_same_statistics)
 
 # This is useful for workloads that involve joins where the sample rate is
 # diminished quadratically for each joinv
@@ -208,30 +244,12 @@ end
 # Using samples to assign PTs #
 ###############################
 
-
-function apply_partitioned_using_func(f::PartitionedUsingFunc{K}) where {K}
-    keep_same_sample_rate::Bool = f.keep_same_sample_rate
-    # Keys (not relevant if you never use grouped partitioning).
-    grouped::Vector{Future} = f.grouped
-    keep_same_keys::Bool = f.keep_same_keys
-    keys::Vector{K} = f.keys
-    keys_by_future::Dict{Future,Vector{K}} = f.keys_by_future
-    renamed::Bool = f.renamed
-    # Asserts that output has a unique partitioning compared to inputs
-    # (not relevant if you never have unbalanced partitioning)
-    drifted::Bool = f.drifted
-
-    # Categorize the futures. We determine whether a future is an input by
-    # checking if it's not in the values of the task's mutation. All
-    # outputs would require mutation for the future to be an output. And
-    # that would have been marked by a call to `mutated` that is made in the
-    # `Future` constructor.
-    @time begin
-    @time begin
-    grouping_needed = keep_same_keys || !isempty(keys) || !isempty(keys_by_future) || renamed
-    curr_delayed_task::DelayedTask = get_task()
-    curr_delayed_task_mutation::IdDict{Future,Future} = curr_delayed_task.mutation
-    curr_delayed_task_scaled::Vector{Future} = curr_delayed_task.scaled
+function get_inputs_and_outputs(
+    curr_delayed_task_mutation::IdDict{Future,Future},
+    curr_delayed_task_scaled::Vector{Future},
+    grouping_needed::Bool,
+    grouped::Vector{Future}
+)::Tuple{Vector{Future},Vector{Future},Vector{Future},Vector{Future}}
     output_value_ids = ValueId[]
     for ff in values(curr_delayed_task_mutation)
         push!(output_value_ids, ff.value_id)
@@ -245,14 +263,10 @@ function apply_partitioned_using_func(f::PartitionedUsingFunc{K}) where {K}
             push!(inputs, f)
         end
     end
-    println("Time for creating variables in apply_partitioned_using_func")
-    end
 
-    # Propagate information about keys that can be used for grouping
-    @time begin
+    outputs_grouped::Vector{Future} = Future[]
+    inputs_grouped::Vector{Future} = Future[]
     if grouping_needed
-        outputs_grouped::Vector{Future} = Future[]
-        inputs_grouped::Vector{Future} = Future[]
         for f in grouped
             if f.value_id in output_value_ids
                 push!(outputs_grouped, f)
@@ -260,33 +274,12 @@ function apply_partitioned_using_func(f::PartitionedUsingFunc{K}) where {K}
                 push!(inputs_grouped, f)
             end
         end
-        if keep_same_keys
-            if renamed
-                if length(inputs_grouped) != 1 || length(outputs_grouped) != 1
-                    error("Only 1 argument can be renamed to 1 result at once")
-                end
-                keep_all_sample_keys_renamed(inputs_grouped[1], outputs_grouped[1])
-            else
-                # @show inputs
-                # @show outputs
-                # @show grouped
-                # @show inputs_grouped
-                # @show outputs_grouped
-                keep_all_sample_keys(grouped, drifted)
-            end
-        end
-        if !isempty(keys)
-            keep_sample_keys(keys, grouped, drifted)
-        end
-        if !isempty(keys_by_future)
-            keep_sample_keys_named(keys_by_future, drifted)
-        end
-    end
-    println("Time for keeping stuff in apply_partitioned_using_func")
     end
 
-    # Propgate sample rates
-    @time begin
+    outputs, inputs, outputs_grouped, inputs_grouped
+end
+
+function apply_partitioned_using_func_for_sample_rates(inputs::Vector{Future}, keep_same_sample_rate::Bool, outputs::Vector{Future})
     if !isempty(inputs)
         if keep_same_sample_rate
             for r in outputs
@@ -305,14 +298,82 @@ function apply_partitioned_using_func(f::PartitionedUsingFunc{K}) where {K}
             end
         end
     end
-    println("Time for sample rates in apply_partitioned_using_func")
+end
+
+
+function apply_partitioned_using_func(f::PartitionedUsingFunc{K}) where {K}
+    keep_same_sample_rate::Bool = f.keep_same_sample_rate
+    # Keys (not relevant if you never use grouped partitioning).
+    grouped::Vector{Future} = f.grouped
+    keep_same_keys::Bool = f.keep_same_keys
+    keys::Vector{K} = f.keys
+    keys_by_future::Vector{Tuple{Future,Vector{K}}} = f.keys_by_future
+    renamed::Bool = f.renamed
+    # Asserts that output has a unique partitioning compared to inputs
+    # (not relevant if you never have unbalanced partitioning)
+    drifted::Bool = f.drifted
+
+    # Categorize the futures. We determine whether a future is an input by
+    # checking if it's not in the values of the task's mutation. All
+    # outputs would require mutation for the future to be an output. And
+    # that would have been marked by a call to `mutated` that is made in the
+    # `Future` constructor.
+    # println("In apply_partitioned_using_func with K=$K, grouped=$grouped, keys=$keys, keys_by_future=$keys_by_future, get_task()=$(get_task())")
+    # @time begin
+    # @time begin
+    grouping_needed = keep_same_keys || !isempty(keys) || !isempty(keys_by_future) || renamed
+    curr_delayed_task::DelayedTask = get_task()
+    curr_delayed_task_mutation::IdDict{Future,Future} = curr_delayed_task.mutation
+    curr_delayed_task_scaled::Vector{Future} = curr_delayed_task.scaled
+    
+    # println("Time for creating variables in apply_partitioned_using_func")
+    # end
+    outputs::Vector{Future}, inputs::Vector{Future}, outputs_grouped::Vector{Future}, inputs_grouped::Vector{Future} =
+        get_inputs_and_outputs(curr_delayed_task_mutation, curr_delayed_task_scaled, grouping_needed, grouped)
+
+    # Propagate information about keys that can be used for grouping
+    # @time begin
+    if grouping_needed
+        keeping_same_statistics::Vector{Tuple{Future,K,Future,K}} = Tuple{Future,K,Future,K}[]
+        if keep_same_keys
+            if renamed
+                if length(inputs_grouped) != 1 || length(outputs_grouped) != 1
+                    error("Only 1 argument can be renamed to 1 result at once")
+                end
+                keep_all_sample_keys_renamed(inputs_grouped[1], outputs_grouped[1], K, keeping_same_statistics)
+            else
+                # @show inputs
+                # @show outputs
+                # @show grouped
+                # @show inputs_grouped
+                # @show outputs_grouped
+                keep_all_sample_keys(grouped, drifted, keeping_same_statistics)
+            end
+        end
+        if !isempty(keys)
+            keep_sample_keys(keys, grouped, drifted, keeping_same_statistics)
+        end
+        if !isempty(keys_by_future)
+            keep_sample_keys_named(keys_by_future, drifted, keeping_same_statistics)
+        end
+        if !isempty(keeping_same_statistics)
+            apply_keeping_same_statistics(keeping_same_statistics)
+        end
     end
+    # println("Time for keeping stuff in apply_partitioned_using_func")
+    # end
+
+    # Propgate sample rates
+    # @time begin
+    apply_partitioned_using_func_for_sample_rates(inputs, keep_same_sample_rate, outputs)
+    # println("Time for sample rates in apply_partitioned_using_func")
+    # end
 
     # Store the important inputs and outputs for scaling memory usage
     curr_delayed_task.inputs = inputs
     curr_delayed_task.outputs = outputs
-    println("Time for running main part of apply_partitioned_using_func")
-    end
+    # println("Time for running main part of apply_partitioned_using_func")
+    # end
 end
 
 function _partitioned_with(
@@ -329,7 +390,7 @@ function _partitioned_with(
     grouped::Vector{Future},
     keep_same_keys::Bool,
     keys::Vector{K},
-    keys_by_future::Dict{Future,Vector{K}},
+    keys_by_future::Vector{Tuple{Future,Vector{K}}},
     renamed::Bool,
     # Asserts that output has a unique partitioning compared to inputs
     # (not relevant if you never have unbalanced partitioning)
@@ -370,34 +431,31 @@ function partitioned_with(
     # `scaled` is the set of futures with memory usage that can potentially be
     # scaled to larger sizes if the amount of data at a location changes.
     # Non-scaled data has fixed memory usage regardless of its sample rate.
-    scaled::Union{AbstractFuture,Vector{<:AbstractFuture}} = Future[],
+    scaled::Vector{Future} = Future[],
     keep_same_sample_rate::Bool = true,
     memory_usage::Vector{PartitioningConstraint} = PartitioningConstraint[],
     additional_memory_usage::Vector{PartitioningConstraint} = PartitioningConstraint[],
     # Keys (not relevant if you never use grouped partitioning).
-    grouped::Vector{<:AbstractFuture} = Future[],
+    grouped::Vector{Future} = Future[],
     keep_same_keys::Bool = false,
     keys::Union{Vector,Nothing} = nothing,
-    keys_by_future::Union{Dict{Future,Vector},Nothing} = nothing,
+    keys_by_future::Union{Vector{Tuple{Future,Vector}},Nothing} = nothing,
     renamed::Bool = false,
     # Asserts that output has a unique partitioning compared to inputs
     # (not relevant if you never have unbalanced partitioning)
     drifted::Bool = false,
     # For generating import statements
-    modules::Union{String,Vector{String}} = String[]
+    modules::Vector{String} = String[],
+    keytype::DataType = Int64,
 )
     # scaled
-    scaled_res::Vector{Future} = if scaled isa Vector
-        convert(Vector{Future}, scaled)
-    else
-        Future[convert(Future, scaled)]
-    end
+    scaled_res::Vector{Future} = scaled
 
     # grouped
     grouped_res::Vector{Future} = if isempty(grouped)
         scaled_res
     else
-        convert(Vector{Future}, grouped)
+        grouped
     end
 
     # modules
@@ -407,10 +465,13 @@ function partitioned_with(
     K = if !isnothing(keys)
         eltype(keys)
     elseif !isnothing(keys_by_future)
-        eltype(first(values(keys_by_future)))
+        eltype(first(keys_by_future)[2])
     else
-        Any
+        # This won't be used so we just use something so that the precompiled
+        # versions of functions are used.
+        keytype
     end
+    println("In partitioned_with with K=$K")
     _partitioned_with(
         handler,
         scaled_res,
@@ -420,10 +481,10 @@ function partitioned_with(
         grouped_res,
         keep_same_keys,
         isnothing(keys) ? K[] : keys,
-        isnothing(keys_by_future) ? Dict{Future,Vector{K}}() : keys_by_future,
+        isnothing(keys_by_future) ? Tuple{Future,Vector{K}}[] : keys_by_future,
         renamed,
         drifted,
-        modules_res
+        modules_res,
     )
 end
 
@@ -455,11 +516,13 @@ function pt_partition_type_composition(
     end
 
     # Handle constraints that have been delayed till PT assignment
-    
+    @time begin
     efunc = evaluate_constraint_func(fut)
     for pty in ptype.pts
         new_constraints::Vector{PartitioningConstraint} = map(efunc, pty.constraints.constraints)
         pty.constraints.constraints = new_constraints
+    end
+    println("Time to evaluate constraints")
     end
 
     # Add to PAs information about how partitions are produced
@@ -496,13 +559,19 @@ function pt_partition_type(ptype::PartitionType, futs::Vector{Future}, match::Ve
     pt_composition::PartitionTypeComposition =
         PartitionTypeComposition(PartitionType[ptype])
     for fut in futs
+        @time begin
         pt_partition_type_composition(fut, deepcopy(pt_composition), match, on, cross)
+        println("Time to call pt_partition_type_composition")
+        end
     end
 end
 
 function pt_partition_type(ptype::PartitionTypeComposition, futs::Vector{Future}, match::Vector{Future}, on::Vector{String}, cross::Vector{Future})
     for fut in futs
+        @time begin
         pt_partition_type_composition(fut, ptype, match, on, cross)
+        println("Time to call pt_partition_type_composition")
+        end
     end
 end
 
@@ -510,26 +579,51 @@ function pt_partition_type(ptype::Base.Vector{PartitionType}, futs::Vector{Futur
     for fut in futs
         for i in 1:length(ptype)
             pt_composition = PartitionTypeComposition(ptype[i:i])
+            @time begin
             pt_partition_type_composition(fut, pt_composition, match, on, cross)
+            println("Time to call pt_partition_type_composition")
+            end
         end
     end
 end
 
 function pt(
-    args::Union{AbstractFuture,PartitionType,PartitionTypeComposition,Vector{PartitionType}}...;
-    match::Union{Nothing,AbstractFuture} = nothing,
+    # # args::Union{Future,PartitionType,PartitionTypeComposition,Vector{PartitionType}}...;
+    # args...;
+    # match = nothing,
+    # on = nothing,
+    # cross = nothing
+    # args::Union{Future,PartitionType,PartitionTypeComposition,Vector{PartitionType}}...;
+    args...;
+    match::Union{Nothing,Future} = nothing,
     on::Union{String,Vector{String}} = String[],
-    cross::Vector{<:AbstractFuture} = Future[]
+    cross::Vector{Future} = Future[]
+    # args::Union{AbstractFuture,PartitionType,PartitionTypeComposition,Vector{PartitionType}}...;
+    # match::Union{Nothing,AbstractFuture} = nothing,
+    # on::Union{String,Vector{String}} = String[],
+    # cross::Vector{<:AbstractFuture} = Future[]
 )
     @nospecialize
+    @time begin
     length(args) >= 1 || error("Cannot assign partition type with `pt` unless at least one argument is passed in")
-    futs_res::Vector{Future} = convert(Vector{Future}, Base.collect(args[1:end-1]))
-    match_res::Vector{Future} = isnothing(match) ? Future[] : Future[convert(Future, match)]
-    on_res::Vector{String} = on isa String ? String[on] : on
-    cross_res::Vector{Future} = convert(Vector{Future}, cross)
+
+    # futs_res::Vector{Future} = convert(Vector{Future}, Base.collect(args[1:end-1]))
+    # match_res::Vector{Future} = isnothing(match) ? Future[] : Future[convert(Future, match)]
+    # on_res::Vector{String} = on isa String ? String[on] : on
+    # cross_res::Vector{Future} = convert(Vector{Future}, cross)
+    futs_res::Vector{Future} = Base.collect(args[1:end-1])
+    match_res::Vector{Future} = isnothing(match) ? Future[] : Future[match]
+    on_res::Vector{String} = isnothing(on) ? String[] : (on isa String ? String[on] : on)
+    cross_res::Vector{Future} = isnothing(cross) ? Future[] : cross
+
     ptype = deepcopy(args[end])
     if length(futs_res) > 0
+        @time begin
         pt_partition_type(ptype, futs_res, match_res, on_res, cross_res)
+        println("Time to call pt_partition_type")
+        end
+    end
+    println("Time inside of pt")
     end
 end
 
@@ -540,10 +634,10 @@ mutated(f::Future) = mutated(f, f)
 mutated(ff::Pair{Future,Future}) = mutated(ff.first, ff.second)
 
 function mutated(old::Future, new::Future)
-    global curr_delayed_task
     # if haskey(curr_delayed_task.value_names, old.value_id)
     #     finish_pa()
-    curr_delayed_task.mutation[old] = new
+    t::DelayedTask = get_task()
+    t.mutation[old] = new
 end
 
 #################################################
@@ -613,7 +707,7 @@ function apply_mutation(mutation::IdDict{Future,Future}, inverted::Bool)
 end
 
 function partitioned_using_modules(m::Vector{String})
-    global curr_delayed_task
+    curr_delayed_task = get_task()
     union!(curr_delayed_task.used_modules, m)
 end
 

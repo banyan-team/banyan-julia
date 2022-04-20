@@ -21,13 +21,13 @@ function (is::InferenceSession)(inputs, output_names=nothing)
     res = Future(datatype="Array")
     output_name = first(output_names)
 
-    partitioned_with(scaled=[A, res], modules="ONNXRunTime") do
+    partitioned_with(scaled=[A, res], modules=["ONNXRunTime"]) do
         # Blocked PTs along dimensions _not_ being mapped along
         bpt = [bpt for bpt in Blocked(A) if bpt.key == 1]
         
         # balanced
         pt(A, bpt & Balanced())
-        pt(res, Blocked() & Balanced(), match=A, on="key")
+        pt(res, BlockedAlong() & Balanced(), match=A, on="key")
 
         # unbalanced
         pt(A, bpt & Unbalanced(res))
