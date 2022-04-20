@@ -3,8 +3,15 @@
 #################
 
 
+# "https://sqs.us-east-2.amazonaws.com/123456789012/MyQueue"
+get_sqs_dict_from_url(url::String)::Dict{Symbol,Any} =
+    merge(
+        get_aws_config(),
+        Dict(:resource => joinpath(splitpath(url)[end-1:end]))
+    )
+
 get_scatter_queue(resource_id::Union{ResourceId,Nothing}=nothing) =
-    get_session().scatter_queue_url
+    get_sqs_dict_from_url(get_session().scatter_queue_url)
 # get_scatter_queue(resource_id::Union{ResourceId,Nothing}=nothing) =
 #     get_scatter_queue(isnothing(resource_id) ? get_session().resource_id : resource_id)
 # function get_scatter_queue(resource_id::ResourceId)
@@ -18,7 +25,7 @@ get_scatter_queue(resource_id::Union{ResourceId,Nothing}=nothing) =
 # end
 
 get_gather_queue(resource_id::Union{ResourceId,Nothing}=nothing) =
-    get_session().gather_queue_url
+    get_sqs_dict_from_url(get_session().gather_queue_url)
 # get_gather_queue(resource_id::Union{ResourceId,Nothing}=nothing) =
 #     get_gather_queue(isnothing(resource_id) ? get_session().resource_id : resource_id)
 # function get_gather_queue(resource_id::ResourceId)
@@ -32,7 +39,7 @@ get_gather_queue(resource_id::Union{ResourceId,Nothing}=nothing) =
 # end
 
 get_execution_queue(resource_id::Union{ResourceId,Nothing}=nothing) =
-    get_session().execution_queue_url
+    get_sqs_dict_from_url(get_session().execution_queue_url)
 # get_execution_queue(resource_id::Union{ResourceId,Nothing}=nothing) =
 #     get_execution_queue(isnothing(resource_id) ? get_session().resource_id : resource_id)
 # function get_execution_queue(resource_id::ResourceId)
