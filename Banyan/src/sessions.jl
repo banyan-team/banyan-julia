@@ -248,6 +248,9 @@ function _start_session(
     cluster_name::String = response["cluster_name"]
     reusing_resources::Bool = response["reusing_resources"]
     cluster_potentially_not_ready = response["stale_cluster_status"] != "running"
+    scatter_queue_url = response["scatter_queue_url"]::String
+    gather_queue_url = response["gather_queue_url"]::String
+    execution_queue_url = response["execution_queue_url"]::String
     if for_running
         @info "Running session with ID $session_id and $code_files"
     else
@@ -264,7 +267,10 @@ function _start_session(
         cluster_instance_id,
         not_using_modules,
         !cluster_potentially_not_ready,
-        false
+        false;
+        scatter_queue_url=scatter_queue_url,
+        gather_queue_url=gather_queue_url,
+        execution_queue_url=execution_queue_url
     )
     println("Time to load session")
     end
