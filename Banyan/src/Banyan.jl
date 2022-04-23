@@ -14,12 +14,12 @@ global NOT_USING_MODULES = String["ProfileView", "SnoopCompileCore"]
 using FilePathsBase: joinpath, isempty
 using Base: notnothing, env_project_file
 
-using AWS: _get_ini_value
 using AWSCore
 using AWSS3
 using AWSSQS
 using Base64
 using Dates
+using DataStructures
 using Downloads
 using JSON
 using Random
@@ -87,15 +87,16 @@ export sample_memory_usage,
     total_memory_usage,
     sample_axes,
     sample_keys,
-    sample_divisions,
-    sample_percentile,
-    sample_max_ngroups,
-    sample_min,
-    sample_max,
-    get_sample_computation_cache,
-    SampleComputationCache,
-    insert_in_sample_computation_cache,
-    get_key_for_sample_computation_cache
+    sample_by_key
+    # sample_divisions,
+    # sample_percentile,
+    # sample_max_ngroups,
+    # sample_min,
+    # sample_max,
+    # get_sample_computation_cache,
+    # SampleComputationCache,
+    # insert_in_sample_computation_cache,
+    # get_key_for_sample_computation_cache
 export NOTHING_SAMPLE
 
 # Locations
@@ -108,7 +109,7 @@ export NOTHING_LOCATION
 export from_jl_value_contents, to_jl_value_contents
 
 # Queues
-export receive_from_client, send_to_client
+export receive_from_client, send_to_client, get_sqs_dict_from_url
 
 # Partition types
 export PartitionType, pt, pc, mutated, @partitioned
@@ -288,8 +289,8 @@ end
 
 if Base.VERSION >= v"1.4.2"
     include("precompile.jl")
-    _precompile_()
-    precompile(__init__, ()) || @warn "Banyan failed to precompile `__init__`"
+    # _precompile_()
+    # precompile(__init__, ()) || @warn "Banyan failed to precompile `__init__`"
 end
 
 end # module

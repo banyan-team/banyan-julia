@@ -1,4 +1,4 @@
-function read_julia_array_file(path, readrange, filerowrange, dim)
+function read_julia_array_file(path::String, readrange::UnitRange{Int64}, filerowrange::UnitRange{Int64}, dim::Int64)
     let arr = deserialize(path)
         dim_selector::Base.Vector{Union{UnitRange{Int64},Colon}} = Union{UnitRange{Int64},Colon}[]
         for i in 1:ndims(arr)
@@ -45,7 +45,7 @@ function ReadBlockHelperJuliaArray(
     files = []
     nrows = 0
     dim_partitioning = dim
-    dim = -1
+    dim::Int64 = -1
     for partfilename in readdir(name_path)
         if partfilename != "_metadata"
             if dim == -1
@@ -68,7 +68,7 @@ function ReadBlockHelperJuliaArray(
     # Iterate through files and identify which ones correspond to the range of
     # rows for the batch currently being processed by this worker
     metadata = nothing
-    nrows = if partitioned_on_dim
+    nrows::Int64 = if partitioned_on_dim
         nrows
     else
         metadata = deserialize(
@@ -98,7 +98,6 @@ function ReadBlockHelperJuliaArray(
             else
                 rowrange
             end
-            header = 1
             # TODO: Scale the memory usage appropriately when splitting with
             # this and garbage collect if too much memory is used.
             arr = read_julia_array_file(path, readrange, filerowrange, dim)
@@ -127,8 +126,8 @@ function ReadBlockHelperJuliaArray(
             )
         end
         sample_size = metadata["sample_size"]
-        actual_size = indexapply(_ -> nrows, sample_size; index=dim)
-        actual_part_size = indexapply(_ -> 0, actual_size; index=dim_partitioning)
+        actual_size = indexapply(nrows, sample_size, dim)
+        actual_part_size = indexapply(0, actual_size, dim_partitioning)
         eltype = metadata["eltype"]
         Base.Array{eltype}(undef, actual_part_size)
     elseif length(dfs) == 1
@@ -305,8 +304,14 @@ function WriteJuliaArrayHelper(
         for batch_i = 1:nbatches
             idx = Banyan.get_partition_idx(batch_i, nbatches, worker_idx)
             sortableidx = Banyan.sortablestring(idx, get_npartitions(nbatches, comm))
-            tmpdir_idx = findfirst(fn -> contains(fn, "part$sortableidx"), tmpdir)
-            if !isnothing(tmpdir_idx)
+            tmpdir_idx = -1
+            for i = 1:length(tmpdir)
+                if contains(tmpdir[i], "part$sortableidx")
+                    tmpdir_idx = i
+                    break
+                end
+            end
+            if tmpdir_idx != -1
                 tmpsrc = joinpath(path, tmpdir[tmpdir_idx])
                 actualdst = joinpath(actualpath, tmpdir[tmpdir_idx])
                 cp(tmpsrc, actualdst, force=true)
@@ -465,29 +470,21 @@ function SplitGroupArray(
     end
 
     # Apply divisions to get only the elements relevant to this worker
+    filterfunc = (
+        slice -> Banyan.get_partition_idx_from_divisions(
+            slice,
+            divisions_by_partition,
+            boundedlower,
+            boundedupper,
+        ) == partition_idx
+    )
     res = if ndims(src) > 1
         cat(
-            Iterators.filter(
-                slice -> Banyan.get_partition_idx_from_divisions(
-                    slice,
-                    divisions_by_partition,
-                    boundedlower,
-                    boundedupper,
-                ) == partition_idx,
-                eachslice(src, dims = key)
-            )...;
+            Iterators.filter(filterfunc)...;
             dims = key,
         )
     else
-        filter(
-            slice -> Banyan.get_partition_idx_from_divisions(
-                slice,
-                divisions_by_partition,
-                boundedlower,
-                boundedupper,
-            ) == partition_idx,
-            src
-        )
+        filter(filterfunc, src)
     end
 
     if store_splitting_divisions
@@ -622,10 +619,10 @@ function RebalanceArray(
     MPI.Alltoallv!(sendbuf, recvbuf, comm)
 
     # Return the concatenated array
-    displs_and_counts = Base.collect(Iterators.filter(
-        displ_and_count -> displ_and_count[2] > 0,
-        zip(recvbuf.displs, recvbuf.counts)
-    ))
+    displs_and_counts = filter(
+        is_displ_and_count_not_empty,
+        Base.collect(zip(recvbuf.displs, recvbuf.counts))
+    )
     if isempty(displs_and_counts)
         # This case means that all the workers have Empty data
         if worker_idx == 1
@@ -633,13 +630,13 @@ function RebalanceArray(
         end
         Any[]
     else
-        res = merge_on_executor(
-            map(
-                (displ, count) -> convert(Base.Array, de(view(recvbuf.data, displ+1:displ+count))),
-                displs_and_counts
-            ),
-            dim
-        )
+        displ, count = displs_and_counts[1]
+        to_merge = [convert(Base.Array, de(view(recvbuf.data, displ+1:displ+count))),]
+        for i = 2:length(displs_and_counts)
+            displ, count = displs_and_counts[i]
+            push!(to_merge, convert(Base.Array, de(view(recvbuf.data, displ+1:displ+count))))
+        end
+        res = merge_on_executor(to_merge, dim)
         res
     end
 end
@@ -673,10 +670,10 @@ function ConsolidateArray(
     # TODO: Maybe sometimes use gatherv if all sendbuf's are known to be equally sized
 
     MPI.Allgatherv!(sendbuf, recvvbuf, comm)
-    displs_and_counts = Base.collect(Iterators.filter(
-        displ_and_count -> displ_and_count[2] > 0,
-        zip(recvvbuf.displs, recvvbuf.counts)
-    ))
+    displs_and_counts = filter(
+        is_displ_and_count_not_empty,
+        Base.collect(zip(recvvbuf.displs, recvvbuf.counts))
+    )
     if isempty(displs_and_counts)
         # This case means that all the workers have Empty data
         if worker_idx == 1
@@ -684,21 +681,26 @@ function ConsolidateArray(
         end
         Any[]
     else
-        merge_on_executor(
-            map(
-                displ_and_count -> convert(
+        displ_and_count = displs_and_counts[1]
+        to_merge = [convert(Base.Array, de(view(recvvbuf.data, displ_and_count[1]+1:displ_and_count[1]+displ_and_count[2])))]
+        for i = 2:length(displs_and_counts)
+            displ_and_count = displs_and_counts[i]
+            push!(
+                to_merge,
+                convert(
                     Base.Array,
                     de(view(recvvbuf.data, displ_and_count[1]+1:displ_and_count[1]+displ_and_count[2]))
-                ),
-                displs_and_counts
-            ),
-            key
-        )
+                )
+            )
+        end
+        merge_on_executor(to_merge, key)
     end
 end
 
 ConsolidateArray(part::Union{AbstractArray,Empty}, src_params::Dict{String,Any}, dst_params::Dict{String,Any}, comm::MPI.Comm) =
     ConsolidateArray(part, src_params, dst_params, comm, src_params["key"]::Int64)
+
+is_displ_and_count_not_empty(displ_and_count) = displ_and_count[2] > 0
 
 function ShuffleArrayHelper(
     part::Union{AbstractArray,Empty},
@@ -751,7 +753,7 @@ function ShuffleArrayHelper(
 
         # Construct buffer for sending data
         io = IOBuffer()
-        nbyteswritten = 0
+        nbyteswritten::Int64 = 0
         a_counts::Base.Vector{Int64} = []
         for partition_idx = 1:nworkers
             if !(part isa Empty)
@@ -805,10 +807,7 @@ function ShuffleArrayHelper(
         MPI.Alltoallv!(sendbuf, recvbuf, comm)
 
         # Return the concatenated array
-        displs_and_counts = Base.collect(Iterators.filter(
-            displ_and_count -> displ_and_count[2] > 0,
-            zip(recvbuf.displs, recvbuf.counts)
-        ))
+        displs_and_counts = filter(is_displ_and_count_not_empty, Base.collect(zip(recvbuf.displs, recvbuf.counts)))
         if isempty(displs_and_counts)
             # This case means that all the workers have Empty data
             if worker_idx == 1
@@ -817,13 +816,11 @@ function ShuffleArrayHelper(
             Any[]
         else
             recvbuf_data = recvbuf.data
-            merge_on_executor(
-                map(
-                    displ_and_count -> de_array(displ_and_count, recvbuf_data),
-                    displs_and_counts
-                ),
-                src_key
-            )
+            to_merge = [de_array(displs_and_counts[1], recvbuf_data)]
+            for i = 2:length(displs_and_counts)
+                push!(to_merge, de_array(displs_and_counts[i], recvbuf_data))
+            end
+            merge_on_executor(to_merge, src_key)
         end
     end
 

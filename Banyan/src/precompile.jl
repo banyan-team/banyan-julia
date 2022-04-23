@@ -51,176 +51,53 @@ end
 
 function _precompile_()
     ccall(:jl_generating_output, Cint, ()) == 1 || return nothing
-    # Base.precompile(Tuple{Core.kwftype(typeof(start_session)),NamedTuple{(:cluster_name, :nworkers, :sample_rate, :print_logs, :url, :branch, :directory, :dev_paths, :release_resources_after, :force_pull, :force_sync, :force_install, :store_logs_on_cluster), Tuple{String, Int64, Int64, Bool, String, String, String, Vector{String}, Int64, Bool, Bool, Bool, Bool}},typeof(start_session)})   # time: 2.717487
-    # Base.precompile(Tuple{typeof(compute),Future})   # time: 1.4883087
-    precompile(compute, (Future,))
-    # Base.precompile(Tuple{typeof(partitioned_computation),Function,Future,Location,Location,Function})   # time: 0.1165763
-    precompile(partitioned_computation_concrete, (Function,Future,Location,Location,Function))
-    # Base.precompile(Tuple{Core.kwftype(typeof(Grouped)),NamedTuple{(:balanced, :filtered_from, :filtered_to, :scaled_by_same_as), Tuple{Bool, Nothing, Future, Nothing}},typeof(Grouped),Future})   # time: 0.06890887
-    # Base.precompile(Tuple{Core.kwftype(typeof(start_session)),Any,typeof(start_session)})   # time: 0.068669505
-    let fbody = try __lookup_kwbody__(which(pt, (Future,Vararg{Union{AbstractFuture, PartitionType, PartitionTypeComposition, Vector{PartitionType}}},))) catch missing end
+    Base.precompile(Tuple{Core.kwftype(typeof(start_session)),NamedTuple{(:cluster_name, :nworkers, :sample_rate, :print_logs, :url, :branch, :directory, :dev_paths, :release_resources_after, :force_pull, :force_sync, :force_install, :store_logs_on_cluster), Tuple{String, Int64, Int64, Bool, String, String, String, Vector{String}, Int64, Bool, Bool, Bool, Bool}},typeof(start_session)})   # time: 2.1705344
+    let fbody = try __lookup_kwbody__(which(pt, (Any,Vararg{Any},))) catch missing end
         if !ismissing(fbody)
-            precompile(fbody, (Future,String,Vector{Future},typeof(pt),Future,Vararg{Union{AbstractFuture, PartitionType, PartitionTypeComposition, Vector{PartitionType}}},))
+            precompile(fbody, (Union{Nothing, Future},Union{String, Vector{String}},Vector{Future},typeof(pt),Any,Vararg{Any},))
         end
-    end   # time: 0.04146457
-    Base.precompile(Tuple{Type{Session},String,String,String,Int64,Int64,Any,Any,Any})   # time: 0.02856741
-    # let fbody = try __lookup_kwbody__(which(get_cluster, (String,))) catch missing end
-    #     if !ismissing(fbody)
-    #         precompile(fbody, (Base.Pairs{Symbol, V, Tuple{Vararg{Symbol, N}}, NamedTuple{names, T}} where {V, N, names, T<:Tuple{Vararg{Any, N}}},typeof(get_cluster),String,))
-    #     end
-    # end   # time: 0.027583364
-    precompile(get_cluster_status, (String,))
-    # let fbody = try __lookup_kwbody__(which(get_clusters, (Any,))) catch missing end
-    #     if !ismissing(fbody)
-    #         precompile(fbody, (Base.Pairs{Symbol, V, Tuple{Vararg{Symbol, N}}, NamedTuple{names, T}} where {V, N, names, T<:Tuple{Vararg{Any, N}}},typeof(get_clusters),Any,))
-    #     end
-    # end   # time: 0.026738392
-    precompile(_get_clusters, (String,))
-    precompile(get_cluster, (String,))
-    # Base.precompile(Tuple{typeof(sqs_receive_message_with_long_polling),Dict{Symbol, Any}})   # time: 0.025069334
-    precompile(sqs_receive_message_with_long_polling, (Dict{Symbol,Any},))
-    # Base.precompile(Tuple{typeof(to_jl),RecordTaskRequest})   # time: 0.021836402
-    for Request in [RecordTaskRequest, RecordLocationRequest, DestroyRequest]
-        precompile(to_jl, (Request,))
-    end
-    # let fbody = try __lookup_kwbody__(which(get_cluster_status, (String,))) catch missing end
-    #     if !ismissing(fbody)
-    #         precompile(fbody, (Base.Pairs{Symbol, V, Tuple{Vararg{Symbol, N}}, NamedTuple{names, T}} where {V, N, names, T<:Tuple{Vararg{Any, N}}},typeof(get_cluster_status),String,))
-    #     end
-    # end   # time: 0.015606671
-    let fbody = try __lookup_kwbody__(which(Blocked, (Future,))) catch missing end
+    end   # time: 0.13578409
+    Base.precompile(Tuple{Core.kwftype(typeof(start_session)),Any,typeof(start_session)})   # time: 0.07899095
+    isdefined(Banyan, Symbol("#13#14")) && Base.precompile(Tuple{getfield(Banyan, Symbol("#13#14"))})   # time: 0.056121398
+    Base.precompile(Tuple{Type{Future},Base.Pairs{Symbol, Union{}, Tuple{}, NamedTuple{(), Tuple{}}}})   # time: 0.047179397
+    Base.precompile(Tuple{typeof(to_jl),RecordTaskRequest})   # time: 0.03714645
+    Base.precompile(Tuple{Type{Future},Function})   # time: 0.03367833
+    Base.precompile(Tuple{typeof(make_blocked_pts),Future,Vector{Int64},Vector{Bool},Vector{Future},Vector{Future},Vector{Future}})   # time: 0.02814891
+    Base.precompile(Tuple{typeof(orderinghash),String})   # time: 0.025676288
+    Base.precompile(Tuple{Core.kwftype(typeof(Type)),Any,Type{Session},String,String,String,Int64,Int64,String,String,Vector{String},Bool,Bool})   # time: 0.013642028
+    let fbody = try __lookup_kwbody__(which(partitioned_with, (Function,Vector{Future},))) catch missing end
         if !ismissing(fbody)
-            precompile(fbody, (Colon,Bool,Nothing,Future,Nothing,typeof(Blocked),Future,))
+            precompile(fbody, (Vector{Future},Bool,Vector{PartitioningConstraint},Vector{PartitioningConstraint},Vector{Future},Bool,Nothing,Nothing,Bool,Bool,Vector{String},DataType,typeof(partitioned_with),Function,Vector{Future},))
         end
-    end   # time: 0.01459359
-    # let fbody = try __lookup_kwbody__(which(wait_for_cluster, (String,))) catch missing end
-    #     if !ismissing(fbody)
-    #         precompile(fbody, (Base.Pairs{Symbol, V, Tuple{Vararg{Symbol, N}}, NamedTuple{names, T}} where {V, N, names, T<:Tuple{Vararg{Any, N}}},typeof(wait_for_cluster),String,))
-    #     end
-    # end   # time: 0.012923986
-    precompile(_wait_for_cluster, (String,))
-    # Base.precompile(Tuple{Type{Future},Base.Pairs{Symbol, Union{}, Tuple{}, NamedTuple{(), Tuple{}}}})   # time: 0.012588012
-    # let fbody = try __lookup_kwbody__(which(pt, (Future,Vararg{Union{AbstractFuture, PartitionType, PartitionTypeComposition, Vector{PartitionType}}},))) catch missing end
-    #     if !ismissing(fbody)
-    #         precompile(fbody, (Future,Vector{String},Vector{Future},typeof(pt),Future,Vararg{Union{AbstractFuture, PartitionType, PartitionTypeComposition, Vector{PartitionType}}},))
-    #     end
-    # end   # time: 0.011352393
-    # let fbody = try __lookup_kwbody__(which(pt, (Future,Vararg{Union{AbstractFuture, PartitionType, PartitionTypeComposition, Vector{PartitionType}}},))) catch missing end
-    #     if !ismissing(fbody)
-    #         precompile(fbody, (Nothing,Vector{String},Vector{Future},typeof(pt),Future,Vararg{Union{AbstractFuture, PartitionType, PartitionTypeComposition, Vector{PartitionType}}},))
-    #     end
-    # end   # time: 0.010971302
-    # Base.precompile(Tuple{Core.kwftype(typeof(Grouped)),NamedTuple{(:balanced, :filtered_from, :filtered_to, :scaled_by_same_as), Tuple{Bool, Future, Nothing, Nothing}},typeof(Grouped),Future})   # time: 0.008728958
-    Base.precompile(Tuple{Type{DelayedTask}})   # time: 0.008181804
-    Base.precompile(Tuple{Core.kwftype(typeof(partitioned_with)),NamedTuple{(:scaled,), Tuple{Future}},typeof(partitioned_with),Function})   # time: 0.007249045
-    Base.precompile(Tuple{Core.kwftype(typeof(run_with_retries)),NamedTuple{(:failure_message,), Tuple{String}},typeof(run_with_retries),Function,Dict{Symbol, Any},Vararg{Any}})   # time: 0.006951094
-    Base.precompile(Tuple{typeof(ExactSample),Function})   # time: 0.006702023
-    # Base.precompile(Tuple{Core.kwftype(typeof(configure_scheduling)),NamedTuple{(:name,), Tuple{String}},typeof(configure_scheduling)})   # time: 0.00666435
-    # let fbody = try __lookup_kwbody__(which(Grouped, (Future,))) catch missing end
-    #     if !ismissing(fbody)
-    #         precompile(fbody, (Vector{String},Bool,Nothing,Nothing,Future,Nothing,typeof(Grouped),Future,))
-    #     end
-    # end   # time: 0.004773759
-    # let fbody = try __lookup_kwbody__(which(Grouped, (Future,))) catch missing end
-    #     if !ismissing(fbody)
-    #         precompile(fbody, (Vector{String},Bool,Nothing,Future,Nothing,Nothing,typeof(Grouped),Future,))
-    #     end
-    # end   # time: 0.004074963
-    # Base.precompile(Tuple{typeof(RemoteSource),Function,Any,Bool,Bool,Bool,Bool,Bool})   # time: 0.004018768
-    # isdefined(Banyan, Symbol("#85#86")) && Base.precompile(Tuple{getfield(Banyan, Symbol("#85#86")),Future})   # time: 0.003776841
-    # Base.precompile(Tuple{Type{PartitionType},Union{PartitioningConstraint, Function, String, Pair{String}},Vararg{Union{PartitioningConstraint, Function, String, Pair{String}}}})   # time: 0.003769399
-    # isdefined(Banyan, Symbol("#89#90")) && Base.precompile(Tuple{getfield(Banyan, Symbol("#89#90")),Future})   # time: 0.003759113
-    # isdefined(Banyan, Symbol("#54#55")) && Base.precompile(Tuple{getfield(Banyan, Symbol("#54#55")),Pair{String, Any}})   # time: 0.003541598
-    # Base.precompile(Tuple{Type{Future},Any})   # time: 0.002759026
-    # Base.precompile(Tuple{typeof(setsample!),Future,Symbol})   # time: 0.002529208
-    # Base.precompile(Tuple{Core.kwftype(typeof(Type)),NamedTuple{(:datatype,), Tuple{String}},Type{Future}})   # time: 0.002243466
-    # Base.precompile(Tuple{typeof(setsample!),Future,Base.Pairs{Symbol, Union{}, Tuple{}, NamedTuple{(), Tuple{}}}})   # time: 0.002113298
-    # Base.precompile(Tuple{typeof(setsample!),Future,Function})   # time: 0.001720393
-    # Base.precompile(Tuple{Core.kwftype(typeof(Scale)),NamedTuple{(:by,), Tuple{Float64}},typeof(Scale),Future})   # time: 0.001678438
-    # isdefined(Banyan, Symbol("#131#132")) && Base.precompile(Tuple{getfield(Banyan, Symbol("#131#132")),Downloads.Curl.Easy,NamedTuple{(:url, :method, :headers), Tuple{String, String, Vector{Pair{String, String}}}}})   # time: 0.001537199
-    # let fbody = try __lookup_kwbody__(which(get_cluster_s3_bucket_arn, (Any,))) catch missing end
-    #     if !ismissing(fbody)
-    #         precompile(fbody, (Base.Pairs{Symbol, V, Tuple{Vararg{Symbol, N}}, NamedTuple{names, T}} where {V, N, names, T<:Tuple{Vararg{Any, N}}},typeof(get_cluster_s3_bucket_arn),Any,))
-    #     end
-    # end   # time: 0.001492919
-    # Base.precompile(Tuple{typeof(get_remote_source_cached),Any,Any,Any,Any,Any})   # time: 0.001470609
-    precompile(get_remote_source_cached, (Any,Any,Any,Any,Any))
-    # isdefined(Banyan, Symbol("#131#132")) && Base.precompile(Tuple{getfield(Banyan, Symbol("#131#132")),Downloads.Curl.Easy,NamedTuple{(:url, :method, :headers), Tuple{String, Nothing, Vector{Pair{String, String}}}}})   # time: 0.001462179
-    # isdefined(Banyan, Symbol("#45#46")) && Base.precompile(Tuple{getfield(Banyan, Symbol("#45#46")),Any})   # time: 0.001335263
-    # Base.precompile(Tuple{Type{Sample},Any,Int64})   # time: 0.001243521
-    # Base.precompile(Tuple{typeof(setsample!),Future,Int64})   # time: 0.001141056
-    # Base.precompile(Tuple{typeof(Value),Any})   # time: 0.00111847
-    # let fbody = try __lookup_kwbody__(which(Blocked, (Future,))) catch missing end
-    #     if !ismissing(fbody)
-    #         precompile(fbody, (Colon,Bool,Future,Nothing,Nothing,typeof(Blocked),Future,))
-    #     end
-    # end   # time: 0.001071065
-
-    # New precompile statements
-
-    ccall(:jl_generating_output, Cint, ()) == 1 || return nothing
-    Base.precompile(Tuple{Core.kwftype(typeof(start_session)),NamedTuple{(:cluster_name, :nworkers, :sample_rate, :print_logs, :url, :branch, :directory, :dev_paths, :release_resources_after, :force_pull, :force_sync, :force_install, :store_logs_on_cluster), Tuple{String, Int64, Int64, Bool, String, String, String, Vector{String}, Int64, Bool, Bool, Bool, Bool}},typeof(start_session)})   # time: 2.5331068
-    Base.precompile(Tuple{typeof(compute),Future})   # time: 0.9542997
-    let fbody = try __lookup_kwbody__(which(pt, (Union{AbstractFuture, PartitionType, PartitionTypeComposition, Vector{PartitionType}},Vararg{Union{AbstractFuture, PartitionType, PartitionTypeComposition, Vector{PartitionType}}},))) catch missing end
+    end   # time: 0.013607993
+    Base.precompile(Tuple{typeof(partitioned_computation_concrete),Function,Future,Location,Location,Function})   # time: 0.008437464
+    Base.precompile(Tuple{typeof(pt_for_replicated),Vector{Future}})   # time: 0.008295843
+    Base.precompile(Tuple{Core.kwftype(typeof(configure_scheduling)),NamedTuple{(:name,), Tuple{String}},typeof(configure_scheduling)})   # time: 0.005944979
+    Base.precompile(Tuple{Type{PartitionType},Union{PartitioningConstraint, Function, String, Pair{String}},Union{PartitioningConstraint, Function, String, Pair{String}}})   # time: 0.005579519
+    Base.precompile(Tuple{Type{PartitionType},Union{PartitioningConstraint, Function, String, Pair{String}}})   # time: 0.00484481
+    Base.precompile(Tuple{typeof(RemoteSource),Function,Any,Bool,Bool,Bool,Bool,Bool})   # time: 0.004186021
+    isdefined(Banyan, Symbol("#76#77")) && Base.precompile(Tuple{getfield(Banyan, Symbol("#76#77")),Future})   # time: 0.00397727
+    let fbody = try __lookup_kwbody__(which(partitioned_with, (Function,Vector{Future},))) catch missing end
         if !ismissing(fbody)
-            precompile(fbody, (Union{Nothing, AbstractFuture},Union{String, Vector{String}},Vector{<:AbstractFuture},typeof(pt),Union{AbstractFuture, PartitionType, PartitionTypeComposition, Vector{PartitionType}},Vararg{Union{AbstractFuture, PartitionType, PartitionTypeComposition, Vector{PartitionType}}},))
+            precompile(fbody, (Vector{Future},Bool,Vector{PartitioningConstraint},Vector{PartitioningConstraint},Vector{Future},Bool,Vector{String},Nothing,Bool,Bool,Vector{String},DataType,typeof(partitioned_with),Function,Vector{Future},))
         end
-    end   # time: 0.31887534
-    Base.precompile(Tuple{Type{Sample},Any,Int64})   # time: 0.2173959
-    # Base.precompile(Tuple{typeof(partitioned_computation),Function,Future,Location,Location,Function})   # time: 0.12135102
-    let fbody = try __lookup_kwbody__(which(partitioned_with, (Function,))) catch missing end
-        if !ismissing(fbody)
-            precompile(fbody, (Vector{Future},Bool,Vector{PartitioningConstraint},Vector{PartitioningConstraint},Vector{Future},Bool,Nothing,Nothing,Bool,Bool,String,DataType,typeof(partitioned_with),Function,))
-        end
-    end   # time: 0.119159184
-    Base.precompile(Tuple{Core.kwftype(typeof(start_session)),Any,typeof(start_session)})   # time: 0.07294108
-    isdefined(Banyan, Symbol("#12#13")) && Base.precompile(Tuple{getfield(Banyan, Symbol("#12#13"))})   # time: 0.05842767
-    Base.precompile(Tuple{typeof(load_toml),String})   # time: 0.05007964
-    Base.precompile(Tuple{Type{Future},Base.Pairs{Symbol, Union{}, Tuple{}, NamedTuple{(), Tuple{}}}})   # time: 0.046877228
-    Base.precompile(Tuple{Type{Future},Function})   # time: 0.027417323
-    Base.precompile(Tuple{Core.kwftype(typeof(Blocked)),NamedTuple{(:balanced, :filtered_from, :filtered_to, :scaled_by_same_as), _A} where _A<:Tuple{Bool, Union{Nothing, Future}, Union{Nothing, Future}, Nothing},typeof(Blocked),Future})   # time: 0.019588284
-    Base.precompile(Tuple{typeof(to_jl_value),Vector{Tuple{Vector{UInt8}, Vector{UInt8}}}})   # time: 0.017036038
-    Base.precompile(Tuple{typeof(sample_for_grouping),Future,Vector{String}})   # time: 0.013155817
-    Base.precompile(Tuple{typeof(to_jl_value),Vector})   # time: 0.010911949
-    Base.precompile(Tuple{Type{Future},Symbol})   # time: 0.007323756
-    Base.precompile(Tuple{typeof(apply_partitioned_using_func),PartitionedUsingFunc{Int64}})   # time: 0.005683017
-    Base.precompile(Tuple{Type{PartitionType},Union{PartitioningConstraint, Function, String, Pair{String}},Union{PartitioningConstraint, Function, String, Pair{String}}})   # time: 0.005610858
-    Base.precompile(Tuple{Core.kwftype(typeof(configure_scheduling)),NamedTuple{(:name,), Tuple{String}},typeof(configure_scheduling)})   # time: 0.005372673
-    Base.precompile(Tuple{typeof(apply_partitioned_using_func),PartitionedUsingFunc{String}})   # time: 0.00530907
-    Base.precompile(Tuple{Core.kwftype(typeof(partitioned_with)),NamedTuple{(:scaled,), Tuple{Future}},typeof(partitioned_with),Function})   # time: 0.005217431
-    Base.precompile(Tuple{Type{PartitionType},Union{PartitioningConstraint, Function, String, Pair{String}}})   # time: 0.004976139
-    Base.precompile(Tuple{typeof(RemoteSource),Function,Any,Bool,Bool,Bool,Bool,Bool})   # time: 0.003924375
-    Base.precompile(Tuple{Type{PartitionType},Union{PartitioningConstraint, Function, String, Pair{String}},Vararg{Union{PartitioningConstraint, Function, String, Pair{String}}}})   # time: 0.003795865
-    Base.precompile(Tuple{Core.kwftype(typeof(Blocked)),NamedTuple{(:balanced, :filtered_from, :filtered_to, :scaled_by_same_as), Tuple{Bool, Future, Nothing, Nothing}},typeof(Blocked),Future})   # time: 0.003686234
-    let fbody = try __lookup_kwbody__(which(partitioned_with, (Function,))) catch missing end
-        if !ismissing(fbody)
-            precompile(fbody, (Vector{Future},Bool,Vector{PartitioningConstraint},Vector{PartitioningConstraint},Vector{Future},Bool,Vector{String},Nothing,Bool,Bool,String,DataType,typeof(partitioned_with),Function,))
-        end
-    end   # time: 0.003673407
-    isdefined(Banyan, Symbol("#77#78")) && Base.precompile(Tuple{getfield(Banyan, Symbol("#77#78")),Future})   # time: 0.003634369
-    Base.precompile(Tuple{Core.kwftype(typeof(Blocked)),NamedTuple{(:balanced, :filtered_from, :filtered_to, :scaled_by_same_as), Tuple{Bool, Nothing, Future, Nothing}},typeof(Blocked),Future})   # time: 0.003485579
-    Base.precompile(Tuple{Type{DelayedTask}})   # time: 0.003402792
-    Base.precompile(Tuple{typeof(_partitioned_with),Function,Vector{Future},Bool,Vector{PartitioningConstraint},Vector{PartitioningConstraint},Vector{Future},Bool,Vector{String},Vector{Tuple{Future, Vector{String}}},Bool,Bool,Vector{String}})   # time: 0.003231375
-    isdefined(Banyan, Symbol("#73#74")) && Base.precompile(Tuple{getfield(Banyan, Symbol("#73#74")),Future})   # time: 0.003163366
-    Base.precompile(Tuple{typeof(noscale),Future})   # time: 0.002822761
-    Base.precompile(Tuple{Core.kwftype(typeof(Type)),NamedTuple{(:datatype,), Tuple{String}},Type{Future}})   # time: 0.002799369
-    Base.precompile(Tuple{typeof(GroupedBy),String,Bool})   # time: 0.002383662
-    Base.precompile(Tuple{typeof(setsample!),Future,Function})   # time: 0.001718602
-    Base.precompile(Tuple{typeof(setsample!),Future,Base.Pairs{Symbol, Union{}, Tuple{}, NamedTuple{(), Tuple{}}}})   # time: 0.001511772
-    Base.precompile(Tuple{typeof(setsample!),Future,Symbol})   # time: 0.001438182
-    Base.precompile(Tuple{typeof(setsample!),Future,Int64})   # time: 0.001398406
-    let fbody = try __lookup_kwbody__(which(partitioned_with, (Function,))) catch missing end
-        if !ismissing(fbody)
-            precompile(fbody, (Future,Bool,Vector{PartitioningConstraint},Vector{PartitioningConstraint},Vector{Future},Bool,Nothing,Nothing,Bool,Bool,Vector{String},DataType,typeof(partitioned_with),Function,))
-        end
-    end   # time: 0.001386771
-    isdefined(Banyan, Symbol("#109#110")) && Base.precompile(Tuple{getfield(Banyan, Symbol("#109#110")),Downloads.Curl.Easy,NamedTuple{(:url, :method, :headers), Tuple{String, String, Vector{Pair{String, String}}}}})   # time: 0.001313547
+    end   # time: 0.003753834
+    Base.precompile(Tuple{Type{PartitionType},Union{PartitioningConstraint, Function, String, Pair{String}},Vararg{Union{PartitioningConstraint, Function, String, Pair{String}}}})   # time: 0.00370984
+    Base.precompile(Tuple{Type{DelayedTask}})   # time: 0.003556886
+    Base.precompile(Tuple{Core.kwftype(typeof(Type)),NamedTuple{(:datatype,), Tuple{String}},Type{Future}})   # time: 0.003504575
+    Base.precompile(Tuple{typeof(merge_pts!),PartitionType,PartitionType,Vector{PartitionType}})   # time: 0.003056493
+    Base.precompile(Tuple{typeof(get_key_for_sample_computation_cache),SampleComputationCache,UInt64})   # time: 0.002846733
+    Base.precompile(Tuple{typeof(get_remote_source_cached),Any,Any,Any,Any,Any})   # time: 0.001446164
+    Base.precompile(Tuple{Type{Sample},Any,Int64})   # time: 0.001376823
     let fbody = try __lookup_kwbody__(which(get_cluster, (String,))) catch missing end
         if !ismissing(fbody)
             precompile(fbody, (Base.Pairs{Symbol, V, Tuple{Vararg{Symbol, N}}, NamedTuple{names, T}} where {V, N, names, T<:Tuple{Vararg{Any, N}}},typeof(get_cluster),String,))
         end
-    end   # time: 0.001132337
-    Base.precompile(Tuple{typeof(get_remote_source_cached),Any,Any,Any,Any,Any})   # time: 0.001114128
+    end   # time: 0.001287449
+    Base.precompile(Tuple{typeof(_get_factor),Float64,Tuple{Nothing, Int64},Tuple{Nothing, Int64}})   # time: 0.001243914
+    for SV in [Int64, String, Function, Symbol, Base.Pairs{Symbol, Union{}, Tuple{}, NamedTuple{(), Tuple{}}}]
+        Base.precompile(Tuple{typeof(setsample!),Future,SV})   # time: 0.001174972
+    end
 
     # Additional precompile statements
 
@@ -283,6 +160,9 @@ function _precompile_()
                 Vector{String}
             )
         )
+        Base.precompile(Tuple{typeof(GroupedBy),K,Bool})   # time: 0.001962668
+        Base.precompile(Tuple{typeof(make_grouped_pt),Future,K,Vector{Future}})   # time: 0.002876798
+        Base.precompile(Tuple{typeof(_partitioned_with),Function,Vector{Future},Vector{Future},Bool,Vector{PartitioningConstraint},Vector{PartitioningConstraint},Vector{Future},Bool,Vector{K},Vector{Tuple{Future, Vector{K}}},Bool,Bool,Vector{String}})   # time: 0.00298401
     end
     precompile(apply_partitioned_using_func_for_sample_rates, (Vector{Future}, Bool, Vector{Future}))
     precompile(
@@ -298,6 +178,7 @@ function _precompile_()
     precompile(pt_partition_type, (PartitionType, Vector{Future}, Vector{Future}, Vector{String}, Vector{Future}))
     precompile(pt_partition_type, (PartitionTypeComposition, Vector{Future}, Vector{Future}, Vector{String}, Vector{Future}))
     precompile(pt_partition_type, (Base.Vector{PartitionType}, Vector{Future}, Vector{Future}, Vector{String}, Vector{Future}))
+    precompile(pt_for_replicated, (Vector{Future},))
     precompile(apply_mutation, (Future, Future))
     precompile(get_splatted_futures, (Vector{Union{Future,Vector{Future}}},))
     precompile(reassign_futures, (Vector{Union{Future,Vector{Future}}}, Vector{Union{Any,Vector{Any}}}))
@@ -329,9 +210,14 @@ function _precompile_()
 
     # utils_pfs.jl
     precompile(getpath, (String, MPI.Comm))
-    for OH in [Vector{UInt8}, Vector{Int64}]
+    OHTypes = [Base.Vector{UInt8}, Base.Vector{Int64}, Base.Vector{Float64}, Base.Vector{Dates.DateTime}]
+    for OH in OHTypes
         precompile(get_divisions, (Vector{Tuple{OH, OH}}, Int64))
         precompile(get_oh_partition_idx_from_divisions, (OH, Vector{Vector{Tuple{OH,OH}}}, Bool, Bool))
+        precompile(get_all_divisions, (Base.Vector{OH}, Int64))
+        Base.precompile(Tuple{typeof(_minimum),Vector{OH}})   # time: 0.003270399
+        Base.precompile(Tuple{typeof(_maximum),Vector{OH}})
+        Base.precompile(Tuple{typeof(get_all_divisions),Vector{OHT},Int64})   # time: 0.005706646
     end
 
     # sessions.jl
@@ -397,6 +283,7 @@ function _precompile_()
     end
     for K in [String, Int64]
         precompile(sample_for_grouping, (Future, Vector{K}))
+        precompile(make_grouped_pt, (Future, K, Vector{Future}))
     end
 
     # utils.jl, utils_s3fs.jl

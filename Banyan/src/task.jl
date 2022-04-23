@@ -9,6 +9,7 @@ mutable struct DelayedTask
     # Fields for use in task yet to be processed in a call to `compute`
     partitioned_using_func::PartitionedUsingFunc
     partitioned_with_func::Function
+    futures::Vector{Future}
     mutation::IdDict{Future,Future} # This gets converted to `effects`
     # Fields for estimating memory usage
     inputs::Vector{Future}

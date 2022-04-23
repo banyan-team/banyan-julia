@@ -12,6 +12,23 @@ Banyan.sample(df::DataFrame)::DataFrames.DataFrame = sample(df.data)
 
 const DFSampleForGrouping = SampleForGrouping{DataFrames.DataFrame,String}
 
+function _sample_df_for_grouping(df::Future, cols::Future)::DFSampleForGrouping
+    df_sample::DataFrames.DataFrame = sample(df)
+    groupingkeys::Base.Vector{String} = names(df_sample, sample(cols))
+    df_sample_for_grouping::DFSampleForGrouping = DFSampleForGrouping(df, df_sample, groupingkeys, Int64[1])
+    df_sample_for_grouping
+end
+
+function _get_groupingkeys(on)::Base.Vector{String}
+    groupingkeys = on isa Base.AbstractVector ? on[1] : [on]
+    groupingkeys = if groupingkeys isa Pair
+        Base.collect(groupingkeys)
+    else
+        Base.fill(groupingkeys, length(dfs))
+    end
+    map(string, groupingkeys)
+end
+
 # DataFrame creation
 
 # function read_csv(pathname)
@@ -60,214 +77,8 @@ const DFSampleForGrouping = SampleForGrouping{DataFrames.DataFrame,String}
 
 Banyan.sample_axes(df::DataFrames.DataFrame) = Int64[1]
 Banyan.sample_keys(df::DataFrames.DataFrame)::Base.Vector{String} = names(df)
+Banyan.sample_by_key(df::DataFrames.DataFrame, key::String) = df[!, key]
 
-# @memoize LRU{Tuple{DataFrames.DataFrame,String},Any}(maxsize=16) 
-function orderinghashes(df::DataFrames.DataFrame, key::String)
-    # @show df
-    # @show df[!, key]
-    # @show typeof(df[!, key])
-    # @show key
-    # println("Time for orderinghash(df[!, key][1])")
-    # @time orderinghash(df[!, key][1])
-    cache = get_sample_computation_cache()
-    cache_key = hash((:orderinghashes, objectid(df), key))
-    in_cache = get_key_for_sample_computation_cache(cache, cache_key)
-    if in_cache != 0
-        return cache.computation[in_cache]
-    end
-    @time begin
-    data = df[!, key]
-    println("Time for df[!, key] in orderinghashes")
-    end
-    @time begin
-    res = map(orderinghash, data)
-    println("Time for map(orderinghash, data) in orderinghashes")
-    end
-    cache.computation[cache_key] = res
-    res
-end
-
-# @memoize LRU{Tuple{DataFrames.DataFrame,String},Int64}(maxsize=16) 
-function Banyan.sample_max_ngroups(df::DataFrames.DataFrame, key::String)::Int64
-    df_nrow = nrow(df)
-    if df_nrow == 0
-        0
-    else
-        # nrow_by_group = DataFrames.combine(DataFrames.groupby(df, key), DataFrames.nrow).nrow
-        # max_nrow_group = maximum(nrow_by_group)
-        @time begin
-        data = df[!, key]
-        println("Time to df[!, key]")
-        end
-        println("Time for counter(")
-        @time data_counter = counter(data)
-        println("Time for maximum(values(data_counter))")
-        @time max_nrow_group = maximum(values(data_counter))
-        div(df_nrow, max_nrow_group)
-    end
-end
-
-function get_all_divisions(data::Base.Vector{OHT}, ngroups)::Base.Vector{Tuple{OHT,OHT}} where {OHT}
-    datalength = length(data)
-    grouplength = div(datalength, ngroups)
-    # We use `unique` here because if the divisions have duplicates, this could
-    # result in different partitions getting the same divisions. The usage of
-    # `unique` here is more of a safety precaution. The # of divisions we use
-    # is the maximum # of groups.
-    # TODO: Ensure that `unique` doesn't change the order
-    @time begin
-    all_divisions::Base.Vector{Tuple{OHT,OHT}} = Tuple{OHT,OHT}[]
-    used_index_pairs::Base.Vector{Tuple{Int64,Int64}} = Tuple{Int64,Int64}[]
-    for i = 1:ngroups
-        startindex = (i-1)*grouplength + 1
-        endindex = i == ngroups ? datalength : i*grouplength + 1
-        index_pair = (startindex, endindex)
-        if !(index_pair in used_index_pairs)
-            push!(
-                all_divisions,
-                # Each group has elements that are >= start and < end
-                (
-                    data[startindex],
-                    data[endindex]
-                )
-            )
-            push!(used_index_pairs, index_pair)
-        end
-    end
-    println("Time to get all_divisions")
-    end
-    all_divisions
-end
-
-# @memoize LRU{Tuple{DataFrames.DataFrame,String},Any}(maxsize=16) 
-function Banyan.sample_divisions(df::DataFrames.DataFrame, key::String)
-    cache = get_sample_computation_cache()
-    cache_key = hash((:sample_divisions, objectid(df), key))
-    in_cache = get_key_for_sample_computation_cache(cache, cache_key)
-    if in_cache != 0
-        return cache.computation[in_cache]
-    end
-
-    # There are no divisions for empty data
-    if isempty(df)
-        return Any[]
-    end
-
-    @time begin
-    max_ngroups = sample_max_ngroups(df, key)
-    println("Time to call sample_max_ngroups from sample_divisions with nrow(df)=$(nrow(df))")
-    end
-    ngroups = min(max_ngroups, 512)
-    @time begin
-    data_unsorted = orderinghashes(df, key)
-    println("Time to call orderinghashes from sample_divisions")
-    end
-    println("Time to sort")
-    data = @time sort(data_unsorted, lt=(<=))
-    all_divisions = get_all_divisions(data, ngroups)
-    # @time begin
-    # res = unique(all_divisions)
-    # println("Time to get unique(all_divisions)")
-    # end
-    cache.computation[cache_key] = all_divisions
-    all_divisions
-end
-
-# @memoize LRU{Tuple{DataFrames.DataFrame,String,Any,Any},Float64}(maxsize=16) 
-function Banyan.sample_percentile(df::DataFrames.DataFrame, key::String, minvalue, maxvalue)::Float64
-    # cache = get_sample_computation_cache().floats
-    # cache_key = hash((:sample_percentile, objectid(df), key, objectid(minvalue), objectid(maxvalue)))
-    # if haskey(cache, cache_key)
-    #     return cache[cache_key]
-    # end
-
-    # If the data frame is empty, nothing between `minvalue` and `maxvalue` can
-    # exist in `df`. so the percentile is 0.
-    if isempty(df) || isnothing(minvalue) || isnothing(maxvalue)
-        return 0.0
-    end
-
-    # NOTE: This may cause some problems because the way that data is ultimately split may
-    # not allow a really fine division of groups. So in the case of some filtering, the rate
-    # of filtering may be 90% but if there are only like 3 groups then maybe it ends up being like
-    # 50% and that doesn't get scheduled properly. We can try to catch stuff like maybe by using
-    # only 70% of total memory in scheduling or more pointedly by changing this function to
-    # call sample_divisions with a reasonable number of divisions and then counting how many
-    # divisions the range actually belongs to.
-
-    c::Int64 = 0
-    num_rows::Int64 = 0
-    @time begin
-    ohs = orderinghashes(df, key)
-    println("Time to call orderinghashes")
-    end
-    @time begin
-    for oh in ohs
-        if minvalue <= oh && oh <= maxvalue
-            c += 1
-        end
-        num_rows += 1
-    end
-    println("Time to compare ordering hashes")
-    end
-    c / num_rows
-
-    # # minvalue and maxvalue should already be order-preserved hashes
-    # # minvalue, maxvalue = orderinghash(minvalue), orderinghash(maxvalue)
-    # divisions = sample_divisions(A, key)
-    # percentile = 0
-    # divpercentile = 1/length(divisions)
-    # inminmax = false
-
-    # # Iterate through divisions to compute percentile
-    # for (i, (divminvalue, divmaxvalue)) in enumerate(divisions)
-    #     # Check if we are between the minvalue and maxvalue
-    #     if (i == 1 || minvalue >= divminvalue) && (i == length(divisions) || minvalue < divmaxvalue)
-    #         inminmax = true
-    #     end
-
-    #     # Add to percentile
-    #     if inminmax
-    #         percentile += divpercentile
-    #     end
-
-    #     # Check if we are no longer between the minvalue and maxvalue
-    #     if (i == 1 || maxvalue >= divminvalue) && (i == length(divisions) || maxvalue < divmaxvalue)
-    #         inminmax = false
-    #     end
-    # end
-
-    # percentile
-end
-
-# @memoize LRU{Tuple{DataFrames.DataFrame,String},Any}(maxsize=16)
-function sample_min_max(df::DataFrames.DataFrame, key::String)
-    # cache = get_sample_computation_cache().anys
-    # cache_key = hash((:sample_min_max, objectid(df), key))
-    # if haskey(cache, cache_key)
-    #     return cache[cache_key]
-    # end
-    if isempty(df)
-        nothing
-    else
-        @time begin
-        ohs = orderinghashes(df, key)
-        println("Time for calling orderinghashes in sample_min_max")
-        end
-        oh_min = ohs[1]
-        oh_max = oh_min
-        @time begin
-        for oh in ohs
-            oh_min = oh <= oh_min ? oh : oh_min
-            oh_max = oh_max <= oh ? oh : oh_max
-        end
-        println("Time for comparing in sample_min_max")
-        end
-        oh_min, oh_max
-    end
-end
-Banyan.sample_min(df::DataFrames.DataFrame, key::String) = sample_min_max(df, key)[1]
-Banyan.sample_max(df::DataFrames.DataFrame, key::String) = sample_min_max(df, key)[2]
 
 # DataFrame properties
 
@@ -278,9 +89,8 @@ Base.ndims(df::DataFrame) = 2
 Base.names(df::DataFrame, args...) = names(sample(df), args...)
 Base.propertynames(df::DataFrame) = propertynames(sample(df)::DataFrames.DataFrame)
 
-@nospecialize
-
 function read_table(path::String; kwargs...)
+    @nospecialize
     # df_loc = offloaded(path, kwargs) do path, kw
     #     # @show @isdefined RemoteTableSource
     #     RemoteTableSource(path; kw...)
@@ -294,7 +104,10 @@ end
 
 # TODO: For writing functions, if a file is specified, enforce Replicated
 
+pts_for_partitioned(futures::Base.Vector{Future}) = pt(futures[1], Partitioned(futures[1]))
+
 function write_table(df::DataFrame, path; invalidate_source=true, invalidate_sample=true, kwargs...)
+    @nospecialize
     # destined(df, Remote(path, delete_from_cache=true))
     # mutated(df)
     # partitioned_with() do
@@ -305,18 +118,15 @@ function write_table(df::DataFrame, path; invalidate_source=true, invalidate_sam
     # sourced(df, Remote(path)) # Allow data to be read from this path if needed in the future
     # destined(df, None())
     partitioned_computation(
+        pts_for_partitioned,
         df,
         destination=RemoteTableDestination(path; invalidate_source=invalidate_source, invalidate_sample=invalidate_sample, kwargs...),
         new_source=_->RemoteTableSource(path)
-    ) do f::Future
-        pt(df, Partitioned(df))
-    end
+    )
 end
 
 function Banyan.compute_inplace(df::DataFrame)
-    partitioned_computation(df, destination=Disk()) do f::Future
-        pt(f, Partitioned(f))
-    end
+    partitioned_computation(pts_for_partitioned, df, destination=Disk())
 end
 
 # DataFrame filtering
@@ -560,12 +370,15 @@ pts_for_filtering(init::AbstractFuture, final::AbstractFuture, groupingkeys::Bas
 #     end
 # end
 
+function pts_for_dropmissing(futures::Base.Vector{Future})
+    df, res, res_nrows, args, kwargs = futures
+    pts_for_filtering(df, res)
+    pt(res_nrows, Reducing(+))
+    pt(df, res, res_nrows, args, kwargs, Replicated())
+end
+
 function _dropmissing(df::Future, res_nrows::Future, res::Future, args::Future, kwargs::Future)
-    partitioned_with(scaled=[df, res], keep_same_keys=true, drifted=true, modules=["DataFrames"], keytype=String) do
-        pts_for_filtering(df, res)
-        pt(res_nrows, Reducing(+))
-        pt(df, res, res_nrows, args, kwargs, Replicated())
-    end
+    partitioned_with(pts_for_dropmissing, [df, res, res_nrows, args, kwargs], scaled=[df, res], keep_same_keys=true, drifted=true, modules=["DataFrames"], keytype=String)
 
     # partition(res, Partitioned(balanced=false, id="*"), match=df, on=["distribution", "key", "divisions"])
     # partition(res_nrows, Reducing(reducer=+))
@@ -579,6 +392,7 @@ function _dropmissing(df::Future, res_nrows::Future, res::Future, args::Future, 
 end
 
 function DataFrames.dropmissing(df::DataFrame, args...; kwargs...)::DataFrame
+    @nospecialize
     !get(kwargs, :view, false)::Bool || throw(ArgumentError("Cannot return view of filtered dataframe"))
 
     res_nrows = Future()
@@ -605,25 +419,28 @@ function DataFrames.dropmissing(df::DataFrame, args...; kwargs...)::DataFrame
     _dropmissing(df.data, res_nrows, res, args, kwargs)
 end
 
+function pts_for_filter(futures)
+    df, f, res_nrows, res, kwargs = futures
+    @time begin
+    @time begin
+    pts_for_filtering(df, res)
+    println("Time for assigning with `pts_for_filtering` in `filter`:")
+    end
+    @time begin
+    pt(res_nrows, Reducing(+))
+    println("Time for assigning with `pt` in `filter`:")
+    end
+    @time begin
+    pt(df, res, res_nrows, f, kwargs, Replicated())
+    println("Time for assigning Replicated PT with `pt` in `filter`:")
+    end
+    println("Total time for assigning PTs: in `filter`")
+    end
+end
+
 function _filter(df::Future, f::Future, res_nrows::Future, res::Future, kwargs::Future)
     @time begin
-    partitioned_with(scaled=[df, res], keep_same_keys=true, drifted=true, modules=["DataFrames"], keytype=String) do
-        @time begin
-        @time begin
-        pts_for_filtering(df, res)
-        println("Time for assigning with `pts_for_filtering` in `filter`:")
-        end
-        @time begin
-        pt(res_nrows, Reducing(+))
-        println("Time for assigning with `pt` in `filter`:")
-        end
-        @time begin
-        pt(df, res, res_nrows, f, kwargs, Replicated())
-        println("Time for assigning Replicated PT with `pt` in `filter`:")
-        end
-        println("Total time for assigning PTs: in `filter`")
-        end
-    end
+    partitioned_with(pts_for_filter, Future[df, f, res_nrows, res, kwargs], scaled=[df, res], keep_same_keys=true, drifted=true, modules=["DataFrames"], keytype=String)
     println("Time for `partitioned_with` in `filter`:")
     end
 
@@ -642,6 +459,7 @@ function _filter(df::Future, f::Future, res_nrows::Future, res::Future, kwargs::
 end
 
 function Base.filter(f, df::DataFrame; kwargs...)
+    @nospecialize
     !get(kwargs, :view, false)::Bool || throw(ArgumentError("Cannot return view of filtered dataframe"))
 
     @time begin
@@ -668,23 +486,26 @@ end
 
 # DataFrame element-wise
 
+function pts_for_copy_df(futures::Base.Vector{Future})
+    df, res = futures
+    df_sample_for_grouping::DFSampleForGrouping = sample_for_grouping(df, String)
+    pt(df, Distributed(df_sample_for_grouping, scaled_by_same_as=res))
+    pt(res, ScaledBySame(df), match=df)
+
+    # pt(df, Distributed(df, balanced=true))
+    # pt(res, Balanced(), match=df)
+
+    # pt(df, Distributed(df, balanced=false, scaled_by_same_as=res))
+    # pt(res, Unbalanced(df), match=df)
+    
+    pt(df, res, Replicated())
+end
+
 function Missings.allowmissing(df::DataFrame)::DataFrame
     res_nrows = copy(df.nrows)
     res = Future(datatype="DataFrame")
 
-    partitioned_with(scaled=[df.data, res], keep_same_keys=true, modules=["DataFrames"], keytype=String) do
-        df_sample_for_grouping::DFSampleForGrouping = sample_for_grouping(df, String)
-        pt(df, Distributed(df_sample_for_grouping, scaled_by_same_as=res))
-        pt(res, ScaledBySame(df), match=df)
-
-        # pt(df, Distributed(df, balanced=true))
-        # pt(res, Balanced(), match=df)
-
-        # pt(df, Distributed(df, balanced=false, scaled_by_same_as=res))
-        # pt(res, Unbalanced(df), match=df)
-        
-        pt(df, res, Replicated())
-    end
+    partitioned_with(pts_for_copy_df, [df.data, res], scaled=[df.data, res], keep_same_keys=true, modules=["DataFrames"], keytype=String)
 
     @partitioned df res begin res = DataFrames.allowmissing(df) end
 
@@ -695,19 +516,7 @@ function Missings.disallowmissing(df::DataFrame)::DataFrame
     res_nrows = copy(df.nrows)
     res = Future(datatype="DataFrame")
 
-    partitioned_with(scaled=[df.data, res], keep_same_keys=true, modules=["DataFrames"], keytype=String) do
-        df_sample_for_grouping::DFSampleForGrouping = sample_for_grouping(df, String)
-        pt(df, Distributed(df_sample_for_grouping, scaled_by_same_as=res.data))
-        pt(res, ScaledBySame(df), match=df)
-
-        # pt(df, Distributed(df, balanced=true))
-        # pt(res, Balanced(), match=df)
-
-        # pt(df, Distributed(df, balanced=false, scaled_by_same_as=res))
-        # pt(res, Unbalanced(df), match=df)
-        
-        pt(df, res, Replicated())
-    end
+    partitioned_with(pts_for_copy_df, [df.data, res], scaled=[df.data, res], keep_same_keys=true, modules=["DataFrames"], keytype=String)
 
     @partitioned df res begin res = DataFrames.disallowmissing(df) end
 
@@ -718,19 +527,7 @@ function Base.deepcopy(df::DataFrame)::DataFrame
     res_nrows = copy(df.nrows)
     res = Future(datatype="DataFrame")
 
-    partitioned_with(scaled=[df.data, res], keep_same_keys=true, modules=["DataFrames"], keytype=String) do
-        df_sample_for_grouping::DFSampleForGrouping = sample_for_grouping(df, String)
-        pt(df, Distributed(df_sample_for_grouping, scaled_by_same_as=res.data))
-        pt(res, ScaledBySame(df), match=df)
-
-        # pt(df, Distributed(df, balanced=true))
-        # pt(res, Balanced(), match=df)
-
-        # pt(df, Distributed(df, balanced=false, scaled_by_same_as=res))
-        # pt(res, Unbalanced(df), match=df)
-        
-        pt(df, res, Replicated())
-    end
+    partitioned_with(pts_for_copy_df, [df.data, res], scaled=[df.data, res], keep_same_keys=true, modules=["DataFrames"], keytype=String)
 
     @partitioned df res begin res = DataFrames.deepcopy(df) end
 
@@ -741,19 +538,7 @@ function Base.copy(df::DataFrame)::DataFrame
     res_nrows = copy(df.nrows)
     res = Future(datatype="DataFrame")
 
-    partitioned_with(scaled=[df.data, res], keep_same_keys=true, modules=["DataFrames"], keytype=String) do
-        df_sample_for_grouping::DFSampleForGrouping = sample_for_grouping(df, String)
-        pt(df, Distributed(df_sample_for_grouping, scaled_by_same_as=res.data))
-        pt(res, ScaledBySame(df), match=df)
-
-        # pt(df, Distributed(df, balanced=true))
-        # pt(res, Balanced(), match=df)
-
-        # pt(df, Distributed(df, balanced=false, scaled_by_same_as=res))
-        # pt(res, Unbalanced(df), match=df)
-        
-        pt(df, res, Replicated())
-    end
+    partitioned_with(pts_for_copy_df, [df.data, res], scaled=[df.data, res], keep_same_keys=true, modules=["DataFrames"], keytype=String)
 
     @partitioned df res begin res = DataFrames.copy(df) end
 
@@ -893,81 +678,89 @@ end
 add_sizes(a::NTuple{1,Int64}, b::NTuple{1,Int64}) = NTuple{1,Int64}(a[1] + b[1])
 # TODO: Eliminate usage of quote end in Reducing and go through partitions.jl and add precompile statements
 
-function _getindex(df::Future, df_nrows::Future, return_vector::Bool, select_columns::Bool, filter_rows::Bool, columns::Base.Vector{String}, cols::Future, rows::Future, res_size::Future)
-    partitioned_with(scaled=[df, res], keep_same_keys=!return_vector, drifted=filter_rows, modules=["DataFrames"], keytype=String) do
-        df_sample_for_grouping::DFSampleForGrouping = sample_for_grouping(df, String)
-        if filter_rows
-            res_sample_for_grouping = sample_for_grouping(res, return_vector ? Int64 : String)
-            for (dfpt_unbalanced, respt_unbalanced, dfpt_balanced, respt_balanced) in zip(
-                # unbalanced
-                Distributed(df_sample_for_grouping; balanced=false, filtered_relative_to=res, filtered_from=false),
-                Distributed(res_sample_for_grouping; balanced=false, filtered_relative_to=df, filtered_from=true),
-                # balanced
-                Distributed(df_sample_for_grouping; balanced=true, filtered_relative_to=res, filtered_from=false),
-                Distributed(res_sample_for_grouping; balanced=true, filtered_relative_to=df, filtered_from=true),
-            )
-            # TODO: Ensure Grouped can take dataframe and array
-                # Return Blocked if return_vector or select_columns and grouping by non-selected
-                return_blocked = return_vector || (dfpt_balanced.distribution == "grouped" && !(dfpt_balanced.key in columns))
+function pts_for_getindex(futures::Base.Vector{Future})
+    df::Future, df_nrows::Future, cols::Future, rows::Future, res::Future, res_size::Future = futures
+    df_sample_for_grouping::DFSampleForGrouping = sample_for_grouping(df, String)
+    cols_sample = sample(cols)
+    rows_sample = sample(rows)
+    columns::Base.Vector{String} = names(df_sample_for_grouping.sample, cols_sample)
+    return_vector = cols_sample isa Symbol || cols_sample isa String || cols_sample isa Integer
+    filter_rows = !(rows_sample isa Colon)
+    if filter_rows
+        res_sample_for_grouping = sample_for_grouping(res, return_vector ? Int64 : String)
+        for (dfpt_unbalanced, respt_unbalanced, dfpt_balanced, respt_balanced) in zip(
+            # unbalanced
+            Distributed(df_sample_for_grouping; balanced=false, filtered_relative_to=res, filtered_from=false),
+            Distributed(res_sample_for_grouping; balanced=false, filtered_relative_to=df, filtered_from=true),
+            # balanced
+            Distributed(df_sample_for_grouping; balanced=true, filtered_relative_to=res, filtered_from=false),
+            Distributed(res_sample_for_grouping; balanced=true, filtered_relative_to=df, filtered_from=true),
+        )
+        # TODO: Ensure Grouped can take dataframe and array
+            # Return Blocked if return_vector or select_columns and grouping by non-selected
+            return_blocked = return_vector || (dfpt_balanced.distribution == "grouped" && !(dfpt_balanced.key in columns))
 
-                # unbalanced -> balanced
-                pt(df, dfpt_unbalanced, match=(return_blocked ? nothing : res), on=["distribution", "key", "divisions", "rev"])
-                pt(res, (return_blocked ? BlockedAlong(1) : respt_balanced) & Balanced() & Drifted())
-        
-                # unbalanced -> unbalanced
-                pt(df, dfpt_unbalanced, match=(return_blocked ? nothing : res), on=["distribution", "key", "divisions", "rev"])
-                pt(res, return_blocked ? Blocked(res, along=[1], balanced=false, filtered_from=df) : respt_unbalanced & Drifted())
-                pt(rows, BlockedAlong(1) & ScaledBySame(df), match=df, on=["balanced", "id"])
-        
-                # balanced -> unbalanced
-                pt(df, dfpt_balanced, match=(return_blocked ? nothing : res), on=["distribution", "key", "divisions", "rev"])
-                pt(res, return_blocked ? Blocked(res, along=[1], balanced=false, filtered_from=df) : respt_unbalanced & Drifted())
-                pt(rows, BlockedAlong(1) & ScaledBySame(df), match=df, on=(dfpt_balanced.distribution == "blocked" ? "balanced" : ["balanced", "id"]))
-            end
-
-            # pts_for_filtering(df, res, Blocked)
-            # pt(rows, Block(along=1), match=df)
-
-            # # blocked and balanced
-            # pt(df, Blocked(1) & Balanced())
-            # pt(rows, Blocked(1) & Balanced())
-            # pt(res, Blocked(1) & Unbalanced() & Drifted())
-
-            # pt(df, Blocked(df, balanced=false, filtered_to=res))
-            # pt(rows, filter_rows ? Blocked() & Unbalanced(df) : Replicated())
-
-            # for gpt in Grouped(df, filtered_to = filter_rows ? res : nothing)
-            #     pt(df, gpt)
-            #     # TODO: Handle select_columns
-            # end
-
-            pt(res_size, Reducing(return_vector ? add_sizes : +))
-        else
-            for dpt in Distributed(df_sample_for_grouping, scaled_by_same_as=res)
-                pt(df, dpt)
-                if return_vector || (dpt.distribution == "grouped" && !(dpt.key in columns))
-                    pt(res, BlockedAlong(1) & ScaledBySame(df), match=df, on=["balanced", "id"])
-                else
-                    pt(res, ScaledBySame(df), match=df)
-                end
-            end
-            pt(res_size, PartitionType(), match=df_nrows)
+            # unbalanced -> balanced
+            pt(df, dfpt_unbalanced, match=(return_blocked ? nothing : res), on=["distribution", "key", "divisions", "rev"])
+            pt(res, (return_blocked ? BlockedAlong(1) : respt_balanced) & Balanced() & Drifted())
+    
+            # unbalanced -> unbalanced
+            pt(df, dfpt_unbalanced, match=(return_blocked ? nothing : res), on=["distribution", "key", "divisions", "rev"])
+            pt(res, return_blocked ? Blocked(res, along=[1], balanced=false, filtered_from=df) : respt_unbalanced & Drifted())
+            pt(rows, BlockedAlong(1) & ScaledBySame(df), match=df, on=["balanced", "id"])
+    
+            # balanced -> unbalanced
+            pt(df, dfpt_balanced, match=(return_blocked ? nothing : res), on=["distribution", "key", "divisions", "rev"])
+            pt(res, return_blocked ? Blocked(res, along=[1], balanced=false, filtered_from=df) : respt_unbalanced & Drifted())
+            pt(rows, BlockedAlong(1) & ScaledBySame(df), match=df, on=(dfpt_balanced.distribution == "blocked" ? "balanced" : ["balanced", "id"]))
         end
 
-        # if filter_rows
-        #     pt(df, Blocked(df, balanced=true))
-        #     pt(rows, Blocked(rows, balanced=true))
+        # pts_for_filtering(df, res, Blocked)
+        # pt(rows, Block(along=1), match=df)
 
-        #     pt(df, Blocked(df, balanced=false) | Grouped(df), match=rows, on=["balanced", "id"])
-        #     pt(rows, Blocked(1))
-        # else
+        # # blocked and balanced
+        # pt(df, Blocked(1) & Balanced())
+        # pt(rows, Blocked(1) & Balanced())
+        # pt(res, Blocked(1) & Unbalanced() & Drifted())
+
+        # pt(df, Blocked(df, balanced=false, filtered_to=res))
+        # pt(rows, filter_rows ? Blocked() & Unbalanced(df) : Replicated())
+
+        # for gpt in Grouped(df, filtered_to = filter_rows ? res : nothing)
+        #     pt(df, gpt)
+        #     # TODO: Handle select_columns
         # end
-        # pt(rows,  ? Blocked(1): Replicated())
-        # pt(res)
-        # pt(res_size)
-        pt(df, res, res_size, rows, cols, Replicated())
-        pt(df_nrows, Replicating())
+
+        pt(res_size, Reducing(return_vector ? add_sizes : +))
+    else
+        for dpt in Distributed(df_sample_for_grouping, scaled_by_same_as=res)
+            pt(df, dpt)
+            if return_vector || (dpt.distribution == "grouped" && !(dpt.key in columns))
+                pt(res, BlockedAlong(1) & ScaledBySame(df), match=df, on=["balanced", "id"])
+            else
+                pt(res, ScaledBySame(df), match=df)
+            end
+        end
+        pt(res_size, PartitionType(), match=df_nrows)
     end
+
+    # if filter_rows
+    #     pt(df, Blocked(df, balanced=true))
+    #     pt(rows, Blocked(rows, balanced=true))
+
+    #     pt(df, Blocked(df, balanced=false) | Grouped(df), match=rows, on=["balanced", "id"])
+    #     pt(rows, Blocked(1))
+    # else
+    # end
+    # pt(rows,  ? Blocked(1): Replicated())
+    # pt(res)
+    # pt(res_size)
+    pt(df, res, res_size, rows, cols, Replicated())
+    pt(df_nrows, Replicating())
+end
+
+function _getindex(df::Future, df_nrows::Future, return_vector::Bool, filter_rows::Bool, cols::Future, rows::Future, res::Future, res_size::Future)
+    partitioned_with(pts_for_getindex, [df, df_nrows, cols, rows, res, res_size], scaled=[df, res], keep_same_keys=!return_vector, drifted=filter_rows, modules=["DataFrames"], keytype=String)
 
     @partitioned df df_nrows res res_size rows cols begin
         res = df[rows, cols]
@@ -991,6 +784,7 @@ function _getindex(df::Future, df_nrows::Future, return_vector::Bool, select_col
 end
 
 function Base.getindex(df::DataFrame, rows=:, cols=:)
+    @nospecialize
     # TODO: Accept either replicated, balanced, grouped by any of columns
     # in res (which is just cols of df if column selector is :), or unknown
     # and always with different ID unless row selector is :
@@ -1005,12 +799,8 @@ function Base.getindex(df::DataFrame, rows=:, cols=:)
     end
 
     df_nrows = df.nrows
-    df_sample::DataFrames.DataFrame = sample(df)
     return_vector = cols isa Symbol || cols isa String || cols isa Integer
-    select_columns = !(cols isa Colon)
     filter_rows = !(rows isa Colon)
-    columns::Base.Vector{String} = names(df_sample, cols)
-    cols_sample = copy(cols)
     cols = Future(cols)
     rows::Future = rows isa AbstractFuture ? convert(Future, rows) : Future(rows)
 
@@ -1024,7 +814,7 @@ function Base.getindex(df::DataFrame, rows=:, cols=:)
         end
     res = Future(datatype = return_vector ? "Array" : "DataFrame")
 
-    _getindex(df.data, df_nrows, return_vector, select_columns, filter_rows, columns, cols, rows, res_size)
+    _getindex(df.data, df_nrows, return_vector, filter_rows, cols, rows, res, res_size)
 
     # by = names(sample(df), cols)
     # onecol = cols isa Symbol || cols isa String || cols isa Integer
@@ -1261,25 +1051,28 @@ function Base.getindex(df::DataFrame, rows=:, cols=:)
     # end
 end
 
-function _setindex(df::Future, v::Future, res::Future, cols::Future)
-    partitioned_with(scaled=[df, res], keep_same_keys=true, modules=["DataFrames"], keytype=String) do
-        df_sample_for_grouping::DFSampleForGrouping = sample_for_grouping(df, String)
-        for dpt in Distributed(df_sample_for_grouping, scaled_by_same_as=res)
-            pt(df, dpt)
-            pt(res, ScaledBySame(df), match=df)
+function pts_for_setindex(futures::Base.Vector{Future})
+    df, v, res, cols = futures
+    df_sample_for_grouping::DFSampleForGrouping = sample_for_grouping(df, String)
+    for dpt in Distributed(df_sample_for_grouping, scaled_by_same_as=res)
+        pt(df, dpt)
+        pt(res, ScaledBySame(df), match=df)
 
-            # The array that we are inserting into this dataframe must be
-            # partitioned with the same ID or it must be perfectly balanced
-            # if the original dataframe is also balanced.
-            if dpt.distribution == "blocked" && dpt.balanced
-                pt(v, BlockedAlong(1) & Balanced())
-            else
-                pt(v, BlockedAlong(1), match=df, on=["balanced", "id"])
-            end
+        # The array that we are inserting into this dataframe must be
+        # partitioned with the same ID or it must be perfectly balanced
+        # if the original dataframe is also balanced.
+        if dpt.distribution == "blocked" && dpt.balanced
+            pt(v, BlockedAlong(1) & Balanced())
+        else
+            pt(v, BlockedAlong(1), match=df, on=["balanced", "id"])
         end
-
-        pt(df, res, v, cols, Replicated())
     end
+
+    pt(df, res, v, cols, Replicated())
+end
+
+function _setindex(df::Future, v::Future, res::Future, cols::Future)
+    partitioned_with(pts_for_setindex, [df, v, res, cols], scaled=[df, res], keep_same_keys=true, modules=["DataFrames"], keytype=String)
 
     # # union!(sample(res, :allowedgroupingkeys), sample(df, :allowedgroupingkeys))
     # # # Only merge column statistics if the column is not mutated by setindex!
@@ -1356,6 +1149,7 @@ function _setindex(df::Future, v::Future, res::Future, cols::Future)
 end
 
 function Base.setindex!(df::DataFrame, v::Union{BanyanArrays.Vector, BanyanArrays.Matrix, DataFrame}, rows, cols)
+    @nospecialize
     rows isa Colon || throw(ArgumentError("Cannot mutate a subset of rows in place"))
 
     # selection = names(sample(df), cols)
@@ -1434,26 +1228,28 @@ end
 #     # 3. No constraint if it is required for something to be unbalanced (if no constraints are applied, the most recent size is used in scheduler)
 # end
 
-function _rename(df::Future, res_nrows::Future, res::Future, args::Future, kwargs::Future, df_sample::DataFrames.DataFrame)::DataFrame
-    partitioned_with(scaled=[df, res], keep_same_keys=true, renamed=true, modules=["DataFrames"], keytype=String) do
-        # distributed
-        res_sample::DataFrames.DataFrame = sample(res)
-        df_sample_for_grouping::DFSampleForGrouping = sample_for_grouping(df, String)
-        for dfpt in Distributed(df_sample_for_grouping, scaled_by_same_as=res)
-            pt(dfpt)
-            if dfpt.distribution == "grouped"
-                dfpt_key::String = dfpt.key
-                groupingkeyindex = indexin(dfpt_key, sample_keys(df_sample)::Base.Vector{String})
-                groupingkey = sample_keys(res_sample)[groupingkeyindex]
-                pt(res, GroupedBy() & ScaledBySame(df), match=df, on=["balanced", "id", "divisions", "rev"])
-            else
-                pt(res, ScaledBySame(df), match=df)
-            end
+function pts_for_rename(futures::Base.Vector{Future})
+    df::Future, res::Future, args::Future, kwargs::Future = futures
+    res_sample::DataFrames.DataFrame = sample(res)
+    df_sample_for_grouping::DFSampleForGrouping = sample_for_grouping(df, String)
+    for dfpt in Distributed(df_sample_for_grouping, scaled_by_same_as=res)
+        pt(dfpt)
+        if dfpt.distribution == "grouped"
+            dfpt_key::String = dfpt.key
+            groupingkeyindex = indexin(dfpt_key, sample_keys(df_sample_for_grouping.sample)::Base.Vector{String})
+            groupingkey = sample_keys(res_sample)[groupingkeyindex]
+            pt(res, GroupedBy(groupingkey) & ScaledBySame(df), match=df, on=["balanced", "id", "divisions", "rev"])
+        else
+            pt(res, ScaledBySame(df), match=df)
         end
-        
-        # replicated
-        pt(df, res, args, kwargs, Replicated())
     end
+    
+    # replicated
+    pt(df, res, args, kwargs, Replicated())
+end
+
+function _rename(df::Future, res_nrows::Future, res::Future, args::Future, kwargs::Future)::DataFrame
+    partitioned_with(pts_for_rename, [df, res, args, kwargs], scaled=[df, res], keep_same_keys=true, renamed=true, modules=["DataFrames"], keytype=String)
 
     @partitioned df res args kwargs begin
         res = DataFrames.rename(df, args...; kwargs...)
@@ -1463,13 +1259,14 @@ function _rename(df::Future, res_nrows::Future, res::Future, args::Future, kwarg
 end
 
 function DataFrames.rename(df::DataFrame, args...; kwargs...)::DataFrame
+    @nospecialize
     res_nrows = copy(df.nrows)
     res = Future(datatype="DataFrame")
     args = Future(args)
     kwargs = Future(kwargs)
     df_sample::DataFrames.DataFrame = sample(df)
 
-    _rename(df.data, res_nrows, res, args, kwargs, df_sample)
+    _rename(df.data, res_nrows, res, args, kwargs)
 
     # TODO: Make partition_delayed calls be processed in reverse
     # TODO: Populate groupingkeys of samples forwards and backwards
@@ -1579,20 +1376,25 @@ end
 
 # DataFrame shuffling
 
-function _sort(df::Future, res_nrows::Future, res::Future, cols::Future, isreversed::Bool, kwargs::Future, sortingkey::String)::DataFrame
-    partitioned_with(scaled=[df, res], keys=sortingkey, modules=["DataFrames"], keytype=String) do
-        # We must construct seperate PTs for balanced=true and balanced=false
-        # because these different PTs have different required constraints
-        # TODO: Implement reversed in Grouped constructor
-        df_sample_for_grouping::DFSampleForGrouping = sample_for_grouping(df, sortingkey)
-        pt(df, Grouped(df_sample_for_grouping, rev=isreversed) | Replicated())
-        # The Match constraint only applies to PT parameters. So we also need
-        # a constraint to ensure that however `df` is grouped (balanced or
-        # unbalanced), `res` is scaled by the same factor to account for
-        # unbalanced distribution.
-        pt(res, ScaledBySame(df), match=df)
-        pt(df, res, cols, kwargs, Replicated())
-    end
+function pts_for_sort(futures::Base.Vector{Future})
+    df, res, cols, kwargs = futures
+
+    # We must construct seperate PTs for balanced=true and balanced=false
+    # because these different PTs have different required constraints
+    # TODO: Implement reversed in Grouped constructor
+    isreversed = get(kwargs, :rev, false)::Bool
+    df_sample_for_grouping::DFSampleForGrouping = sample_for_grouping(df, String)
+    pt(df, Grouped(df_sample_for_grouping, rev=isreversed) | Replicated())
+    # The Match constraint only applies to PT parameters. So we also need
+    # a constraint to ensure that however `df` is grouped (balanced or
+    # unbalanced), `res` is scaled by the same factor to account for
+    # unbalanced distribution.
+    pt(res, ScaledBySame(df), match=df)
+    pt(df, res, cols, kwargs, Replicated())
+end
+
+function _sort(df::Future, res_nrows::Future, res::Future, cols::Future, kwargs::Future, sortingkey::String)::DataFrame
+    partitioned_with(pts_for_sort, [df, res, cols, kwargs], scaled=[df, res], keys=[sortingkey], modules=["DataFrames"], keytype=String)
 
     # mutated(res)
 
@@ -1609,6 +1411,7 @@ function _sort(df::Future, res_nrows::Future, res::Future, cols::Future, isrever
 end
 
 function Base.sort(df::DataFrame, cols=:; kwargs...)::DataFrame
+    @nospecialize
     !get(kwargs, :view, false)::Bool || throw(ArgumentError("Cannot return view of sorted dataframe"))
 
     # TODO: Support a UserColOrdering passed into cols
@@ -1631,19 +1434,82 @@ function Base.sort(df::DataFrame, cols=:; kwargs...)::DataFrame
     res = Future(datatype="DataFrame")
     columns::Base.Vector{String} = names(df_sample, cols)
     cols = Future(cols)
-    isreversed = get(kwargs, :rev, false)::Bool
     kwargs = Future(kwargs)
     sortingkey = first(columns)
 
     # TODO: Change to_vector(x) to [x;]
 
-    _sort(df.data, res_nrows, res, cols, isreversed, kwargs, sortingkey)
+    _sort(df.data, res_nrows, res, cols, kwargs, sortingkey)
+end
+
+function pts_for_innerjoin(futures::Base.Vector{Future})
+    dfs = futures[1:end-4]
+    res_nrows, res, on, kwargs = futures[end-3:end]
+    groupingkeys = _get_groupingkeys(sample(on))
+    # unbalanced, ...., unbalanced -> balanced - "partial sort-merge join"
+    dfs_with_groupingkeys = Dict{Future,String}(df => groupingkey for (df, groupingkey) in zip(dfs, groupingkeys))
+    dfs_with_groupingkeys::Base.Vector{DFSampleForGrouping} = DFSampleForGrouping[]
+    for (df, groupingkey) in zip(dfs, groupingkeys)
+        df_sample_for_grouping::DFSampleForGrouping = sample_for_grouping(df, groupingkey)
+        push!(dfs_with_groupingkeys, df_sample_for_grouping)
+    end
+    res_sample_for_groupingkeys::DFSampleForGrouping = sample_for_groupingkeys(res, first(groupingkeys))
+    for df_with_groupingkey in dfs_with_groupingkeys
+        pt(df, Grouped(df_with_groupingkey, balanced=false, filtered_relative_to=res_sample_for_groupingkeys, filtered_from=false), match=res, on=["divisions", "rev"])
+    end
+    pt(res, Grouped(res_sample_for_groupingkeys, balanced=true, filtered_relative_to=dfs_with_groupingkeys, filtered_from=true) & Drifted())
+
+    # balanced, unbalanced, ..., unbalanced -> unbalanced
+    for i in 1:length(dfs)
+        # "partial sort-merge join"
+        for (j, df_with_groupingkey) in enumerate(dfs_with_groupingkeys)
+            pt(df, Grouped(df_with_groupingkey, balanced=(j==i), filtered_relative_to=res_sample_for_groupingkeys, filtered_from=false), match=dfs[i], on=["divisions", "rev"])
+        end
+        pt(res, Grouped(res_sample_for_groupingkeys, balanced=false, filtered_relative_to=first(dfs_with_groupingkeys), filtered_from=true) & Drifted(), match=dfs[i], on=["divisions", "rev"])
+
+        # broadcast join
+        # TODO: Allow this Distributed to be Grouped on keys that aren't
+        # the keys used for this join. That does require taking a new
+        # sample_for_grouping that doesn't restrict the keys
+        pt(dfs[i], Distributed(dfs_with_groupingkeys[i]))
+        for (j, df) in enumerate(dfs)
+            if j != i
+                pt(df, Replicated())
+            end
+        end
+        pt(res, ScaledBySame(dfs[i]), match=dfs[i])
+
+        # TODO: Ensure that constraints are copied backwards properly everywhere
+    end
+
+    # TODO: Implement a nested loop join using Cross constraint. To
+    # implement this, we may need a new PT constructor thaor some new
+    # way of propagating ScaleBy constraints
+    # for dpts in IterTools.product([Distributed(dpt, )]...)
+    # pt(dfs..., Distributing(), cross=dfs)
+    # pg(res, Blocked() & Unbalanced() & Drifted())
+
+    # unbalanced, unbalanced, ... -> unbalanced - "partial sort-merge join"
+    for df_with_groupingkey in dfs_with_groupingkeys
+        pt(df, Grouped(df_with_groupingkey, balanced=false, filtered_relative_to=res_sample_for_groupingkeys, filtered_from=false), match=res, on=["divisions", "rev"])
+    end
+    pt(res, Grouped(res_sample_for_groupingkeys, balanced=false, filtered_relative_to=dfs_with_groupingkeys, filtered_from=true) & Drifted())
+    
+    # "replicated join"
+    pt(res_nrows, Reducing(+))
+    pt(dfs..., on, kwargs, res, res_nrows, Replicated())
+
+    # TODO: Support nested loop join where multiple are Block and Cross-ed and others are all Replicate
 end
 
 function _innerjoin(dfs::Base.Vector{Future}, groupingkeys::Base.Vector{String}, res_nrows::Future, res::Future, on::Future, kwargs::Future, keys_by_future::Base.Vector{Tuple{Future,Base.Vector{String}}})::DataFrame
     scaled_dfs::Base.Vector{Future} = copy(dfs)
     push!(dfs, res)
+    futures::Base.Vector{Future} = copy(scaled_dfs)
+    append!(futures, Future[res_nrows, on, kwargs])
     partitioned_with(
+        pts_for_innerjoin,
+        futures,
         scaled=scaled_dfs,
         # NOTE: We are adjusting the sample rate accordingly, but we still need
         # to note that skew can occur in the selectivity of the join.
@@ -1661,62 +1527,7 @@ function _innerjoin(dfs::Base.Vector{Future}, groupingkeys::Base.Vector{String},
         drifted=true,
         modules=["DataFrames"],
         keytype=String
-    ) do
-        # unbalanced, ...., unbalanced -> balanced - "partial sort-merge join"
-        dfs_with_groupingkeys = Dict{Future,String}(df => groupingkey for (df, groupingkey) in zip(dfs, groupingkeys))
-        dfs_with_groupingkeys::Base.Vector{DFSampleForGrouping} = DFSampleForGrouping[]
-        for (df, groupingkey) in zip(dfs, groupingkeys)
-            df_sample_for_grouping::DFSampleForGrouping = sample_for_grouping(df, groupingkey)
-            push!(dfs_with_groupingkeys, df_sample_for_grouping)
-        end
-        res_sample_for_groupingkeys::DFSampleForGrouping = sample_for_groupingkeys(res, first(groupingkeys))
-        for df_with_groupingkey in dfs_with_groupingkeys
-            pt(df, Grouped(df_with_groupingkey, balanced=false, filtered_relative_to=res_sample_for_groupingkeys, filtered_from=false), match=res, on=["divisions", "rev"])
-        end
-        pt(res, Grouped(res_sample_for_groupingkeys, balanced=true, filtered_relative_to=dfs_with_groupingkeys, filtered_from=true) & Drifted())
-
-        # balanced, unbalanced, ..., unbalanced -> unbalanced
-        for i in 1:length(dfs)
-            # "partial sort-merge join"
-            for (j, df_with_groupingkey) in enumerate(dfs_with_groupingkeys)
-                pt(df, Grouped(df_with_groupingkey, balanced=(j==i), filtered_relative_to=res_sample_for_groupingkeys, filtered_from=false), match=dfs[i], on=["divisions", "rev"])
-            end
-            pt(res, Grouped(res_sample_for_groupingkeys, balanced=false, filtered_relative_to=first(dfs_with_groupingkeys), filtered_from=true) & Drifted(), match=dfs[i], on=["divisions", "rev"])
-
-            # broadcast join
-            # TODO: Allow this Distributed to be Grouped on keys that aren't
-            # the keys used for this join. That does require taking a new
-            # sample_for_grouping that doesn't restrict the keys
-            pt(dfs[i], Distributed(dfs_with_groupingkeys[i]))
-            for (j, df) in enumerate(dfs)
-                if j != i
-                    pt(df, Replicated())
-                end
-            end
-            pt(res, ScaledBySame(dfs[i]), match=dfs[i])
-
-            # TODO: Ensure that constraints are copied backwards properly everywhere
-        end
-
-        # TODO: Implement a nested loop join using Cross constraint. To
-        # implement this, we may need a new PT constructor thaor some new
-        # way of propagating ScaleBy constraints
-        # for dpts in IterTools.product([Distributed(dpt, )]...)
-        # pt(dfs..., Distributing(), cross=dfs)
-        # pg(res, Blocked() & Unbalanced() & Drifted())
-
-        # unbalanced, unbalanced, ... -> unbalanced - "partial sort-merge join"
-        for df_with_groupingkey in dfs_with_groupingkeys
-            pt(df, Grouped(df_with_groupingkey, balanced=false, filtered_relative_to=res_sample_for_groupingkeys, filtered_from=false), match=res, on=["divisions", "rev"])
-        end
-        pt(res, Grouped(res_sample_for_groupingkeys, balanced=false, filtered_relative_to=dfs_with_groupingkeys, filtered_from=true) & Drifted())
-        
-        # "replicated join"
-        pt(res_nrows, Reducing(+))
-        pt(dfs..., on, kwargs, res, res_nrows, Replicated())
-
-        # TODO: Support nested loop join where multiple are Block and Cross-ed and others are all Replicate
-    end
+    )
 
     @partitioned dfs on kwargs res res_nrows begin
         res = DataFrames.innerjoin(dfs...; on=on, kwargs...)
@@ -1771,6 +1582,7 @@ function _innerjoin(dfs::Base.Vector{Future}, groupingkeys::Base.Vector{String},
 end
 
 function DataFrames.innerjoin(dfs::DataFrames.DataFrame...; on, kwargs...)::DataFrame
+    @nospecialize
     length(dfs) >= 2 || throw(ArgumentError("Join requires at least 2 dataframes"))
 
     # TODO: Make it so that the code region's sampled computation is run first to allow for the function's
@@ -1779,14 +1591,7 @@ function DataFrames.innerjoin(dfs::DataFrames.DataFrame...; on, kwargs...)::Data
     # TODO: Change this annotation to allow for grouping on any of the keys we
     # are joining on
 
-    groupingkeys = on isa Base.AbstractVector ? on[1] : [on]
-    groupingkeys = if groupingkeys isa Pair
-        Base.collect(groupingkeys)
-    else
-        Base.fill(groupingkeys, length(dfs))
-    end
-    groupingkeys::Base.Vector{String} = map(string, groupingkeys)
-
+    groupingkeys = _get_groupingkeys(on)
     res_nrows = Future()
     res = Future(datatype="DataFrame")
     on = Future(on)
@@ -1794,19 +1599,24 @@ function DataFrames.innerjoin(dfs::DataFrames.DataFrame...; on, kwargs...)::Data
 
     # TODO: Use something like this for join
     keys_by_future::Base.Vector{Tuple{Future,Base.Vector{String}}} = Tuple{Future,Base.Vector{String}}[
-        (d, String[groupingkey]) for (df, groupingkey) in zip(dfs, groupingkeys)
+        (df, String[groupingkey]) for (df, groupingkey) in zip(dfs, groupingkeys)
     ]
     push!(keys_by_future, (res, groupingkeys[1:1]))
 
     _innerjoin(convert(Vector{Future}, dfs), groupingkeys, res_nrows, res, on, kwargs, keys_by_future)
 end
 
+function pts_for_unique(futures::Base.Vector{Future})
+    df::Future, res_nrows::Future, res::Future, cols::Future, kwargs::Future = futures
+    df_sample::DataFrames.DataFrame = sample(df)
+    columns::Base.Vector{String} = names(df_sample, cols)
+    pts_for_filtering(df, res, columns)
+    pt(res_nrows, Reducing(+))
+    pt(df, res, res_nrows, cols, kwargs, Replicated())
+end
+
 function _unique(df::Future, res_nrows::Future, res::Future, columns::Base.Vector{String}, cols::Future, kwargs::Future)::DataFrame
-    partitioned_with(scaled=[df, res], keys=columns, drifted=true, modules=["DataFrames"], keytype=String) do
-        pts_for_filtering(df, res, columns)
-        pt(res_nrows, Reducing(+))
-        pt(df, res, res_nrows, cols, kwargs, Replicated())
-    end
+    partitioned_with(pts_for_unique, Future[df, res_nrows, res, cols, kwargs], scaled=[df, res], keys=columns, drifted=true, modules=["DataFrames"], keytype=String)
 
     @partitioned df res res_nrows cols kwargs begin
         res = DataFrames.unique(df, cols; kwargs...)
@@ -1817,15 +1627,16 @@ function _unique(df::Future, res_nrows::Future, res::Future, columns::Base.Vecto
 end
 
 function DataFrames.unique(df::DataFrame, cols=:; kwargs...)::DataFrame
+    @nospecialize
     !get(kwargs, :view, false)::Bool || throw(ArgumentError("Returning a view of a Banyan data frame is not yet supported"))
     !(cols isa Pair || (cols isa Function && !(cols isa Colon))) || throw(ArgumentError("Unsupported specification of columns for which to get unique rows"))
 
     # TOOD: Just reuse select here
 
     # TODO: Check all usage of first
-    df_sample::DataFrames.DataFrame = sample(df)
     res_nrows = Future()
     res = Future(datatype="DataFrame")
+    df_sample::DataFrames.DataFrame = sample(df)
     columns::Base.Vector{String} = names(df_sample, cols)
     cols = Future(cols)
     kwargs = Future(kwargs)
@@ -1865,15 +1676,18 @@ function DataFrames.unique(df::DataFrame, cols=:; kwargs...)::DataFrame
     # res
 end
 
-function _nonunique(df::Future, df_nrows::Future, df_sample::DataFrames.DataFrame, res_size::Future, res::Future, columns::Base.Vector{String}, cols::Future, kwargs::Future)::BanyanArrays.Vector{Bool}
-    partitioned_with(scaled=[df, res], modules=["DataFrames"], keytype=String) do
-        df_sample_for_grouping::DFSampleForGrouping = sample_for_grouping(df, columns)
-        pt(df, Grouped(df_sample_for_grouping))
-        pt(res, BlockedAlong(1) & ScaledBySame(df), match=df, on=["balanced", "id"])
-        pt(df_nrows, Replicating())
-        pt(res_size, PartitionType(), match=df_nrows)
-        pt(df, res, df_nrows, res_size, cols, kwargs, Replicated())
-    end
+function pts_for_nonunique(futures::Base.Vector{Future})
+    df, df_nrows, res_size, res, cols, kwargs = futures
+    df_sample_for_grouping::DFSampleForGrouping = _sample_df_for_grouping(df, cols)
+    pt(df, Grouped(df_sample_for_grouping))
+    pt(res, BlockedAlong(1) & ScaledBySame(df), match=df, on=["balanced", "id"])
+    pt(df_nrows, Replicating())
+    pt(res_size, PartitionType(), match=df_nrows)
+    pt(df, res, df_nrows, res_size, cols, kwargs, Replicated())
+end
+
+function _nonunique(df::Future, df_nrows::Future, res_size::Future, res::Future, cols::Future, kwargs::Future)::BanyanArrays.Vector{Bool}
+    partitioned_with(pts_for_nonunique, [df, df_nrows, res_size, res, cols, kwargs], scaled=[df, res], modules=["DataFrames"], keytype=String)
 
     @partitioned df df_nrows res res_size cols kwargs begin
         res = DataFrames.nonunique(df, cols; kwargs...)
@@ -1884,20 +1698,21 @@ function _nonunique(df::Future, df_nrows::Future, df_sample::DataFrames.DataFram
 end
 
 function DataFrames.nonunique(df::DataFrame, cols=:; kwargs...)::BanyanArrays.Vector{Bool}
+    @nospecialize
     !get(kwargs, :view, false)::Bool || throw(ArgumentError("Cannot return view of Banyan dataframe"))
     !(cols isa Pair || (cols isa Function && !(cols isa Colon))) || throw(ArgumentError("Unsupported specification of columns for which to get unique rows"))
 
     # TOOD: Just reuse select here
 
     df_nrows = df.nrows
-    df_sample::DataFrames.DataFrame = sample(df)
+    
     res_size = Future(from=df.nrows, mutation=tuple)
     res = Future(datatype="Array")
-    columns::Base.Vector{String} = names(df_sample, cols)
+    
     cols = Future(cols)
     kwargs = Future(kwargs)
 
-    _nonunique(df.data, df_nrows, df_sample, res_size, res, columns, cols, kwargs)
+    _nonunique(df.data, df_nrows, res_size, res, columns, cols, kwargs)
 
     # if get(kwargs, :view, false) throw(ArgumentError("Cannot return view of Banyan dataframe")) end
 
@@ -1935,5 +1750,3 @@ function DataFrames.nonunique(df::DataFrame, cols=:; kwargs...)::BanyanArrays.Ve
 end
 
 # TODO: Implement SubDataFrame
-
-@specialize

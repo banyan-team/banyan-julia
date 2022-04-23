@@ -405,8 +405,14 @@ function WriteHelper(@nospecialize(write_file::Function))
             for batch_i = 1:nbatches
                 idx = Banyan.get_partition_idx(batch_i, nbatches, worker_idx)
                 sortableidx = Banyan.sortablestring(idx, get_npartitions(nbatches, comm))
-                tmpdir_idx = findfirst(fn -> startswith(fn, "part$sortableidx"), tmpdir)
-                if !isnothing(tmpdir_idx)
+                tmpdir_idx = -1
+                for i = 1:length(tmpdir)
+                    if contains(tmpdir[i], "part$sortableidx")
+                        tmpdir_idx = i
+                        break
+                    end
+                end
+                if tmpdir_idx != -1
                     tmpsrc = joinpath(path, tmpdir[tmpdir_idx])
                     actualdst = joinpath(actualpath, tmpdir[tmpdir_idx])
                     cp(tmpsrc, actualdst, force=true)

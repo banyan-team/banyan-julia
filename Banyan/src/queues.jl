@@ -10,7 +10,7 @@ get_sqs_dict_from_url(url::String)::Dict{Symbol,Any} =
         Dict(:resource => "/" * joinpath(splitpath(url)[end-1:end]))
     )
 
-get_scatter_queue(resource_id::Union{ResourceId,Nothing}=nothing) =
+get_scatter_queue()::Dict{Symbol,Any} =
     get_sqs_dict_from_url(get_session().scatter_queue_url)
 # get_scatter_queue(resource_id::Union{ResourceId,Nothing}=nothing) =
 #     get_scatter_queue(isnothing(resource_id) ? get_session().resource_id : resource_id)
@@ -24,7 +24,7 @@ get_scatter_queue(resource_id::Union{ResourceId,Nothing}=nothing) =
 #     )
 # end
 
-get_gather_queue(resource_id::Union{ResourceId,Nothing}=nothing) =
+get_gather_queue()::Dict{Symbol,Any} =
     get_sqs_dict_from_url(get_session().gather_queue_url)
 # get_gather_queue(resource_id::Union{ResourceId,Nothing}=nothing) =
 #     get_gather_queue(isnothing(resource_id) ? get_session().resource_id : resource_id)
@@ -38,7 +38,7 @@ get_gather_queue(resource_id::Union{ResourceId,Nothing}=nothing) =
 #     )
 # end
 
-get_execution_queue(resource_id::Union{ResourceId,Nothing}=nothing) =
+get_execution_queue()::Dict{Symbol,Any} =
     get_sqs_dict_from_url(get_session().execution_queue_url)
 # get_execution_queue(resource_id::Union{ResourceId,Nothing}=nothing) =
 #     get_execution_queue(isnothing(resource_id) ? get_session().resource_id : resource_id)

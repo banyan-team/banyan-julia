@@ -35,6 +35,7 @@ function write_hdf5(
     # @partitioned A begin end
     # compute(A)
     partitioned_computation(
+        BanyanArrays.pts_for_blocked_and_replicated,
         A,
         destination=RemoteHDF5Destination(
             path;
@@ -42,7 +43,5 @@ function write_hdf5(
             invalidate_sample=invalidate_sample
         ),
         new_source=_->RemoteHDF5Source(path)
-    ) do f::Future
-        pt(f, Blocked(f) | Replicated())
-    end
+    )
 end

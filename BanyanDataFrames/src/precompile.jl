@@ -53,9 +53,6 @@ function _precompile_()
     ccall(:jl_generating_output, Cint, ()) == 1 || return nothing
     # Base.precompile(Tuple{Core.kwftype(typeof(read_csv)),NamedTuple{(:shuffled, :source_invalid, :sample_invalid), Tuple{Bool, Bool, Bool}},typeof(read_csv),String})   # time: 12.008884
     # Base.precompile(Tuple{typeof(get_nrow),String,Val{:csv}})   # time: 0.16609474
-    isdefined(BanyanDataFrames, Symbol("#28#30")) && Base.precompile(Tuple{getfield(BanyanDataFrames, Symbol("#28#30"))})   # time: 0.13452436
-    isdefined(BanyanDataFrames, Symbol("#97#98")) && Base.precompile(Tuple{getfield(BanyanDataFrames, Symbol("#97#98"))})   # time: 0.07331175
-    isdefined(BanyanDataFrames, Symbol("#84#86")) && Base.precompile(Tuple{getfield(BanyanDataFrames, Symbol("#84#86"))})   # time: 0.06008095
     let fbody = try __lookup_kwbody__(which(filter, (Any,DataFrame,))) catch missing end
         if !ismissing(fbody)
             precompile(fbody, (Base.Pairs{Symbol, V, Tuple{Vararg{Symbol, N}}, NamedTuple{names, T}} where {V, N, names, T<:Tuple{Vararg{Any, N}}},typeof(filter),Any,DataFrame,))
@@ -76,7 +73,8 @@ function _precompile_()
     # Additional precompilation
 
     # pfs.jl and utils_pfs.jl
-    for V in [Base.Vector{UInt8}, Base.Vector{Int64}]
+    OHTypes = [Base.Vector{UInt8}, Base.Vector{Int64}, Base.Vector{Float64}, Base.Vector{Dates.DateTime}]
+    for V in OHTypes
         precompile(
             ShuffleDataFrameHelper,
             (
@@ -204,7 +202,8 @@ function _precompile_()
     )
 
     # df.jl
-    precompile(orderinghashes, (DataFrames.DataFrame, String))
+    precompile(Banyan.orderinghashes, (DataFrames.DataFrame, String))
+    precompile(Banyan.sample_by_key, (DataFrames.DataFrame, String))
     precompile(Banyan.sample_divisions, (DataFrames.DataFrame, String))
     precompile(Banyan.sample_max_ngroups, (DataFrames.DataFrame, String))
     precompile(Banyan.sample_max, (DataFrames.DataFrame, String))
@@ -214,71 +213,64 @@ function _precompile_()
     precompile(pts_for_filtering, (Future, Future, Base.Vector{String}))
 
     # pt_lib_constructors.jl
-    precompile(
-        Banyan.make_grouped_pt,
-        (
-            Future,
-            DataFrames.DataFrame,
-            String,
-            Bool,
-            Bool,
-            Bool,
-            Dict{Future,Base.Vector{String}},
-            Dict{Future,Base.Vector{String}},
-            Base.Vector{Future},
-        )
-    )
-    precompile(
-        Banyan.make_grouped_pts,
-        (
-            Future,
-            DataFrames.DataFrame,
-            Base.Vector{String},
-            Base.Vector{Bool},
-            Bool,
-            Bool,
-            Dict{Future,Base.Vector{String}},
-            Dict{Future,Base.Vector{String}},
-            Base.Vector{Future},
-        )
-    )
-    precompile(
-        Banyan._get_factor,
-        (
-            Float64,
-            Tuple{DataFrames.DataFrame,String},
-            Tuple{DataFrames.DataFrame,String},
-        )
-    )
-    precompile(
-        Banyan._get_factor,
-        (
-            Float64,
-            Tuple{DataFrames.DataFrame,String},
-            Tuple{DataFrames.DataFrame,String},
-        )
-    )
-    for T in (String, Int32, Int64, Float64, BigFloat, Dates.Date, Dates.DateTime, Bool)
-        # (for getindex)
-        precompile(
-            Banyan._get_factor,
-            (
-                Float64,
-                Tuple{DataFrames.DataFrame,String},
-                Tuple{Base.Vector{T},Int64},
+    ElTypes = [Int32, Int64, Float64, Bool, String, BigFloat, Dates.Date, Dates.DateTime]
+    VectorTypes = [Base.Vector{ElType} for ElType in ElTypes]
+    for VectorType in VectorTypes
+        for (T, K, TF, KF) in [
+            (DataFrames.DataFrame, String, VectorType, Int64)
+            (VectorType, Int64, DataFrames.DataFrame, String)
+        ]
+            precompile(
+                Banyan.make_grouped_pts,
+                (
+                    SampleForGrouping{T,K},
+                    Base.Vector{Bool},
+                    Bool,
+                    Bool,
+                    Base.Vector{SampleForGrouping{TF,KF}},
+                    Bool,
+                    Base.Vector{Future},
+                )
             )
-        )
+            precompile(
+                Banyan.make_grouped_filtered_pt,
+                (
+                    SampleForGrouping{T,K},
+                    K,
+                    Base.Vector{SampleForGrouping{TF,KF}},
+                    Bool,
+                )
+            )
+            precompile(
+                Banyan.get_factor,
+                (
+                    Float64,
+                    T,
+                    K,
+                    SampleForGrouping{TF,KF},
+                    Bool
+                )
+            )
+            precompile(
+                Banyan.get_factor,
+                (
+                    Float64,
+                    T,
+                    K,
+                    SampleForGrouping{TF,K},
+                    Bool
+                )
+            )
+            precompile(
+                Banyan._get_factor,
+                (
+                    Float64,
+                    Tuple{T,K},
+                    Tuple{TF,KF}
+                )
+            )
+        end
     end
-    precompile(
-        Banyan.get_factor,
-        (
-            Float64,
-            DataFrames.DataFrame,
-            String,
-            SampleForGrouping{DataFrames.DataFrame,String},
-            Bool
-        )
-    )
     precompile(
         Banyan.make_grouped_balanced_pt,
         (
@@ -288,46 +280,27 @@ function _precompile_()
             Bool,
         )
     )
-    precompile(
-        Banyan.make_grouped_filtered_pt,
-        (
-            SampleForGrouping{DataFrames.DataFrame,String},
-            String,
-            Base.Vector{SampleForGrouping{DataFrames.DataFrame,String}},
-            Bool,
-        )
-    )
-    precompile(Banyan.make_grouped_pt, (Future, String, Base.Vector{Future}))
-    precompile(
-        Banyan.make_grouped_pts,
-        (
-            SampleForGrouping{DataFrames.DataFrame,String},
-            Base.Vector{Bool},
-            Bool,
-            Bool,
-            Base.Vector{SampleForGrouping{DataFrames.DataFrame,String}},
-            Bool,
-            Base.Vector{Future},
-        )
-    )
 
     # df.jl and gdf.jl
+    for pts_for_func in [pts_for_combine, pts_for_copy_df, pts_for_dropmissing, pts_for_filter, pts_for_getindex, pts_for_groupby, pts_for_innerjoin, pts_for_nonunique, pts_for_partitioned, pts_for_rename, pts_for_select, pts_for_setindex, pts_for_setindex, pts_for_sort, pts_for_unique]
+        precompile(pts_for_func, (Base.Vector{Future},))
+    end
     precompile(_dropmissing, (Future, Future, Future, Future, Future))
     precompile(_filter, (Future, Future, Future, Future, Future))
-    precompile(_getindex, (Future, Future, Bool, Bool, Bool, Base.Vector{String}, Future, Future, Future))
+    precompile(_getindex, (Future, Future, Bool, Bool, Future, Future, Future, Future))
     precompile(_setindex, (Future, Future, Future, Future))
-    precompile(_rename, (Future, Future, Future, Future, Future, DataFrames.DataFrame))
-    precompile(_sort, (Future, Future, Future, Future, Bool, Future, String))
+    precompile(_rename, (Future, Future, Future, Future, Future))
+    precompile(_sort, (Future, Future, Future, Future, Future, String))
     precompile(_innerjoin, (Base.Vector{Future}, Base.Vector{String}, Future, Future, Future, Future, Dict{Future,Base.Vector{String}}))
     precompile(_unique, (Future, Future, Future, Base.Vector{String}, Future, Future))
-    precompile(_nonunique, (Future, Future, DataFrames.DataFrame, Future, Future, Base.Vector{String}, Future, Future))
+    precompile(_nonunique, (Future, Future, Future, Future, Future, Future))
     precompile(partitioned_for_groupby, (Future, Future, Base.Vector{String}, Future, Future, Future))
-    precompile(partitioned_with_for_select, (Future, Future, Future, Future, Base.Vector{String}, Future, Future, Future, Future, Base.Vector{String}))
-    precompile(partitioned_for_select, (Future, Future, Future, Base.Vector{String}, Future, Future, Future, Future, Base.Vector{String}))
-    precompile(partitioned_for_transform, (Future, Future, Future, Base.Vector{String}, Future, Future, Future, Future, Base.Vector{String}))
-    precompile(partitioned_with_for_combine, (Future, Future, Future, Future, Base.Vector{String}, Future, Future, Future, Future, Base.Vector{String}))
-    precompile(partitioned_for_combine, (Future, Future, Future, Future, Base.Vector{String}, Future, Future, Future, Future, Base.Vector{String}))
-    precompile(partitioned_for_subset, (Future, Future, Future, Future, Base.Vector{String}, Future, Future, Future, Future, Base.Vector{String}))
+    # precompile(partitioned_with_for_select, (Future, Future, Future, Future, Base.Vector{String}, Future, Future, Future, Future, Base.Vector{String}))
+    precompile(partitioned_for_select, (Future, Future, Future, Base.Vector{String}, Future, Future, Future, Future))
+    precompile(partitioned_for_transform, (Future, Future, Future, Base.Vector{String}, Future, Future, Future, Future))
+    # precompile(partitioned_with_for_combine, (Future, Future, Future, Future, Base.Vector{String}, Future, Future, Future, Future, Base.Vector{String}))
+    precompile(partitioned_for_combine, (Future, Future, Future, Future, Base.Vector{String}, Future, Future, Future, Future))
+    precompile(partitioned_for_subset, (Future, Future, Future, Future, Base.Vector{String}, Future, Future, Future, Future))
 
     # df = Future()
     # gdf = Future()

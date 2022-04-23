@@ -1,8 +1,7 @@
 module BanyanArrays
 
 using Banyan,
-    LRUCache,
-    Memoize,
+    Dates,
     MPI,
     Serialization
 
@@ -25,5 +24,10 @@ export ReadBlockJuliaArray,
 include("array.jl")
 include("utils_pfs.jl")
 include("pfs.jl")
+
+if Base.VERSION >= v"1.4.2"
+    include("precompile.jl")
+    _precompile_()
+end
 
 end # module

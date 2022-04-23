@@ -152,7 +152,7 @@ function assert_cluster_is_ready(name::String; kwargs...)
     send_request_get_response(:set_cluster_ready, Dict{String,Any}("cluster_name" => name))
 end
 
-parsestatus(status) =
+parsestatus(status::String)::Symbol =
     if status == "creating"
         :creating
     elseif status == "destroying"

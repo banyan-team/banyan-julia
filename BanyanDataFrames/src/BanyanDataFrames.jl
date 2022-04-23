@@ -3,14 +3,11 @@ module BanyanDataFrames
 @time begin
 @time using Banyan
 @time using BanyanArrays
-@time using LRUCache
 @time using DataFrames
 @time using Dates
-@time using DataStructures
 @time using Downloads
 @time using FileIO
 @time using FilePathsBase
-@time using Memoize
 @time using Missings
 @time using MPI
 @time using ProgressMeter

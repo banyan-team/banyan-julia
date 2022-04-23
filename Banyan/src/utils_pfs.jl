@@ -199,6 +199,9 @@ function orderinghash(x::T)::Vector{T} where {T} T[x] end # This lets us handle 
 function orderinghash(x::I)::Vector{Int64} where I<:Integer
     Int64[convert(Int64, x)]
 end
+function orderinghash(x::I)::Vector{Float64} where I<:Real
+    Float64[convert(Float64, x)]
+end
 orderinghash(s::AbstractString)::Vector{UInt8} = orderinghash(convert(String, s))
 function orderinghash(s::String)::Vector{UInt8}
     s_view = view(s, 1:min(32,length(s)))

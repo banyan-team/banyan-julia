@@ -139,15 +139,214 @@ sample(fut::Future) = get_location(fut).sample.value
 impl_error(fn_name, as) = error("$fn_name not implemented for $(typeof(as))")
 
 # Functions to implement for Any (e.g., for DataFrame or
-# Array)
-sample_memory_usage(as::Any)::Int64 = total_memory_usage(as)
+# Array
+
+sample_by_key(as::Any, key::Any) = impl_error("sample_by_key", as)
 sample_axes(as::Any)::Vector{Int64} = impl_error("sample_axes", as)
 sample_keys(as::Any) = impl_error("sample_keys", as)
-sample_divisions(as::Any, key) = impl_error("sample_divisions", as)
-sample_percentile(as::Any, key, minvalue, maxvalue)::Float64 = impl_error("sample_percentile", as)
-sample_max_ngroups(as::Any, key)::Int64 = impl_error("sample_max_ngroups", as)
-sample_min(as::Any, key) = impl_error("sample_min", as)
-sample_max(as::Any, key) = impl_error("sample_max", as)
+sample_memory_usage(as::Any)::Int64 = total_memory_usage(as)
+
+# Sample computation functions
+
+function orderinghashes(df::T, key::K) where {T,K}
+    # @show df
+    # @show df[!, key]
+    # @show typeof(df[!, key])
+    # @show key
+    # println("Time for orderinghash(df[!, key][1])")
+    # @time orderinghash(df[!, key][1])
+    cache = get_sample_computation_cache()
+    cache_key = hash((:orderinghashes, objectid(df), key))
+    in_cache = get_key_for_sample_computation_cache(cache, cache_key)
+    if in_cache != 0
+        return cache.computation[in_cache]
+    end
+    @time begin
+    data = sample_by_key(df, key)
+    println("Time for df[!, key] in orderinghashes")
+    end
+    @time begin
+    res = map(orderinghash, data)
+    println("Time for map(orderinghash, data) in orderinghashes")
+    end
+    cache.computation[cache_key] = res
+    res
+end
+
+function get_all_divisions(data::Base.Vector{OHT}, ngroups::Int64)::Base.Vector{Tuple{OHT,OHT}} where {OHT}
+    datalength = length(data)
+    grouplength = div(datalength, ngroups)
+    # We use `unique` here because if the divisions have duplicates, this could
+    # result in different partitions getting the same divisions. The usage of
+    # `unique` here is more of a safety precaution. The # of divisions we use
+    # is the maximum # of groups.
+    # TODO: Ensure that `unique` doesn't change the order
+    @time begin
+    all_divisions::Base.Vector{Tuple{OHT,OHT}} = Tuple{OHT,OHT}[]
+    used_index_pairs::Base.Vector{Tuple{Int64,Int64}} = Tuple{Int64,Int64}[]
+    for i = 1:ngroups
+        startindex = (i-1)*grouplength + 1
+        endindex = i == ngroups ? datalength : i*grouplength + 1
+        index_pair = (startindex, endindex)
+        if !(index_pair in used_index_pairs)
+            push!(
+                all_divisions,
+                # Each group has elements that are >= start and < end
+                (
+                    data[startindex],
+                    data[endindex]
+                )
+            )
+            push!(used_index_pairs, index_pair)
+        end
+    end
+    println("Time to get all_divisions")
+    end
+    all_divisions
+end
+
+function sample_divisions(df::T, key::K) where {T,K}
+    cache = get_sample_computation_cache()
+    cache_key = hash((:sample_divisions, objectid(df), key))
+    in_cache = get_key_for_sample_computation_cache(cache, cache_key)
+    if in_cache != 0
+        return cache.computation[in_cache]
+    end
+
+    # There are no divisions for empty data
+    if isempty(df)
+        return Any[]
+    end
+
+    @time begin
+    max_ngroups = sample_max_ngroups(df, key)
+    println("Time to call sample_max_ngroups from sample_divisions")
+    end
+    ngroups = min(max_ngroups, 512)
+    @time begin
+    data_unsorted = orderinghashes(df, key)
+    println("Time to call orderinghashes from sample_divisions")
+    end
+    println("Time to sort")
+    data = @time sort(data_unsorted, lt=(<=))
+    all_divisions = get_all_divisions(data, ngroups)
+    # @time begin
+    # res = unique(all_divisions)
+    # println("Time to get unique(all_divisions)")
+    # end
+    cache.computation[cache_key] = all_divisions
+    all_divisions
+end
+
+function sample_percentile(df::T, key::K, minvalue, maxvalue)::Float64 where {T,K}
+    # cache = get_sample_computation_cache().floats
+    # cache_key = hash((:sample_percentile, objectid(df), key, objectid(minvalue), objectid(maxvalue)))
+    # if haskey(cache, cache_key)
+    #     return cache[cache_key]
+    # end
+
+    # If the data frame is empty, nothing between `minvalue` and `maxvalue` can
+    # exist in `df`. so the percentile is 0.
+    if isempty(df) || isnothing(minvalue) || isnothing(maxvalue)
+        return 0.0
+    end
+
+    # NOTE: This may cause some problems because the way that data is ultimately split may
+    # not allow a really fine division of groups. So in the case of some filtering, the rate
+    # of filtering may be 90% but if there are only like 3 groups then maybe it ends up being like
+    # 50% and that doesn't get scheduled properly. We can try to catch stuff like maybe by using
+    # only 70% of total memory in scheduling or more pointedly by changing this function to
+    # call sample_divisions with a reasonable number of divisions and then counting how many
+    # divisions the range actually belongs to.
+
+    c::Int64 = 0
+    num_rows::Int64 = 0
+    @time begin
+    ohs = orderinghashes(df, key)
+    println("Time to call orderinghashes")
+    end
+    @time begin
+    for oh in ohs
+        if minvalue <= oh && oh <= maxvalue
+            c += 1
+        end
+        num_rows += 1
+    end
+    println("Time to compare ordering hashes")
+    end
+    c / num_rows
+
+    # # minvalue and maxvalue should already be order-preserved hashes
+    # # minvalue, maxvalue = orderinghash(minvalue), orderinghash(maxvalue)
+    # divisions = sample_divisions(A, key)
+    # percentile = 0
+    # divpercentile = 1/length(divisions)
+    # inminmax = false
+
+    # # Iterate through divisions to compute percentile
+    # for (i, (divminvalue, divmaxvalue)) in enumerate(divisions)
+    #     # Check if we are between the minvalue and maxvalue
+    #     if (i == 1 || minvalue >= divminvalue) && (i == length(divisions) || minvalue < divmaxvalue)
+    #         inminmax = true
+    #     end
+
+    #     # Add to percentile
+    #     if inminmax
+    #         percentile += divpercentile
+    #     end
+
+    #     # Check if we are no longer between the minvalue and maxvalue
+    #     if (i == 1 || maxvalue >= divminvalue) && (i == length(divisions) || maxvalue < divmaxvalue)
+    #         inminmax = false
+    #     end
+    # end
+
+    # percentile
+end
+
+function sample_max_ngroups(as::T, key::K)::Int64 where {T,K}
+    if isempty(as)
+        0
+    else
+        # nrow_by_group = DataFrames.combine(DataFrames.groupby(df, key), DataFrames.nrow).nrow
+        # max_nrow_group = maximum(nrow_by_group)
+        @time begin
+        data = sample_by_key(as, key)
+        println("Time to df[!, key]")
+        end
+        println("Time for counter(")
+        @time data_counter = counter(data)
+        println("Time for maximum(values(data_counter))")
+        @time max_nrow_group = maximum(values(data_counter))
+        div(length(data), max_nrow_group)
+    end
+end
+
+function _minimum(ohs::Vector{OHT})::OHT where {OHT}
+    oh_min = ohs[1]
+    for oh in ohs
+        oh_min = oh <= oh_min ? oh : oh_min
+    end
+    oh_min
+end
+
+function _maximum(ohs::Vector{OHT})::OHT where {OHT}
+    oh_max = ohs[1]
+    for oh in ohs
+        oh_max = oh_max <= oh ? oh : oh_max
+    end
+    oh_max
+end
+
+# TODO: Maybe instead just do `orderinghash(minimum(sample_by_key(A, key)))``
+
+function sample_min(A::T, key::K) where {T,K}
+    isempty(A) ? nothing : _minimum(orderinghashes(A, key))
+end
+
+function sample_max(A::T, key::K) where {T,K}
+    isempty(A) ? nothing : _maximum(orderinghashes(A, key))
+end
 
 const NOTHING_SAMPLE = Sample(nothing, -1, -1)
 

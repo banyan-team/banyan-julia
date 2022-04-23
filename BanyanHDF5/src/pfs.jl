@@ -246,9 +246,9 @@ function WriteHelperHDF5(
 
         whole_size = if worker_idx == nworkers
             Banyan.indexapply(
-                _ -> offset + (part isa Empty ? 0 : size(part, dim)),
+                offset + (part isa Empty ? 0 : size(part, dim)),
                 some_size,
-                index = dim
+                dim
             )
         else
             (0,)
@@ -428,9 +428,9 @@ function WriteHelperHDF5(
             some_size, whole_eltype = MPI.bcast(size_and_eltype, nworkers-1, comm)
             whole_size = if worker_idx == nworkers
                 Banyan.indexapply(
-                    _ -> offset + whole_batch_length,
+                    offset + whole_batch_length,
                     some_size,
-                    index = dim
+                    dim
                 )
             else
                 (0,)

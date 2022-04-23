@@ -33,22 +33,20 @@ total_memory_usage(val)::Int64 =
     end
 
 # NOTE: This function is shared between the client library and the PT library
-function indexapply(op, objs...; index::Int64=1)
-    lists = [obj for obj in objs if (obj isa AbstractVector || obj isa Tuple)]
-    length(lists) > 0 || throw(ArgumentError("Expected at least one tuple as input"))
-    index = index isa Colon ? length(first(lists)) : index
-    operands = [((obj isa AbstractVector || obj isa Tuple) ? obj[index] : obj) for obj in objs]
-    indexres = op(operands...)
-    res = first(lists)
-    if first(lists) isa Tuple
-        res = [res...]
-        res[index] = indexres
-        Tuple(res)
-    else
-        res = copy(res)
-        res[index] = indexres
-        res
-    end
+function indexapply(op::Function, obj::NTuple{N,Int64}, index::Int64) where {N}
+    res = Base.collect(obj)
+    res[index] = op(obj[index])
+    tuple(res)
+end
+function indexapply(op::Function, obj_a::NTuple{N,Int64}, obj_b::NTuple{N,Int64}, index::Int64) where {N}
+    res = Base.collect(obj_a)
+    res[index] = op(obj_a[index], obj_b[index])
+    tuple(res)
+end
+function indexapply(val::Int64, obj::NTuple{N,Int64}, index::Int64) where {N}
+    res = Base.collect(obj)
+    res[index] = val
+    tuple(res)
 end
 
 # converts give time as String to local timezone and returns DateTime
@@ -212,11 +210,38 @@ end
 
 @specialize
 
-function get_aws_config()
+"""
+Get the value for `key` in the `ini` file for a given `profile`.
+"""
+function _get_ini_value(
+    ini::Inifile, profile::String, key::String; default_value=nothing
+)
+    value = get(ini, "profile $profile", key)
+    value === :notfound && (value = get(ini, profile, key))
+    value === :notfound && (value = default_value)
+
+    return value
+end
+
+function get_aws_config()::Dict{Symbol,Any}
     global aws_config_in_usage
 
     # Get AWS configuration
     if isnothing(aws_config_in_usage)
+        # aws_conf = global_aws_config()
+        # aws_conf_creds = aws_conf.credentials
+        # aws_config_in_usage = Dict(
+        #     :creds => AWSCore.AWSCredentials(
+        #         aws_conf_creds.access_key_id,
+        #         aws_conf_creds.secret_key,
+        #         aws_conf_creds.token,
+        #         aws_conf_creds.user_arn,
+        #         aws_conf_creds.account_number;
+        #         expiry = aws_conf_creds.expiry,
+        #         renew = aws_conf_creds.renew,
+        #     ),
+        #     :region => aws_conf.region
+        # )
         # Get region according to ENV, then credentials, then config files
         profile = get(ENV, "AWS_DEFAULT_PROFILE", get(ENV, "AWS_DEFAULT_PROFILE", "default"))
         region::String = get(ENV, "AWS_DEFAULT_REGION", "")
@@ -239,7 +264,7 @@ function get_aws_config()
             throw(ErrorException("Could not discover AWS region to use from looking at AWS_PROFILE, AWS_DEFAULT_PROFILE, AWS_DEFAULT_REGION, HOME/.aws/credentials, and HOME/.aws/config"))
         end
 
-        aws_config_in_usage = Dict(
+        aws_config_in_usage = Dict{Symbol,Any}(
             :creds => AWSCredentials(),
             :region => region
         )

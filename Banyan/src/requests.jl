@@ -102,7 +102,7 @@ function _partitioned_computation_concrete(fut::Future, destination::Location, n
         @show t
         if t.partitioned_with_func != identity
             partitioned_with_func::Function = t.partitioned_with_func
-            partitioned_with_func()
+            partitioned_with_func(t.futures)
         end
         println("Ran partitioned_with_func")
         end
@@ -185,6 +185,7 @@ function _partitioned_computation_concrete(fut::Future, destination::Location, n
         # Destroy all closures so that all references to `Future`s are dropped
         t.partitioned_using_func = NOTHING_PARTITIONED_USING_FUNC
         t.partitioned_with_func = identity
+        empty!(t.futures)
 
         # Handle 
         empty!(t.mutation) # Drop references to `Future`s here as well
@@ -257,10 +258,13 @@ function _partitioned_computation_concrete(fut::Future, destination::Location, n
     end
 
     # Get queues for moving data between client and cluster
+    println("Time for get_aws_config")
+    @time aws_conf = get_aws_config()
+    @show aws_conf
     println("Time for get_scatter_queue")
-    scatter_queue = @time get_scatter_queue(resource_id)
+    scatter_queue = @time get_scatter_queue()
     println("Time for get_gather_queue")
-    gather_queue = @time get_gather_queue(resource_id)
+    gather_queue = @time get_gather_queue()
 
     # There are two cases: either we
     # TODO: Maybe we don't need to wait_For_session
@@ -435,9 +439,7 @@ function partitioned_computation_concrete(
         @time begin
         destined(fut, destination)
         mutated(fut)
-        partitioned_with(scaled=[fut]) do
-            handler(fut)
-        end
+        partitioned_with(handler, [fut], scaled=[fut])
         
         use_new_source_func = _partitioned_computation_concrete(fut, destination, new_source, sessions, session_id, session, resource_id)
         if use_new_source_func
@@ -595,7 +597,7 @@ function send_evaluation(value_id::ValueId, session_id::SessionId)
     response
 end
 
-pt_for_replicated(fut::Future) = pt(fut, Replicated())
+pt_for_replicated(futures::Vector{Future}) = pt(futures[1], Replicated())
 
 compute(fut::AbstractFuture) = compute(convert(Future, fut)::Future)
 function compute(f::Future)
@@ -649,9 +651,8 @@ function compute(f::Future)
     f.value
 end
 
-assign_replicated(f::Future) = pt(f, Replicated())
 function compute_inplace(fut::AbstractFuture)
-    partitioned_computation(assign_replicated, fut, destination=Disk())
+    partitioned_computation(pt_for_replicated, fut, destination=Disk())
 end
 
 
@@ -710,7 +711,7 @@ function offloaded(given_function::Function, args...; distributed::Bool = false)
     p = ProgressUnknown("Running offloaded code", spinner=true)
     
     session = get_session()
-    gather_queue = get_gather_queue(session.resource_id)
+    gather_queue = get_gather_queue()
     stored_message = nothing
     error_for_main_stuck, error_for_main_stuck_time = nothing, nothing
     while true

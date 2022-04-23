@@ -280,7 +280,7 @@ function _start_session(
         wait_for_session(session_id)
         println("Time for waiting for cluster and session:")
         end
-    elseif reusing_resources
+    elseif !reusing_resources
         @warn "Starting this session requires creating new cloud computing resources which will take 10-30 minutes for the first computation."
     end
 

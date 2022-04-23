@@ -269,7 +269,7 @@ Size(val)::Location = LocationSource(
     "Value",
     Dict{String,Any}("value" => to_jl_value(val)),
     0,
-    Sample(indexapply(getsamplenrows, val, index = 1)),
+    Sample(indexapply(getsamplenrows, val, 1)),
 )
 
 function Client(val::T)::Location where {T}

@@ -573,7 +573,7 @@ function DivideHelper(
     part = src
     # part = CopyFrom(src, params, batch_idx, nbatches, comm, loc_name, loc_params)
     newpartdim = length(split_len(part[dim], batch_idx, nbatches, comm))
-    indexapply(_ -> newpartdim, part, index = dim)
+    indexapply(newpartdim, part, dim)
 end
 
 function DivideHelper(

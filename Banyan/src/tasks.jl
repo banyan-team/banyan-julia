@@ -11,6 +11,7 @@ DelayedTask() = DelayedTask(
     Dict{ValueId,Dict{String,Int64}}(),
     NOTHING_PARTITIONED_USING_FUNC,
     identity,
+    Future[],
     IdDict{Future,Future}(),
     Future[],
     Future[],

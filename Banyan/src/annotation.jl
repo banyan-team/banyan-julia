@@ -107,9 +107,6 @@ function apply_keeping_same_statistics(keeping_same_statistics::Vector{Tuple{Fut
     end
 end
 
-# TODO: Use LRUCache.jl and Memoize.jl and make sample_* functions
-# Then, ensure we have functionality to check for same statistics first
-
 function keep_all_sample_keys_renamed(
     o::Tuple{Future,Sample,Vector{K}},
     n::Tuple{Future,Sample,Vector{K}},
@@ -378,6 +375,7 @@ end
 
 function _partitioned_with(
     @nospecialize(handler::Function),
+    futures::Vector{Future},
     # Memory usage, sampling
     # `scaled` is the set of futures with memory usage that can potentially be
     # scaled to larger sizes if the amount of data at a location changes.
@@ -404,6 +402,7 @@ function _partitioned_with(
         partitioned_using_modules(modules)
     end
 
+    curr_delayed_task.futures = futures
     curr_delayed_task.scaled = scaled
     curr_delayed_task.partitioned_with_func = handler
     curr_delayed_task.keep_same_sample_rate = keep_same_sample_rate
@@ -426,7 +425,8 @@ function _partitioned_with(
 end
 
 function partitioned_with(
-    @nospecialize(handler::Function);
+    @nospecialize(handler::Function),
+    futures::Vector{Future};
     # Memory usage, sampling
     # `scaled` is the set of futures with memory usage that can potentially be
     # scaled to larger sizes if the amount of data at a location changes.
@@ -474,6 +474,7 @@ function partitioned_with(
     println("In partitioned_with with K=$K")
     _partitioned_with(
         handler,
+        futures,
         scaled_res,
         keep_same_sample_rate,
         memory_usage,
