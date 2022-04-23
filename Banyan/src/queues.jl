@@ -55,7 +55,10 @@ get_execution_queue()::Dict{Symbol,Any} =
 ###################
 
 function sqs_receive_message_with_long_polling(queue)
+    @time begin
     r = AWSSQS.sqs(queue, "ReceiveMessage", MaxNumberOfMessages = "1")
+    println("Time to call AWSSQS.sqs")
+    end
     r = r["messages"]
 
     if isnothing(r)
@@ -106,8 +109,10 @@ function receive_next_message(
     error_for_main_stuck=nothing,
     error_for_main_stuck_time=nothing
 )::Tuple{Dict{String,Any},Union{Nothing,String}}
-    content::String, error_for_main_stuck::Union{Nothing,String} = @time get_next_message(queue_name, p; error_for_main_stuck=error_for_main_stuck, error_for_main_stuck_time=error_for_main_stuck_time)
-    println("Time for get_next_message ^^^")
+    @time begin
+    content::String, error_for_main_stuck::Union{Nothing,String} = get_next_message(queue_name, p; error_for_main_stuck=error_for_main_stuck, error_for_main_stuck_time=error_for_main_stuck_time)
+    println("Time for get_next_message")
+    end
     res::Dict{String,Any} = if startswith(content, "JOB_READY") || startswith(content, "SESSION_READY")
         Dict{String,Any}(
             "kind" => "SESSION_READY"
