@@ -172,7 +172,7 @@ function _start_session(
             manifest_toml = load_file("file://" * local_environment_dir * "Manifest.toml")
         end
         println("Time for get_hash")
-        environment_hash = @time get_hash(project_toml * manifest_toml)
+        environment_hash = @time get_hash(project_toml * manifest_toml * julia_version)
         environment_info["environment_hash"] = environment_hash
         environment_info["project_toml"] = "$(environment_hash)/Project.toml"
         println("Time to put in S3:")
@@ -529,15 +529,18 @@ end
 
 function _wait_for_session(session_id::SessionId=get_session_id(), kwargs...)
     sessions_dict = get_sessions_dict()
-    t = 2
     session_status = get_session_status(session_id; kwargs...)
     p = ProgressUnknown("Preparing session with ID $session_id", spinner=true)
+    t = 0
+    st = time()
     while session_status == "creating"
         sleep(t)
-        next!(p)
-        if t < 80
-            t *= 2
+        t = if time() - st < 90
+            0
+        else
+            7
         end
+        next!(p)
         session_status = get_session_status(session_id; kwargs...)
     end
     finish!(p, spinner = session_status == "running" ? '✓' : '✗')
