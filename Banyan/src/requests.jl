@@ -254,7 +254,7 @@ function _partitioned_computation_concrete(fut::Future, destination::Location, n
         end_session(failed=true)
         rethrow()
     end
-    println("Time for send_evaluation (invoking Lambda function):")
+    println("Time for send_evaluation (waiting for session and invoking Lambda function):")
     end
 
     # Get queues for moving data between client and cluster
@@ -532,7 +532,10 @@ end
 function send_evaluation(value_id::ValueId, session_id::SessionId)
     # First we ensure that the session is ready. This way, we can get a good
     # estimate of available worker memory before calling evaluate.
+    @time begin
     wait_for_session(session_id)
+    println("Time for wait_for_session in send_evaluation")
+    end
 
     encourage_parallelism = get_encourage_parallelism()
     encourage_parallelism_with_batches = get_encourage_parallelism_with_batches()
@@ -562,6 +565,7 @@ function send_evaluation(value_id::ValueId, session_id::SessionId)
     not_using_modules = get_session().not_using_modules
     main_modules = setdiff(get_loaded_packages(),  not_using_modules)
     using_modules = setdiff(used_packages, not_using_modules)
+    @time begin
     response = send_request_get_response(
         :evaluate,
         Dict{String,Any}(
@@ -585,6 +589,8 @@ function send_evaluation(value_id::ValueId, session_id::SessionId)
             "cluster_name" => get_session().cluster_name,
         ),
     )
+    println("Time for send_request_get_response in send_evaluation")
+    end
     if isnothing(response)
         throw(ErrorException("The evaluation request has failed. Please contact support"))
     end

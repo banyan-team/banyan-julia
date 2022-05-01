@@ -378,7 +378,7 @@ function pts_for_dropmissing(futures::Base.Vector{Future})
 end
 
 function _dropmissing(df::Future, res_nrows::Future, res::Future, args::Future, kwargs::Future)
-    partitioned_with(pts_for_dropmissing, [df, res, res_nrows, args, kwargs], scaled=[df, res], keep_same_keys=true, drifted=true, modules=["DataFrames"], keytype=String)
+    partitioned_with(pts_for_dropmissing, [df, res, res_nrows, args, kwargs], scaled=[df, res], keep_same_keys=true, drifted=true, modules=["BanyanDataFrames.DataFrames"], keytype=String)
 
     # partition(res, Partitioned(balanced=false, id="*"), match=df, on=["distribution", "key", "divisions"])
     # partition(res_nrows, Reducing(reducer=+))
@@ -440,7 +440,7 @@ end
 
 function _filter(df::Future, f::Future, res_nrows::Future, res::Future, kwargs::Future)
     @time begin
-    partitioned_with(pts_for_filter, Future[df, f, res_nrows, res, kwargs], scaled=[df, res], keep_same_keys=true, drifted=true, modules=["DataFrames"], keytype=String)
+    partitioned_with(pts_for_filter, Future[df, f, res_nrows, res, kwargs], scaled=[df, res], keep_same_keys=true, drifted=true, modules=["BanyanDataFrames.DataFrames"], keytype=String)
     println("Time for `partitioned_with` in `filter`:")
     end
 
@@ -505,7 +505,7 @@ function Missings.allowmissing(df::DataFrame)::DataFrame
     res_nrows = copy(df.nrows)
     res = Future(datatype="DataFrame")
 
-    partitioned_with(pts_for_copy_df, [df.data, res], scaled=[df.data, res], keep_same_keys=true, modules=["DataFrames"], keytype=String)
+    partitioned_with(pts_for_copy_df, [df.data, res], scaled=[df.data, res], keep_same_keys=true, modules=["BanyanDataFrames.DataFrames"], keytype=String)
 
     @partitioned df res begin res = DataFrames.allowmissing(df) end
 
@@ -516,7 +516,7 @@ function Missings.disallowmissing(df::DataFrame)::DataFrame
     res_nrows = copy(df.nrows)
     res = Future(datatype="DataFrame")
 
-    partitioned_with(pts_for_copy_df, [df.data, res], scaled=[df.data, res], keep_same_keys=true, modules=["DataFrames"], keytype=String)
+    partitioned_with(pts_for_copy_df, [df.data, res], scaled=[df.data, res], keep_same_keys=true, modules=["BanyanDataFrames.DataFrames"], keytype=String)
 
     @partitioned df res begin res = DataFrames.disallowmissing(df) end
 
@@ -527,7 +527,7 @@ function Base.deepcopy(df::DataFrame)::DataFrame
     res_nrows = copy(df.nrows)
     res = Future(datatype="DataFrame")
 
-    partitioned_with(pts_for_copy_df, [df.data, res], scaled=[df.data, res], keep_same_keys=true, modules=["DataFrames"], keytype=String)
+    partitioned_with(pts_for_copy_df, [df.data, res], scaled=[df.data, res], keep_same_keys=true, modules=["BanyanDataFrames.DataFrames"], keytype=String)
 
     @partitioned df res begin res = DataFrames.deepcopy(df) end
 
@@ -538,7 +538,7 @@ function Base.copy(df::DataFrame)::DataFrame
     res_nrows = copy(df.nrows)
     res = Future(datatype="DataFrame")
 
-    partitioned_with(pts_for_copy_df, [df.data, res], scaled=[df.data, res], keep_same_keys=true, modules=["DataFrames"], keytype=String)
+    partitioned_with(pts_for_copy_df, [df.data, res], scaled=[df.data, res], keep_same_keys=true, modules=["BanyanDataFrames.DataFrames"], keytype=String)
 
     @partitioned df res begin res = DataFrames.copy(df) end
 
@@ -760,7 +760,7 @@ function pts_for_getindex(futures::Base.Vector{Future})
 end
 
 function _getindex(df::Future, df_nrows::Future, return_vector::Bool, filter_rows::Bool, cols::Future, rows::Future, res::Future, res_size::Future)
-    partitioned_with(pts_for_getindex, [df, df_nrows, cols, rows, res, res_size], scaled=[df, res], keep_same_keys=!return_vector, drifted=filter_rows, modules=["DataFrames"], keytype=String)
+    partitioned_with(pts_for_getindex, [df, df_nrows, cols, rows, res, res_size], scaled=[df, res], keep_same_keys=!return_vector, drifted=filter_rows, modules=["BanyanDataFrames.DataFrames"], keytype=String)
 
     @partitioned df df_nrows res res_size rows cols begin
         res = df[rows, cols]
@@ -1072,7 +1072,7 @@ function pts_for_setindex(futures::Base.Vector{Future})
 end
 
 function _setindex(df::Future, v::Future, res::Future, cols::Future)
-    partitioned_with(pts_for_setindex, [df, v, res, cols], scaled=[df, res], keep_same_keys=true, modules=["DataFrames"], keytype=String)
+    partitioned_with(pts_for_setindex, [df, v, res, cols], scaled=[df, res], keep_same_keys=true, modules=["BanyanDataFrames.DataFrames"], keytype=String)
 
     # # union!(sample(res, :allowedgroupingkeys), sample(df, :allowedgroupingkeys))
     # # # Only merge column statistics if the column is not mutated by setindex!
@@ -1249,7 +1249,7 @@ function pts_for_rename(futures::Base.Vector{Future})
 end
 
 function _rename(df::Future, res_nrows::Future, res::Future, args::Future, kwargs::Future)::DataFrame
-    partitioned_with(pts_for_rename, [df, res, args, kwargs], scaled=[df, res], keep_same_keys=true, renamed=true, modules=["DataFrames"], keytype=String)
+    partitioned_with(pts_for_rename, [df, res, args, kwargs], scaled=[df, res], keep_same_keys=true, renamed=true, modules=["BanyanDataFrames.DataFrames"], keytype=String)
 
     @partitioned df res args kwargs begin
         res = DataFrames.rename(df, args...; kwargs...)
@@ -1394,7 +1394,7 @@ function pts_for_sort(futures::Base.Vector{Future})
 end
 
 function _sort(df::Future, res_nrows::Future, res::Future, cols::Future, kwargs::Future, sortingkey::String)::DataFrame
-    partitioned_with(pts_for_sort, [df, res, cols, kwargs], scaled=[df, res], keys=[sortingkey], modules=["DataFrames"], keytype=String)
+    partitioned_with(pts_for_sort, [df, res, cols, kwargs], scaled=[df, res], keys=[sortingkey], modules=["BanyanDataFrames.DataFrames"], keytype=String)
 
     # mutated(res)
 
@@ -1525,7 +1525,7 @@ function _innerjoin(dfs::Base.Vector{Future}, groupingkeys::Base.Vector{String},
         # simply adds in the grouping key that was used
         keys_by_future=keys_by_future,
         drifted=true,
-        modules=["DataFrames"],
+        modules=["BanyanDataFrames.DataFrames"],
         keytype=String
     )
 
@@ -1616,7 +1616,7 @@ function pts_for_unique(futures::Base.Vector{Future})
 end
 
 function _unique(df::Future, res_nrows::Future, res::Future, columns::Base.Vector{String}, cols::Future, kwargs::Future)::DataFrame
-    partitioned_with(pts_for_unique, Future[df, res_nrows, res, cols, kwargs], scaled=[df, res], keys=columns, drifted=true, modules=["DataFrames"], keytype=String)
+    partitioned_with(pts_for_unique, Future[df, res_nrows, res, cols, kwargs], scaled=[df, res], keys=columns, drifted=true, modules=["BanyanDataFrames.DataFrames"], keytype=String)
 
     @partitioned df res res_nrows cols kwargs begin
         res = DataFrames.unique(df, cols; kwargs...)
@@ -1687,7 +1687,7 @@ function pts_for_nonunique(futures::Base.Vector{Future})
 end
 
 function _nonunique(df::Future, df_nrows::Future, res_size::Future, res::Future, cols::Future, kwargs::Future)::BanyanArrays.Vector{Bool}
-    partitioned_with(pts_for_nonunique, [df, df_nrows, res_size, res, cols, kwargs], scaled=[df, res], modules=["DataFrames"], keytype=String)
+    partitioned_with(pts_for_nonunique, [df, df_nrows, res_size, res, cols, kwargs], scaled=[df, res], modules=["BanyanDataFrames.DataFrames"], keytype=String)
 
     @partitioned df df_nrows res res_size cols kwargs begin
         res = DataFrames.nonunique(df, cols; kwargs...)

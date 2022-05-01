@@ -57,7 +57,7 @@ function pts_for_groupby(futures::Base.Vector{Future})
 end
 
 function partitioned_for_groupby(df::Future, gdf::Future, gdf_length::Future, cols::Future, kwargs::Future)
-    partitioned_with(pts_for_groupby, Future[df, gdf, gdf_length, cols, kwargs], scaled=Future[df, gdf], modules=String["DataFrames"], keytype=String)
+    partitioned_with(pts_for_groupby, Future[df, gdf, gdf_length, cols, kwargs], scaled=Future[df, gdf], modules=String["BanyanDataFrames.DataFrames"], keytype=String)
     @partitioned df gdf gdf_length cols kwargs begin
         gdf = DataFrames.groupby(df, cols; kwargs...)
         gdf_length = DataFrames.length(gdf)
@@ -148,7 +148,7 @@ function pts_for_select(futures::Base.Vector{Future})
 end
 
 function partitioned_for_select(gdf_parent::Future, gdf::Future, res::Future, res_groupingkeys::Base.Vector{String}, groupcols::Future, groupkwargs::Future, args::Future, kwargs::Future)
-    partitioned_with(pts_for_select, Future[gdf_parent, gdf, res, groupcols, groupkwargs, args, kwargs], scaled=[gdf_parent, gdf, res], grouped=[gdf_parent, res], keys=res_groupingkeys, drifted=true, modules=["DataFrames"], keytype=String)
+    partitioned_with(pts_for_select, Future[gdf_parent, gdf, res, groupcols, groupkwargs, args, kwargs], scaled=[gdf_parent, gdf, res], grouped=[gdf_parent, res], keys=res_groupingkeys, drifted=true, modules=["BanyanDataFrames.DataFrames"], keytype=String)
     @partitioned gdf gdf_parent groupcols groupkwargs args kwargs res begin
         if !(gdf isa DataFrames.GroupedDataFrame) || gdf.parent !== gdf_parent
             gdf = DataFrames.groupby(gdf_parent, groupcols; groupkwargs...)
@@ -178,7 +178,7 @@ function DataFrames.select(gdf::GroupedDataFrame, args...; kwargs...)::DataFrame
 end
 
 function partitioned_for_transform(gdf_parent::Future, gdf::Future, res::Future, res_groupingkeys::Base.Vector{String}, groupcols::Future, groupkwargs::Future, args::Future, kwargs::Future)
-    partitioned_with(pts_for_select, Future[gdf_parent, gdf, res, groupcols, groupkwargs, args, kwargs], scaled=[gdf_parent, gdf, res], grouped=[gdf_parent, res], keys=res_groupingkeys, drifted=true, modules=["DataFrames"], keytype=String)
+    partitioned_with(pts_for_select, Future[gdf_parent, gdf, res, groupcols, groupkwargs, args, kwargs], scaled=[gdf_parent, gdf, res], grouped=[gdf_parent, res], keys=res_groupingkeys, drifted=true, modules=["BanyanDataFrames.DataFrames"], keytype=String)
 
     @partitioned gdf gdf_parent groupcols groupkwargs args kwargs res begin
         if !(gdf isa DataFrames.GroupedDataFrame) || gdf.parent !== gdf_parent
@@ -231,7 +231,7 @@ end
 
 function partitioned_for_combine(gdf_parent::Future, gdf::Future, res_nrows::Future, res::Future, res_groupingkeys::Base.Vector{String}, groupcols::Future, groupkwargs::Future, args::Future, kwargs::Future)
     @time begin
-    partitioned_with(pts_for_combine, Future[gdf_parent, gdf, res_nrows, res, groupcols, groupkwargs, args, kwargs], scaled=[gdf_parent, gdf, res], grouped=[gdf_parent, res], keys=res_groupingkeys, drifted=true, modules=["DataFrames"], keytype=String)
+    partitioned_with(pts_for_combine, Future[gdf_parent, gdf, res_nrows, res, groupcols, groupkwargs, args, kwargs], scaled=[gdf_parent, gdf, res], grouped=[gdf_parent, res], keys=res_groupingkeys, drifted=true, modules=["BanyanDataFrames.DataFrames"], keytype=String)
     println("Time for partitioned_with_for_combine in combine:")
     end
     @time begin
@@ -271,7 +271,7 @@ function DataFrames.combine(gdf::GroupedDataFrame, args...; kwargs...)::DataFram
 end
 
 function partitioned_for_subset(gdf_parent::Future, gdf::Future, res_nrows::Future, res::Future, res_groupingkeys::Base.Vector{String}, groupcols::Future, groupkwargs::Future, args::Future, kwargs::Future)
-    partitioned_with(pts_for_combine, Future[gdf_parent, gdf, res_nrows, res, groupcols, groupkwargs, args, kwargs], scaled=[gdf_parent, gdf, res], grouped=[gdf_parent, res], keys=res_groupingkeys, drifted=true, modules=["DataFrames"], keytype=String)
+    partitioned_with(pts_for_combine, Future[gdf_parent, gdf, res_nrows, res, groupcols, groupkwargs, args, kwargs], scaled=[gdf_parent, gdf, res], grouped=[gdf_parent, res], keys=res_groupingkeys, drifted=true, modules=["BanyanDataFrames.DataFrames"], keytype=String)
     @partitioned gdf gdf_parent groupcols groupkwargs args kwargs res res_nrows begin
         if !(gdf isa DataFrames.GroupedDataFrame) || gdf.parent !== gdf_parent
             gdf = DataFrames.groupby(gdf_parent, groupcols; groupkwargs...)
