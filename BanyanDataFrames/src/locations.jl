@@ -29,7 +29,7 @@ function _remote_table_source(remotepath, shuffled, source_invalid, sample_inval
     # Get list of local paths
     localpaths_on_main_worker::Base.Vector{String}, localpaths_shuffling_on_main::Base.Vector{Int64} = if is_main
         paths = if !curr_parameters_invalid
-            convert(Vector{String}, curr_meta[:path])
+            convert(Base.Vector{String}, curr_meta[:path])
         else
             localpath::String = getpath(remotepath)
             localpath_is_dir = isdir(localpath)
