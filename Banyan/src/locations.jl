@@ -575,7 +575,8 @@ end
 # Functions to be extended for different data formats
 
 function sample_from_range(r, sample_rate)
-    sample_len = ceil(Int64, length(r) / sample_rate)
+    len = length(r)
+    sample_len = ceil(Int64, len / sample_rate)
     rand_indices = randsubseq(1:len, 1/sample_rate)
     if length(rand_indices) > sample_len
         rand_indices = rand_indices[1:sample_len]
