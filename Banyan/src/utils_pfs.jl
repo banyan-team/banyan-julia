@@ -66,7 +66,7 @@ sync_across(obj; from_worker_idx=1, comm=MPI.COMM_WORLD) = MPI.bcast(obj, from_w
 reduce_across(func, val; to_worker_idx=1, comm=MPI.COMM_WORLD) = MPI.Reduce(val, func, to_worker_idx-1, comm)
 reduce_and_sync_across(func, val; comm=MPI.COMM_WORLD) = MPI.Allreduce(val, func, comm)
 
-function gather_across(obj, comm=MPI.COMM_WORLD)
+function gather_across(obj::T, comm=MPI.COMM_WORLD) where {T}
     is_main = is_main_worker(comm)
     io = IOBuffer()
     serialize(io, obj)
@@ -83,7 +83,7 @@ function gather_across(obj, comm=MPI.COMM_WORLD)
             for i in 1:get_nworkers(comm)
         ]
     else
-        Any[]
+        T[]
     end
 end
 
