@@ -106,7 +106,7 @@ end
 
 pts_for_partitioned(futures::Base.Vector{Future}) = pt(futures[1], Partitioned(futures[1]))
 
-function write_table(df::DataFrame, path; invalidate_source=true, invalidate_sample=true, kwargs...)
+function write_table(df::DataFrame, path)
     @nospecialize
     # destined(df, Remote(path, delete_from_cache=true))
     # mutated(df)
@@ -120,7 +120,7 @@ function write_table(df::DataFrame, path; invalidate_source=true, invalidate_sam
     partitioned_computation(
         pts_for_partitioned,
         df,
-        destination=RemoteTableDestination(path; invalidate_source=invalidate_source, invalidate_sample=invalidate_sample, kwargs...),
+        destination=RemoteTableDestination(path),
         new_source=_->RemoteTableSource(path)
     )
 end

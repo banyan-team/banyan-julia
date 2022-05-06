@@ -406,7 +406,7 @@ CopyFromJulia(
     loc_name,
     loc_params,
 ) = begin
-    path = getpath(loc_params["path"]::String, comm)
+    path = getpath(loc_params["path"]::String)
     isfile(path) ? deserialize(path) : nothing
 end
 
@@ -453,7 +453,7 @@ function CopyToJulia(
         # if isa_gdf(part)
         #     part = nothing
         # end
-        serialize(getpath(loc_params["path"], comm), part)
+        serialize(getpath(loc_params["path"]), part)
     end
     if batch_idx == 1
         MPI.Barrier(comm)

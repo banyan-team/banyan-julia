@@ -26,7 +26,7 @@ function ReadBlockHelperJuliaArray(
     # TODO: Implement a Read for balanced=false where we can avoid duplicate
     # reading of the same range in different reads
 
-    path = Banyan.getpath(loc_params_path, comm)
+    path = Banyan.getpath(loc_params_path)
 
     # Handle multi-file tabular datasets
 
@@ -87,7 +87,7 @@ function ReadBlockHelperJuliaArray(
         if !partitioned_on_dim || Banyan.isoverlapping(filerowrange, rowrange)
             # Deterine path to read from
             file_path = file[2]
-            path = Banyan.getpath(file_path, comm)
+            path = Banyan.getpath(file_path)
 
             # Read from location depending on data format
             readrange = if partitioned_on_dim
@@ -221,12 +221,12 @@ function WriteJuliaArrayHelper(
     if startswith(path, "http://") || startswith(path, "https://")
         error("Writing to http(s):// is not supported")
     elseif startswith(path, "s3://")
-        path = Banyan.getpath(path, comm)
+        path = Banyan.getpath(path)
         # NOTE: We expect that the ParallelCluster instance was set up
         # to have the S3 filesystem mounted at ~/s3fs/<bucket name>
     else
         # Prepend "efs/" for local paths
-        path = Banyan.getpath(path, comm)
+        path = Banyan.getpath(path)
     end
 
     # Write file for this partition

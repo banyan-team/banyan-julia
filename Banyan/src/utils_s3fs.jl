@@ -143,6 +143,8 @@ end
 #     end
 # end
 
+# This is being used by `RemoteONNXSource` and `upload_to_s3`.
+
 function get_downloaded_path(downloaded_path::S3Path; only_for_writing=false)::String
     temp_downloaded_path = string(Path(tempname() * splitext(downloaded_path)[2]))
     if !only_for_writing

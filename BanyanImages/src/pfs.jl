@@ -6,7 +6,7 @@ function ReadBlockImageHelper(
     comm::MPI.Comm,
     loc_name::String,
     loc_params::Dict{String,Any},
-    files::Union{Base.Vector{String},String,Base.Generator},
+    meta_path::String,
     nimages::Int64,
     datasize,
     empty_sample,
@@ -20,41 +20,18 @@ function ReadBlockImageHelper(
 
     # files is either a list of file paths or a serialized tuple containing
     # information to construct a generator
-    if !isa(files, Base.Array)
-        iter_info::Tuple = Banyan.from_jl_value_contents(files::String)
-        # Construct a generator
-        if length(iter_info) > 3 || length(iter_info) < 2
-            error("Remotepath is invalid")
-        elseif length(iter_info) == 3
-            files = (
-                Base.invokelatest(iter_info[3], (iter_info[1], idx...))
-                for idx in iter_info[2]
-            )
-        else  # 2
-            files = (
-                Base.invokelatest(iter_info[2], (idx...))
-                for idx in iter_info[1]
-            )
-        end
-    end
+    meta_table = Arrow.Table(meta_path)
 
     # Identify the range of indices of files for the batch currently
     # being processed by this worker
     filerange = Banyan.split_len(nimages, batch_idx, nbatches, comm)
-
-    if isa(files, Base.Generator)
-        # Get the subset of the iterator which corresponds to the range
-        # that this workers is going to process
-        files_sub = Iterators.take(Iterators.drop(files, filerange.start - 1), filerange.stop - filerange.start + 1)
-    else
-        files_sub = view(files, filerange)
-    end
+    files_sub = meta_table.path[filerange]
 
     part_size = (length(files_sub), (datasize)[2:end]...)
     empty_sample_eltype = eltype(empty_sample)
     images = Base.Array{empty_sample_eltype}(undef, part_size)
     for (i, f) in enumerate(files_sub)
-        filepath = Banyan.getpath(f, comm)
+        filepath = Banyan.getpath(f)
         image = load(filepath)
         if add_channelview
             image = ImageCore.channelview(image)
@@ -82,8 +59,8 @@ ReadBlockImage(
     comm,
     loc_name,
     loc_params,
-    loc_params["files"],
-    loc_params["nimages"],
+    loc_params["meta_path"]::String,
+    loc_params["nimages"]::Int64,
     loc_params["size"],
     Banyan.from_jl_value_contents(loc_params["emptysample"]::String),
     loc_params["add_channelview"]

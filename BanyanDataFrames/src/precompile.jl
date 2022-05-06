@@ -191,15 +191,7 @@ function _precompile_()
     end
 
     # locations.jl
-    precompile(
-        get_remote_table_source,
-        (
-            String,
-            Location,
-            Sample,
-            Bool
-        )
-    )
+    precompile(_remote_table_source, (String, Bool, Bool, Bool, Bool, Bool))
 
     # df.jl
     precompile(Banyan.orderinghashes, (DataFrames.DataFrame, String))

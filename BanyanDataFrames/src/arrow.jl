@@ -1,12 +1,29 @@
 # locations.jl
 
-read_chunk(localfilepathp::String, ::Val{:arrow}) = Arrow.Stream(localfilepathp)
+has_separate_metadata(::Val{:arrow}) = true
+get_metadata(::Val{:arrow}, p) = Tables.rowcount(Arrow.Table(localfilepathp))
+get_sample(::Val{:arrow}, p, sample_rate, len) = let rand_indices = sample_from_range(1:len, sample_rate)
+    if isempty(rand_indices)
+        DataFrames.DataFrame()
+    else
+        get_sample_from_data(DataFrames.DataFrame(Arrow.Table(p)), sample_rate, rand_indices)
+    end
+end
+get_sample_and_metadata(::Val{:arrow}, p, sample_rate) =
+    let sample_df = DataFrames.DataFrame(Arrow.Table(p))
+        num_rows = nrow(sample_df)
+        get_sample_from_data(sample_df, sample_rate, num_rows), num_rows
+    end
 
-get_nrow(localfilepathp::String, ::Val{:arrow}) = Tables.rowcount(Arrow.Table(localfilepathp))
+# read_chunk(localfilepathp::String, ::Val{:arrow}) = Arrow.Stream(localfilepathp)
+
+# get_nrow(localfilepathp::String, ::Val{:arrow}) = Tables.rowcount(Arrow.Table(localfilepathp))
 
 # pfs.jl
 
-function read_arrow_file(path, header, rowrange, readrange, filerowrange, dfs)
+file_ending(::Val{:arrow}) = "arrow"
+
+function read_file(::Val{:arrow}, path, header, rowrange, readrange, filerowrange, dfs)
     rbrowrange = filerowrange.start:(filerowrange.start-1)
     for tbl in Arrow.Stream(path)
         rbrowrange = (rbrowrange.stop+1):(rbrowrange.stop+Tables.rowcount(tbl))
@@ -27,16 +44,13 @@ function read_arrow_file(path, header, rowrange, readrange, filerowrange, dfs)
     end
 end
 
-ReadBlockArrow = ReadBlockHelper(read_arrow_file, ".arrow")
+ReadBlockArrow = ReadBlockHelper(Val(:arrow))
 ReadGroupHelperArrow = ReadGroupHelper(ReadBlockArrow, ShuffleDataFrame)
 ReadGroupArrow = ReadGroup(ReadGroupHelperArrow)
 
-write_arrow_file(part::DataFrames.DataFrame, path, sortableidx, nrows) = Arrow.write(
-    joinpath(path, "part$sortableidx" * "_nrows=$nrows.arrow"),
-    part
-)
+write_file(::Val{:arrow}, part::DataFrames.DataFrame, path, nrows) = Arrow.write(path, part)
 
-WriteArrow = WriteHelper(write_arrow_file)
+WriteArrow = WriteHelper(Val(:arrow))
 
 CopyFromArrow(
     src,

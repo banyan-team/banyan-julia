@@ -166,7 +166,7 @@ function ShuffleDataFrame(
     )
 end
 
-function ReadBlockHelper(@nospecialize(read_file::Function), file_extension::String)
+function ReadBlockHelper(@nospecialize(format_value))
     function ReadBlock(
         src,
         params::Dict{String,Any},
@@ -179,50 +179,57 @@ function ReadBlockHelper(@nospecialize(read_file::Function), file_extension::Str
         # TODO: Implement a Read for balanced=false where we can avoid duplicate
         # reading of the same range in different reads
 
-        path = Banyan.getpath(loc_params["path"]::String, comm)
-
         if Banyan.INVESTIGATING_LOSING_DATA
-            println("In ReadBlock with path=$path, loc_params=$params")
+            println("In ReadBlock with loc_params=$params")
         end
+        
+        meta_path = if loc_name == "Remote"
+            loc_params["meta_path"]::String
+        else
+            get_meta_path(loc_params["path"]::String)
+        end
+        meta = Arrow.Table(meta_path)
 
         # Handle multi-file tabular datasets
 
-        # Handle None location by finding all files in directory used for spilling
-        # this value to disk
-        if loc_name == "Disk"
-            # TODO: Only collect files and nrows info for this location associated
-            # with a unique name corresponding to the value ID - only if this is
-            # the first batch or loop iteration.
-            name = loc_params["path"]::String
-            name_path = path
-            # TODO: isdir might not work for S3FS
-            if isdir(name_path)
-                files = []
-                nrows = 0
-                for partfilename in readdir(name_path)
-                    part_nrows = parse(
-                        Int64,
-                        replace(split(partfilename, "_nrows=")[end], ".arrow" => ""),
-                    )
-                    push!(
-                        files,
-                        Dict{String,Any}("nrows" => part_nrows, "path" => joinpath(name, partfilename)),
-                    )
-                    nrows += part_nrows
-                end
-                loc_params["files"] = files
-                loc_params["nrows"] = nrows
-            else
-                # This is the case where no data has been spilled to disk and this
-                # is maybe just an intermediate variable only used for this stage.
-                # We never spill tabular data to a single file - it's always a
-                # directory of Arrow files.
-                return nothing
-            end
-        end
+        file_extension = file_ending(format_value)
+
+        # # Handle None location by finding all files in directory used for spilling
+        # # this value to disk
+        # if loc_name == "Disk"
+        #     # TODO: Only collect files and nrows info for this location associated
+        #     # with a unique name corresponding to the value ID - only if this is
+        #     # the first batch or loop iteration.
+        #     name = loc_params["path"]::String
+        #     name_path = path
+        #     # TODO: isdir might not work for S3FS
+        #     if isdir(name_path)
+        #         files = []
+        #         nrows = 0
+        #         for partfilename in readdir(name_path)
+        #             part_nrows = parse(
+        #                 Int64,
+        #                 replace(split(partfilename, "_nrows=")[end], ".arrow" => ""),
+        #             )
+        #             push!(
+        #                 files,
+        #                 Dict{String,Any}("nrows" => part_nrows, "path" => joinpath(name, partfilename)),
+        #             )
+        #             nrows += part_nrows
+        #         end
+        #         loc_params["files"] = files
+        #         loc_params["nrows"] = nrows
+        #     else
+        #         # This is the case where no data has been spilled to disk and this
+        #         # is maybe just an intermediate variable only used for this stage.
+        #         # We never spill tabular data to a single file - it's always a
+        #         # directory of Arrow files.
+        #         return nothing
+        #     end
+        # end
 
         if Banyan.INVESTIGATING_LOSING_DATA
-            println("In ReadBlock after Disk case with path=$path, loc_params=$params")
+            println("In ReadBlock after Disk case with loc_params=$params")
         end
 
         # Iterate through files and identify which ones correspond to the range of
@@ -231,16 +238,14 @@ function ReadBlockHelper(@nospecialize(read_file::Function), file_extension::Str
         rowrange = Banyan.split_len(nrows, batch_idx, nbatches, comm)
         dfs::Base.Vector{DataFrames.DataFrame} = DataFrames.DataFrame[]
         rowsscanned = 0
-        loc_params_files::Base.Vector{Dict{String,Any}} = convert(Base.Vector{Dict{String,Any}}, loc_params["files"])::Base.Vector{Dict{String,Any}}
-        for file in sort(loc_params_files, by = filedict -> filedict["path"]::String)
+        for (file_path, file_nrows) in Tables.rows(meta)
             newrowsscanned = rowsscanned + file["nrows"]::Int64
             filerowrange = (rowsscanned+1):newrowsscanned
             # Check if the file corresponds to the range of rows for the batch
             # currently being processed by this worker
             if Banyan.isoverlapping(filerowrange, rowrange)
                 # Deterine path to read from
-                file_path = file["path"]::String
-                path = Banyan.getpath(file_path, comm)
+                path = file_path
 
                 # Read from location depending on data format
                 readrange =
@@ -255,7 +260,7 @@ function ReadBlockHelper(@nospecialize(read_file::Function), file_extension::Str
                     if Banyan.INVESTIGATING_LOSING_DATA
                         println("In ReadBlock calling read_file with path=$path, filerowrange=$filerowrange, readrange=$readrange, rowrange=$rowrange")
                     end
-                    read_file(path, header, rowrange, readrange, filerowrange, dfs)
+                    read_file(format_value, path, header, rowrange, readrange, filerowrange, dfs)
                 else
                     error("Expected file with $file_extension extension")
                 end
@@ -282,7 +287,7 @@ function ReadBlockHelper(@nospecialize(read_file::Function), file_extension::Str
                     # This should not be empty for disk-spilled data
                     DataFrames.DataFrame()
                 else
-                    empty(DataFrames.DataFrame(Arrow.Table(Banyan.getpath(first(files_sorted_by_nrow)["path"], comm)), copycols=false))
+                    empty(DataFrames.DataFrame(Arrow.Table(Banyan.getpath(first(files_sorted_by_nrow)["path"])), copycols=false))
                 end
             else
                 # When we construct the location, we store an empty data frame with The
@@ -305,7 +310,7 @@ end
 # that can't just be empty `DataFrame()`, then we will modify functions in this file to
 # support Empty inputs.
 
-function WriteHelper(@nospecialize(write_file::Function))
+function WriteHelper(@nospecialize(format_value))
     function Write(
         src,
         part::Union{DataFrames.AbstractDataFrame,Empty},
@@ -321,34 +326,33 @@ function WriteHelper(@nospecialize(write_file::Function))
         splitting_divisions = Banyan.get_splitting_divisions()
         delete!(splitting_divisions, part)
 
+        ###########
+        # Writing #
+        ###########
+
         # Get path of directory to write to
-        path::String = loc_params["path"]
+        loc_params_path = loc_params["path"]::String
+        path::String = loc_params_path
         if startswith(path, "http://") || startswith(path, "https://")
             error("Writing to http(s):// is not supported")
         elseif startswith(path, "s3://")
-            path = Banyan.getpath(path, comm)
+            path = Banyan.getpath(path)
             # NOTE: We expect that the ParallelCluster instance was set up
             # to have the S3 filesystem mounted at ~/s3fs/<bucket name>
         else
             # Prepend "efs/" for local paths
-            path = Banyan.getpath(path, comm)
+            path = Banyan.getpath(path)
         end
 
         # Write file for this partition
         worker_idx = Banyan.get_worker_idx(comm)
+        nworkers = get_nworkers(comm)
         idx = Banyan.get_partition_idx(batch_idx, nbatches, comm)
         actualpath = deepcopy(path)
+        format_string = file_ending(format_value)
         if nbatches > 1
             # Add _tmp to the end of the path
-            if endswith(path, ".parquet")
-                path = replace(path, ".parquet" => "_tmp.parquet")
-            elseif endswith(path, ".csv")
-                path = replace(path, ".csv" => "_tmp.csv")
-            elseif endswith(path, ".arrow")
-                path = replace(path, ".arrow" => "_tmp.arrow")
-            else
-                path = path * "_tmp"
-            end
+            path = loc_name == "Disk" ? path * "_tmp" : replace(path, ".$format_string" => "_tmp.$format_string")
         end
 
         # TODO: Delete existing files that might be in the directory but first
@@ -389,13 +393,124 @@ function WriteHelper(@nospecialize(write_file::Function))
         end
         MPI.Barrier(comm)
 
+        # Write out for this batch
         nrows = part isa Empty ? 0 : size(part, 1)
-        sortableidx = Banyan.sortablestring(idx, get_npartitions(nbatches, comm))
+        npartitions = get_npartitions(nbatches, comm)
+        sortableidx = Banyan.sortablestring(idx, npartitions)
+        part_res = part isa Empty ? part : convert(DataFrames.DataFrame, part)
         if !(part isa Empty)
-            write_file(convert(DataFrames.DataFrame, part), path, sortableidx, nrows)
-        end
+            write_file(
+                format_value,
+                part_res,
+                joinpath(path, "part$sortableidx" * "_nrows=$nrows.$format_string"),
+                nrows
+            )
+        end 
         MPI.Barrier(comm)
+
+        ##########################################
+        # SAMPLE/METADATA COLLECTIOM AND STORAGE #
+        ##########################################
+
+        # Get paths for reading in metadata and Location
+        meta_path = get_meta_path(path)
+        location_path = get_location_path(path)
+
+        # Read in meta path if it's there
+        curr_localpaths, curr_nrows = if nbatches > 1 && batch_idx > 1
+            let curr_meta = Arrow.Table(meta_path)
+                (curr_meta[:path], curr_meta[:nrows])
+            end
+        else
+            (String[], Int64[])
+        end
+
+        # Read in the current location if it's there
+        empty_df = DataFrames.DataFrame()
+        curr_location::Location = if nbatches > 1 && batch_idx > 1
+            deserialize(location_path)
+        else
+            LocationSource(
+                "Remote",
+                Dict(
+                    "format" => format_string,
+                    "nrows" => 0,
+                    "path" => loc_params_path,
+                    "meta_path" => meta_path,
+                    "empty_sample" => to_jl_value_contents(empty_df)
+                ),
+                0,
+                empty_df
+            )
+        end
+
+        # Gather # of rows, # of bytes, empty sample, and actual sample
+        nbytes = part_res isa Empty ? 0 : Banyan.total_memory_usage(part_res)
+        sample_rate = get_session().sample_rate
+        sampled_part = part_res isa Empty ? empty_df : Banyan.get_sample_from_data(part_res, sample_rate, nrows)
+        new_nrows, new_nbytes, empty_parts, sampled_parts =
+            gather_across((nrows, nbytes, part_res isa Empty ? part_res : empty(part_res)), sampled_part)
+        
+        # On the main worker, finalize metadata and location info.
+        if worker_idx == 1
+            # Determine paths and #s of rows for metadata file
+            for worker_i in 1:nworkers
+                push!(
+                    curr_localpaths,
+                    Banyan.sortablestring(
+                        Banyan.get_partition_idx(batch_idx, nbatches, worker_i),
+                        npartitions
+                    )
+                )
+            end
+            append!(curr_nrows, new_nrows)
+
+            # Update the # of rows and # of bytes
+            total_nrows::Int64 = curr_location.src_parameters["nrows"]
+            total_nrows += sum(new_nworkers)
+            curr_location.src_parameters["nrows"] = total_nrows
+            curr_location.total_memory_usage += sum(new_nbytes)
+
+            # Get the empty sample
+            for empty_part in empty_parts
+                if !(empty_part isa Empty)
+                    curr_location.src_parameters["empty_sample"] = to_jl_value_contents(empty_part)
+                    break
+                end
+            end
+
+            # Get the actual sample by concatenating
+            curr_location.sample = Sample(vcat(sampled_parts...), curr_location.total_memory_usage)
+
+            # Determine paths for this batch and gather # of rows
+            Arrow.write(meta_path, (path=curr_localpaths, nrows=curr_nrows))
+
+            if batch_idx == nbatches && total_nrows <= get_max_exact_sample_length()
+                # If the total # of rows turns out to be inexact then we can simply mark it as
+                # stale so that it can be collected more efficiently later on
+                # We should be able to quickly recompute a more useful sample later
+                # on when we need to use this location.
+                curr_location.sample_invalid = true
+            end
+
+            # Write out the updated `Location`
+            serialize(location_path, curr_location)
+        end
+
+        ###################################
+        # Handling Final Batch by Copying #
+        ###################################
+
         if nbatches > 1 && batch_idx == nbatches
+            # Copy over location and meta path
+            actual_meta_path = get_meta_path(actualpath)
+            actual_location_path = get_location_path(actualpath)
+            if worker_idx == 1
+                cp(meta_path, actual_meta_path)
+                cp(location_path, actual_location_path)
+            end
+
+            # Copy over files to actual location
             tmpdir = readdir(path)
             if worker_idx == 1
                 Banyan.rmdir_on_nfs(actualpath)

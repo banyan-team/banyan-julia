@@ -2,13 +2,30 @@ using .Parquet
 
 # locations.jl
 
-read_chunk(localfilepathp::String, ::Val{:parquet}) = Tables.partitions(Parquet.read_parquet(localfilepathp))
+has_separate_metadata(::Val{:parquet}) = true
+get_metadata(::Val{:parquet}, p) = nrows(Parquet.File(p))
+get_sample(::Val{:parquet}, p, sample_rate, len) = let rand_indices = sample_from_range(1:len, sample_rate)
+    if isempty(rand_indices)
+        DataFrames.DataFrame()
+    else
+        get_sample_from_data(Parquet.File(p) |> DataFrames.DataFrame, sample_rate, rand_indices)
+    end
+end
+get_sample_and_metadata(::Val{:parquet}, p, sample_rate) =
+    let sample_df = Parquet.File(p) |> DataFrames.DataFrame
+        num_rows = nrow(sample_df)
+        get_sample_from_data(sample_df, sample_rate, num_rows), num_rows
+    end
 
-get_nrow(localfilepathp::String, ::Val{:parquet}) = nrows(Parquet.File(localfilepathp))
+# read_chunk(localfilepathp::String, ::Val{:parquet}) = Tables.partitions(Parquet.read_parquet(localfilepathp))
+
+# get_nrow(localfilepathp::String, ::Val{:parquet}) = nrows(Parquet.File(localfilepathp))
 
 # pfs.jl
 
-function read_parquet_file(path, header, rowrange, readrange, filerowrange, dfs)
+file_ending(::Val{:parquet}) = "parquet"
+
+function read_file(::Val{:parquet}, path, header, rowrange, readrange, filerowrange, dfs)
     f = Parquet.read_parquet(
         path,
         rows = (readrange.start-filerowrange.start+1):(readrange.stop-filerowrange.start+1),
@@ -16,15 +33,16 @@ function read_parquet_file(path, header, rowrange, readrange, filerowrange, dfs)
     push!(dfs, DataFrames.DataFrame(f, copycols=false))
 end
 
-ReadBlockParquet = ReadBlockHelper(read_parquet_file, ".parquet")
+ReadBlockParquet = ReadBlockHelper(Val(:parquet))
 ReadGroupHelperParquet = ReadGroupHelper(ReadBlockParquet, ShuffleDataFrame)
 ReadGroupParquet = ReadGroup(ReadGroupHelperParquet)
 
-write_parquet_file(part::DataFrames.DataFrame, path, sortableidx, nrows) = if nrows > 0
-    Parquet.write_parquet(joinpath(path, "part$sortableidx" * "_nrows=$nrows.parquet"), part)
-end
+write_file(::Val{:parquet}, part::DataFrames.DataFrame, path, nrows) =
+    if nrows > 0
+        Parquet.write_parquet(path, part)
+    end
 
-WriteParquet = WriteHelper(write_parquet_file)
+WriteParquet = WriteHelper(Val(:parquet))
 
 CopyFromParquet(
     src,

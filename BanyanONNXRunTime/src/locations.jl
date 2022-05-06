@@ -1,9 +1,6 @@
-function get_remote_onnx_source(
-    remotepath::String,
-    remote_source::Location,
-    remote_sample::Sample,
-    shuffled::Bool
-)::Location
+function RemoteONNXSource(remotepath)::Location
+    # NOTE: We can't cache this because ONNX models can't be deserialized from disk
+
     # Get the path
     p = download_remote_path(remotepath)
     p_exists = isfile(p)
@@ -17,44 +14,24 @@ function get_remote_onnx_source(
         destroy_downloaded_path(pp)
     end
 
-    loc_for_reading, metadata_for_reading = if p_exists
-        (
-            "Remote",
-            Dict{String,Any}(
-                "path" => remotepath,
-                "nbytes" => nbytes,
-                "format" => "onnx",
-                "datatype" => "ONNX"
-            ),
-        )
-    else
-        ("None", Dict{String,Any}())
-    end
+    p_exists || error("No ONNX file found at $remotepath")
+
+    loc_for_reading = "Remote"
+    metadata_for_reading = Dict{String,Any}(
+        "path" => remotepath,
+        "nbytes" => nbytes,
+        "format" => "onnx",
+        "datatype" => "ONNX"
+    )
 
     # Construct sample
-    remote_sample = if isnothing(loc_for_reading) || isnothing(model)
-        Sample()
-    else
-        s = ExactSample(model)
-    end
+    remote_sample = ExactSample(model)
 
     # Construct location with metadata
     LocationSource(
         loc_for_reading,
         metadata_for_reading,
-        ceil(Int, nbytes),
+        ceil(Int64, nbytes),
         remote_sample,
-    )
-end
-
-function RemoteONNXSource(remotepath; shuffled=false, source_invalid = false, invalidate_source = false, invalidate_sample = false)::Location
-    RemoteSource(
-        get_remote_onnx_source,
-        remotepath,
-        shuffled,
-        source_invalid,
-        true,
-        invalidate_source,
-        invalidate_sample
     )
 end

@@ -10,6 +10,8 @@ mutable struct Location
     dst_parameters::LocationParameters
     total_memory_usage::Int64
     sample::Sample
+    parameters_invalid::Bool
+    sample_invalid::Bool
 
     # function Location(
     #     src_name::String,

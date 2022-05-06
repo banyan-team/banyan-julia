@@ -776,7 +776,7 @@ function finish_partitioned_code_region(splatted_futures::Vector{Future})
             for c in task.memory_usage_constraints
                 if startswith(c.type, "SCALE_TO=") && length(c.args) == 1 && c.args[1] == fut.value_id
                     final_memory_usage_set = true
-                    task.memory_usage[fut.value_id]["final"] = Base.convert(Int64, ceil(parse(Int64, c.type[length("SCALE_TO=")+1:end])))::Int64
+                    task.memory_usage[fut.value_id]["final"] = parse(Int64, c.type[length("SCALE_TO=")+1:end])::Int64
                 end
             end
 
@@ -801,7 +801,7 @@ function finish_partitioned_code_region(splatted_futures::Vector{Future})
                     relative_to = c.args[2]
                     if haskey(task.memory_usage[relative_to], "final")
                         factor::Float64 = parse(Float64, c.type[10:end])
-                        task.memory_usage[fut.value_id]["final"] = Base.convert(Int64, ceil(factor * task.memory_usage[relative_to]["final"]))
+                        task.memory_usage[fut.value_id]["final"] = ceil(Int64, factor * task.memory_usage[relative_to]["final"])
                     end
                 end
             end
@@ -886,7 +886,7 @@ function finish_partitioned_code_region(splatted_futures::Vector{Future})
             elseif startswith(c.type, "SCALE_BY=") && length(c.args) == 2 && c.args[1] == fut.value_id
                 arg = c.args[2]
                 factor::Float64 = parse(Float64, c.type[length("SCALE_BY=")+1:end])
-                additional_memory_usage += Base.convert(Int64, ceil(factor * task.memory_usage[arg]["final"]))
+                additional_memory_usage += ceil(Int64, factor * task.memory_usage[arg]["final"])
             end
         end
         task.memory_usage[fut.value_id]["additional"] = additional_memory_usage

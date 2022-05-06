@@ -680,6 +680,9 @@ end
 function offloaded(given_function::Function, args...; distributed::Bool = false)
     @nospecialize
 
+    # NOTE: no need for wait_for_session here because evaluate for offloaded
+    # doesn't need information about memory usage from intiial package loading.
+
     # Get serialized function
     serialized::String = to_jl_value_contents((given_function, args))
 

@@ -12,9 +12,7 @@ end
 
 function write_hdf5(
     A::BanyanArrays.Array,
-    path::String;
-    invalidate_source::Bool = true,
-    invalidate_sample::Bool = true
+    path::String
 )
     # # A_loc = Remote(pathname, mount)
     # destined(A, Remote(path, delete_from_cache=true))
@@ -37,11 +35,7 @@ function write_hdf5(
     partitioned_computation(
         BanyanArrays.pts_for_blocked_and_replicated,
         A,
-        destination=RemoteHDF5Destination(
-            path;
-            invalidate_source=invalidate_source,
-            invalidate_sample=invalidate_sample
-        ),
+        destination=RemoteHDF5Destination(path),
         new_source=_->RemoteHDF5Source(path)
     )
 end

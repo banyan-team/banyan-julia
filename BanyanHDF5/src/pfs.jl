@@ -13,7 +13,7 @@ function ReadBlockHelperHDF5(
     # Handle single-file nd-arrays
     # We check if it's a file because for items on disk, files are HDF5
     # datasets while directories contain Parquet, CSV, or Arrow datasets
-    path = Banyan.getpath(loc_params_path, comm)
+    path = Banyan.getpath(loc_params_path)
     if Banyan.INVESTIGATING_PARALLEL_HDF5
         println("In ReadBlockHDF5 with path=$path, loc_name=$loc_name, isfile(path)=$(isfile(path))")
     end
@@ -137,12 +137,12 @@ function WriteHelperHDF5(
     if startswith(path, "http://") || startswith(path, "https://")
         error("Writing to http(s):// is not supported")
     elseif startswith(path, "s3://")
-        path = Banyan.getpath(path, comm)
+        path = Banyan.getpath(path)
         # NOTE: We expect that the ParallelCluster instance was set up
         # to have the S3 filesystem mounted at ~/s3fs/<bucket name>
     else
         # Prepend "efs/" for local paths
-        path = Banyan.getpath(path, comm)
+        path = Banyan.getpath(path)
     end
 
     worker_idx = Banyan.get_worker_idx(comm)

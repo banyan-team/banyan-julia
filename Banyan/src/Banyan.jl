@@ -104,6 +104,8 @@ export Location, LocationSource, LocationDestination, located, sourced, destined
 export Value, Size, Client, Disk, None, RemoteSource, RemoteDestination
 export clear_sources, clear_samples, invalidate_source, invalidate_sample
 export NOTHING_LOCATION
+export has_separate_metadata, get_sample, get_metadata, get_sample_and_metadata
+export get_remotepath_id, get_meta_path, get_cached_location, cache_location, get_max_exact_sample_length
 
 # Serialization
 export from_jl_value_contents, to_jl_value_contents
@@ -156,9 +158,12 @@ export is_debug_on,
     orderinghash,
     get_worker_idx,
     get_nworkers,
+    is_main_worker,
     split_across,
     reduce_across,
+    reduce_and_sync_across,
     sync_across,
+    gather_across,
     find_worker_idx_where,
     get_partition_idx,
     get_npartitions,
@@ -187,6 +192,9 @@ export
     nonemptytype,
     disallowempty,
     empty_handler
+
+# Utilities for location constructors
+export get_cached_location, cache_location
 
 # Partitioning functions for usage in sessions that run on the cluster; dispatched
 # based on `res/pf_dispatch_table.json`.

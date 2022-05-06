@@ -128,6 +128,7 @@ function _start_session(
     session_configuration = Dict{String,Any}(
         "cluster_name" => cluster_name,
         "num_workers" => nworkers,
+        "sample_rate" => sample_rate,
         "release_resources_after" => release_resources_after == -1 ? nothing : release_resources_after,
         "return_logs" => print_logs,
         "store_logs_in_s3" => store_logs_in_s3,

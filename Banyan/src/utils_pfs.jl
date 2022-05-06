@@ -7,6 +7,7 @@ using MPI
 
 get_worker_idx(comm::MPI.Comm = MPI.COMM_WORLD)::Int64 = MPI.Comm_rank(comm) + 1
 get_nworkers(comm::MPI.Comm = MPI.COMM_WORLD)::Int64 = MPI.Comm_size(comm)
+is_main_worker(comm::MPI.Comm = MPI.COMM_WORLD) = get_worker_idx(comm) == 1
 
 get_partition_idx(batch_idx::Int64, nbatches::Int64, comm::MPI.Comm)::Int64 =
     get_partition_idx(batch_idx, nbatches, get_worker_idx(comm))
@@ -60,8 +61,31 @@ end
 
 # Helper functions along with get_worker_idx() and get_nworkers()
 split_across(obj, idx=get_worker_idx(), npartitions=get_nworkers()) = obj[split_len(length(obj), idx, npartitions)]
-sync_across(comm=MPI.COMM_WORLD) = MPI.Barrier(comm)
+sync_across(;comm=MPI.COMM_WORLD) = MPI.Barrier(comm)
+sync_across(obj; from_worker_idx=1, comm=MPI.COMM_WORLD) = MPI.bcast(obj, from_worker_idx-1, comm)
 reduce_across(func, val; to_worker_idx=1, comm=MPI.COMM_WORLD) = MPI.Reduce(val, func, to_worker_idx-1, comm)
+reduce_and_sync_across(func, val; comm=MPI.COMM_WORLD) = MPI.Allreduce(val, func, comm)
+
+function gather_across(obj, comm=MPI.COMM_WORLD)
+    is_main = is_main_worker(comm)
+    io = IOBuffer()
+    serialize(io, obj)
+    sendbuf = MPI.Buffer(view(io.data, 1:io.size))
+    sizes = MPI.Gather(sendbuf.count, 0, comm)
+    recvvbuf = is_main ? VBuffer(similar(sendbuf.data, sum(sizes)), sizes) : nothing
+    MPI.Gatherv!(sendbuf, recvvbuf, 0, comm)
+    if is_main
+        [
+            view(
+                recvvbuf.data,
+                (recvvbuf.displs[i]+1):(recvvbuf.displs[i]+recvvbuf.counts[i])
+            ) |> IOBuffer |> deserialize
+            for i in 1:get_nworkers(comm)
+        ]
+    else
+        Any[]
+    end
+end
 
 merge_on_executor(obj::Any, key) = error("Merging $(typeof(obj)) not supported")
 # merge_on_executor(obj::Vector{Missing}; key=nothing) = missing
@@ -499,7 +523,7 @@ end
 #     end
 # end
 
-function getpath(path::String, comm::MPI.Comm)::String
+function getpath(path::String)::String
     if startswith(path, "http://") || startswith(path, "https://")
         # TODO: First check for size of file and only download to
         # disk if it doesn't fit in free memory
@@ -508,7 +532,6 @@ function getpath(path::String, comm::MPI.Comm)::String
         hashed_path = string(hash(path))
         joined_path = "efs/job_" * Banyan.get_session().resource_id * "_dataset_" * hashed_path * "_" * string(MPI.Comm_rank(MPI.COMM_WORLD))
         # @info "Downloading $path to $joined_path"
-        comm = MPI.COMM_WORLD
         # if MPI.Comm_rank(comm) == 0
         if !isfile(joined_path)
         # NOTE: Even though we are storing in /tmp, this is

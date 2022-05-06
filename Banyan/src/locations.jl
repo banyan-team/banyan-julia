@@ -2,20 +2,22 @@
 # Location type #
 #################
 
-const NOTHING_LOCATION = Location("None", "None", LocationParameters(), LocationParameters(), Int64(-1), NOTHING_SAMPLE)
+const NOTHING_LOCATION = Location("None", "None", LocationParameters(), LocationParameters(), Int64(-1), NOTHING_SAMPLE, false, false)
+
+const INVALID_LOCATION = Location("None", "None", LocationParameters(), LocationParameters(), Int64(-1), NOTHING_SAMPLE, true, true)
 
 Location(name::String, parameters::LocationParameters, total_memory_usage::Int64 = -1, sample::Sample = Sample())::Location =
-    Location(name, name, parameters, parameters, total_memory_usage, sample)
+    Location(name, name, parameters, parameters, total_memory_usage, sample, false, false)
 
 Base.isnothing(l::Location) = isnothing(l.sample)
 
 LocationSource(name::String, parameters::LocationParameters, total_memory_usage::Int64 = -1, sample::Sample = Sample())::Location =
-    Location(name, "None", parameters, LocationParameters(), total_memory_usage, sample)
+    Location(name, "None", parameters, LocationParameters(), total_memory_usage, sample, false, false)
 
 LocationDestination(
     name::String,
     parameters::LocationParameters
-)::Location = Location("None", name, LocationParameters(), parameters, -1, Sample())
+)::Location = Location("None", name, LocationParameters(), parameters, -1, Sample(), false, false)
 
 # function Base.getproperty(loc::Location, name::Symbol)
 #     if hasfield(Location, name)
@@ -88,6 +90,8 @@ function sourced(fut::Future, loc::Location)
                     # Otherwise just make a fresh new sample.
                     Sample()
                 end,
+                loc.parameters_invalid,
+                loc.sample_invalid
             ),
         )
     else
@@ -110,6 +114,8 @@ function sourced(fut::Future, loc::Location)
                     # location if there is one.
                     fut_location.sample
                 end,
+                loc.parameters_invalid,
+                loc.sample_invalid
             ),
         )
     end
@@ -132,6 +138,8 @@ function destined(fut::Future, loc::Location)
                 loc.dst_parameters,
                 fut_location.total_memory_usage,
                 Sample(),
+                loc.parameters_invalid,
+                loc.sample_invalid
             ),
         )
     else
@@ -145,6 +153,8 @@ function destined(fut::Future, loc::Location)
                 loc.dst_parameters,
                 fut_location.total_memory_usage,
                 fut_location.sample,
+                fut_location.parameters_invalid,
+                fut_location.sample_invalid
             ),
         )
     end
@@ -275,11 +285,11 @@ Size(val)::Location = LocationSource(
 function Client(val::T)::Location where {T}
     LocationSource("Client", Dict{String,Any}(), total_memory_usage(val), ExactSample(val))
 end
-const CLIENT = Location("None", "Client", LocationParameters(), LocationParameters(), Int64(0), Sample(nothing, Int64(0), Int64(1)))
+const CLIENT = Location("None", "Client", LocationParameters(), LocationParameters(), Int64(0), Sample(nothing, Int64(0), Int64(1)), false, false)
 Client()::Location = deepcopy(CLIENT)
 # TODO: Un-comment only if Size is needed
 # Size(size) = Value(size)
-const NONE_LOCATION = Location("None", "None", LocationParameters(), LocationParameters(), Int64(0), Sample(nothing, Int64(0), Int64(1)))
+const NONE_LOCATION = Location("None", "None", LocationParameters(), LocationParameters(), Int64(0), Sample(nothing, Int64(0), Int64(1)), false, false)
 None()::Location = deepcopy(NONE_LOCATION)
 # The scheduler intelligently determines when to split from and merge to disk even when no location is specified
 const DISK = NONE_LOCATION
@@ -324,7 +334,8 @@ Disk()::Location = deepcopy(DISK)
 # overall data size. This way, two arrays that have the same actual size will
 # be guaranteed to have the same sample size.
 
-get_max_exact_sample_length()::Int64 = parse(Int64, get(ENV, "BANYAN_MAX_EXACT_SAMPLE_LENGTH", "2048")::String)
+MAX_EXACT_SAMPLE_LENGTH = parse(Int64, get(ENV, "BANYAN_MAX_EXACT_SAMPLE_LENGTH", "2048")::String)
+get_max_exact_sample_length()::Int64 = MAX_EXACT_SAMPLE_LENGTH
 
 getsamplenrows(totalnrows::Int64)::Int64 =
     if totalnrows <= get_max_exact_sample_length()
@@ -344,10 +355,14 @@ getsamplenrows(totalnrows::Int64)::Int64 =
 # Banyan is not aware of mutates the location. Locations should be
 # eventually stored and updated in S3 on each write.
 
-clear_sources() = rm(joinpath(homedir(), ".banyan", "sources"), force=true, recursive=true)
-clear_samples() = rm(joinpath(homedir(), ".banyan", "samples"), force=true, recursive=true)
-invalidate_source(p) = rm(joinpath(homedir(), ".banyan", "sources", string(hash(p))), force=true, recursive=true)
-invalidate_sample(p) = rm(joinpath(homedir(), ".banyan", "samples", string(hash(p))), force=true, recursive=true)
+_clear_sources() = rm("s3/$(get_cluster_s3_bucket_name())/banyan_locations/", force=true, recursive=true)
+_clear_samples() = rm("s3/$(get_cluster_s3_bucket_name())/banyan_samples/", force=true, recursive=true)
+_invalidate_source(remotepath) = rm("s3/$(get_cluster_s3_bucket_name())/banyan_locations/$(get_remotepath_id(remotepath))", force=true, recursive=true)
+_invalidate_sample(remotepath) = rm("s3/$(get_cluster_s3_bucket_name())/banyan_samples/$(get_remotepath_id(remotepath))", force=true, recursive=true)
+clear_sources() = offloaded(_clear_sources)
+clear_samples() = offloaded(_clear_samples)
+invalidate_source() = offloaded(_invalidate_source)
+invalidate_sample() = offloaded(_invalidate_sample)
 
 # Getting remote location info and samples is not easy. So we cache it and
 # allow a function to be passed in to actually process the given path and get
@@ -359,131 +374,131 @@ invalidate_sample(p) = rm(joinpath(homedir(), ".banyan", "samples", string(hash(
 
 @nospecialize
 
-function RemoteSource(
-    @nospecialize(get_remote_source::Function),
-    p,
-    shuffled::Bool,
-    source_invalid::Bool,
-    sample_invalid::Bool,
-    invalidate_source::Bool,
-    invalidate_sample::Bool
-)::Location
-    # In the context of remote locations, the location refers to just the non-sample part of it; i.e., the
-    # info about what files are in the dataset and how many rows they have.
+# function RemoteSource(
+#     @nospecialize(get_remote_source::Function),
+#     p,
+#     shuffled::Bool,
+#     source_invalid::Bool,
+#     sample_invalid::Bool,
+#     invalidate_source::Bool,
+#     invalidate_sample::Bool
+# )::Location
+#     # In the context of remote locations, the location refers to just the non-sample part of it; i.e., the
+#     # info about what files are in the dataset and how many rows they have.
 
-    # Set shuffled to true if the data is fully shuffled and so we can just take
-    # the first rows of the data to get our sample.
-    # Set similar_files to true if the files are simialr enough (in their distribution
-    # of data) that we can just randomly select files and only sample from those.
-    # Invalidate the location only when the number of files or their names or the
-    # number of rows they have changes. If you just update a few rows, there's no
-    # need to invalidate the location.
-    # Invalidate the sample only when the data has drifted enough. So if you update
-    # a row to have an outlier or if you add a whole bunch of new rows, make sure
-    # to udpate the sample.
+#     # Set shuffled to true if the data is fully shuffled and so we can just take
+#     # the first rows of the data to get our sample.
+#     # Set similar_files to true if the files are simialr enough (in their distribution
+#     # of data) that we can just randomly select files and only sample from those.
+#     # Invalidate the location only when the number of files or their names or the
+#     # number of rows they have changes. If you just update a few rows, there's no
+#     # need to invalidate the location.
+#     # Invalidate the sample only when the data has drifted enough. So if you update
+#     # a row to have an outlier or if you add a whole bunch of new rows, make sure
+#     # to udpate the sample.
 
-    # TODO: Store the time it took to collect a sample so that the user is
-    # warned when invalidating a sample that took a long time to collect
+#     # TODO: Store the time it took to collect a sample so that the user is
+#     # warned when invalidating a sample that took a long time to collect
 
-    # TODO: Document the caching behavior better
-    # Read location from cache. The location will include metadata like the
-    # number of rows in each file as well as a sample that can be used on the
-    # client side for estimating memory usage and data skew among other things.
-    # Get paths with cached locations and samples
-    locationspath = joinpath(homedir(), ".banyan", "sources")
-    samplespath = joinpath(homedir(), ".banyan", "samples")
-    p_hash_string::String = string(hash(p))
-    locationpath = joinpath(locationspath, p_hash_string)
-    samplepath = joinpath(samplespath, p_hash_string)
+#     # TODO: Document the caching behavior better
+#     # Read location from cache. The location will include metadata like the
+#     # number of rows in each file as well as a sample that can be used on the
+#     # client side for estimating memory usage and data skew among other things.
+#     # Get paths with cached locations and samples
+#     locationspath = joinpath(homedir(), ".banyan", "sources")
+#     samplespath = joinpath(homedir(), ".banyan", "samples")
+#     p_hash_string::String = string(hash(p))
+#     locationpath = joinpath(locationspath, p_hash_string)
+#     samplepath = joinpath(samplespath, p_hash_string)
 
-    # Get cached sample if it exists
-    remote_sample::Sample = if isfile(samplepath) && !sample_invalid
-        deserialize(samplepath)
-    else
-        NOTHING_SAMPLE
-    end
+#     # Get cached sample if it exists
+#     remote_sample::Sample = if isfile(samplepath) && !sample_invalid
+#         deserialize(samplepath)
+#     else
+#         NOTHING_SAMPLE
+#     end
 
-    # Get cached location if it exists
-    remote_source::Location = if isfile(locationpath) && !source_invalid
-        deserialize(locationpath)
-    else
-        NOTHING_LOCATION
-    end
-    remote_source = get_remote_source_cached(get_remote_source, p, remote_source, remote_sample, shuffled)
-    remote_sample = remote_source.sample
+#     # Get cached location if it exists
+#     remote_source::Location = if isfile(locationpath) && !source_invalid
+#         deserialize(locationpath)
+#     else
+#         NOTHING_LOCATION
+#     end
+#     remote_source = get_remote_source_cached(get_remote_source, p, remote_source, remote_sample, shuffled)
+#     remote_sample = remote_source.sample
 
-    if Banyan.INVESTIGATING_CACHING_LOCATION_INFO || Banyan.INVESTIGATING_CACHING_SAMPLES
-        println("In RemoteSource")
-        @show locationpath samplepath isfile(samplepath) sample_invalid isfile(locationpath) source_invalid
-    end
+#     if Banyan.INVESTIGATING_CACHING_LOCATION_INFO || Banyan.INVESTIGATING_CACHING_SAMPLES
+#         println("In RemoteSource")
+#         @show locationpath samplepath isfile(samplepath) sample_invalid isfile(locationpath) source_invalid
+#     end
 
-    # Store location in cache. The same logic below applies to having a
-    # `&& isempty(remote_source.files)` which effectively allows us
-    # to reuse the location (computed files and row lengths) but only if the
-    # location was actually already written to. If this is the first time we
-    # are calling `write_parquet` with `invalidate_source=false`, then
-    # the location will not be saved. But on future writes, the first write's
-    # location will be used.
-    remote_source_src_name::String = remote_source.src_name
-    remote_source_nbytes::Int64 = remote_source.src_parameters["nbytes"]
-    if !invalidate_source && remote_source_src_name == "Remote" && remote_source_nbytes > 0
-        mkpath(locationspath)
-        serialize(locationpath, remote_source)
-    else
-        rm(locationpath, force=true, recursive=true)
-    end
+#     # Store location in cache. The same logic below applies to having a
+#     # `&& isempty(remote_source.files)` which effectively allows us
+#     # to reuse the location (computed files and row lengths) but only if the
+#     # location was actually already written to. If this is the first time we
+#     # are calling `write_parquet` with `invalidate_source=false`, then
+#     # the location will not be saved. But on future writes, the first write's
+#     # location will be used.
+#     remote_source_src_name::String = remote_source.src_name
+#     remote_source_nbytes::Int64 = remote_source.src_parameters["nbytes"]
+#     if !invalidate_source && remote_source_src_name == "Remote" && remote_source_nbytes > 0
+#         mkpath(locationspath)
+#         serialize(locationpath, remote_source)
+#     else
+#         rm(locationpath, force=true, recursive=true)
+#     end
 
-    # Store sample in cache. We don't store null samples because they are
-    # either samples for locations that don't exist yet (write-only) or are
-    # really cheap to collect the sample. Yes, it is true that generally we
-    # will invalidate the sample on reads but for performance reasons someone
-    # might not. But if they don't invalidate the sample, we only want to reuse
-    # the sample if it was for a location that was actually written to.
-    if !invalidate_sample && !isnothing(remote_sample)
-        mkpath(samplespath)
-        serialize(samplepath, remote_sample)
-    else
-        rm(samplepath, force=true, recursive=true)
-    end
+#     # Store sample in cache. We don't store null samples because they are
+#     # either samples for locations that don't exist yet (write-only) or are
+#     # really cheap to collect the sample. Yes, it is true that generally we
+#     # will invalidate the sample on reads but for performance reasons someone
+#     # might not. But if they don't invalidate the sample, we only want to reuse
+#     # the sample if it was for a location that was actually written to.
+#     if !invalidate_sample && !isnothing(remote_sample)
+#         mkpath(samplespath)
+#         serialize(samplepath, remote_sample)
+#     else
+#         rm(samplepath, force=true, recursive=true)
+#     end
 
-    remote_source
-end
+#     remote_source
+# end
 
-function RemoteDestination(
-    @nospecialize(get_remote_destination::Function),
-    p::String;
-    invalidate_source::Bool = true,
-    invalidate_sample::Bool = true
-)::Location
-    p_hash_string = string(hash(p))
-    if invalidate_source
-        rm(joinpath(homedir(), ".banyan", "sources", p_hash_string), force=true, recursive=true)
-    end
-    if invalidate_sample
-        rm(joinpath(homedir(), ".banyan", "samples", p_hash_string), force=true, recursive=true)
-    end
+# function RemoteDestination(
+#     @nospecialize(get_remote_destination::Function),
+#     p::String;
+#     invalidate_source::Bool = true,
+#     invalidate_sample::Bool = true
+# )::Location
+#     p_hash_string = string(hash(p))
+#     if invalidate_source
+#         rm(joinpath(homedir(), ".banyan", "sources", p_hash_string), force=true, recursive=true)
+#     end
+#     if invalidate_sample
+#         rm(joinpath(homedir(), ".banyan", "samples", p_hash_string), force=true, recursive=true)
+#     end
 
-    get_remote_destination(p)::Location
-end
+#     get_remote_destination(p)::Location
+# end
 
-function get_remote_source_cached(get_remote_source, remotepath, remote_source, remote_sample, shuffled)::Location
-    # If both the location and sample are already cached, just return them
-    if !isnothing(remote_source) && !isnothing(remote_sample)
-        remote_source.sample = remote_sample
-        return remote_source
-    end
+# function get_remote_source_cached(get_remote_source, remotepath, remote_source, remote_sample, shuffled)::Location
+#     # If both the location and sample are already cached, just return them
+#     if !isnothing(remote_source) && !isnothing(remote_sample)
+#         remote_source.sample = remote_sample
+#         return remote_source
+#     end
 
-    # This is so that we can make sure that any random selection fo rows is
-    # deterministic. Might not be needed...
-    Random.seed!(hash(get_session_id()))
+#     # This is so that we can make sure that any random selection fo rows is
+#     # deterministic. Might not be needed...
+#     Random.seed!(hash(get_session_id()))
 
-    get_remote_source(
-        remotepath,
-        Base.inferencebarrier(remote_source),
-        Base.inferencebarrier(remote_sample),
-        Base.inferencebarrier(shuffled)
-    )
-end
+#     get_remote_source(
+#         remotepath,
+#         Base.inferencebarrier(remote_source),
+#         Base.inferencebarrier(remote_sample),
+#         Base.inferencebarrier(shuffled)
+#     )
+# end
 
 # function get_remote_destination(remotepath)::Location
 #     # Handle HDF5 paths (which include the dataset in the path)
@@ -510,3 +525,93 @@ end
 # end
 
 @specialize
+
+# Helper functions for location constructors; these should only be called from the main worker
+
+# TODO: Hash in a more general way so equivalent paths hash to same value
+# This hashes such that an extra slash at the end won't make a difference``
+get_remotepath_id(remotepath::String) =
+    remotepath |> splitpath |> joinpath |> hash |> string
+get_remotepath_id(remotepath) = remotepath |> hash |> string
+function get_location_path(remotepath)
+    session_s3_bucket_name = get_cluster_s3_bucket_name()
+    if !isdir("s3/$session_s3_bucket_name/banyan_locations/")
+        mkdir("s3/$session_s3_bucket_name/banyan_locations/")
+    end
+    "s3/$session_s3_bucket_name)/banyan_locations/$(get_remotepath_id(remotepath))"
+end
+function get_meta_path(remotepath)
+    session_s3_bucket_name = get_cluster_s3_bucket_name()
+    if !isdir("s3/$session_s3_bucket_name/banyan_meta/")
+        mkdir("s3/$session_s3_bucket_name/banyan_meta/")
+    end
+    "s3/$session_s3_bucket_name)/banyan_meta/$(get_remotepath_id(remotepath))"
+end
+
+function get_cached_location(remotepath, source_invalid, sample_invalid) 
+    remotepath_id = get_remotepath_id(remotepath)
+    session_s3_bucket_name = get_cluster_s3_bucket_name()
+    location_path = "s3/$session_s3_bucket_name/banyan_locations/$remotepath_id"
+    curr_location::Location = if is_main
+        if isfile(location_path)
+            deserialize(location_path)
+        else
+            INVALID_LOCATION
+        end
+    else
+        INVALID_LOCATION
+    end
+    curr_location.sample_invalid = curr_location.sample_invalid || sample_invalid
+    curr_location.parameters_invalid = curr_location.parameters_invalid || source_invalid
+    curr_sample_invalid = curr_location.sample_invalid
+    curr_parameters_invalid = curr_location.parameters_invalid
+    curr_location, curr_sample_invalid, curr_parameters_invalid
+end
+
+function cache_location(remotepath, location_res::Location, invalidate_sample, invalidate_source)
+    location_path = get_location_path(remotepath)
+    location_to_write = deepcopy(location_res)
+    location_to_write.sample_invalid = location_to_write.sample_invalid || invalidate_sample
+    location_to_write.parameters_invalid = location_to_write.parameters_invalid || invalidate_source
+    serialize(location_path, location_to_write)
+end
+
+# Functions to be extended for different data formats
+
+function sample_from_range(r, sample_rate)
+    sample_len = ceil(Int64, length(r) / sample_rate)
+    rand_indices = randsubseq(1:len, 1/sample_rate)
+    if length(rand_indices) > sample_len
+        rand_indices = rand_indices[1:sample_len]
+    else
+        while length(rand_indices) < sample_len
+            new_index = rand(1:sample_len)
+            if !(new_index in rand_indices)
+                push!(rand_indices, new_index)
+            end
+        end
+    end
+    rand_indices
+end
+
+has_separate_metadata(::Val{:jl}) = false
+get_metadata(::Val{:jl}, p) = size(deserialize(p), 1)
+get_sample_from_data(data, sample_rate, len::Int64) =
+    get_sample_from_data(data, sample_rate, sample_from_range(len, sample_rate))
+function get_sample_from_data(data, sample_rate, rand_indices::Vector{Int64})
+    if sample_rate == 1.0
+        return data
+    end
+    data_ndims = ndims(data)
+    data_selector::Base.Vector{Union{Colon,Base.Vector{Int64}}} = Base.fill(Colon(), data_ndims)
+    data_selector[1] = rand_indices
+    data[data_selector...]
+end
+function get_sample(::Val{:jl}, p, sample_rate, len)
+    data = deserialize(p)
+    get_sample_from_data(data, sample_rate, len)
+end
+function get_sample_and_metadata(::Val{:jl}, p, sample_rate)
+    data = deserialize(p)
+    get_sample_from_data(data, sample_rate, size(data, 1)), size(data, 1)
+end
