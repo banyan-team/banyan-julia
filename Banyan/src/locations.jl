@@ -542,14 +542,14 @@ function get_location_path(remotepath)
     if !isdir("s3/$session_s3_bucket_name/banyan_locations/")
         mkdir("s3/$session_s3_bucket_name/banyan_locations/")
     end
-    "s3/$session_s3_bucket_name)/banyan_locations/$(get_remotepath_id(remotepath))"
+    "s3/$session_s3_bucket_name/banyan_locations/$(get_remotepath_id(remotepath))"
 end
 function get_meta_path(remotepath)
     session_s3_bucket_name = get_cluster_s3_bucket_name()
     if !isdir("s3/$session_s3_bucket_name/banyan_meta/")
         mkdir("s3/$session_s3_bucket_name/banyan_meta/")
     end
-    "s3/$session_s3_bucket_name)/banyan_meta/$(get_remotepath_id(remotepath))"
+    "s3/$session_s3_bucket_name/banyan_meta/$(get_remotepath_id(remotepath))"
 end
 
 function get_cached_location(remotepath, source_invalid, sample_invalid)
