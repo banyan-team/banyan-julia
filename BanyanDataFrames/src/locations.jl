@@ -158,32 +158,38 @@ function _remote_table_source(remotepath, shuffled, source_invalid, sample_inval
         local_sample::DataFrames.DataFrame = isempty(local_samples) ? DataFrames.DataFrame() : vcat(local_samples...)
 
         # Concatenate local samples and nrows together
-        @show typeof((DataFrames.DataFrame(), Int64[]))
-        @show gather_across(local_sample)
-        sample_per_worker = gather_across(local_sample)
-        @show typeof(sample_per_worker)
-        if is_main
-            @show (vcat(sample_per_worker...), curr_meta_nrows)
-        end
-        @show typeof(begin
-            if is_main && !isempty(sample_per_worker)
-                vcat(sample_per_worker...), curr_meta_nrows
-            else
-                DataFrames.DataFrame(), Int64[]
-            end
-        end)
-        remote_sample_value::DataFrames.DataFrame, meta_nrows_on_workers::Base.Vector{Int64} = if is_main && !isempty(sample_per_worker)
-            vcat(sample_per_worker...), curr_meta_nrows
-        else
-            DataFrames.DataFrame(), Int64[]
-        end
-        @show remote_sample_value, meta_nrows_on_worker
-        error("hello there")
-        remote_sample_value, meta_nrows_on_workers = if curr_parameters_invalid
+        # @show typeof((DataFrames.DataFrame(), Int64[]))
+        # @show gather_across(local_sample)
+        # sample_per_worker = gather_across(local_sample)
+        # @show typeof(sample_per_worker)
+        # if is_main
+        #     @show (vcat(sample_per_worker...), curr_meta_nrows)
+        # end
+        # @show typeof(begin
+        #     if is_main && !isempty(sample_per_worker)
+        #         vcat(sample_per_worker...), curr_meta_nrows
+        #     else
+        #         DataFrames.DataFrame(), Int64[]
+        #     end
+        # end)
+        # remote_sample_value::DataFrames.DataFrame, meta_nrows_on_workers::Base.Vector{Int64} = if is_main && !isempty(sample_per_worker)
+        #     vcat(sample_per_worker...), curr_meta_nrows
+        # else
+        #     DataFrames.DataFrame(), Int64[]
+        # end
+        # @show remote_sample_value, meta_nrows_on_worker
+        # error("hello there")
+        remote_sample_value::DataFrames.DataFrame, meta_nrows_on_workers::Base.Vector{Int64} = if curr_parameters_invalid
             sample_and_meta_nrows_per_worker::Base.Vector{Tuple{DataFrames.DataFrame,Base.Vector{Int64}}} =
                 gather_across((local_sample, meta_nrows_on_worker))
             if is_main
-                vcat(sample_and_meta_nrows_per_worker[1]...), vcat(sample_and_meta_nrows_per_worker[2]...)
+                sample_per_worker = DataFrames.DataFrame[]
+                meta_nrows_per_worker = Int64[]
+                for sample_and_meta_nrows in sample_and_meta_nrows_per_worker
+                    push!(sample_per_worker, sample_and_meta_nrows[1])
+                    push!(meta_nrows_per_worker, sample_and_meta_nrows[2])
+                end
+                vcat(sample_per_worker...), vcat(meta_nrows_per_worker...)
             else
                 DataFrames.DataFrame(), Int64[]
             end
