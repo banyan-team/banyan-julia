@@ -57,7 +57,7 @@ function _remote_table_source(remotepath, shuffled, source_invalid, sample_inval
 
     # Get nrows, nbytes for each file in local_paths_on_curr_worker
     meta_nrows_on_worker = if curr_parameters_invalid
-        meta_nrows_on_worker_res = zeros(length(local_paths_on_curr_worker))
+        meta_nrows_on_worker_res = Base.zeros(length(local_paths_on_curr_worker))
         if has_separate_metadata(format_value)
             for (i, local_path_on_curr_worker) in enumerate(local_paths_on_curr_worker)
                 path_nrows_on_worker = get_metadata(format_value, local_path_on_curr_worker)
