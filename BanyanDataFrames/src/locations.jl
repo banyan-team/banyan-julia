@@ -38,14 +38,14 @@ function _remote_table_source(remotepath, shuffled, source_invalid, sample_inval
         end
         paths, shuffled ? randsubseq(1:length(paths), 1 / session_sample_rate) : Int64[]
     else
-        String[]
+        String[], Int64[]
     end
     localpaths::Base.Vector{String}, localpaths_shuffling::Base.Vector{String}, curr_meta_nrows::Base.Vector{Int64} =
         sync_across(
             (
                 localpaths_on_main_worker,
                 localpaths_shuffling_on_main,
-                curr_parameters_invalid ? convert(Vector{Int64}, curr_meta[:nrows]) : Int64[]
+                curr_parameters_invalid ? convert(Base.Vector{Int64}, curr_meta[:nrows]) : Int64[]
             )
         )
     local_paths_on_curr_worker::Base.Vector{String} = split_across(localpaths)
