@@ -79,7 +79,7 @@ function use_session_for_testing(
     sessions_for_testing[session_config_hash] = get_session_id()
 
     # Set the maximum exact sample length
-    Banyan.BANYAN_MAX_EXACT_SAMPLE_LENGTH = string(max_exact_sample_length)
+    set_max_exact_sample_length(max_exact_sample_length)
 
     # Force usage of S3FS if so desired
     if !isnothing(with_s3fs)

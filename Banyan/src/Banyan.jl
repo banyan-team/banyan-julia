@@ -105,7 +105,7 @@ export Value, Size, Client, Disk, None, RemoteSource, RemoteDestination
 export clear_sources, clear_samples, invalidate_source, invalidate_sample
 export NOTHING_LOCATION
 export has_separate_metadata, get_sample, get_metadata, get_sample_and_metadata
-export get_remotepath_id, get_meta_path, get_cached_location, cache_location, get_max_exact_sample_length
+export get_remotepath_id, get_meta_path, get_cached_location, cache_location, get_max_exact_sample_length, set_max_exact_sample_length
 
 # Serialization
 export from_jl_value_contents, to_jl_value_contents

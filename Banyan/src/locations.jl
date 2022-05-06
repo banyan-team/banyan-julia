@@ -336,6 +336,10 @@ Disk()::Location = deepcopy(DISK)
 
 MAX_EXACT_SAMPLE_LENGTH = parse(Int64, get(ENV, "BANYAN_MAX_EXACT_SAMPLE_LENGTH", "2048")::String)
 get_max_exact_sample_length()::Int64 = MAX_EXACT_SAMPLE_LENGTH
+function set_max_exact_sample_length(val)
+    global MAX_EXACT_SAMPLE_LENGTH
+    MAX_EXACT_SAMPLE_LENGTH = val
+end
 
 getsamplenrows(totalnrows::Int64)::Int64 =
     if totalnrows <= get_max_exact_sample_length()
