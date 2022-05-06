@@ -53,7 +53,7 @@ function _remote_table_source(remotepath, shuffled, source_invalid, sample_inval
 
     # Get format
     format_string = get_file_ending(remotepath)
-    format_value = Val(format_string)
+    format_value = Val(Symbol(format_string))
 
     # Get nrows, nbytes for each file in local_paths_on_curr_worker
     meta_nrows_on_worker = if curr_parameters_invalid
