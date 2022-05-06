@@ -45,7 +45,7 @@ function _remote_table_source(remotepath, shuffled, source_invalid, sample_inval
             (
                 localpaths_on_main_worker,
                 localpaths_shuffling_on_main,
-                curr_parameters_invalid ? convert(Base.Vector{Int64}, curr_meta[:nrows]) : Int64[]
+                (!curr_parameters_invalid && is_main) ? convert(Base.Vector{Int64}, curr_meta[:nrows]) : Int64[]
             )
         )
     local_paths_on_curr_worker::Base.Vector{String} = split_across(localpaths)
