@@ -167,7 +167,7 @@ function _remote_table_source(remotepath, shuffled, source_invalid, sample_inval
                 DataFrames.DataFrame(), Int64[]
             end
         else
-            sample_per_worker::Base.Vector{DataFrames.DataFrame} = gather_across(local_sample)
+            sample_per_worker = gather_across(local_sample)
             if is_main
                 vcat(sample_per_worker...), curr_meta_nrows
             else
