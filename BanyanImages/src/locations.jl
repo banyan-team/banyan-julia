@@ -274,10 +274,9 @@ function _remote_image_source(
     session_sample_rate = get_session().sample_rate
     worker_idx, nworkers = get_worker_idx(), get_nworkers()
     is_main = worker_idx == 1
-    session_s3_bucket_name = get_cluster_s3_bucket_name()
 
     # Get current location
-    curr_location, curr_sample_invalid, curr_parameters_invalid = get_cached_location((remotepath, add_channelview), source_invalid, sample_invalid, session_s3_bucket_name)
+    curr_location, curr_sample_invalid, curr_parameters_invalid = get_cached_location((remotepath, add_channelview), source_invalid, sample_invalid)
     if !curr_parameters_invalid && !curr_sample_invalid
         return curr_location
     end
@@ -375,7 +374,7 @@ function _remote_image_source(
             nbytes_res,
             remote_sample,
         )
-        cache_location(remotepath, location_res, invalidate_sample, invalidate_source, session_s3_bucket_name)
+        cache_location(remotepath, location_res, invalidate_sample, invalidate_source)
         location_res
     else
         INVALID_LOCATION

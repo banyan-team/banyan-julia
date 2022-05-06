@@ -552,7 +552,7 @@ function get_meta_path(remotepath)
     "s3/$session_s3_bucket_name)/banyan_meta/$(get_remotepath_id(remotepath))"
 end
 
-function get_cached_location(remotepath, source_invalid, sample_invalid) 
+function get_cached_location(remotepath, source_invalid, sample_invalid)
     remotepath_id = get_remotepath_id(remotepath)
     session_s3_bucket_name = get_cluster_s3_bucket_name()
     location_path = "s3/$session_s3_bucket_name/banyan_locations/$remotepath_id"

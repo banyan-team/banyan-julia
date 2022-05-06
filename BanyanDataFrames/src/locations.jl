@@ -3,10 +3,9 @@ get_file_ending(remotepath::String)::String = splitext(remotepath)[2][2:end]
 function _remote_table_source(remotepath, shuffled, source_invalid, sample_invalid, invalidate_source, invalidate_sample)::Location
     session_sample_rate = get_session().sample_rate
     is_main = is_main_worker()
-    session_s3_bucket_name = get_cluster_s3_bucket_name()
     
     # Get cached Location and if it has valid parameters and sample, return
-    curr_location, curr_sample_invalid, curr_parameters_invalid = get_cached_location(remotepath, source_invalid, sample_invalid, session_s3_bucket_name)
+    curr_location, curr_sample_invalid, curr_parameters_invalid = get_cached_location(remotepath, source_invalid, sample_invalid)
     if !curr_parameters_invalid && !curr_sample_invalid
         return curr_location
     end
@@ -277,7 +276,7 @@ function _remote_table_source(remotepath, shuffled, source_invalid, sample_inval
         )
 
         # Write out the updated `Location`
-        cache_location(remotepath, location_res, invalidate_sample, invalidate_source, session_s3_bucket_name)
+        cache_location(remotepath, location_res, invalidate_sample, invalidate_source)
 
         location_res
     else
