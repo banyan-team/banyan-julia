@@ -168,7 +168,7 @@ function _remote_table_source(remotepath, shuffled, source_invalid, sample_inval
             end
         else
             sample_per_worker = gather_across(local_sample)
-            if is_main
+            if is_main# && !isempty(sample_per_worker)
                 vcat(sample_per_worker...), curr_meta_nrows
             else
                 DataFrames.DataFrame(), Int64[]
@@ -206,7 +206,7 @@ function _remote_table_source(remotepath, shuffled, source_invalid, sample_inval
             # TODO: Ensure that the right stuff is running on main worker
             meta_nrows_on_workers, total_nrows_res, total_nbytes_res, remote_sample_res, empty_sample_value_serialized
         else
-            Int64[], -1, -1, NOTHING_SAMPLE, DataFrames.DataFrame()
+            Int64[], -1, -1, NOTHING_SAMPLE, to_jl_value_contents(DataFrames.DataFrame())
         end
     else
         # This case is entered if we the format has metadata stored
@@ -234,7 +234,7 @@ function _remote_table_source(remotepath, shuffled, source_invalid, sample_inval
 
             meta_nrows_res, total_nrows_res, total_nbytes_res, cached_remote_sample_res, curr_location.src_parameters["empty_sample"]
         else
-            Int64[], -1, -1, NOTHING_SAMPLE, DataFrames.DataFrame()
+            Int64[], -1, -1, NOTHING_SAMPLE, to_jl_value_contents(DataFrames.DataFrame())
         end
     end
 
