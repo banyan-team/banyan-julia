@@ -692,11 +692,12 @@ function offloaded(given_function::Function, args...; distributed::Bool = false)
     !isempty(get_session().cluster_instance_id) || error("Cluster instance ID not stored locally for this session")
     not_using_modules = get_session().not_using_modules
     main_modules = [m for m in get_loaded_packages() if !(m in not_using_modules)]
+    session_id = Banyan.get_session_id()
     response = @time send_request_get_response(
         :evaluate,
         Dict{String,Any}(
             "value_id" => -1,
-            "session_id" => Banyan.get_session_id(),
+            "session_id" => session_id,
             "options" => Dict{String,Any}(),
             "num_bang_values_issued" => get_num_bang_values_issued(),
             "main_modules" => main_modules,
@@ -714,6 +715,13 @@ function offloaded(given_function::Function, args...; distributed::Bool = false)
     )
     if isnothing(response)
         throw(ErrorException("The evaluation request has failed. Please contact support"))
+    end
+
+    # We must wait for session because otherwise we will slurp up the session
+    # ready message on the gather queue.
+    @time begin
+    wait_for_session(session_id)
+    println("Time for wait_for_session in offloaded")
     end
 
     # job_id = Banyan.get_job_id()

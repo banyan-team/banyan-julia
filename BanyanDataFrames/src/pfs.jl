@@ -234,12 +234,12 @@ function ReadBlockHelper(@nospecialize(format_value))
 
         # Iterate through files and identify which ones correspond to the range of
         # rows for the batch currently being processed by this worker
-        nrows::Int64 = loc_params["nrows"]
+        nrows::Int64 = loc_params["nrows"]::Int64
         rowrange = Banyan.split_len(nrows, batch_idx, nbatches, comm)
         dfs::Base.Vector{DataFrames.DataFrame} = DataFrames.DataFrame[]
         rowsscanned = 0
-        for (file_path, file_nrows) in Tables.rows(meta)
-            newrowsscanned = rowsscanned + file["nrows"]::Int64
+        for (file_path::String, file_nrows::Int64) in Tables.rows(meta)
+            newrowsscanned = rowsscanned + file_nrows
             filerowrange = (rowsscanned+1):newrowsscanned
             # Check if the file corresponds to the range of rows for the batch
             # currently being processed by this worker
