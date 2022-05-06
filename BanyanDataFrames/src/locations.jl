@@ -170,7 +170,7 @@ function _remote_table_source(remotepath, shuffled, source_invalid, sample_inval
             sample_per_worker = gather_across(local_sample)
             @show sample_per_worker
             @show get_worker_idx()
-            if is_main# && !isempty(sample_per_worker)
+            if is_main && !isempty(sample_per_worker)
                 vcat(sample_per_worker...), curr_meta_nrows
             else
                 DataFrames.DataFrame(), Int64[]
