@@ -179,7 +179,7 @@ function _remote_table_source(remotepath, shuffled, source_invalid, sample_inval
         end
         @show remote_sample_value, meta_nrows_on_worker
         error("hello there")
-        remote_sample_value::DataFrames.DataFrame, meta_nrows_on_workers::Base.Vector{Int64} = if curr_parameters_invalid
+        remote_sample_value, meta_nrows_on_workers = if curr_parameters_invalid
             sample_and_meta_nrows_per_worker::Base.Vector{Tuple{DataFrames.DataFrame,Base.Vector{Int64}}} =
                 gather_across((local_sample, meta_nrows_on_worker))
             if is_main
