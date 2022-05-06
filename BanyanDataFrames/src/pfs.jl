@@ -256,14 +256,10 @@ function ReadBlockHelper(@nospecialize(format_value))
                 header = 1
                 # TODO: Scale the memory usage appropriately when splitting with
                 # this and garbage collect if too much memory is used.
-                if endswith(file_path, file_extension)
-                    if Banyan.INVESTIGATING_LOSING_DATA
-                        println("In ReadBlock calling read_file with path=$path, filerowrange=$filerowrange, readrange=$readrange, rowrange=$rowrange")
-                    end
-                    read_file(format_value, path, header, rowrange, readrange, filerowrange, dfs)
-                else
-                    error("Expected file with $file_extension extension")
+                if Banyan.INVESTIGATING_LOSING_DATA
+                    println("In ReadBlock calling read_file with path=$path, filerowrange=$filerowrange, readrange=$readrange, rowrange=$rowrange")
                 end
+                read_file(format_value, path, header, rowrange, readrange, filerowrange, dfs)
             end
             rowsscanned = newrowsscanned
         end

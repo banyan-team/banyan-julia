@@ -1,12 +1,12 @@
-function get_image_format(path::String)::String
-    if endswith(path, ".png")
-        "png"
-    elseif endswith(path, ".jpg") || endswith(path, ".jpeg")
-        "jpg"
-    else
-        error("Unsupported file format; must be jpg or png")
-    end
-end
+# function get_image_format(path::String)::String
+#     if endswith(path, ".png")
+#         "png"
+#     elseif endswith(path, ".jpg") || endswith(path, ".jpeg")
+#         "jpg"
+#     else
+#         error("Unsupported file format; must be jpg or png")
+#     end
+# end
 
 # MAX_EXACT_SAMPLE_NUM_IMAGES = 100
 
@@ -317,16 +317,16 @@ function _remote_image_source(
         # because to get the metadata we need at least one image.
         1
     end
-    samples_on_workers, formats_on_workers = if is_main || need_to_parallelize
+    samples_on_workers = if is_main || need_to_parallelize
         # If we don't need to paralellize then we are only reading on the main
         # worker amd we don't gather across.
         images_range_on_worker = need_to_parallelize ? split_len(total_num_images_to_read_in, worker_idx, nworkers) : 1:1
         paths_on_worker = meta_table.path[images_range_on_worker]
-        format = !isempty(images) ? get_image_format(paths_on_worker[1]) : ""
         images = map(add_channelview ? _load_image_and_add_channelview : _load_image, paths_on_worker)
-        # nbytes, ndims, dataeltype, datasize = !isempty(images) ? _get_image_metadata(images[1]) : (0, 0, EMPTY, EMPTY)
         sample_on_worker = map(_reshape_image, images)
-        need_to_parallelize ? gather_across((sample_on_worker, format)) : ([sample_on_worker], [format])
+        need_to_parallelize ? gather_across(sample_on_worker) : [sample_on_worker]
+    else
+        []
     end
 
     if is_main
@@ -340,12 +340,6 @@ function _remote_image_source(
         nbytes_res = cld(length(remote_sample_value) * sizeof(dataeltype_res) * nimages, total_num_images_to_read_in)
         datasize_res = size(remote_sample_value)
         datasize_res[1] = nimages
-        format_res = "png"
-        for format_on_worker in formats_on_workers
-            if !isempty(format_on_worker)
-                format_res = format_on_worker
-            end
-        end
         remote_sample = if curr_sample_invalid
             exact_sample_needed ? ExactSample(remote_sample_value, nbytes_res) : Sample(remote_sample_value, nbytes_res)
         else
@@ -365,7 +359,6 @@ function _remote_image_source(
                     "size" => datasize_res,
                     "eltype" => dataeltype_res,
                     "emptysample" => to_jl_value_contents(Base.Array{dataeltype_res}(undef, empty_part_size)),
-                    "format" => format_res,
                     "add_channelview" => add_channelview
                 )
             else
