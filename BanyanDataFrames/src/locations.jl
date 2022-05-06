@@ -160,6 +160,7 @@ function _remote_table_source(remotepath, shuffled, source_invalid, sample_inval
         # Concatenate local samples and nrows together
         @show typeof((DataFrames.DataFrame(), Int64[]))
         @show gather_across(local_sample)
+        error("hello there")
         remote_sample_value::DataFrames.DataFrame, meta_nrows_on_workers::Base.Vector{Int64} = if curr_parameters_invalid
             sample_and_meta_nrows_per_worker::Base.Vector{Tuple{DataFrames.DataFrame,Base.Vector{Int64}}} =
                 gather_across((local_sample, meta_nrows_on_worker))
