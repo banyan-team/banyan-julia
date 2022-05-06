@@ -4,11 +4,14 @@ using .CSV
 
 has_separate_metadata(::Val{:csv}) = false
 function get_metadata(::Val{:csv}, p)
-    num_rows = 0
-    for _ in CSV.Rows(p)
-        num_rows += 1
-    end
-    num_rows
+    # num_rows = 0
+    # for _ in CSV.Rows(p)
+    #     num_rows += 1
+    # end
+    # num_rows
+    # This should never be called because has_separate_metadata = false and we don't
+    # want to unnecessarily compile CSV.Rows
+    nrow(CSV.read(p, DataFrames.DataFrame))
 end
 get_sample(::Val{:csv}, p, sample_rate, len) = let rand_indices = sample_from_range(1:len, sample_rate)
     if isempty(rand_indices)

@@ -209,7 +209,7 @@ function _precompile_()
     precompile(_partitioned_computation_concrete, (Future, Location, Location, Dict{SessionId,Session}, SessionId, Session, ResourceId))
 
     # utils_pfs.jl
-    precompile(getpath, (String, MPI.Comm))
+    precompile(getpath, (String,))
     OHTypes = [Base.Vector{UInt8}, Base.Vector{Int64}, Base.Vector{Float64}, Base.Vector{Dates.DateTime}]
     for OH in OHTypes
         precompile(get_divisions, (Vector{Tuple{OH, OH}}, Int64))
