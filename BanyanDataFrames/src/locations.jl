@@ -165,6 +165,19 @@ function _remote_table_source(remotepath, shuffled, source_invalid, sample_inval
         if is_main
             @show (vcat(sample_per_worker...), curr_meta_nrows)
         end
+        @show typeof(begin
+            if is_main && !isempty(sample_per_worker)
+                vcat(sample_per_worker...), curr_meta_nrows
+            else
+                DataFrames.DataFrame(), Int64[]
+            end
+        end)
+        remote_sample_value::DataFrames.DataFrame, meta_nrows_on_workers::Base.Vector{Int64} = if is_main && !isempty(sample_per_worker)
+            vcat(sample_per_worker...), curr_meta_nrows
+        else
+            DataFrames.DataFrame(), Int64[]
+        end
+        @show remote_sample_value, meta_nrows_on_worker
         error("hello there")
         remote_sample_value::DataFrames.DataFrame, meta_nrows_on_workers::Base.Vector{Int64} = if curr_parameters_invalid
             sample_and_meta_nrows_per_worker::Base.Vector{Tuple{DataFrames.DataFrame,Base.Vector{Int64}}} =
