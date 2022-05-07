@@ -444,8 +444,9 @@ function WriteHelper(@nospecialize(format_value))
         nbytes = part_res isa Empty ? 0 : Banyan.total_memory_usage(part_res)
         sample_rate = get_session().sample_rate
         sampled_part = part_res isa Empty ? empty_df : Banyan.get_sample_from_data(part_res, sample_rate, nrows)
-        new_nrows, new_nbytes, empty_parts, sampled_parts =
+        gathered_data =
             gather_across((nrows, nbytes, part_res isa Empty ? part_res : empty(part_res)), sampled_part)
+        # new_nrows, new_nbytes, empty_parts, sampled_parts
         
         # On the main worker, finalize metadata and location info.
         if worker_idx == 1
@@ -459,16 +460,17 @@ function WriteHelper(@nospecialize(format_value))
                     )
                 )
             end
-            append!(curr_nrows, new_nrows)
 
-            # Update the # of rows and # of bytes
+            # Update the # of bytes
             total_nrows::Int64 = curr_location.src_parameters["nrows"]
-            total_nrows += sum(new_nworkers)
             curr_location.src_parameters["nrows"] = total_nrows
-            curr_location.total_memory_usage += sum(new_nbytes)
+            for (new_nrows, new_nbytes, empty_part, sampled_part) in gathered_data
+                # Update the total # of rows and the total # of bytes
+                total_nrows += sum(new_nworkers)
+                push!(curr_nrows, new_nrows)
+                curr_location.total_memory_usage += new_nbytes
 
-            # Get the empty sample
-            for empty_part in empty_parts
+                # Get the empty sample
                 if !(empty_part isa Empty)
                     curr_location.src_parameters["empty_sample"] = to_jl_value_contents(empty_part)
                     break
@@ -476,6 +478,7 @@ function WriteHelper(@nospecialize(format_value))
             end
 
             # Get the actual sample by concatenating
+            sampled_parts = [gathered[4] for gathered in gathered_data]
             curr_location.sample = Sample(vcat(sampled_parts...), curr_location.total_memory_usage)
 
             # Determine paths for this batch and gather # of rows
