@@ -178,7 +178,7 @@ function _remote_table_source(remotepath, shuffled, source_invalid, sample_inval
                     push!(local_samples, path_sample)
                     local_nrows += path_nrows
                     end
-                    println("Time to call get_sample_and_metadata: $et seconds")
+                    println("Time on worker_idx=$(get_worker_idx()) to call get_sample_and_metadata: $et seconds")
                     end
                 end
                 total_nrows_res = reduce_and_sync_across(+, local_nrows)
@@ -219,7 +219,7 @@ function _remote_table_source(remotepath, shuffled, source_invalid, sample_inval
                 et = @elapsed begin
                 res = vcat(sample_per_worker...), vcat(meta_nrows_per_worker...)
                 end
-                println("Time to vcat sample_per_worker and meta_nrows_per_Worker: $et seconds")
+                println("Time on worker_idx=$(get_worker_idx()) to vcat sample_per_worker and meta_nrows_per_Worker: $et seconds")
                 end
                 res
             else
@@ -237,7 +237,7 @@ function _remote_table_source(remotepath, shuffled, source_invalid, sample_inval
             end
         end
         end
-        println("Time to concatenate samples across workers: $et seconds")
+        println("Time on worker_idx=$(get_worker_idx()) to concatenate samples across workers: $et seconds")
         end
 
         # At this point the metadata is valid regardless of whether this
@@ -252,7 +252,7 @@ function _remote_table_source(remotepath, shuffled, source_invalid, sample_inval
             et = @elapsed begin
             empty_sample_value_serialized::String = to_jl_value_contents(empty(remote_sample_value))
             end
-            println("Time to call to_jl_value_contents on an empty data frame: $et seconds")
+            println("Time on worker_idx=$(get_worker_idx()) to call to_jl_value_contents on an empty data frame: $et seconds")
             end
 
             # Construct Sample with the concatenated value, memory usage, and sample rate
@@ -316,8 +316,13 @@ function _remote_table_source(remotepath, shuffled, source_invalid, sample_inval
         @time begin
         et = @elapsed begin
         meta_path = get_meta_path(remotepath)
+        end
+        println("Time to get_meta_path: $et seconds")
+        end
         
         # Write `NamedTuple` with metadata to `meta_path` with `Arrow.write`
+        @time begin
+        et = @elapsed begin
         Arrow.write(meta_path, (path=localpaths, nrows=meta_nrows))
         end
         println("Time to Arrow.write metadata: $et seconds")

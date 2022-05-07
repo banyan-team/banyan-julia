@@ -263,7 +263,7 @@ function ReadBlockHelper(@nospecialize(format_value))
                 et = @elapsed begin
                 read_file(format_value, path, header, rowrange, readrange, filerowrange, dfs)
                 end
-                println("Time for calling read_file: $et seconds")
+                println("Time on worker_idx=$(get_worker_idx()) for calling read_file: $et seconds")
                 end
             end
             rowsscanned = newrowsscanned

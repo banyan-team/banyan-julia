@@ -65,7 +65,7 @@ function read_file(::Val{:csv}, path, header, rowrange, readrange, filerowrange,
         DataFrames.DataFrame
     )
     end
-    println("Time for first CSV.read in read_file: $et seconds")
+    println("Time on worker_idx=$(get_worker_idx()) for first CSV.read in read_file: $et seconds")
     end
     push!(
         dfs,
