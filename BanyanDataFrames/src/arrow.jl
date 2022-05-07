@@ -67,7 +67,7 @@ CopyFromArrow(
     else
         DataFrames.DataFrame()
     end
-    sync_across(part, com=comm)
+    sync_across(part, comm=comm)
 end
 
 function CopyToArrow(
