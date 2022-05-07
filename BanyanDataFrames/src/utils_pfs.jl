@@ -58,7 +58,7 @@ function Banyan.sync_across(df::DataFrames.DataFrame; comm=MPI.COMM_WORLD)
     end
     MPI.Bcast!(count, 0, comm)
     if !is_main
-        buf = Array{UInt8}(undef, count[])
+        buf = Base.Array{UInt8}(undef, count[])
     end
     MPI.Bcast!(buf, 0, comm)
     DataFrames.DataFrame(Arrow.Table(IOBuffer(view(buf.data))))
