@@ -105,10 +105,11 @@ CopyFromCSV(
     part::DataFrames.DataFrame = if is_main_worker(comm)
         @time begin
         et = @elapsed begin
-        ReadBlockCSV(src, params, 1, 1, MPI.COMM_SELF, loc_name, loc_params)
+        part = ReadBlockCSV(src, params, 1, 1, MPI.COMM_SELF, loc_name, loc_params)
         end
         println("Time for calling ReadBlockCSV from CopyFromCSV on main worker: $et seconds")
         end
+        part
     else
         DataFrames.DataFrame()
     end
