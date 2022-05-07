@@ -84,14 +84,14 @@ locations = [ { name = "Remote", format = "arrow" }, { name = "Disk", datatype =
 
 [splits.CopyFromCSV]
 partition_memory_usage = "all"
-scale_by = 3
+scale_by = 4
 views = false
 required = { name = "Replicating", dividing = false }
 locations = [ { name = "Remote", format = "csv" } ]
 
 [splits.CopyFromParquet]
 partition_memory_usage = "all"
-scale_by = 3
+scale_by = 4
 views = false
 required = { name = "Replicating", dividing = false }
 
@@ -101,7 +101,7 @@ required = { name = "Replicating", dividing = false }
 
 [splits.CopyFromArrow]
 partition_memory_usage = "all"
-scale_by = 3
+scale_by = 4
 views = false
 required = { name = "Replicating", dividing = false }
 locations = [ { name = "Remote", format = "arrow" }, { name = "Disk", datatype = "DataFrame" } ]

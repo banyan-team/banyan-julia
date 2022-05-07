@@ -54,7 +54,12 @@ CopyFromParquet(
     loc_params::Dict{String,Any},
 )::DataFrames.DataFrame = begin
     params["key"] = 1
-    ReadBlockParquet(src, params, 1, 1, MPI.COMM_SELF, loc_name, loc_params)
+    part::DataFrames.DataFrame = if is_main_worker(comm)
+        ReadBlockParquet(src, params, 1, 1, MPI.COMM_SELF, loc_name, loc_params)
+    else
+        DataFrames.DataFrame()
+    end
+    sync_across(part, com=comm)
 end
 
 function CopyToParquet(

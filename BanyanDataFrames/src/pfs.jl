@@ -192,8 +192,6 @@ function ReadBlockHelper(@nospecialize(format_value))
 
         # Handle multi-file tabular datasets
 
-        file_extension = file_ending(format_value)
-
         # # Handle None location by finding all files in directory used for spilling
         # # this value to disk
         # if loc_name == "Disk"

@@ -45,3 +45,21 @@ end
 
 # Banyan.merge_on_executor(obj::Base.Vector{DataFrames.GroupedDataFrame{<:AbstractDataFrame}}; key = nothing) = nothing
 # function Banyan.merge_on_executor(obj::Base.Vector{T}; key = nothing)::T where {T} first(obj) end
+
+function Banyan.sync_across(df::DataFrames.DataFrame; comm=MPI.COMM_WORLD)
+    # An optimized version of sync_across that syncs data frames across workers
+    is_main = is_main_worker(comm)
+    count = Ref{Cint}()
+    if is_main
+        io = IOBuffer()
+        Arrow.write(io, df)
+        buf = MPI.Buffer(view(io.data, 1:io.size))
+        count[] = length(buf.data)
+    end
+    MPI.Bcast!(count, 0, comm)
+    if !is_main
+        buf = Array{UInt8}(undef, count[])
+    end
+    Bcast!(buf, 0, comm)
+    DataFrames.DataFrame(Arrow.Table(IOBuffer(view(buf.data))))
+end
