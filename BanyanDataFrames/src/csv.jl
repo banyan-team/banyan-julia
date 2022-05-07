@@ -58,6 +58,15 @@ get_sample_and_metadata(::Val{:csv}, p, sample_rate) =
 file_ending(::Val{:csv}) = "csv"
 
 function read_file(::Val{:csv}, path, header, rowrange, readrange, filerowrange, dfs)
+    @time begin
+    et = @elapsed begin
+    CSV.read(
+        path,
+        DataFrames.DataFrame
+    )
+    end
+    println("Time for first CSV.read in read_file: $et seconds")
+    end
     push!(
         dfs,
         CSV.read(
