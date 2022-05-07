@@ -67,6 +67,8 @@ function read_file(::Val{:csv}, path, header, rowrange, readrange, filerowrange,
     end
     println("Time on worker_idx=$(get_worker_idx()) for first CSV.read in read_file: $et seconds")
     end
+    @time begin
+    et = @elapsed begin
     push!(
         dfs,
         CSV.read(
@@ -77,6 +79,9 @@ function read_file(::Val{:csv}, path, header, rowrange, readrange, filerowrange,
             footerskip = filerowrange.stop - readrange.stop,
         )
     )
+    end
+    println("Time on worker_idx=$(get_worker_idx()) for second CSV.read in read_file: $et seconds")
+    end
 end
 
 ReadBlockCSV = ReadBlockHelper(Val(:csv))
@@ -98,11 +103,22 @@ CopyFromCSV(
 )::DataFrames.DataFrame = begin
     params["key"] = 1
     part::DataFrames.DataFrame = if is_main_worker(comm)
+        @time begin
+        et = @elapsed begin
         ReadBlockCSV(src, params, 1, 1, MPI.COMM_SELF, loc_name, loc_params)
+        end
+        println("Time for calling ReadBlockCSV from CopyFromCSV on main worker: $et seconds")
+        end
     else
         DataFrames.DataFrame()
     end
-    sync_across(part, comm=comm)
+    @time begin
+    et = @elapsed begin
+    res = sync_across(part, comm=comm)
+    end
+    println("Time for calling sync_across from CopyFromCSV: $et seconds")
+    end
+    res
 end
 
 function CopyToCSV(
