@@ -259,7 +259,12 @@ function ReadBlockHelper(@nospecialize(format_value))
                 if Banyan.INVESTIGATING_LOSING_DATA
                     println("In ReadBlock calling read_file with path=$path, filerowrange=$filerowrange, readrange=$readrange, rowrange=$rowrange")
                 end
+                @time begin
+                et = @elapsed begin
                 read_file(format_value, path, header, rowrange, readrange, filerowrange, dfs)
+                end
+                println("Time for calling read_file: $et seconds")
+                end
             end
             rowsscanned = newrowsscanned
         end
