@@ -286,6 +286,11 @@ function _precompile_()
         precompile(make_grouped_pt, (Future, K, Vector{Future}))
     end
 
+    # locations.jl
+    precompile(get_cached_location, (String, Bool, Bool))
+    precompile(cache_location, (String, Location, Bool, Bool))
+    precompile(sample_from_range, (UnitRange{Int64}, Int64))
+
     # utils.jl, utils_s3fs.jl
     precompile(load_toml, (String,))
     precompile(load_toml, (Vector{String},))

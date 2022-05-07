@@ -5,7 +5,12 @@ function _remote_table_source(remotepath, shuffled, source_invalid, sample_inval
     is_main = is_main_worker()
     
     # Get cached Location and if it has valid parameters and sample, return
+    @time begin
+    et = @elapsed begin
     curr_location, curr_sample_invalid, curr_parameters_invalid = get_cached_location(remotepath, source_invalid, sample_invalid)
+    end
+    println("Time for get_cached_location: $et seconds")
+    end
     if !curr_parameters_invalid && !curr_sample_invalid
         return curr_location
     end
@@ -66,6 +71,8 @@ function _remote_table_source(remotepath, shuffled, source_invalid, sample_inval
     format_value = Val(Symbol(format_string))
 
     # Get nrows, nbytes for each file in local_paths_on_curr_worker
+    @time begin
+    et = @elapsed begin
     meta_nrows_on_worker = if curr_parameters_invalid
         meta_nrows_on_worker_res = Base.zeros(length(local_paths_on_curr_worker))
         if has_separate_metadata(format_value)
@@ -79,6 +86,9 @@ function _remote_table_source(remotepath, shuffled, source_invalid, sample_inval
         meta_nrows_on_worker_res
     else
         split_across(curr_meta_nrows)
+    end
+    end
+    println("Time for getting metadata: $et seconds")
     end
 
     # Compute the total # of rows so that if the current sample is invalid
@@ -131,6 +141,8 @@ function _remote_table_source(remotepath, shuffled, source_invalid, sample_inval
                     zip(local_paths_shuffling_on_curr_worker, localpaths[local_paths_shuffling_on_curr_worker])
                 end
             for (i, local_path_on_curr_worker) in paths_to_sample_from
+                @time begin
+                et = @elapsed begin
                 push!(
                     local_samples,
                     get_sample(
@@ -140,6 +152,9 @@ function _remote_table_source(remotepath, shuffled, source_invalid, sample_inval
                         meta_nrows_on_worker[i]
                     )
                 )
+                end
+                println("Time to call get_sample: $et seconds")
+                end
             end
         else
             # This is the case for formats like CSV where we must read in the
@@ -152,6 +167,8 @@ function _remote_table_source(remotepath, shuffled, source_invalid, sample_inval
                 empty!(local_samples)
                 local_nrows = 0
                 for (i, local_path_on_curr_worker) in enumerate(local_paths_on_curr_worker)
+                    @time begin
+                    et = @elapsed begin
                     path_sample, path_nrows = get_sample_and_metadata(
                         format_value,
                         local_path_on_curr_worker,
@@ -160,6 +177,9 @@ function _remote_table_source(remotepath, shuffled, source_invalid, sample_inval
                     meta_nrows_on_worker[i] = path_nrows
                     push!(local_samples, path_sample)
                     local_nrows += path_nrows
+                    end
+                    println("Time to call get_sample_and_metadata: $et seconds")
+                    end
                 end
                 total_nrows_res = reduce_and_sync_across(+, local_nrows)
                 # If the sample is too small, redo it, getting an exact sample
@@ -172,7 +192,12 @@ function _remote_table_source(remotepath, shuffled, source_invalid, sample_inval
                 end
             end
         end
+        @time begin
+        et = @elapsed begin
         local_sample::DataFrames.DataFrame = isempty(local_samples) ? DataFrames.DataFrame() : vcat(local_samples...)
+        end
+        println("Time to vcat local_samples: $et seconds")
+        end
         end
         println("Time to get samples locally: $et seconds")
         end
@@ -190,7 +215,13 @@ function _remote_table_source(remotepath, shuffled, source_invalid, sample_inval
                     push!(sample_per_worker, sample_and_meta_nrows[1])
                     push!(meta_nrows_per_worker, sample_and_meta_nrows[2])
                 end
-                vcat(sample_per_worker...), vcat(meta_nrows_per_worker...)
+                @time begin
+                et = @elapsed begin
+                res = vcat(sample_per_worker...), vcat(meta_nrows_per_worker...)
+                end
+                println("Time to vcat sample_per_worker and meta_nrows_per_Worker: $et seconds")
+                end
+                res
             else
                 DataFrames.DataFrame(), Int64[]
             end
@@ -217,7 +248,12 @@ function _remote_table_source(remotepath, shuffled, source_invalid, sample_inval
 
         # Return final Sample on main worker now that we have gathered both the sample and metadata
         if is_main
+            @time begin
+            et = @elapsed begin
             empty_sample_value_serialized::String = to_jl_value_contents(empty(remote_sample_value))
+            end
+            println("Time to call to_jl_value_contents on an empty data frame: $et seconds")
+            end
 
             # Construct Sample with the concatenated value, memory usage, and sample rate
             remote_sample_value_memory_usage = total_memory_usage(remote_sample_value)
