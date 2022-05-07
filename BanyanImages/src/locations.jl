@@ -358,7 +358,7 @@ function _remote_image_source(
                     "ndims" => ndims_res,
                     "size" => datasize_res,
                     "eltype" => dataeltype_res,
-                    "emptysample" => to_jl_value_contents(Base.Array{dataeltype_res}(undef, empty_part_size)),
+                    "empty_sample" => to_jl_value_contents(Base.Array{dataeltype_res}(undef, empty_part_size)),
                     "add_channelview" => add_channelview
                 )
             else

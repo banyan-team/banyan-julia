@@ -183,12 +183,13 @@ function ReadBlockHelper(@nospecialize(format_value))
             println("In ReadBlock with loc_params=$params")
         end
         
-        meta_path = if loc_name == "Remote"
-            loc_params["meta_path"]::String
-        else
-            get_meta_path(loc_params["path"]::String)
-        end
+        meta_path = loc_params["meta_path"]::String
+        @time begin
+        et = @elapsed begin
         meta = Arrow.Table(meta_path)
+        end
+        println("Time on worker_idx=$(get_worker_idx()) for calling Arrow.Table in ReadBlock for data frame: $et seconds")
+        end
 
         # Handle multi-file tabular datasets
 
@@ -236,6 +237,8 @@ function ReadBlockHelper(@nospecialize(format_value))
         rowrange = Banyan.split_len(nrows, batch_idx, nbatches, comm)
         dfs::Base.Vector{DataFrames.DataFrame} = DataFrames.DataFrame[]
         rowsscanned = 0
+        @time begin
+        et = @elapsed begin
         for (file_path::String, file_nrows::Int64) in Tables.rows(meta)
             newrowsscanned = rowsscanned + file_nrows
             filerowrange = (rowsscanned+1):newrowsscanned
@@ -266,6 +269,9 @@ function ReadBlockHelper(@nospecialize(format_value))
             end
             rowsscanned = newrowsscanned
         end
+        end
+        println("Time on worker_idx=$(get_worker_idx()) for iterating over Table.rows in ReadBlock for data frame: $et seconds")
+        end
         if Banyan.INVESTIGATING_LOSING_DATA
             println("In ReadBlock with rowrange=$rowrange, nrow.(dfs)=$(nrow.(dfs))")
         end
@@ -276,28 +282,19 @@ function ReadBlockHelper(@nospecialize(format_value))
         # guaranteed to have its ndims correct) and so if a split/merge/cast
         # function requires the schema (for example for grouping) then it must be
         # sure to take that account
+        @time begin
+        et = @elapsed begin
         res = if isempty(dfs)
-            # Note that if we are reading disk-spilled Arrow data, we would have
-            # files for each of the workers that wrote that data. So there should
-            # be files but they might be empty.
-            res = if loc_name == "Disk"
-                files_sorted_by_nrow = sort(loc_params["files"], by = filedict -> filedict["nrows"])
-                if isempty(files_sorted_by_nrow)
-                    # This should not be empty for disk-spilled data
-                    DataFrames.DataFrame()
-                else
-                    empty(DataFrames.DataFrame(Arrow.Table(Banyan.getpath(first(files_sorted_by_nrow)["path"])), copycols=false))
-                end
-            else
-                # When we construct the location, we store an empty data frame with The
-                # correct schema.
-                from_jl_value_contents(loc_params["emptysample"])
-            end
-            res
+            # When we construct the location, we store an empty data frame with The
+            # correct schema.
+            from_jl_value_contents(loc_params["empty_sample"])
         elseif length(dfs) == 1
             dfs[1]
         else
             vcat(dfs...)
+        end
+        end
+        println("Time on worker_idx=$(get_worker_idx()) for getting res in ReadBlock for data frame: $et seconds")
         end
         res
     end

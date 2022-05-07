@@ -62,7 +62,7 @@ ReadBlockImage(
     loc_params["meta_path"]::String,
     loc_params["nimages"]::Int64,
     loc_params["size"],
-    Banyan.from_jl_value_contents(loc_params["emptysample"]::String),
+    Banyan.from_jl_value_contents(loc_params["empty_sample"]::String),
     loc_params["add_channelview"]
 )
 
