@@ -60,7 +60,7 @@ function _remote_table_source(remotepath, shuffled, metadata_invalid, sample_inv
 
     # Get format
     format_string = get_file_ending(remotepath)
-    format_value = Val(Symbol(format_string))localpaths
+    format_value = Val(Symbol(format_string))
     format_has_separate_metadata = has_separate_metadata(format_value)
 
     # Get nrows, nbytes for each file in local_paths_on_curr_worker
