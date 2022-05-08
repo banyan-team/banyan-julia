@@ -135,8 +135,10 @@ function _remote_table_source(remotepath, shuffled, metadata_invalid, sample_inv
             shuffling_perm, nfiles_on_worker, nrows_extra_on_worker = if shuffled
                 perm_for_shuffling = randperm(length(meta_nrows_on_worker))
                 shuffled_meta_nrows_on_worker = meta_nrows_on_worker[perm_for_shuffling]
+                @show shuffled_meta_nrows_on_worker
                 nrows_on_worker_so_far = 0
                 nrows_on_worker_target = cld(sum(meta_nrows_on_worker), session_sample_rate)
+                @show nrows_on_worker_target
                 nfiles_on_worker_res = 0
                 for nrows_on_worker in shuffled_meta_nrows_on_worker
                     nrows_on_worker_so_far += nrows_on_worker
@@ -149,10 +151,13 @@ function _remote_table_source(remotepath, shuffled, metadata_invalid, sample_inv
             else
                 Colon(), length(local_paths_on_curr_worker), 0
             end
+            @show shuffling_perm
+            @show nfiles_on_worker
+            @show nrows_extra_on_worker
             meta_nrows_for_worker = meta_nrows_on_worker[shuffling_perm]
 
             # Get local sample
-            for (i, local_path_on_curr_worker) in enumerate(local_paths_on_curr_worker[shuffling_perm][1:nfiles_on_worker])
+            for (i, local_path_on_curr_worker) in Base.collect(zip(local_paths_on_curr_worker[shuffling_perm], 1:nfiles_on_worker))
                 @time begin
                 et = @elapsed begin
                 push!(
