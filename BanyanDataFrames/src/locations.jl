@@ -115,7 +115,6 @@ function _remote_table_source(remotepath, shuffled, metadata_invalid, sample_inv
     # If the metadata isn't valid then we anyway have to read in all the data
     # so we can't leverage the data being shuffled by only reading in some of the files
     shuffled = shuffled && is_metadata_valid && !exact_sample_needed
-    @show shuffled
     # TODO: Use this
 
     # Get sample and also metadata if not yet valid at this point
@@ -158,7 +157,7 @@ function _remote_table_source(remotepath, shuffled, metadata_invalid, sample_inv
             meta_nrows_for_worker = meta_nrows_on_worker[shuffling_perm]
 
             # Get local sample
-            for (i, local_path_on_curr_worker) in Base.collect(zip(local_paths_on_curr_worker[shuffling_perm], 1:nfiles_on_worker))
+            for (i, local_path_on_curr_worker) in zip(1:nfiles_on_worker, local_paths_on_curr_worker[shuffling_perm])
                 @time begin
                 et = @elapsed begin
                 push!(
@@ -188,8 +187,11 @@ function _remote_table_source(remotepath, shuffled, metadata_invalid, sample_inv
             local_nrows = 0
             # First see if we can get a random (inexact sample).
             for exact_sample_needed_res in [false, true]
+                @show 
                 empty!(local_samples)
                 local_nrows = 0
+                @show localpaths
+                @show local_paths_on_curr_worker
                 for (i, local_path_on_curr_worker) in enumerate(local_paths_on_curr_worker)
                     @time begin
                     et = @elapsed begin
