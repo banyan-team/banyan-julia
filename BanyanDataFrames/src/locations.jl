@@ -115,6 +115,7 @@ function _remote_table_source(remotepath, shuffled, metadata_invalid, sample_inv
     # If the metadata isn't valid then we anyway have to read in all the data
     # so we can't leverage the data being shuffled by only reading in some of the files
     shuffled = shuffled && is_metadata_valid && !exact_sample_needed
+    @show shuffled
     # TODO: Use this
 
     # Get sample and also metadata if not yet valid at this point

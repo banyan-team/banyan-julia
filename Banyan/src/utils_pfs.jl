@@ -539,7 +539,18 @@ function getpath(path::String)::String
         # to a user, a short-term solution is to use a different
         # URL each time (e.g., add a dummy query to the end of the
         # URL)
-            Downloads.download(path, joined_path)
+            for i = 1:3
+                try
+                    Downloads.download(path, joined_path)
+                    break
+                catch e
+                    if i == 3
+                        throw(e)
+                    else
+                        continue
+                    end
+                end
+            end
         end
         # end
         # MPI.Barrier(comm)
