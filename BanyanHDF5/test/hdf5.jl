@@ -9,9 +9,9 @@ src in ["Internet", "S3"]
 
         for _ in 1:2
             x = if src == "S3"
-                read_hdf5(joinpath("s3://", get_cluster_s3_bucket_name(), "fillval.h5/DS1"), source_invalid=true, sample_invalid=true)
+                read_hdf5(joinpath("s3://", get_cluster_s3_bucket_name(), "fillval.h5/DS1"), metadata_invalid=true, sample_invalid=true)
             else
-                read_hdf5(joinpath("https://github.com/banyan-team/banyan-julia/raw/v0.1.1/BanyanArrays/test/res", "fillval.h5/DS1"), source_invalid=true, sample_invalid=true)
+                read_hdf5(joinpath("https://github.com/banyan-team/banyan-julia/raw/v0.1.1/BanyanArrays/test/res", "fillval.h5/DS1"), metadata_invalid=true, sample_invalid=true)
             end
 
             # Test basic case of reading from remote file
@@ -59,7 +59,7 @@ end
 
         # Perform computation
 
-        x = read_hdf5(joinpath(path, "DS1"), source_invalid=true, sample_invalid=true)
+        x = read_hdf5(joinpath(path, "DS1"), metadata_invalid=true, sample_invalid=true)
         # @show Base.collect(length(x))
         x = map(e -> e * 10, x)
 

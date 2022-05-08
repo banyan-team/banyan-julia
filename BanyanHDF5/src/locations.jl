@@ -189,20 +189,20 @@ end
 #     )
 # end
 
-function _remote_hdf5_source(remotepath, shuffled, source_invalid, sample_invalid, invalidate_source, invalidate_sample)
+function _remote_hdf5_source(path_and_subpath, shuffled, metadata_invalid, sample_invalid, invalidate_metadata, invalidate_sample)
     # Get session information
     session_sample_rate = get_session().sample_rate
     worker_idx, nworkers = get_worker_idx(), get_nworkers()
     is_main = worker_idx == 1
 
     # Get current location
-    curr_location, curr_sample_invalid, curr_parameters_invalid = get_cached_location(remotepath, source_invalid, sample_invalid)
+    curr_location, curr_sample_invalid, curr_parameters_invalid = get_cached_location(path_and_subpath, metadata_invalid, sample_invalid)
     if !curr_parameters_invalid && !curr_sample_invalid
         return curr_location
     end
 
     # Download the path
-    remotepath, datasetpath, isa_hdf5 = extract_dataset_path(remotepath)
+    remotepath, datasetpath, isa_hdf5 = extract_dataset_path(path_and_subpath)
     isa_hdf5 || error("Expected HDF5 file for $remotepath")
     p = getpath(remotepath)
     HDF5.ishdf5(p) || "Expected HDF5 file at $remotepath"
@@ -281,6 +281,7 @@ function _remote_hdf5_source(remotepath, shuffled, source_invalid, sample_invali
         location_res = LocationSource(
             "Remote",
             Dict{String,Any}(
+                "path_and_subpath" => path_and_subpath,
                 "path" => remotepath,
                 "subpath" => datasetpath,
                 "size" => datasize,
@@ -292,21 +293,21 @@ function _remote_hdf5_source(remotepath, shuffled, source_invalid, sample_invali
             nbytes,
             dset_sample,
         )
-        cache_location(remotepath, location_res, invalidate_sample, invalidate_source)
+        cache_location(remotepath, location_res, invalidate_sample, invalidate_metadata)
         location_res
     else
         INVALID_LOCATION
     end
 end
 
-function RemoteHDF5Source(remotepath; shuffled=false, source_invalid = false, sample_invalid = false, invalidate_source = false, invalidate_sample = false)::Location
+function RemoteHDF5Source(remotepath; shuffled=false, metadata_invalid = false, sample_invalid = false, invalidate_metadata = false, invalidate_sample = false)::Location
     offloaded(
         _remote_hdf5_source,
         remotepath,
         shuffled,
-        source_invalid,
+        metadata_invalid,
         sample_invalid,
-        invalidate_source,
+        invalidate_metadata,
         invalidate_sample;
         distributed=true
     )

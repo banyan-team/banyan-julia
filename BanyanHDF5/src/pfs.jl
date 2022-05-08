@@ -129,6 +129,7 @@ function WriteHelperHDF5(
     loc_params::Dict{String,Any},
     loc_params_path::String,
     loc_params_subpath::String,
+    path_and_subpath::String,
     dim::Int64
 )
 
@@ -147,6 +148,16 @@ function WriteHelperHDF5(
 
     worker_idx = Banyan.get_worker_idx(comm)
     idx = Banyan.get_partition_idx(batch_idx, nbatches, comm)
+    is_main = worker_idx == 1
+    if is_main
+        # We invalidate both the location and the metadata in this case
+        serialize(
+            Banyan.get_location_path(path_and_subpath),
+            INVALID_LOCATION
+        )
+    end
+    
+    # Invalidate location if 
 
     (
         hasmethod(HDF5.datatype, (eltype(part),)) ||
@@ -574,6 +585,7 @@ function WriteHDF5(
         loc_params,
         loc_params["path"]::String,
         loc_params["subpath"]::String,
+        loc_params["path_and_subpath"]::String,
         params["key"]::Int64
     )
 end

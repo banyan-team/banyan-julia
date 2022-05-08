@@ -7,12 +7,12 @@ end
 
 read_jpg(p; kwargs...) = read_png(p; kwargs...)
 
-# function write_png(image, path; invalidate_source=true, invalidate_sample=true, kwargs...)
+# function write_png(image, path; invalidate_metadata=true, invalidate_sample=true, kwargs...)
 #     # TODO: Determine which constructors to use to partition data
 #     pt(image, Blocked(image) | Replicated())
 #     partitioned_computation(
 #         image,
-#         destination=RemoteDestination(path; invalidate_source=invalidate_source, invalidate_sample=invalidate_sample, kwargs...),
+#         destination=RemoteDestination(path; invalidate_metadata=invalidate_metadata, invalidate_sample=invalidate_sample, kwargs...),
 #         new_source=_->RemoteSource(path)
 #     )
 # end

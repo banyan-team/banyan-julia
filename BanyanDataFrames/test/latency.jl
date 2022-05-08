@@ -10,7 +10,7 @@ function test_csv_from_internet_latency()
                     iris_df = read_csv(
                         "https://raw.githubusercontent.com/banyan-team/banyan-julia/v0.1.3/BanyanDataFrames/test/res/iris.csv",
                         shuffled=true,
-                        source_invalid=true,
+                        metadata_invalid=true,
                         sample_invalid=true
                     )
                 end
@@ -61,7 +61,7 @@ function test_csv_from_s3_latency()
                         read_csv(
                             "s3://$s3_bucket_name/nyc_tripdata_small.csv",
                             shuffled=true,
-                            source_invalid=invalid,
+                            metadata_invalid=invalid,
                             sample_invalid=invalid
                         )
                     end

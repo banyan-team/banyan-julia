@@ -355,18 +355,28 @@ getsamplenrows(totalnrows::Int64)::Int64 =
 # information about what files are in the dataset and how many rows they have
 # while samples contain an actual sample from that dataset
 
-# The invalidate_* and clear_* functions should be used if some actor that
+# The invalidate_* and invalidate_all_* functions should be used if some actor that
 # Banyan is not aware of mutates the location. Locations should be
 # eventually stored and updated in S3 on each write.
 
-_clear_sources() = rm("s3/$(get_cluster_s3_bucket_name())/banyan_locations/", force=true, recursive=true)
-_clear_samples() = rm("s3/$(get_cluster_s3_bucket_name())/banyan_samples/", force=true, recursive=true)
-_invalidate_source(remotepath) = rm("s3/$(get_cluster_s3_bucket_name())/banyan_locations/$(get_remotepath_id(remotepath))", force=true, recursive=true)
-_invalidate_sample(remotepath) = rm("s3/$(get_cluster_s3_bucket_name())/banyan_samples/$(get_remotepath_id(remotepath))", force=true, recursive=true)
-clear_sources() = offloaded(_clear_sources)
-clear_samples() = offloaded(_clear_samples)
-invalidate_source() = offloaded(_invalidate_source)
-invalidate_sample() = offloaded(_invalidate_sample)
+_invalidate_all_locations() = rm("s3/$(get_cluster_s3_bucket_name())/banyan_locations/", force=true, recursive=true)
+_invalidate_metadata(remotepath) =
+    let p = get_location_path(remotepath)
+        if isfile(p)
+            loc = deserialize(p)
+            loc.parameters_invalid = true
+        end
+    end
+_invalidate_sample(remotepath) =
+    let p = get_location_path(remotepath)
+        if isfile(p)
+            loc = deserialize(p)
+            loc.sample_invalid = true
+        end
+    end
+invalidate_all_locations() = offloaded(_invalidate_all_locations)
+invalidate_metadata(p) = offloaded(_invalidate_metadata, p)
+invalidate_sample(p) = offloaded(_invalidate_sample, p)
 
 # Getting remote location info and samples is not easy. So we cache it and
 # allow a function to be passed in to actually process the given path and get
@@ -382,9 +392,9 @@ invalidate_sample() = offloaded(_invalidate_sample)
 #     @nospecialize(get_remote_source::Function),
 #     p,
 #     shuffled::Bool,
-#     source_invalid::Bool,
+#     metadata_invalid::Bool,
 #     sample_invalid::Bool,
-#     invalidate_source::Bool,
+#     invalidate_metadata::Bool,
 #     invalidate_sample::Bool
 # )::Location
 #     # In the context of remote locations, the location refers to just the non-sample part of it; i.e., the
@@ -423,7 +433,7 @@ invalidate_sample() = offloaded(_invalidate_sample)
 #     end
 
 #     # Get cached location if it exists
-#     remote_source::Location = if isfile(locationpath) && !source_invalid
+#     remote_source::Location = if isfile(locationpath) && !metadata_invalid
 #         deserialize(locationpath)
 #     else
 #         NOTHING_LOCATION
@@ -433,19 +443,19 @@ invalidate_sample() = offloaded(_invalidate_sample)
 
 #     if Banyan.INVESTIGATING_CACHING_LOCATION_INFO || Banyan.INVESTIGATING_CACHING_SAMPLES
 #         println("In RemoteSource")
-#         @show locationpath samplepath isfile(samplepath) sample_invalid isfile(locationpath) source_invalid
+#         @show locationpath samplepath isfile(samplepath) sample_invalid isfile(locationpath) metadata_invalid
 #     end
 
 #     # Store location in cache. The same logic below applies to having a
 #     # `&& isempty(remote_source.files)` which effectively allows us
 #     # to reuse the location (computed files and row lengths) but only if the
 #     # location was actually already written to. If this is the first time we
-#     # are calling `write_parquet` with `invalidate_source=false`, then
+#     # are calling `write_parquet` with `invalidate_metadata=false`, then
 #     # the location will not be saved. But on future writes, the first write's
 #     # location will be used.
 #     remote_source_src_name::String = remote_source.src_name
 #     remote_source_nbytes::Int64 = remote_source.src_parameters["nbytes"]
-#     if !invalidate_source && remote_source_src_name == "Remote" && remote_source_nbytes > 0
+#     if !invalidate_metadata && remote_source_src_name == "Remote" && remote_source_nbytes > 0
 #         mkpath(locationspath)
 #         serialize(locationpath, remote_source)
 #     else
@@ -471,11 +481,11 @@ invalidate_sample() = offloaded(_invalidate_sample)
 # function RemoteDestination(
 #     @nospecialize(get_remote_destination::Function),
 #     p::String;
-#     invalidate_source::Bool = true,
+#     invalidate_metadata::Bool = true,
 #     invalidate_sample::Bool = true
 # )::Location
 #     p_hash_string = string(hash(p))
-#     if invalidate_source
+#     if invalidate_metadata
 #         rm(joinpath(homedir(), ".banyan", "sources", p_hash_string), force=true, recursive=true)
 #     end
 #     if invalidate_sample
@@ -535,8 +545,8 @@ invalidate_sample() = offloaded(_invalidate_sample)
 # TODO: Hash in a more general way so equivalent paths hash to same value
 # This hashes such that an extra slash at the end won't make a difference``
 get_remotepath_id(remotepath::String) =
-    remotepath |> splitpath |> joinpath |> hash |> string
-get_remotepath_id(remotepath) = remotepath |> hash |> string
+    remotepath |> splitpath |> joinpath |> hash
+get_remotepath_id(remotepath) = remotepath |> hash
 function get_location_path(remotepath)
     session_s3_bucket_name = get_cluster_s3_bucket_name()
     if !isdir("s3/$session_s3_bucket_name/banyan_locations/")
@@ -552,23 +562,24 @@ function get_meta_path(remotepath)
     "s3/$session_s3_bucket_name/banyan_meta/$(get_remotepath_id(remotepath))"
 end
 
-function get_cached_location(remotepath, source_invalid, sample_invalid)
+function get_cached_location(remotepath, metadata_invalid, sample_invalid)
     remotepath_id = get_remotepath_id(remotepath)
+    Random.seed!(hash(get_session_id(), remotepath_id))
     session_s3_bucket_name = get_cluster_s3_bucket_name()
     location_path = "s3/$session_s3_bucket_name/banyan_locations/$remotepath_id"
     curr_location::Location = isfile(location_path) ? deserialize(location_path) : INVALID_LOCATION
     curr_location.sample_invalid = curr_location.sample_invalid || sample_invalid
-    curr_location.parameters_invalid = curr_location.parameters_invalid || source_invalid
+    curr_location.parameters_invalid = curr_location.parameters_invalid || metadata_invalid
     curr_sample_invalid = curr_location.sample_invalid
     curr_parameters_invalid = curr_location.parameters_invalid
     curr_location, curr_sample_invalid, curr_parameters_invalid
 end
 
-function cache_location(remotepath, location_res::Location, invalidate_sample, invalidate_source)
+function cache_location(remotepath, location_res::Location, invalidate_sample, invalidate_metadata)
     location_path = get_location_path(remotepath)
     location_to_write = deepcopy(location_res)
     location_to_write.sample_invalid = location_to_write.sample_invalid || invalidate_sample
-    location_to_write.parameters_invalid = location_to_write.parameters_invalid || invalidate_source
+    location_to_write.parameters_invalid = location_to_write.parameters_invalid || invalidate_metadata
     serialize(location_path, location_to_write)
 end
 
@@ -594,7 +605,7 @@ end
 has_separate_metadata(::Val{:jl}) = false
 get_metadata(::Val{:jl}, p) = size(deserialize(p), 1)
 get_sample_from_data(data, sample_rate, len::Int64) =
-    get_sample_from_data(data, sample_rate, sample_from_range(len, sample_rate))
+    get_sample_from_data(data, sample_rate, sample_from_range(1:len, sample_rate))
 function get_sample_from_data(data, sample_rate, rand_indices::Vector{Int64})
     if sample_rate == 1.0
         return data

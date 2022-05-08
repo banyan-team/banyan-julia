@@ -264,9 +264,9 @@ _reshape_image(image) = reshape(image, (1, size(image)...))
 
 function _remote_image_source(
     remotepath,
-    source_invalid,
+    metadata_invalid,
     sample_invalid,
-    invalidate_source,
+    invalidate_metadata,
     invalidate_sample,
     add_channelview
 )
@@ -276,7 +276,7 @@ function _remote_image_source(
     is_main = worker_idx == 1
 
     # Get current location
-    curr_location, curr_sample_invalid, curr_parameters_invalid = get_cached_location((remotepath, add_channelview), source_invalid, sample_invalid)
+    curr_location, curr_sample_invalid, curr_parameters_invalid = get_cached_location((remotepath, add_channelview), metadata_invalid, sample_invalid)
     if !curr_parameters_invalid && !curr_sample_invalid
         return curr_location
     end
@@ -367,28 +367,28 @@ function _remote_image_source(
             nbytes_res,
             remote_sample,
         )
-        cache_location(remotepath, location_res, invalidate_sample, invalidate_source)
+        cache_location(remotepath, location_res, invalidate_sample, invalidate_metadata)
         location_res
     else
         INVALID_LOCATION
     end
 end
 
-function RemoteImageSource(remotepath; source_invalid = false, sample_invalid = false, invalidate_source = false, invalidate_sample = false, add_channelview=false)::Location
+function RemoteImageSource(remotepath; metadata_invalid = false, sample_invalid = false, invalidate_metadata = false, invalidate_sample = false, add_channelview=false)::Location
     offloaded(
         _remote_image_source,
         remotepath,
-        source_invalid,
+        metadata_invalid,
         sample_invalid,
-        invalidate_source,
+        invalidate_metadata,
         invalidate_sample,
         add_channelview;
         distributed=true
     )
 end
 
-# function RemoteImageDestination(remotepath; invalidate_source = true, invalidate_sample = true)::Location
-#     RemoteDestination(p, invalidate_source = invalidate_source, invalidate_sample = invalidate_sample) do remotepath
+# function RemoteImageDestination(remotepath; invalidate_metadata = true, invalidate_sample = true)::Location
+#     RemoteDestination(p, invalidate_metadata = invalidate_metadata, invalidate_sample = invalidate_sample) do remotepath
         
 #         # NOTE: Path for writing must be a directory
 #         remotepath = endswith(string(remotepath), "/") ? p : (remotepath * "/")

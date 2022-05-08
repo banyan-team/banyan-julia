@@ -11,17 +11,17 @@ function get_metadata(::Val{:csv}, p)
     # num_rows
     # This should never be called because has_separate_metadata = false and we don't
     # want to unnecessarily compile CSV.Rows
-    nrow(CSV.read(p, DataFrames.DataFrame))
+    nrow(CSV.read(p, DataFrames.DataFrame; header=1, skipto=1, footerskip=0))
 end
 get_sample(::Val{:csv}, p, sample_rate, len) = let rand_indices = sample_from_range(1:len, sample_rate)
     if isempty(rand_indices)
         DataFrames.DataFrame()
     else
-        get_sample_from_data(CSV.read(p, DataFrames.DataFrame), sample_rate, rand_indices)
+        get_sample_from_data(CSV.read(p, DataFrames.DataFrame; header=1, skipto=1, footerskip=0), sample_rate, rand_indices)
     end
 end
 get_sample_and_metadata(::Val{:csv}, p, sample_rate) =
-    let sample_df = CSV.read(p, DataFrames.DataFrame)
+    let sample_df = CSV.read(p, DataFrames.DataFrame; header=1, skipto=1, footerskip=0)
         num_rows = nrow(sample_df)
         get_sample_from_data(sample_df, sample_rate, num_rows), num_rows
     end
@@ -62,7 +62,10 @@ function read_file(::Val{:csv}, path, header, rowrange, readrange, filerowrange,
     et = @elapsed begin
     CSV.read(
         path,
-        DataFrames.DataFrame
+        DataFrames.DataFrame;
+        header=1,
+        skipto=1,
+        footerskip=0
     )
     end
     println("Time on worker_idx=$(get_worker_idx()) for first CSV.read in read_file: $et seconds")

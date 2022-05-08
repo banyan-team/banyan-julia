@@ -32,7 +32,7 @@
                     sub = filter(row -> row.sepal_width == 3.3, df)
                     sub2 = filter(row -> endswith(row.species, "8"), sub)
                     write_file(sub_save_path, sub)
-                    invalidate_source(sub2)
+                    invalidate_metadata(sub2)
                     invalidate_sample(sub2)
                     write_file(sub2_save_path, sub2)
                 else
@@ -789,7 +789,7 @@ end
                     # "s3://$s3_bucket_name/nyc_tripdata.csv",
                     "s3://$s3_bucket_name/nyc_tripdata_large.csv",
                     # sample_invalid=true,
-                    # source_invalid=true,
+                    # metadata_invalid=true,
                     shuffled=true
                 )
                 # @show sample(df)

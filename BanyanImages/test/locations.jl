@@ -1,6 +1,6 @@
-@testset "Remote Image Source for $format with source_invalid=$source_invalid and sample_invalid=$sample_invalid" for format in [
+@testset "Remote Image Source for $format with metadata_invalid=$metadata_invalid and sample_invalid=$sample_invalid" for format in [
     "png", "jpg"
-], source_invalid in [
+], metadata_invalid in [
     true, false
 ], sample_invalid in [
     true, false
@@ -13,7 +13,7 @@
     image_size = 100 * 100
     path = "https://raw.githubusercontent.com/banyan-team/banyan-julia/cailinw/banyan-images/BanyanImages/test/res/test_image.$format"
 
-    s = RemoteImageSource(path; source_invalid=source_invalid, sample_invalid=sample_invalid)
+    s = RemoteImageSource(path; metadata_invalid=metadata_invalid, sample_invalid=sample_invalid)
     @test s.src_name == "Remote"
     @test s.nimages == 1
     @test s.format == format

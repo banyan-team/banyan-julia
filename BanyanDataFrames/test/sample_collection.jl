@@ -38,11 +38,11 @@
 
         # Construct location
         if reusing != "nothing"
-            Remote(src_name, source_invalid = true, sample_invalid = true)
+            Remote(src_name, metadata_invalid = true, sample_invalid = true)
         end
         remote_source = RemoteTableSource(
             src_name,
-            source_invalid = (reusing == "nothing" || reusing == "sample"),
+            metadata_invalid = (reusing == "nothing" || reusing == "sample"),
             sample_invalid = (reusing == "nothing" || reusing == "location"),
             shuffled = with_or_without_shuffled == "with",
         )

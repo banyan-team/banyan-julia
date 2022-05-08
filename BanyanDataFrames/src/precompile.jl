@@ -51,7 +51,7 @@ end
 
 function _precompile_()
     ccall(:jl_generating_output, Cint, ()) == 1 || return nothing
-    # Base.precompile(Tuple{Core.kwftype(typeof(read_csv)),NamedTuple{(:shuffled, :source_invalid, :sample_invalid), Tuple{Bool, Bool, Bool}},typeof(read_csv),String})   # time: 12.008884
+    # Base.precompile(Tuple{Core.kwftype(typeof(read_csv)),NamedTuple{(:shuffled, :metadata_invalid, :sample_invalid), Tuple{Bool, Bool, Bool}},typeof(read_csv),String})   # time: 12.008884
     # Base.precompile(Tuple{typeof(get_nrow),String,Val{:csv}})   # time: 0.16609474
     let fbody = try __lookup_kwbody__(which(filter, (Any,DataFrame,))) catch missing end
         if !ismissing(fbody)
@@ -120,12 +120,12 @@ function _precompile_()
     if isdefined(BanyanDataFrames, :ReadBlockParquet)
         push!(ReadBlockFuncs, ReadBlockParquet)
         push!(WriteFuncs, WriteParquet)
-        Base.precompile(Tuple{Core.kwftype(typeof(read_parquet)),NamedTuple{(:shuffled, :source_invalid, :sample_invalid), Tuple{Bool, Bool, Bool}},typeof(read_parquet),String})   # time: 15.114132
+        Base.precompile(Tuple{Core.kwftype(typeof(read_parquet)),NamedTuple{(:shuffled, :metadata_invalid, :sample_invalid), Tuple{Bool, Bool, Bool}},typeof(read_parquet),String})   # time: 15.114132
     end
     if isdefined(BanyanDataFrames, :ReadBlockCSV)
         push!(ReadBlockFuncs, ReadBlockCSV)
         push!(WriteFuncs, WriteCSV)
-        Base.precompile(Tuple{Core.kwftype(typeof(read_csv)),NamedTuple{(:shuffled, :source_invalid, :sample_invalid), Tuple{Bool, Bool, Bool}},typeof(read_csv),String})   # time: 15.114132
+        Base.precompile(Tuple{Core.kwftype(typeof(read_csv)),NamedTuple{(:shuffled, :metadata_invalid, :sample_invalid), Tuple{Bool, Bool, Bool}},typeof(read_csv),String})   # time: 15.114132
     end
     for ReadBlock in ReadBlockFuncs
         precompile(
@@ -293,6 +293,10 @@ function _precompile_()
     # precompile(partitioned_with_for_combine, (Future, Future, Future, Future, Base.Vector{String}, Future, Future, Future, Future, Base.Vector{String}))
     precompile(partitioned_for_combine, (Future, Future, Future, Future, Base.Vector{String}, Future, Future, Future, Future))
     precompile(partitioned_for_subset, (Future, Future, Future, Future, Base.Vector{String}, Future, Future, Future, Future))
+
+    # Arrow.jl
+    precompile(Arrow.write, (String,))
+    precompile(Arrow.write, (DataFrames.DataFrame,))
 
     # df = Future()
     # gdf = Future()

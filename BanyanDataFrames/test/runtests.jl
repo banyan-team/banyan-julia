@@ -142,8 +142,8 @@ include("groupby_filter_indexing.jl")
 # Clear caches to ensure that caching behavior is deterministic
 # Actually, don't clear this until we optimize sample/source collection.
 # Until then, we have the sample collection tests for this.
-# clear_sources()
-# clear_samples()
+# invalidate_all_sources()
+# invalidate_all_samples()
 
 try
     runtests(Regex.(ARGS)...)

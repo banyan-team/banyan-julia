@@ -6,11 +6,11 @@ get_sample(::Val{:arrow}, p, sample_rate, len) = let rand_indices = sample_from_
     if isempty(rand_indices)
         DataFrames.DataFrame()
     else
-        get_sample_from_data(DataFrames.DataFrame(Arrow.Table(p)), sample_rate, rand_indices)
+        get_sample_from_data(DataFrames.DataFrame(Arrow.Table(p); copycols=false), sample_rate, rand_indices)
     end
 end
 get_sample_and_metadata(::Val{:arrow}, p, sample_rate) =
-    let sample_df = DataFrames.DataFrame(Arrow.Table(p))
+    let sample_df = DataFrames.DataFrame(Arrow.Table(p); copycols=false)
         num_rows = nrow(sample_df)
         get_sample_from_data(sample_df, sample_rate, num_rows), num_rows
     end
@@ -33,7 +33,7 @@ function read_file(::Val{:arrow}, path, header, rowrange, readrange, filerowrang
                     rowrange.stop,
                     rbrowrange.stop,
                 )
-            df = let unfiltered = DataFrames.DataFrame(tbl, copycols=false)
+            df = let unfiltered = DataFrames.DataFrame(tbl; copycols=false)
                 unfiltered[
                     (readrange.start-rbrowrange.start+1):(readrange.stop-rbrowrange.start+1),
                     :,

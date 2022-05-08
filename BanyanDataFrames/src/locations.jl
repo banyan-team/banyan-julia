@@ -1,13 +1,13 @@
 get_file_ending(remotepath::String)::String = splitext(remotepath)[2][2:end]
 
-function _remote_table_source(remotepath, shuffled, source_invalid, sample_invalid, invalidate_source, invalidate_sample)::Location
+function _remote_table_source(remotepath, shuffled, metadata_invalid, sample_invalid, invalidate_metadata, invalidate_sample)::Location
     session_sample_rate = get_session().sample_rate
     is_main = is_main_worker()
     
     # Get cached Location and if it has valid parameters and sample, return
     @time begin
     et = @elapsed begin
-    curr_location, curr_sample_invalid, curr_parameters_invalid = get_cached_location(remotepath, source_invalid, sample_invalid)
+    curr_location, curr_sample_invalid, curr_parameters_invalid = get_cached_location(remotepath, metadata_invalid, sample_invalid)
     end
     println("Time for get_cached_location: $et seconds")
     end
@@ -22,7 +22,7 @@ function _remote_table_source(remotepath, shuffled, source_invalid, sample_inval
     # Get metadata if it is still valid
     @time begin
     et = @elapsed begin
-    curr_meta::Arrow.Table = if is_main && !curr_parameters_invalid
+    curr_meta::Arrow.Table = if !curr_parameters_invalid
         Arrow.Table(curr_location.parameters["meta_path"]::String)
     else
         Arrow.Table()
@@ -38,44 +38,37 @@ function _remote_table_source(remotepath, shuffled, source_invalid, sample_inval
 
     # Get list of local paths
     @time begin
-    et = @time begin
-    localpaths_on_main_worker::Base.Vector{String}, localpaths_shuffling_on_main::Base.Vector{Int64} = if is_main
-        paths = if !curr_parameters_invalid
-            convert(Base.Vector{String}, curr_meta[:path])
-        else
-            localpath::String = getpath(remotepath)
-            localpath_is_dir = isdir(localpath)
-            paths = localpath_is_dir ? readdir(localpath, join=true) : String[localpath]
-            paths
-        end
-        paths, shuffled ? randsubseq(1:length(paths), 1 / session_sample_rate) : Int64[]
+    et = @elapsed begin
+    localpaths::Base.Vector{String} = if !curr_parameters_invalid
+        convert(Base.Vector{String}, curr_meta[:path])
     else
-        String[], Int64[]
+        localpath::String = getpath(remotepath)
+        localpath_is_dir = isdir(localpath)
+        paths = if localpath_is_dir
+            paths_on_main = is_main ? readdir(localpath, join=true) : String[]
+            sync_across(paths_on_main)
+        else
+            String[localpath]
+        end
+        paths
     end
-    localpaths::Base.Vector{String}, localpaths_shuffling::Base.Vector{String}, curr_meta_nrows::Base.Vector{Int64} =
-        sync_across(
-            (
-                localpaths_on_main_worker,
-                localpaths_shuffling_on_main,
-                (!curr_parameters_invalid && is_main) ? convert(Base.Vector{Int64}, curr_meta[:nrows]) : Int64[]
-            )
-        )
+    curr_meta_nrows::Base.Vector{Int64} = !curr_parameters_invalid ? convert(Base.Vector{Int64}, curr_meta[:nrows]) : Int64[]
     local_paths_on_curr_worker::Base.Vector{String} = split_across(localpaths)
-    local_paths_shuffling_on_curr_worker::Base.Vector{String} = shuffled ? split_across(localpaths_shuffling) : String[]
     end
     println("Time to sync_across with paths to read in: $et seconds")
     end
 
     # Get format
     format_string = get_file_ending(remotepath)
-    format_value = Val(Symbol(format_string))
+    format_value = Val(Symbol(format_string))localpaths
+    format_has_separate_metadata = has_separate_metadata(format_value)
 
     # Get nrows, nbytes for each file in local_paths_on_curr_worker
     @time begin
     et = @elapsed begin
     meta_nrows_on_worker = if curr_parameters_invalid
         meta_nrows_on_worker_res = Base.zeros(length(local_paths_on_curr_worker))
-        if has_separate_metadata(format_value)
+        if format_has_separate_metadata
             for (i, local_path_on_curr_worker) in enumerate(local_paths_on_curr_worker)
                 path_nrows_on_worker = get_metadata(format_value, local_path_on_curr_worker)
                 meta_nrows_on_worker_res[i] = path_nrows_on_worker
@@ -95,13 +88,14 @@ function _remote_table_source(remotepath, shuffled, source_invalid, sample_inval
     # we can determine whether to get an exact or inexact sample and
     # otherwise so that we can update the sample rate.
     total_nrows_res = if curr_parameters_invalid
-        if has_separate_metadata(format_value)
+        if format_has_separate_metadata
             @time begin
             et = @elapsed begin
-            reduce_and_sync_across(+, sum(meta_nrows_on_worker))
+            reduce_and_sync_across_res = reduce_and_sync_across(+, sum(meta_nrows_on_worker))
             end
             println("Time for reduce_and_sync_across: $et seconds")
             end
+            reduce_and_sync_across_res
         else
             # For formats with metadata stored with the data (CSV), we
             # determine the # of rows later in the below case where
@@ -117,7 +111,11 @@ function _remote_table_source(remotepath, shuffled, source_invalid, sample_inval
     # (c) `exact_sample_needed` are only valid if either the format has
     # separate metadata (like Parquet and Arrow) or the metadata is already
     # stored and valid.
-    is_metadata_valid = has_separate_metadata(format_value) || !curr_parameters_invalid
+    is_metadata_valid = format_has_separate_metadata || !curr_parameters_invalid
+    # If the metadata isn't valid then we anyway have to read in all the data
+    # so we can't leverage the data being shuffled by only reading in some of the files
+    shuffled = shuffled && is_metadata_valid && !exact_sample_needed
+    # TODO: Use this
 
     # Get sample and also metadata if not yet valid at this point
     recollected_sample_needed = curr_sample_invalid || !is_metadata_valid
@@ -133,24 +131,44 @@ function _remote_table_source(remotepath, shuffled, source_invalid, sample_inval
         et = @elapsed begin
         local_samples = DataFrames.DataFrame[]
         if is_metadata_valid
-            # Get local sample
-            paths_to_sample_from =
-                if shuffled
-                    zip(1:length(paths_to_sample_from), paths_to_sample_from)
-                else
-                    zip(local_paths_shuffling_on_curr_worker, localpaths[local_paths_shuffling_on_curr_worker])
+            # Determine which files to read from if shuffled
+            shuffling_perm, nfiles_on_worker, nrows_extra_on_worker = if shuffled
+                perm_for_shuffling = randperm(length(meta_nrows_on_worker))
+                shuffled_meta_nrows_on_worker = meta_nrows_on_worker[perm_for_shuffling]
+                nrows_on_worker_so_far = 0
+                nrows_on_worker_target = cld(sum(meta_nrows_on_worker), session_sample_rate)
+                nfiles_on_worker_res = 0
+                for nrows_on_worker in shuffled_meta_nrows_on_worker
+                    nrows_on_worker_so_far += nrows_on_worker
+                    nfiles_on_worker_res += 1
+                    if nrows_on_worker_so_far >= nrows_on_worker_target
+                        break
+                    end
                 end
-            for (i, local_path_on_curr_worker) in paths_to_sample_from
+                shuffling_perm, nfiles_on_worker_res, nrows_on_worker_so_far - nrows_on_worker_target
+            else
+                Colon(), length(local_paths_on_curr_worker), 0
+            end
+            meta_nrows_for_worker = meta_nrows_on_worker[shuffling_perm]
+
+            # Get local sample
+            for (i, local_path_on_curr_worker) in enumerate(local_paths_on_curr_worker[shuffling_perm][1:nfiles_on_worker])
                 @time begin
                 et = @elapsed begin
                 push!(
                     local_samples,
-                    get_sample(
+                    let df = get_sample(
                         format_value,
                         local_path_on_curr_worker,
-                        exact_sample_needed ? 1.0 : session_sample_rate,
-                        meta_nrows_on_worker[i]
+                        (shuffled || exact_sample_needed) ? 1.0 : session_sample_rate,
+                        meta_nrows_for_worker[i]
                     )
+                        if shuffled && i == nfiles_on_worker && nrows_extra_on_worker > 0
+                            df[1:(end-nrows_extra_on_worker), :]
+                        else
+                            df
+                        end
+                    end
                 )
                 end
                 println("Time to call get_sample: $et seconds")
@@ -358,7 +376,7 @@ function _remote_table_source(remotepath, shuffled, source_invalid, sample_inval
         # Write out the updated `Location`
         @time begin
         et = @elapsed begin
-        cache_location(remotepath, location_res, invalidate_sample, invalidate_source)
+        cache_location(remotepath, location_res, invalidate_sample, invalidate_metadata)
         end
         println("Time to cache_location: $et seconds")
         end
@@ -369,31 +387,31 @@ function _remote_table_source(remotepath, shuffled, source_invalid, sample_inval
     end
 end
 
-function RemoteTableSource(remotepath; shuffled=false, source_invalid = false, sample_invalid = false, invalidate_source = false, invalidate_sample = false)::Location
+function RemoteTableSource(remotepath; shuffled=true, metadata_invalid = false, sample_invalid = false, invalidate_metadata = false, invalidate_sample = false)::Location
     offloaded(
         _remote_table_source,
         remotepath,
         shuffled,
-        source_invalid,
+        metadata_invalid,
         sample_invalid,
-        invalidate_source,
+        invalidate_metadata,
         invalidate_sample;
         distributed=true
     )
 end
 
-# function RemoteTableSource(remotepath; shuffled=false, source_invalid = false, sample_invalid = false, invalidate_source = false, invalidate_sample = false)::Location
+# function RemoteTableSource(remotepath; shuffled=false, metadata_invalid = false, sample_invalid = false, invalidate_metadata = false, invalidate_sample = false)::Location
 #     if Banyan.INVESTIGATING_CACHING_LOCATION_INFO || Banyan.INVESTIGATING_CACHING_SAMPLES
 #         println("Before call to RemoteSource")
-#         @show remotepath source_invalid sample_invalid
+#         @show remotepath metadata_invalid sample_invalid
 #     end
 #     RemoteSource(
 #         get_remote_table_source,
 #         remotepath,
 #         shuffled,
-#         source_invalid,
+#         metadata_invalid,
 #         sample_invalid,
-#         invalidate_source,
+#         invalidate_metadata,
 #         invalidate_sample
 #     )
 # end
