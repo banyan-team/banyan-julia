@@ -444,7 +444,7 @@ function WriteHelper(@nospecialize(format_value))
         sample_rate = get_session().sample_rate
         sampled_part = part_res isa Empty ? empty_df : Banyan.get_sample_from_data(part_res, sample_rate, nrows)
         gathered_data =
-            gather_across((nrows, nbytes, part_res isa Empty ? part_res : empty(part_res)), sampled_part)
+            gather_across((nrows, nbytes, part_res isa Empty ? part_res : empty(part_res), sampled_part), comm)
         # new_nrows, new_nbytes, empty_parts, sampled_parts
         
         # On the main worker, finalize metadata and location info.
