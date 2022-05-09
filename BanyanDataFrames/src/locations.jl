@@ -135,10 +135,8 @@ function _remote_table_source(remotepath, shuffled, metadata_invalid, sample_inv
             shuffling_perm, nfiles_on_worker, nrows_extra_on_worker = if shuffled
                 perm_for_shuffling = randperm(length(meta_nrows_on_worker))
                 shuffled_meta_nrows_on_worker = meta_nrows_on_worker[perm_for_shuffling]
-                @show shuffled_meta_nrows_on_worker
                 nrows_on_worker_so_far = 0
                 nrows_on_worker_target = cld(sum(meta_nrows_on_worker), session_sample_rate)
-                @show nrows_on_worker_target
                 nfiles_on_worker_res = 0
                 for nrows_on_worker in shuffled_meta_nrows_on_worker
                     nrows_on_worker_so_far += nrows_on_worker
@@ -151,9 +149,6 @@ function _remote_table_source(remotepath, shuffled, metadata_invalid, sample_inv
             else
                 Colon(), length(local_paths_on_curr_worker), 0
             end
-            @show shuffling_perm
-            @show nfiles_on_worker
-            @show nrows_extra_on_worker
             meta_nrows_for_worker = meta_nrows_on_worker[shuffling_perm]
 
             # Get local sample
@@ -187,11 +182,8 @@ function _remote_table_source(remotepath, shuffled, metadata_invalid, sample_inv
             local_nrows = 0
             # First see if we can get a random (inexact sample).
             for exact_sample_needed_res in [false, true]
-                @show 
                 empty!(local_samples)
                 local_nrows = 0
-                @show localpaths
-                @show local_paths_on_curr_worker
                 for (i, local_path_on_curr_worker) in enumerate(local_paths_on_curr_worker)
                     @time begin
                     et = @elapsed begin
@@ -221,7 +213,6 @@ function _remote_table_source(remotepath, shuffled, metadata_invalid, sample_inv
         @time begin
         et = @elapsed begin
         local_sample::DataFrames.DataFrame = isempty(local_samples) ? DataFrames.DataFrame() : vcat(local_samples...)
-        @show local_sample
         end
         println("Time to vcat local_samples: $et seconds")
         end
@@ -254,8 +245,6 @@ function _remote_table_source(remotepath, shuffled, metadata_invalid, sample_inv
             end
         else
             sample_per_worker = gather_across(local_sample)
-            @show sample_per_worker
-            @show get_worker_idx()
             error("hello")
             if is_main && !isempty(sample_per_worker)
                 vcat(sample_per_worker...), curr_meta_nrows
@@ -263,7 +252,6 @@ function _remote_table_source(remotepath, shuffled, metadata_invalid, sample_inv
                 DataFrames.DataFrame(), Int64[]
             end
         end
-        @show remote_sample_value
         end
         println("Time on worker_idx=$(get_worker_idx()) to concatenate samples across workers: $et seconds")
         end
@@ -340,18 +328,18 @@ function _remote_table_source(remotepath, shuffled, metadata_invalid, sample_inv
     # will error.
 
     # Write the metadata to an Arrow file
-    if is_main && curr_parameters_invalid
-        @time begin
-        et = @elapsed begin
-        meta_path = get_meta_path(remotepath)
-        end
-        println("Time to get_meta_path: $et seconds")
-        end
+    if curr_parameters_invalid
+        # @time begin
+        # et = @elapsed begin
+        # meta_path = 
+        # end
+        # println("Time to get_meta_path: $et seconds")
+        # end
         
         # Write `NamedTuple` with metadata to `meta_path` with `Arrow.write`
         @time begin
         et = @elapsed begin
-        Arrow.write(meta_path, (path=localpaths, nrows=meta_nrows))
+        Arrow.write(is_main ? get_meta_path(remotepath) : IOBuffer(), (path=localpaths, nrows=meta_nrows))
         end
         println("Time to Arrow.write metadata: $et seconds")
         end

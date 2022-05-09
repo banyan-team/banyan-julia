@@ -25,7 +25,7 @@ get_sample_and_metadata(::Val{:parquet}, p, sample_rate) =
 
 file_ending(::Val{:parquet}) = "parquet"
 
-function read_file(::Val{:parquet}, path, header, rowrange, readrange, filerowrange, dfs)
+function read_file(::Val{:parquet}, path, rowrange, readrange, filerowrange, dfs)
     f = Parquet.File(
         path;
         rows = (readrange.start-filerowrange.start+1):(readrange.stop-filerowrange.start+1),

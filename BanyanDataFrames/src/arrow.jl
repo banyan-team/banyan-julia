@@ -23,7 +23,7 @@ get_sample_and_metadata(::Val{:arrow}, p, sample_rate) =
 
 file_ending(::Val{:arrow}) = "arrow"
 
-function read_file(::Val{:arrow}, path, header, rowrange, readrange, filerowrange, dfs)
+function read_file(::Val{:arrow}, path, rowrange, readrange, filerowrange, dfs)
     rbrowrange = filerowrange.start:(filerowrange.start-1)
     for tbl in Arrow.Stream(path)
         rbrowrange = (rbrowrange.stop+1):(rbrowrange.stop+Tables.rowcount(tbl))

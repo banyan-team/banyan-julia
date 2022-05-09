@@ -439,6 +439,7 @@ function pts_for_filter(futures)
 end
 
 function _filter(df::Future, f::Future, res_nrows::Future, res::Future, kwargs::Future)
+    @show sample(df)
     @time begin
     partitioned_with(pts_for_filter, Future[df, f, res_nrows, res, kwargs], scaled=[df, res], keep_same_keys=true, drifted=true, modules=["BanyanDataFrames.DataFrames"], keytype=String)
     println("Time for `partitioned_with` in `filter`:")

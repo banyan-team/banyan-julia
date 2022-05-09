@@ -254,7 +254,6 @@ function ReadBlockHelper(@nospecialize(format_value))
                         rowrange.stop,
                         filerowrange.stop,
                     )
-                header = 1
                 # TODO: Scale the memory usage appropriately when splitting with
                 # this and garbage collect if too much memory is used.
                 if Banyan.INVESTIGATING_LOSING_DATA
@@ -262,7 +261,7 @@ function ReadBlockHelper(@nospecialize(format_value))
                 end
                 @time begin
                 et = @elapsed begin
-                read_file(format_value, path, header, rowrange, readrange, filerowrange, dfs)
+                read_file(format_value, path, rowrange, readrange, filerowrange, dfs)
                 end
                 println("Time on worker_idx=$(get_worker_idx()) for calling read_file: $et seconds")
                 end
