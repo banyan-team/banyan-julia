@@ -221,6 +221,7 @@ function _remote_table_source(remotepath, shuffled, metadata_invalid, sample_inv
         @time begin
         et = @elapsed begin
         local_sample::DataFrames.DataFrame = isempty(local_samples) ? DataFrames.DataFrame() : vcat(local_samples...)
+        @show local_sample
         end
         println("Time to vcat local_samples: $et seconds")
         end
@@ -262,6 +263,7 @@ function _remote_table_source(remotepath, shuffled, metadata_invalid, sample_inv
                 DataFrames.DataFrame(), Int64[]
             end
         end
+        @show remote_sample_value
         end
         println("Time on worker_idx=$(get_worker_idx()) to concatenate samples across workers: $et seconds")
         end
