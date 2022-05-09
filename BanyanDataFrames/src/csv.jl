@@ -63,7 +63,7 @@ function read_file(::Val{:csv}, path, rowrange, readrange, filerowrange, dfs)
     CSV.read(
         path,
         DataFrames.DataFrame;
-        header=1, skipto=2
+        header=1, skipto=2,
         footerskip=0
     )
     end
