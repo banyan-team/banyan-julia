@@ -414,7 +414,7 @@ function WriteHelper(@nospecialize(format_value))
         # Read in meta path if it's there
         curr_localpaths, curr_nrows = if nbatches > 1 && batch_idx > 1
             let curr_meta = Arrow.Table(meta_path)
-                (curr_meta[:path], curr_meta[:nrows])
+                (convert(Base.Vector{String}, curr_meta[:path]), convert(Base.Vector{Int64}, curr_meta[:nrows]))
             end
         else
             (String[], Int64[])
@@ -449,6 +449,8 @@ function WriteHelper(@nospecialize(format_value))
         
         # On the main worker, finalize metadata and location info.
         if worker_idx == 1
+            @show curr_localpaths
+            @show curr_nrows
             # Determine paths and #s of rows for metadata file
             for worker_i in 1:nworkers
                 push!(
@@ -475,6 +477,9 @@ function WriteHelper(@nospecialize(format_value))
                     break
                 end
             end
+            @show curr_localpaths
+            @show curr_nrows
+            @show gathered_data
 
             # Get the actual sample by concatenating
             sampled_parts = [gathered[4] for gathered in gathered_data]
