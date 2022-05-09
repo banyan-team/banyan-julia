@@ -77,7 +77,8 @@ function read_file(::Val{:csv}, path, rowrange, readrange, filerowrange, dfs)
             path,
             DataFrames.DataFrame;
             header = 1,
-            skipto = header + readrange.start - filerowrange.start + 1,
+            # TODO: Ensure this is okay
+            skipto = 1 + readrange.start - filerowrange.start + 1,
             footerskip = filerowrange.stop - readrange.stop,
         )
     )
