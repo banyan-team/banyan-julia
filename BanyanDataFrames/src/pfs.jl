@@ -465,6 +465,7 @@ function WriteHelper(@nospecialize(format_value))
             # Update the # of bytes
             total_nrows::Int64 = curr_location.src_parameters["nrows"]
             curr_location.src_parameters["nrows"] = total_nrows
+            empty_sample_found = false
             for (new_nrows, new_nbytes, empty_part, sampled_part) in gathered_data
                 # Update the total # of rows and the total # of bytes
                 total_nrows += sum(new_nrows)
@@ -474,9 +475,9 @@ function WriteHelper(@nospecialize(format_value))
                 curr_location.total_memory_usage += new_nbytes
 
                 # Get the empty sample
-                if !(empty_part isa Empty)
+                if !empty_sample_found && !(empty_part isa Empty)
                     curr_location.src_parameters["empty_sample"] = to_jl_value_contents(empty_part)
-                    break
+                    empty_sample_found = true
                 end
             end
             @show curr_localpaths
