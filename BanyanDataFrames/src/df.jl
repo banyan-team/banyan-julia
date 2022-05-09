@@ -104,6 +104,11 @@ end
 
 # TODO: For writing functions, if a file is specified, enforce Replicated
 
+Partitioned(f::Future) = begin
+    res = Distributed(sample_for_grouping(f, String))
+    push!(res, Replicated())
+    res
+end
 pts_for_partitioned(futures::Base.Vector{Future}) = pt(futures[1], Partitioned(futures[1]))
 
 function write_table(df::DataFrame, path)

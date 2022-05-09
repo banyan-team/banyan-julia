@@ -166,12 +166,6 @@ function Distributed(
     res
 end
 
-Partitioned(f::AbstractFuture) = begin
-    res = Distributed(sample_for_grouping(convert(Future, f)))
-    push!(res, Replicated())
-    res
-end
-
 function get_factor_for_blocked(f_s::Sample, filtered::Vector{Future}, filtered_from::Bool)::Float64
     factor::Float64 = -1
     for ff in filtered
