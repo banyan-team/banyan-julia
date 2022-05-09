@@ -320,7 +320,7 @@ function _remote_table_source(remotepath, shuffled, metadata_invalid, sample_inv
 
             meta_nrows_res, total_nrows_res, total_nbytes_res, cached_remote_sample_res, curr_location.src_parameters["empty_sample"]
         else
-            Int64[], -1, -1, NOTHING_SAMPLE, to_jl_value_contents(DataFrames.DataFrame())
+            zeros(length(localpaths)), -1, -1, NOTHING_SAMPLE, to_jl_value_contents(DataFrames.DataFrame())
         end
     end
 
