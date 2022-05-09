@@ -328,6 +328,7 @@ function _remote_table_source(remotepath, shuffled, metadata_invalid, sample_inv
     # will error.
 
     # Write the metadata to an Arrow file
+    meta_path = is_main ? get_meta_path(remotepath) : ""
     if curr_parameters_invalid
         # @time begin
         # et = @elapsed begin
@@ -339,7 +340,7 @@ function _remote_table_source(remotepath, shuffled, metadata_invalid, sample_inv
         # Write `NamedTuple` with metadata to `meta_path` with `Arrow.write`
         @time begin
         et = @elapsed begin
-        Arrow.write(is_main ? get_meta_path(remotepath) : IOBuffer(), (path=localpaths, nrows=meta_nrows))
+        Arrow.write(is_main ? meta_path : IOBuffer(), (path=localpaths, nrows=meta_nrows))
         end
         println("Time to Arrow.write metadata: $et seconds")
         end
