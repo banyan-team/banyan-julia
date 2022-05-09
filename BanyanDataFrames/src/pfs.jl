@@ -465,7 +465,7 @@ function WriteHelper(@nospecialize(format_value))
             curr_location.src_parameters["nrows"] = total_nrows
             for (new_nrows, new_nbytes, empty_part, sampled_part) in gathered_data
                 # Update the total # of rows and the total # of bytes
-                total_nrows += sum(new_nworkers)
+                total_nrows += sum(new_nrows)
                 push!(curr_nrows, new_nrows)
                 curr_location.total_memory_usage += new_nbytes
 
