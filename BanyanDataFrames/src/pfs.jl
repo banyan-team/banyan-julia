@@ -469,6 +469,8 @@ function WriteHelper(@nospecialize(format_value))
                 # Update the total # of rows and the total # of bytes
                 total_nrows += sum(new_nrows)
                 push!(curr_nrows, new_nrows)
+                @show new_nrows
+                @show total_nrows
                 curr_location.total_memory_usage += new_nbytes
 
                 # Get the empty sample
@@ -480,6 +482,8 @@ function WriteHelper(@nospecialize(format_value))
             @show curr_localpaths
             @show curr_nrows
             @show gathered_data
+            @show length(gathered_data)
+            @show total_nrows
 
             # Get the actual sample by concatenating
             sampled_parts = [gathered[4] for gathered in gathered_data]
