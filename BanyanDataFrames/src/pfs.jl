@@ -435,7 +435,7 @@ function WriteHelper(@nospecialize(format_value))
                     "empty_sample" => to_jl_value_contents(empty_df)
                 ),
                 0,
-                empty_df
+                ExactSample(empty_df, 0)
             )
         end
 
