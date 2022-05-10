@@ -3,7 +3,7 @@ using .CSV
 # locations.jl
 
 has_separate_metadata(::Val{:csv}) = false
-function get_metadata(::Val{:csv}, p)
+function get_metadata(::Val{:csv}, p)::Int64
     # num_rows = 0
     # for _ in CSV.Rows(p)
     #     num_rows += 1

@@ -86,6 +86,7 @@ function _remote_table_source(remotepath, shuffled, metadata_invalid, sample_inv
     end
     println("Time for getting metadata: $et seconds")
     end
+    @show eltype(meta_nrows_on_worker)
 
     # Compute the total # of rows so that if the current sample is invalid
     # we can determine whether to get an exact or inexact sample and

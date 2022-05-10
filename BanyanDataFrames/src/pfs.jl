@@ -466,7 +466,7 @@ function WriteHelper(@nospecialize(format_value))
             # Update the # of bytes
             total_nrows::Int64 = curr_location.src_parameters["nrows"]
             empty_sample_found = false
-            for (new_nrows, new_nbytes, empty_part, sampled_part) in gathered_data
+            for (new_nrows::Int64, new_nbytes::Int64, empty_part, sampled_part) in gathered_data
                 # Update the total # of rows and the total # of bytes
                 total_nrows += sum(new_nrows)
                 push!(curr_nrows, new_nrows)
@@ -485,6 +485,7 @@ function WriteHelper(@nospecialize(format_value))
             curr_location.sample = Sample(vcat(sampled_parts...), curr_location.total_memory_usage)
 
             # Determine paths for this batch and gather # of rows
+            @show eltype(curr_nrows)
             Arrow.write(meta_path, (path=curr_localpaths, nrows=curr_nrows))
             println("Writing to meta_path$meta_path with curr_localpaths=$curr_localpaths and curr_nrows=$curr_nrows")
 

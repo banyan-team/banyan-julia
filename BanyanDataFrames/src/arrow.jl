@@ -1,7 +1,7 @@
 # locations.jl
 
 has_separate_metadata(::Val{:arrow}) = true
-get_metadata(::Val{:arrow}, p) = Tables.rowcount(Arrow.Table(localfilepathp))
+get_metadata(::Val{:arrow}, p)::Int64 = Tables.rowcount(Arrow.Table(localfilepathp))
 get_sample(::Val{:arrow}, p, sample_rate, len) = let rand_indices = sample_from_range(1:len, sample_rate)
     if isempty(rand_indices)
         DataFrames.DataFrame()

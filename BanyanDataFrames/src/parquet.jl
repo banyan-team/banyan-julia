@@ -3,7 +3,7 @@ using .Parquet
 # locations.jl
 
 has_separate_metadata(::Val{:parquet}) = true
-get_metadata(::Val{:parquet}, p) = nrows(Parquet.File(p))
+get_metadata(::Val{:parquet}, p)::Int64 = nrows(Parquet.File(p))
 get_sample(::Val{:parquet}, p, sample_rate, len) = let rand_indices = sample_from_range(1:len, sample_rate)
     if isempty(rand_indices)
         DataFrames.DataFrame()
