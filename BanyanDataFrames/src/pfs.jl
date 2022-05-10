@@ -410,8 +410,8 @@ function WriteHelper(@nospecialize(format_value))
         ##########################################
 
         # Get paths for reading in metadata and Location
-        meta_path = is_main ? get_meta_path(path) : ""
-        location_path = is_main ? get_location_path(path) : ""
+        meta_path = is_main ? get_meta_path(loc_params_path) : ""
+        location_path = is_main ? get_location_path(loc_params_path) : ""
         meta_path, location_path = sync_across((meta_path, location_path), comm=comm)
 
         # Read in meta path if it's there
