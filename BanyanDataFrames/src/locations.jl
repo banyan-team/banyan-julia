@@ -162,6 +162,7 @@ function _remote_table_source(remotepath, shuffled, metadata_invalid, sample_inv
                 @show i
                 @show local_path_on_curr_worker
                 @show meta_nrows_for_worker
+                error("hello")
                 @time begin
                 et = @elapsed begin
                 push!(
