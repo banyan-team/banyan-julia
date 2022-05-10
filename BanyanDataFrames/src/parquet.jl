@@ -8,7 +8,7 @@ get_sample(::Val{:parquet}, p, sample_rate, len) = let rand_indices = sample_fro
     if isempty(rand_indices)
         DataFrames.DataFrame()
     else
-        get_sample_from_data(DataFrames.DataFrame(Parquet.File(p; rows=1:len), copycols=false), sample_rate, rand_indices)
+        get_sample_from_data(DataFrames.DataFrame(Parquet.read_parquet(p; rows=1:len), copycols=false), sample_rate, rand_indices)
     end
 end
 get_sample_and_metadata(::Val{:parquet}, p, sample_rate) =
@@ -26,7 +26,7 @@ get_sample_and_metadata(::Val{:parquet}, p, sample_rate) =
 file_ending(::Val{:parquet}) = "parquet"
 
 function read_file(::Val{:parquet}, path, rowrange, readrange, filerowrange, dfs)
-    f = Parquet.File(
+    f = Parquet.read_parquet(
         path;
         rows = (readrange.start-filerowrange.start+1):(readrange.stop-filerowrange.start+1),
     )
