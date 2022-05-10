@@ -665,6 +665,10 @@ function Reduce(
     # TODO: Handle case where different processes have differently sized
     # sendbuf and where sendbuf is not isbitstype
 
+    if Banyan.INVESTIGATING_LOSING_DATA
+        println("In Reduce before MPI.Allreduce with part=$part")
+    end
+
     # Perform reduction
     part = MPI.Allreduce(
         part,
@@ -676,6 +680,11 @@ function Reduce(
         op,
         comm,
     )
+
+    if Banyan.INVESTIGATING_LOSING_DATA
+        println("In Reduce after MPI.Allreduce with part=$part")
+    end
+    
     part
 end
 

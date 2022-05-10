@@ -227,10 +227,6 @@ function ReadBlockHelper(@nospecialize(format_value))
         #     end
         # end
 
-        if Banyan.INVESTIGATING_LOSING_DATA
-            println("In ReadBlock after Disk case with loc_params=$params")
-        end
-
         # Iterate through files and identify which ones correspond to the range of
         # rows for the batch currently being processed by this worker
         nrows::Int64 = loc_params["nrows"]::Int64
