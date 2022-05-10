@@ -785,15 +785,6 @@ function ConsolidateDataFrame(part::DataFrames.DataFrame, src_params::Dict{Strin
     # TODO: Maybe sometimes use gatherv if all sendbuf's are known to be equally sized
 
     MPI.Allgatherv!(sendbuf, recvvbuf, comm)
-    if Banyan.INVESTIGATING_LOSING_DATA
-        results = [
-            de(view(
-                recvvbuf.data,
-                (recvvbuf.displs[i]+1):(recvvbuf.displs[i]+recvvbuf.counts[i])
-            ))
-            for i in 1:Banyan.get_nworkers(comm)
-        ]
-    end
     res = merge_on_executor(
         [
             de(view(

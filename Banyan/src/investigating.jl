@@ -7,7 +7,7 @@ const INVESTIGATING_CACHING_SAMPLES = false
 # Sometimes we get a smaller aggregation result or a size is smaller than
 # expected and it seems like some data is getting lost in the process of
 # PFs operating on data.
-const INVESTIGATING_LOSING_DATA = false
+const INVESTIGATING_LOSING_DATA = true
 const INVESTIGATING_SETUP_NYC_TAXI_STRESS_TEST = false
 const INVESTIGATING_SIZE_EXAGGURATED_TESTS = false
 const INVESTIGATING_TASKS = false
