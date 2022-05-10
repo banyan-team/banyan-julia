@@ -398,7 +398,7 @@ function WriteHelper(@nospecialize(format_value))
             write_file(
                 format_value,
                 part_res,
-                joinpath(path, "part$sortableidx" * "_nrows=$nrows.$format_string"),
+                joinpath(path, "part_$sortableidx" * ".$format_string"),
                 nrows
             )
         end 
@@ -458,10 +458,12 @@ function WriteHelper(@nospecialize(format_value))
             for worker_i in 1:nworkers
                 push!(
                     curr_localpaths,
-                    Banyan.sortablestring(
+                    let sortableidx = Banyan.sortablestring(
                         Banyan.get_partition_idx(batch_idx, nbatches, worker_i),
                         npartitions
                     )
+                        joinpath(path, "part_$sortableidx" * ".$format_string")
+                    end
                 )
             end
 
