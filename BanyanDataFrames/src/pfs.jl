@@ -183,7 +183,7 @@ function ReadBlockHelper(@nospecialize(format_value))
             println("In ReadBlock with loc_params=$params")
         end
         
-        meta_path = loc_name == "Disk" ? sync_across(is_main ? get_meta_path(loc_params["path"]::String) : "", comm=comm) : loc_params["meta_path"]::String
+        meta_path = loc_name == "Disk" ? sync_across(is_main_worker(comm) ? get_meta_path(loc_params["path"]::String) : "", comm=comm) : loc_params["meta_path"]::String
         @time begin
         et = @elapsed begin
         meta = Arrow.Table(meta_path)
