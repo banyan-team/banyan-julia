@@ -69,7 +69,7 @@ function _remote_table_source(remotepath, shuffled, metadata_invalid, sample_inv
     # Get nrows, nbytes for each file in local_paths_on_curr_worker
     @time begin
     et = @elapsed begin
-    meta_nrows_on_worker = if curr_parameters_invalid
+    meta_nrows_on_worker::Base.Vector{Int64} = if curr_parameters_invalid
         meta_nrows_on_worker_res = Base.zeros(length(local_paths_on_curr_worker))
         if format_has_separate_metadata
             for (i, local_path_on_curr_worker) in enumerate(local_paths_on_curr_worker)
@@ -162,7 +162,6 @@ function _remote_table_source(remotepath, shuffled, metadata_invalid, sample_inv
                 @show i
                 @show local_path_on_curr_worker
                 @show meta_nrows_for_worker
-                error("hello")
                 @time begin
                 et = @elapsed begin
                 push!(
@@ -171,7 +170,7 @@ function _remote_table_source(remotepath, shuffled, metadata_invalid, sample_inv
                         format_value,
                         local_path_on_curr_worker,
                         (shuffled || exact_sample_needed) ? 1.0 : session_sample_rate,
-                        meta_nrows_for_worker[i]
+                        meta_nrows_for_worker[i]::Int64
                     )
                         if shuffled && i == nfiles_on_worker && nrows_extra_on_worker > 0
                             df[1:(end-nrows_extra_on_worker), :]
