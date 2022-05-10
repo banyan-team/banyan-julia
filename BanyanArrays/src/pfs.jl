@@ -766,7 +766,7 @@ function ShuffleArrayHelper(
                     # NOTE: We ensure that we serialize something (even if its an
                     # empty array) for each partition to ensure that we can
                     # deserialize each item
-                    dim_selector::Vector{Union{UnitRange{Int64},Colon}} = []
+                    dim_selector::Base.Vector{Union{UnitRange{Int64},Colon}} = []
                     for d = 1:ndims(part)
                         if d == key
                             push!(dim_selector, 1:0)

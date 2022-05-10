@@ -1609,7 +1609,7 @@ function DataFrames.innerjoin(dfs::DataFrames.DataFrame...; on, kwargs...)::Data
     ]
     push!(keys_by_future, (res, groupingkeys[1:1]))
 
-    _innerjoin(convert(Vector{Future}, dfs), groupingkeys, res_nrows, res, on, kwargs, keys_by_future)
+    _innerjoin(convert(Base.Vector{Future}, dfs), groupingkeys, res_nrows, res, on, kwargs, keys_by_future)
 end
 
 function pts_for_unique(futures::Base.Vector{Future})

@@ -331,7 +331,7 @@ function Base.map(f, c::Array{<:Any,N}...; force_parallelism=false) where {T,N}
     # TODO: Instead just make the Array constructor have a code region using
     # the data in a replicated way.
 
-    c_args::Vector{Future} = convert(Vector{Future}, c)
+    c_args::Base.Vector{Future} = convert(Base.Vector{Future}, Base.collect(c))
     f = Future(f)
 
     if force_parallelism
