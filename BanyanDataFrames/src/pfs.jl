@@ -465,7 +465,6 @@ function WriteHelper(@nospecialize(format_value))
 
             # Update the # of bytes
             total_nrows::Int64 = curr_location.src_parameters["nrows"]
-            curr_location.src_parameters["nrows"] = total_nrows
             empty_sample_found = false
             for (new_nrows, new_nbytes, empty_part, sampled_part) in gathered_data
                 # Update the total # of rows and the total # of bytes
@@ -479,6 +478,7 @@ function WriteHelper(@nospecialize(format_value))
                     empty_sample_found = true
                 end
             end
+            curr_location.src_parameters["nrows"] = total_nrows
 
             # Get the actual sample by concatenating
             sampled_parts = [gathered[4] for gathered in gathered_data]
