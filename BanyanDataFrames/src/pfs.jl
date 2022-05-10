@@ -183,7 +183,7 @@ function ReadBlockHelper(@nospecialize(format_value))
             println("In ReadBlock with loc_params=$params")
         end
         
-        meta_path = loc_params["meta_path"]::String
+        meta_path = loc_name == "Disk" ? sync_across(is_main ? get_meta_path(loc_params["path"]::String) : "", comm=comm) : loc_params["meta_path"]::String
         @time begin
         et = @elapsed begin
         meta = Arrow.Table(meta_path)
@@ -341,6 +341,7 @@ function WriteHelper(@nospecialize(format_value))
 
         # Write file for this partition
         worker_idx = Banyan.get_worker_idx(comm)
+        is_main = worker_idx == 1
         nworkers = get_nworkers(comm)
         idx = Banyan.get_partition_idx(batch_idx, nbatches, comm)
         actualpath = deepcopy(path)
@@ -401,15 +402,17 @@ function WriteHelper(@nospecialize(format_value))
                 nrows
             )
         end 
-        MPI.Barrier(comm)
+        # We don't need this barrier anymore because we do a broadcast right after
+        # MPI.Barrier(comm)
 
         ##########################################
         # SAMPLE/METADATA COLLECTIOM AND STORAGE #
         ##########################################
 
         # Get paths for reading in metadata and Location
-        meta_path = get_meta_path(path)
-        location_path = get_location_path(path)
+        meta_path = is_main ? get_meta_path(path) : ""
+        location_path = is_main ? get_location_path(path) : ""
+        meta_path, location_path = sync_across((meta_path, location_path), comm=comm)
 
         # Read in meta path if it's there
         curr_localpaths, curr_nrows = if nbatches > 1 && batch_idx > 1

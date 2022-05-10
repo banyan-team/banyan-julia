@@ -294,11 +294,16 @@ function _remote_image_source(
     meta_path = if !curr_parameters_invalid
         curr_location.src_parameters["meta_path"]::String
     else
-        get_meta_path((remotepath, add_channelview))
+        is_main ? get_meta_path((remotepath, add_channelview)) : ""
     end
     if is_main && curr_parameters_invalid
         localpaths::Base.Vector{String} = getpaths(remotepath)
         Arrow.write(meta_path, (path=localpaths,))
+    end
+    if !curr_parameters_invalid
+        # Now the banyan_metadata directory has surely been created so we can
+        # get_meta_path on all workers.
+        meta_path = get_meta_path((remotepath, add_channelview))
     end
     sync_across()
 

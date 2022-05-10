@@ -364,8 +364,9 @@ function _remote_table_source(remotepath, shuffled, metadata_invalid, sample_inv
                 "nrows" => total_nrows,
                 # For diagnostics purposes in PFs (partitioning functions)
                 "path" => remotepath,
-                # For PFs to read from this source
+                # For location constructor to use as caching
                 "meta_path" => meta_path,
+                # For PFs to read from this source
                 "empty_sample" => empty_sample
             ),
             total_nbytes,
