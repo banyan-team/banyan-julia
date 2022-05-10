@@ -253,7 +253,6 @@ function _remote_table_source(remotepath, shuffled, metadata_invalid, sample_inv
             end
         else
             sample_per_worker = gather_across(local_sample)
-            error("hello")
             if is_main && !isempty(sample_per_worker)
                 vcat(sample_per_worker...), curr_meta_nrows
             else
