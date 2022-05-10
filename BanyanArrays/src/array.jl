@@ -300,7 +300,7 @@ function pts_for_map(futures::Base.Vector{Future})
     # unbalanced
     pt(c_first, Blocked(c_first))
     pt(c[2:end]..., ScaledBySame(c_first), match=c_first)
-    pt(res, ScaledBySame(), match=c_first)
+    pt(res, ScaledBySame(c_first), match=c_first)
 
     # replicated
     if no_replication

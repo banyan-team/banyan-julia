@@ -771,13 +771,14 @@ function _getindex(df_sample::DataFrames.DataFrame, df::Future, df_nrows::Future
     @partitioned df df_nrows res res_size rows cols begin
         res = df[rows, cols]
         return_vector = res isa Base.AbstractVector
-        res_length::Int64 = if rows isa Colon
+        res_length = if rows isa Colon
             df_nrows
         elseif return_vector
             length(res)
         else
             nrow(res)
         end
+        res_length::Int64
         res_size = return_vector ? tuple(res_length) : res_length
     end
 
