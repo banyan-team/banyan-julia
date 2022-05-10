@@ -449,8 +449,6 @@ function WriteHelper(@nospecialize(format_value))
         
         # On the main worker, finalize metadata and location info.
         if worker_idx == 1
-            @show curr_localpaths
-            @show curr_nrows
             # Determine paths and #s of rows for metadata file
             for worker_i in 1:nworkers
                 push!(
@@ -470,8 +468,6 @@ function WriteHelper(@nospecialize(format_value))
                 # Update the total # of rows and the total # of bytes
                 total_nrows += sum(new_nrows)
                 push!(curr_nrows, new_nrows)
-                @show new_nrows
-                @show total_nrows
                 curr_location.total_memory_usage += new_nbytes
 
                 # Get the empty sample
@@ -480,11 +476,6 @@ function WriteHelper(@nospecialize(format_value))
                     empty_sample_found = true
                 end
             end
-            @show curr_localpaths
-            @show curr_nrows
-            @show gathered_data
-            @show length(gathered_data)
-            @show total_nrows
 
             # Get the actual sample by concatenating
             sampled_parts = [gathered[4] for gathered in gathered_data]

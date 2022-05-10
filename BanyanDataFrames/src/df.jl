@@ -741,7 +741,7 @@ function pts_for_getindex(futures::Base.Vector{Future})
     else
         for dpt in Distributed(df_sample_for_grouping, scaled_by_same_as=res)
             pt(df, dpt)
-            if return_vector || (dpt.distribution == "grouped" && !(dpt.key in columns))
+            if return_vector || (dpt.parameters["distribution"]::String == "grouped" && !(dpt.parameters["key"]::String in columns))
                 pt(res, BlockedAlong(1) & ScaledBySame(df), match=df, on=["balanced", "id"])
             else
                 pt(res, ScaledBySame(df), match=df)
@@ -765,7 +765,7 @@ function pts_for_getindex(futures::Base.Vector{Future})
     pt(df_nrows, Replicating())
 end
 
-function _getindex(df::Future, df_nrows::Future, return_vector::Bool, filter_rows::Bool, cols::Future, rows::Future, res::Future, res_size::Future)
+function _getindex(df_sample::DataFrames.DataFrame, df::Future, df_nrows::Future, return_vector::Bool, filter_rows::Bool, cols::Future, rows::Future, res::Future, res_size::Future)
     partitioned_with(pts_for_getindex, [df, df_nrows, cols, rows, res, res_size], scaled=[df, res], keep_same_keys=!return_vector, drifted=filter_rows, modules=["BanyanDataFrames.DataFrames"], keytype=String)
 
     @partitioned df df_nrows res res_size rows cols begin
@@ -782,7 +782,7 @@ function _getindex(df::Future, df_nrows::Future, return_vector::Bool, filter_row
     end
 
     if return_vector
-        T = eltype(df_sample[!, cols_sample])
+        T = eltype(df_sample[!, sample(cols)])
         res = BanyanArrays.Vector{T}(res, res_size)
     else
         res = DataFrame(res, res_size)
@@ -820,7 +820,7 @@ function Base.getindex(df::DataFrame, rows=:, cols=:)
         end
     res = Future(datatype = return_vector ? "Array" : "DataFrame")
 
-    _getindex(df.data, df_nrows, return_vector, filter_rows, cols, rows, res, res_size)
+    _getindex(sample(df.data), df.data, df_nrows, return_vector, filter_rows, cols, rows, res, res_size)
 
     # by = names(sample(df), cols)
     # onecol = cols isa Symbol || cols isa String || cols isa Integer

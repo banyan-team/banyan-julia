@@ -596,7 +596,7 @@ function Base.reduce(op, A::Array{T,N}; dims=:, kwargs...) where {T,N}
     dims = Future(dims)
     kwargs = Future(kwargs)
 
-    _reduce(op, A, res_size, res, dims, kwargs)
+    _reduce(op, A.data, res_size, res, dims, kwargs)
 end
 
 function pts_for_sortslices(futures::Base.Vector{Future})

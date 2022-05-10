@@ -532,7 +532,7 @@ function make_grouped_pt(
     new_pt
 end
 
-const NONE = PartitionType("key" => nothing, "balanced" => false, f -> AtMost(0, f))
+const NONE = PartitionType("key" => "", "distribution" => "", "balanced" => false, f -> AtMost(0, f))
 
 function make_grouped_pts(
     # This parameter is passed in just so that we can have type stability in

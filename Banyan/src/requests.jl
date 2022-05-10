@@ -368,28 +368,10 @@ function _partitioned_computation_concrete(fut::Future, destination::Location, n
     if is_merged_to_disk
         sourced(fut, Disk())
     else
-        # TODO: If not still merged to disk, we need to lazily set the location source to something else
         if !isnothing(new_source)
             sourced(fut, new_source)
-        elseif new_source_func !== identity
-            use_new_source_func = true
         else
-            # TODO: Maybe suppress this warning because while it may be
-            # useful for large datasets, it is going to come up for
-            # every aggregateion result value that doesn't have a source
-            # but is being computed with the Client as its location.
-            if destination.src_name == "None"
-                # It is not guaranteed that this data can be used again.
-                # In fact, this data - or rather, this value - can only be
-                # used again if it is in memory. But because it is up to
-                # the schedule to determine whether it is possible for the
-                # data to fit in memory, we can't be sure that it will be
-                # in memory. So this data should have first been written to
-                # disk with `compute_inplace` and then only written to this
-                # unreadable location.
-                @warn "Value with ID $(fut.value_id) has been written to a location that cannot be used as a source and it is not on disk. Please do not attempt to use this value again. If you wish to use it again, please write it to disk with `compute_inplace` before writing it to a location."
-            end
-            sourced(fut, destination)
+            use_new_source_func = true
         end
     end
 
@@ -442,8 +424,28 @@ function partitioned_computation_concrete(
         partitioned_with(handler, [fut], scaled=[fut])
         
         use_new_source_func = _partitioned_computation_concrete(fut, destination, new_source, sessions, session_id, session, resource_id)
+        # TODO: If not still merged to disk, we need to lazily set the location source to something else
         if use_new_source_func
-            sourced(fut, new_source_func)
+            if new_source_func !== identity
+                sourced(fut, new_source_func)
+            else
+                # TODO: Maybe suppress this warning because while it may be
+                # useful for large datasets, it is going to come up for
+                # every aggregateion result value that doesn't have a source
+                # but is being computed with the Client as its location.
+                if destination.src_name == "None"
+                    # It is not guaranteed that this data can be used again.
+                    # In fact, this data - or rather, this value - can only be
+                    # used again if it is in memory. But because it is up to
+                    # the schedule to determine whether it is possible for the
+                    # data to fit in memory, we can't be sure that it will be
+                    # in memory. So this data should have first been written to
+                    # disk with `compute_inplace` and then only written to this
+                    # unreadable location.
+                    @warn "Value with ID $(fut.value_id) has been written to a location that cannot be used as a source and it is not on disk. Please do not attempt to use this value again. If you wish to use it again, please write it to disk with `compute_inplace` before writing it to a location."
+                end
+                sourced(fut, destination)
+            end
         end
         println("Time inside partitioned_computation")
         end

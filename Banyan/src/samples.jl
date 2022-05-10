@@ -394,7 +394,7 @@ function sample_for_grouping(f::Future, keys::Vector{K}, f_sample::T)::SampleFor
 end
 function sample_for_grouping(f::Future, keys::Vector{K}) where {K} sample_for_grouping(f, keys, sample(f)) end
 function sample_for_grouping(f::Future, key::K) where {K} sample_for_grouping(f, K[key]) end
-function sample_for_grouping(f::Future, ::Type{K}) where {K} sample_for_grouping(f, (get_location(f).sample.groupingkeys)::Vector{K}) end
+function sample_for_grouping(f::Future, ::Type{K}) where {K} sample_for_grouping(f, convert(Vector{K}, get_location(f).sample.groupingkeys)::Vector{K}) end
 sample_for_grouping(f::Future) = sample_for_grouping(f, Int64)
 
 # struct SampleComputationCache
