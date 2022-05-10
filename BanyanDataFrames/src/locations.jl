@@ -40,10 +40,12 @@ function _remote_table_source(remotepath, shuffled, metadata_invalid, sample_inv
     @time begin
     et = @elapsed begin
     localpaths::Base.Vector{String} = if !curr_parameters_invalid
+        @show curr_meta
         convert(Base.Vector{String}, curr_meta[:path])
     else
         localpath::String = getpath(remotepath)
         localpath_is_dir = isdir(localpath)
+        @show localpath
         paths = if localpath_is_dir
             paths_on_main = is_main ? readdir(localpath, join=true) : String[]
             sync_across(paths_on_main)
@@ -52,6 +54,7 @@ function _remote_table_source(remotepath, shuffled, metadata_invalid, sample_inv
         end
         paths
     end
+    @show localpaths
     curr_meta_nrows::Base.Vector{Int64} = !curr_parameters_invalid ? convert(Base.Vector{Int64}, curr_meta[:nrows]) : Int64[]
     local_paths_on_curr_worker::Base.Vector{String} = split_across(localpaths)
     end
