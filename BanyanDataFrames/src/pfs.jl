@@ -449,6 +449,8 @@ function WriteHelper(@nospecialize(format_value))
         gathered_data =
             gather_across((nrows, nbytes, part_res isa Empty ? part_res : empty(part_res), sampled_part), comm)
         # new_nrows, new_nbytes, empty_parts, sampled_parts
+
+        println("In WriteHelper with meta_path=$meta_path and location_path=$location_path")
         
         # On the main worker, finalize metadata and location info.
         if worker_idx == 1
@@ -486,6 +488,7 @@ function WriteHelper(@nospecialize(format_value))
 
             # Determine paths for this batch and gather # of rows
             Arrow.write(meta_path, (path=curr_localpaths, nrows=curr_nrows))
+            println("Writing to meta_path$meta_path with curr_localpaths=$curr_localpaths and curr_nrows=$curr_nrows")
 
             if batch_idx == nbatches && total_nrows <= get_max_exact_sample_length()
                 # If the total # of rows turns out to be inexact then we can simply mark it as
@@ -507,6 +510,7 @@ function WriteHelper(@nospecialize(format_value))
             # Copy over location and meta path
             actual_meta_path = get_meta_path(actualpath)
             actual_location_path = get_location_path(actualpath)
+            println("In WriteHelper with actual_meta_path=$actual_meta_path and actual_location_path=$actual_location_path")
             if worker_idx == 1
                 cp(meta_path, actual_meta_path)
                 cp(location_path, actual_location_path)
