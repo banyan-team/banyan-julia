@@ -152,7 +152,13 @@ function _remote_table_source(remotepath, shuffled, metadata_invalid, sample_inv
             meta_nrows_for_worker = meta_nrows_on_worker[shuffling_perm]
 
             # Get local sample
+            @show shuffling_perm
+            @show local_paths_on_curr_worker
+            @show local
             for (i, local_path_on_curr_worker) in zip(1:nfiles_on_worker, local_paths_on_curr_worker[shuffling_perm])
+                @show i
+                @show local_path_on_curr_worker
+                @show meta_nrows_for_worker
                 @time begin
                 et = @elapsed begin
                 push!(
