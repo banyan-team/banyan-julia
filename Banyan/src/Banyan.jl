@@ -194,7 +194,7 @@ export
     empty_handler
 
 # Utilities for location constructors
-export get_cached_location, cache_location, get_sample_from_data
+export get_cached_location, cache_location, get_sample_from_data, sample_from_range
 
 # Partitioning functions for usage in sessions that run on the cluster; dispatched
 # based on `res/pf_dispatch_table.json`.
