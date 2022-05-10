@@ -23,7 +23,7 @@ function _remote_table_source(remotepath, shuffled, metadata_invalid, sample_inv
     @time begin
     et = @elapsed begin
     curr_meta::Arrow.Table = if !curr_parameters_invalid
-        Arrow.Table(curr_location.parameters["meta_path"]::String)
+        Arrow.Table(curr_location.src_parameters["meta_path"]::String)
     else
         Arrow.Table()
     end
@@ -103,7 +103,7 @@ function _remote_table_source(remotepath, shuffled, metadata_invalid, sample_inv
             -1
         end
     else
-        curr_location.parameters["nrows"]
+        curr_location.src_parameters["nrows"]
     end
     exact_sample_needed = total_nrows_res < Banyan.get_max_exact_sample_length()
 
