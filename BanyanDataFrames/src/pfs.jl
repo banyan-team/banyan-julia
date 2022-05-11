@@ -192,6 +192,7 @@ function ReadBlockHelper(@nospecialize(format_value))
         end
         println("Time on worker_idx=$(get_worker_idx()) for calling Arrow.Table in ReadBlock for data frame: $et seconds")
         end
+        println("In ReadBlock with loc_params=$loc_params and meta[:path]=$(meta[:path]) and meta[:nrows]=$(meta[:nrows])")
 
         # Handle multi-file tabular datasets
 

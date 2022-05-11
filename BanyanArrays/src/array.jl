@@ -568,6 +568,7 @@ function _reduce(op::Future, A::Future, res_size::Future, res::Future, dims::Fut
             # @show size(A)
             # @show dims # TODO: Figure out why dims is sometimes a function
         end
+        println("In reduce @partitioned with size(A)=$(size(A))")
         if isempty(A)
             res = EMPTY
             res_size = EMPTY
@@ -579,6 +580,7 @@ function _reduce(op::Future, A::Future, res_size::Future, res::Future, dims::Fut
                 res_size = EMPTY
             end
         end
+        println("In reduce @partitioned with res=$res, res_size=$res_size")
     end
 
     res_sample = sample(res)
