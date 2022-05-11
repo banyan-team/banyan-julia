@@ -406,8 +406,8 @@ CopyFromJulia(
     loc_name,
     loc_params,
 ) = begin
-    println("In CopyFromJulia with loc_params=$loc_params")
     path = getpath(loc_params["path"]::String)
+    println("In CopyFromJulia with loc_params=$loc_params, path=$path, isfile(path)=$(isfile(path))")
     isfile(path) ? deserialize(path) : nothing
 end
 
@@ -447,8 +447,8 @@ function CopyToJulia(
     loc_name,
     loc_params,
 )
-    println("In CopyToJulia with get_partition_idx(batch_idx, nbatches, comm)=$(get_partition_idx(batch_idx, nbatches, comm)) and loc_params=$loc_params")
-    if get_partition_idx(batch_idx, nbatches, comm) == 1
+    println("In CopyToJulia with get_worker_idx(comm)=$(get_worker_idx(comm)) and loc_params=$loc_params and part=$part and batch_idx=$batch_idx, nbatches=$nbatches")
+    if get_worker_idx(comm) == 1 && batch_idx == nbatches
         # # This must be on disk; we don't support Julia serialized objects
         # # as a remote location yet. We will need to first refactor locations
         # # before we add support for that.
@@ -457,7 +457,7 @@ function CopyToJulia(
         # end
         serialize(getpath(loc_params["path"]), part)
     end
-    if batch_idx == 1
+    if batch_idx == nbatches
         MPI.Barrier(comm)
     end
 end
@@ -514,7 +514,7 @@ function ReduceAndCopyToJulia(
         if loc_name != "Memory"
             # We use 1 here so that it is as if we are copying from the head
             # node
-            CopyToJulia(src, src, params, 1, nbatches, comm, loc_name, loc_params)
+            CopyToJulia(src, src, params, nbatches, nbatches, comm, loc_name, loc_params)
         end
     end
 
