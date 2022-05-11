@@ -183,7 +183,9 @@ function ReadBlockHelper(@nospecialize(format_value))
             println("In ReadBlock with loc_params=$loc_params params=$params")
         end
         
-        meta_path = loc_name == "Disk" ? sync_across(is_main_worker(comm) ? get_meta_path(loc_params["path"]::String) : "", comm=comm) : loc_params["meta_path"]::String
+        loc_params_path = loc_params["path"]::String
+        meta_path = loc_name == "Disk" ? sync_across(is_main_worker(comm) ? get_meta_path(loc_params_path) : "", comm=comm) : loc_params["meta_path"]::String
+        loc_params = loc_name == "Disk" ? (deserialize(get_location_path(loc_params_path))::Location).src_parameters : loc_params
         @time begin
         et = @elapsed begin
         meta = Arrow.Table(meta_path)
