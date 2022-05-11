@@ -406,6 +406,7 @@ CopyFromJulia(
     loc_name,
     loc_params,
 ) = begin
+    println("In CopyFromJulia with loc_params=$loc_params")
     path = getpath(loc_params["path"]::String)
     isfile(path) ? deserialize(path) : nothing
 end
@@ -446,6 +447,7 @@ function CopyToJulia(
     loc_name,
     loc_params,
 )
+    println("In CopyToJulia with get_partition_idx(batch_idx, nbatches, comm)=$(get_partition_idx(batch_idx, nbatches, comm)) and loc_params=$loc_params")
     if get_partition_idx(batch_idx, nbatches, comm) == 1
         # # This must be on disk; we don't support Julia serialized objects
         # # as a remote location yet. We will need to first refactor locations
@@ -501,9 +503,13 @@ function ReduceAndCopyToJulia(
     # TODO: Ensure that we handle reductions that can produce nothing
     src = reduce_in_memory(src, part, op)
 
+    println("In ReduceAndCopyToJulia after reduce_in_memory with src=$src")
+
     # Merge reductions across workers
     if batch_idx == nbatches
         src = Reduce(src, params, EMPTY_DICT, comm)
+
+        println("In ReduceAndCopyToJulia after Reduce before CopyToJulia with src=$src")
 
         if loc_name != "Memory"
             # We use 1 here so that it is as if we are copying from the head
