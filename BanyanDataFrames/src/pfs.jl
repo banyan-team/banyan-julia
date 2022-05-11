@@ -545,6 +545,7 @@ function WriteHelper(@nospecialize(format_value))
             if worker_idx == 1
                 Banyan.rmdir_on_nfs(path)
             end
+        elseif nbatches > 1
             MPI.Barrier(comm)
         end
         src
