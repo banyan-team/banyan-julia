@@ -407,6 +407,9 @@ CopyFromJulia(
     loc_params,
 ) = begin
     path = getpath(loc_params["path"]::String)
+    if isfile(path)
+        @show deserialize(path)
+    end
     println("In CopyFromJulia with loc_params=$loc_params, path=$path, isfile(path)=$(isfile(path))")
     isfile(path) ? deserialize(path) : nothing
 end
@@ -433,8 +436,11 @@ CopyToClient(
     comm::MPI.Comm,
     loc_name,
     loc_params,
-) =  if get_partition_idx(batch_idx, nbatches, comm) == 1
-    send_to_client(loc_params["value_id"], part)
+) = begin
+    println("In CopyToClient with part=$part and batch_idx=$batch_idx and loc_params=$loc_params")
+    if get_worker_idx(comm) == 1 && batch_idx == nbatches
+        send_to_client(loc_params["value_id"], part)
+    end
 end
 
 function CopyToJulia(

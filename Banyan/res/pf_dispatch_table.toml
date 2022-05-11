@@ -1,5 +1,9 @@
 [splits.ReturnNull]
 location_names = [ "None" ]
+# Note that this can't be "all" because then when initially null data is merged
+# after being mutated it will be treated as if the data is replicated and the
+# merge will be outside a loop in some generated code instead of inside that
+# loop and running on each iteration.
 partition_memory_usage = "none"
 scale_by = 0
 
