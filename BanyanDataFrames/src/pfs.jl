@@ -184,6 +184,7 @@ function ReadBlockHelper(@nospecialize(format_value))
         end
         
         loc_params_path = loc_params["path"]::String
+        println("In ReadBlock with loc_params_path=$loc_params_path")
         meta_path = loc_name == "Disk" ? sync_across(is_main_worker(comm) ? get_meta_path(loc_params_path) : "", comm=comm) : loc_params["meta_path"]::String
         loc_params = loc_name == "Disk" ? (deserialize(get_location_path(loc_params_path))::Location).src_parameters : loc_params
         @time begin
@@ -449,7 +450,7 @@ function WriteHelper(@nospecialize(format_value))
             gather_across((nrows, nbytes, part_res isa Empty ? part_res : empty(part_res), sampled_part), comm)
         # new_nrows, new_nbytes, empty_parts, sampled_parts
 
-        println("In WriteHelper with meta_path=$meta_path and location_path=$location_path")
+        println("In WriteHelper with meta_path=$meta_path and location_path=$location_path from path=$path")
         
         # On the main worker, finalize metadata and location info.
         if worker_idx == 1
@@ -512,7 +513,7 @@ function WriteHelper(@nospecialize(format_value))
             # Copy over location and meta path
             actual_meta_path = get_meta_path(actualpath)
             actual_location_path = get_location_path(actualpath)
-            println("In WriteHelper with actual_meta_path=$actual_meta_path and actual_location_path=$actual_location_path")
+            println("In WriteHelper with actual_meta_path=$actual_meta_path and actual_location_path=$actual_location_path using actualpath=$actualpath")
             if worker_idx == 1
                 cp(meta_path, actual_meta_path, force=true)
                 cp(location_path, actual_location_path, force=true)
