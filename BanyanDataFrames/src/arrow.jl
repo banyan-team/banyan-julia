@@ -51,7 +51,10 @@ ReadBlockArrow = ReadBlockHelper(Val(:arrow))
 ReadGroupHelperArrow = ReadGroupHelper(ReadBlockArrow, ShuffleDataFrame)
 ReadGroupArrow = ReadGroup(ReadGroupHelperArrow)
 
-write_file(::Val{:arrow}, part::DataFrames.DataFrame, path, nrows) = Arrow.write(path, part)
+write_file(::Val{:arrow}, part::DataFrames.DataFrame, path, nrows) = begin
+    println("Calling Arrow.write to path=$path with nrow(part)=$(nrow(part))")
+    Arrow.write(path, part)
+end
 
 WriteArrow = WriteHelper(Val(:arrow))
 

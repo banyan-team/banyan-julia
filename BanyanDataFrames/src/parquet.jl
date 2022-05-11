@@ -26,11 +26,19 @@ get_sample_and_metadata(::Val{:parquet}, p, sample_rate) =
 file_ending(::Val{:parquet}) = "parquet"
 
 function read_file(::Val{:parquet}, path, rowrange, readrange, filerowrange, dfs)
-    f = Parquet.read_parquet(
-        path;
-        rows = (readrange.start-filerowrange.start+1):(readrange.stop-filerowrange.start+1),
+    push!(
+        dfs,
+        if isfile(p)
+            let f = Parquet.read_parquet(
+                path;
+                rows = (readrange.start-filerowrange.start+1):(readrange.stop-filerowrange.start+1),
+            )
+                DataFrames.DataFrame(f, copycols=false)
+            end
+        else
+            DataFrames.DataFrame()
+        end
     )
-    push!(dfs, DataFrames.DataFrame(f, copycols=false))
 end
 
 ReadBlockParquet = ReadBlockHelper(Val(:parquet))
