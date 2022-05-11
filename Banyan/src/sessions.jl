@@ -14,16 +14,21 @@ global sessions = Dict{SessionId,Session}()
 # `Session` in `sessions` in a mutex to allow only one to use it at a time. Further
 # modifications would be required to make sharing a session between threads
 # ergonomic.
-global current_session_id = nothing
+global current_session_id = ""
 
-function set_session(session_id::Union{SessionId,Nothing})
+function set_session(session_id::SessionId)
     global current_session_id
     current_session_id = session_id
 end
 
+function _get_session_id_no_error()::SessionId
+    global current_session_id
+    current_session_id
+end
+
 function get_session_id()::SessionId
     global current_session_id
-    if isnothing(current_session_id)
+    if isempty(current_session_id)
         error(
             "No session started or selected using `start_session` or `with_session` or `set_session`. The current session may have been destroyed or no session started yet.",
         )
@@ -52,7 +57,7 @@ function get_loaded_packages()
     #     @show try Main.eval(m) catch nothing end isa Module && !(m in [:Main, :Base, :Core, :InteractiveUtils, :IJulia])
     # end
     global current_session_id
-    loaded_packages::Set{String} = if !isnothing(current_session_id)
+    loaded_packages::Set{String} = if !isempty(current_session_id)
         get_sessions_dict()[current_session_id].loaded_packages
     else
         Set{String}()
@@ -387,7 +392,7 @@ function end_session(session_id::SessionId = get_session_id(); failed = false, r
     )
 
     # Remove from global state
-    set_session(nothing)
+    set_session("")
     delete!(sessions, session_id)
     session_id
 end

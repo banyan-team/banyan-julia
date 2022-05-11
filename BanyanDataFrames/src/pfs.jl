@@ -511,8 +511,8 @@ function WriteHelper(@nospecialize(format_value))
             actual_location_path = get_location_path(actualpath)
             println("In WriteHelper with actual_meta_path=$actual_meta_path and actual_location_path=$actual_location_path")
             if worker_idx == 1
-                cp(meta_path, actual_meta_path)
-                cp(location_path, actual_location_path)
+                cp(meta_path, actual_meta_path, force=true)
+                cp(location_path, actual_location_path, force=true)
             end
 
             # Copy over files to actual location

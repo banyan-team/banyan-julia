@@ -452,11 +452,13 @@ function _filter(df::Future, f::Future, res_nrows::Future, res::Future, kwargs::
 
     @time begin
     @partitioned df res res_nrows f kwargs begin
+        println("At start of filter code region with kwargs=$kwargs, isnothing(f)=$(isnothing(f)), isnothing(df)=$(isnothing(df))")
         @time begin
         res = DataFrames.filter(f, df; kwargs...)
         res_nrows = DataFrames.nrow(res)
         println("Time inside `filter` code region:")
         end
+        println("At end of filter code region with kwargs=$kwargs, isnothing(f)=$(isnothing(f)), isnothing(df)=$(isnothing(df))")
     end
     println("Time for `@partitioned` in `filter`:")
     end
