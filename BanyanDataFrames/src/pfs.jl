@@ -180,7 +180,7 @@ function ReadBlockHelper(@nospecialize(format_value))
         # reading of the same range in different reads
 
         if Banyan.INVESTIGATING_LOSING_DATA
-            println("In ReadBlock with loc_params=$params")
+            println("In ReadBlock with loc_params=$loc_params params=$params")
         end
         
         meta_path = loc_name == "Disk" ? sync_across(is_main_worker(comm) ? get_meta_path(loc_params["path"]::String) : "", comm=comm) : loc_params["meta_path"]::String
