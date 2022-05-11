@@ -460,7 +460,7 @@ function WriteHelper(@nospecialize(format_value))
                         Banyan.get_partition_idx(batch_idx, nbatches, worker_i),
                         npartitions
                     )
-                        joinpath(path, "part_$sortableidx" * ".$format_string")
+                        joinpath(actualpath, "part_$sortableidx" * ".$format_string")
                     end
                 )
             end
@@ -529,7 +529,7 @@ function WriteHelper(@nospecialize(format_value))
                 sortableidx = Banyan.sortablestring(idx, get_npartitions(nbatches, comm))
                 tmpdir_idx = -1
                 for i = 1:length(tmpdir)
-                    if contains(tmpdir[i], "part$sortableidx")
+                    if contains(tmpdir[i], "part_$sortableidx")
                         tmpdir_idx = i
                         break
                     end
