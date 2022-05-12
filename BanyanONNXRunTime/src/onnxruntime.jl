@@ -23,7 +23,7 @@ function (is::InferenceSession)(inputs, output_names=nothing)
 
     partitioned_with(scaled=[A, res], modules=["ONNXRunTime"]) do
         # Blocked PTs along dimensions _not_ being mapped along
-        bpt = [bpt for bpt in Blocked(A) if bpt.key == 1]
+        bpt = [bpt for bpt in Blocked(A) if bpt.parameters["key"] == 1]
         
         # balanced
         pt(A, bpt & Balanced())

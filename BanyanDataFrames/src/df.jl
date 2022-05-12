@@ -698,15 +698,15 @@ function pts_for_getindex(futures::Base.Vector{Future})
         res_sample_for_grouping = sample_for_grouping(res, return_vector ? Int64 : String)
         for (dfpt_unbalanced, respt_unbalanced, dfpt_balanced, respt_balanced) in zip(
             # unbalanced
-            Distributed(df_sample_for_grouping; balanced=false, filtered_relative_to=res, filtered_from=false),
-            Distributed(res_sample_for_grouping; balanced=false, filtered_relative_to=df, filtered_from=true),
+            Distributed(df_sample_for_grouping; balanced=false, filtered_relative_to=res_sample_for_grouping, filtered_from=false),
+            Distributed(res_sample_for_grouping; balanced=false, filtered_relative_to=df_sample_for_grouping, filtered_from=true),
             # balanced
-            Distributed(df_sample_for_grouping; balanced=true, filtered_relative_to=res, filtered_from=false),
-            Distributed(res_sample_for_grouping; balanced=true, filtered_relative_to=df, filtered_from=true),
+            Distributed(df_sample_for_grouping; balanced=true, filtered_relative_to=res_sample_for_grouping, filtered_from=false),
+            Distributed(res_sample_for_grouping; balanced=true, filtered_relative_to=df_sample_for_grouping, filtered_from=true),
         )
         # TODO: Ensure Grouped can take dataframe and array
             # Return Blocked if return_vector or select_columns and grouping by non-selected
-            return_blocked = return_vector || (dfpt_balanced.distribution == "grouped" && !(dfpt_balanced.key in columns))
+            return_blocked = return_vector || (dfpt_balanced.parameters["distribution"]::String == "grouped" && !(dfpt_balanced.parameters["key"] in columns))
 
             # unbalanced -> balanced
             pt(df, dfpt_unbalanced, match=(return_blocked ? nothing : res), on=["distribution", "key", "divisions", "rev"])
@@ -720,7 +720,7 @@ function pts_for_getindex(futures::Base.Vector{Future})
             # balanced -> unbalanced
             pt(df, dfpt_balanced, match=(return_blocked ? nothing : res), on=["distribution", "key", "divisions", "rev"])
             pt(res, return_blocked ? Blocked(res, along=[1], balanced=false, filtered_from=df) : respt_unbalanced & Drifted())
-            pt(rows, BlockedAlong(1) & ScaledBySame(df), match=df, on=(dfpt_balanced.distribution == "blocked" ? "balanced" : ["balanced", "id"]))
+            pt(rows, BlockedAlong(1) & ScaledBySame(df), match=df, on=(dfpt_balanced.parameters["distribution"]::String == "blocked" ? "balanced" : ["balanced", "id"]))
         end
 
         # pts_for_filtering(df, res, Blocked)
@@ -1070,7 +1070,7 @@ function pts_for_setindex(futures::Base.Vector{Future})
         # The array that we are inserting into this dataframe must be
         # partitioned with the same ID or it must be perfectly balanced
         # if the original dataframe is also balanced.
-        if dpt.distribution == "blocked" && dpt.balanced
+        if dpt.parameters["distribution"]::String == "blocked" && dpt.balanced
             pt(v, BlockedAlong(1) & Balanced())
         else
             pt(v, BlockedAlong(1), match=df, on=["balanced", "id"])
@@ -1243,8 +1243,8 @@ function pts_for_rename(futures::Base.Vector{Future})
     df_sample_for_grouping::DFSampleForGrouping = sample_for_grouping(df, String)
     for dfpt in Distributed(df_sample_for_grouping, scaled_by_same_as=res)
         pt(dfpt)
-        if dfpt.distribution == "grouped"
-            dfpt_key::String = dfpt.key
+        if dfpt.parameters["distribution"]::String == "grouped"
+            dfpt_key::String = dfpt.parameters["key"]
             groupingkeyindex = indexin(dfpt_key, sample_keys(df_sample_for_grouping.sample)::Base.Vector{String})
             groupingkey = sample_keys(res_sample)[groupingkeyindex]
             pt(res, GroupedBy(groupingkey) & ScaledBySame(df), match=df, on=["balanced", "id", "divisions", "rev"])

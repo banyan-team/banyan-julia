@@ -207,11 +207,11 @@ end
 
         bucket = get_cluster_s3_bucket_name()
 
-        for i = 1:2
+        for i = 1:1#2
             for path in [
                 "s3://$(bucket)/iris_large.csv",
-                "s3://$(bucket)/iris_large.parquet",
-                "s3://$(bucket)/iris_large.arrow",
+                # "s3://$(bucket)/iris_large.parquet",
+                # "s3://$(bucket)/iris_large.arrow",
             ]
                 df = read_file(path)
 

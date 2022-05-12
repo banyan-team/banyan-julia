@@ -164,7 +164,7 @@ function DataFrames.select(gdf::GroupedDataFrame, args...; kwargs...)::DataFrame
     get(kwargs, :keepkeys, true)::Bool || throw(ArgumentError("Select/transform/combine/subset operations on grouped dataframes must keep the grouping columns"))
 
     gdf_parent = gdf.parent.data
-    res_nrows = copy(gdf_parent.nrows)
+    res_nrows = copy(gdf.parent.nrows)
     groupcols = gdf.groupcols
     groupkwargs = gdf.groupkwargs
     res = Future(datatype="DataFrame")
@@ -195,7 +195,7 @@ function DataFrames.transform(gdf::GroupedDataFrame, args...; kwargs...)::DataFr
     get(kwargs, :keepkeys, true)::Bool || throw(ArgumentError("Select/transform/combine/subset operations on grouped dataframes must keep the grouping columns"))
 
     gdf_parent = gdf.parent.data
-    res_nrows = copy(gdf_parent.nrows)
+    res_nrows = copy(gdf.parent.nrows)
     groupcols = gdf.groupcols
     groupkwargs = gdf.groupkwargs
     res = Future(datatype="DataFrame")

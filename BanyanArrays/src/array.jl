@@ -378,7 +378,7 @@ function pts_for_mapslices(futures::Base.Vector{Future})
     dims_sample_res = dims isa Colon ? Int64[] : Base.collect(tuple(dims_sample))
 
     # Blocked PTs along dimensions _not_ being mapped along
-    bpt = [bpt for bpt in Blocked(A) if !(dims_sample_isa_colon) && !(bpt.key in dims_sample_res)]
+    bpt = [bpt for bpt in Blocked(A) if !(dims_sample_isa_colon) && !(bpt.parameters["key"] in dims_sample_res)]
 
     if !isempty(bpt)
         # balanced
@@ -469,7 +469,7 @@ function pts_for_getindex(futures::Base.Vector{Future})
     end
 
     # Blocked PTs along dimensions _not_ being mapped along
-    bpt = PartitionType[bpt for bpt in Blocked(A) if (bpt.key)::Int64 in allowed_splitting_dims]
+    bpt = PartitionType[bpt for bpt in Blocked(A) if (bpt.parameters["key"])::Int64 in allowed_splitting_dims]
 
     if !isempty(bpt)
         # balanced
@@ -535,7 +535,7 @@ function pts_for_reduce(futures::Base.Vector{Future})
     dims_sample_res = dims_sample isa Colon ? Int64[] : Base.collect(tuple(dims_sample))
     for bpt in Blocked(A)
         pt(A, bpt)
-        if dims_sample_isa_colon || bpt.key in dims_sample_res
+        if dims_sample_isa_colon || bpt.parameters["key"] in dims_sample_res
             # NOTE: Be careful about trying to serialize things that would
             # require serializing the whole Banyan module. For example, if
             # this where Reducing(op) or if we tried Future(op) where op

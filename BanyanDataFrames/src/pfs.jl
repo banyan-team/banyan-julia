@@ -44,6 +44,8 @@ function ShuffleDataFrameHelper(
     # We don't have to worry about grouped data frames since they are always
     # block-partitioned.
 
+    println("In ShuffleDataFrame with divisions=$divisions, divisions_by_worker=$divisions_by_worker")
+
     # Get the divisions to apply
     worker_idx, nworkers = Banyan.get_worker_idx(comm), Banyan.get_nworkers(comm)
 
@@ -143,6 +145,7 @@ function ShuffleDataFrame(
 )
     divisions = dst_params["divisions"]
     has_divisions_by_worker = haskey(dst_params, "divisions_by_worker")
+    println("In ShuffleDataFrame with dst_params=$dst_params")
     V = if !isempty(divisions)
         typeof(divisions[1][1])
     elseif has_divisions_by_worker
@@ -160,7 +163,8 @@ function ShuffleDataFrame(
         store_splitting_divisions,
         dst_params["key"],
         get(dst_params, "rev", false),
-        haskey(dst_params, "divisions_by_worker") ? dst_params["divisions_by_worker"] : Base.Vector{Division{V}}[],
+        # Base.Vector{Division{V}}[]
+        has_divisions_by_worker ? dst_params["divisions_by_worker"] : Banyan.get_divisions(divisions, get_nworkers(comm)),
         divisions,
         Banyan.get_splitting_divisions()
     )
