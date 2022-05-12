@@ -28,7 +28,7 @@ file_ending(::Val{:parquet}) = "parquet"
 function read_file(::Val{:parquet}, path, rowrange, readrange, filerowrange, dfs)
     push!(
         dfs,
-        if isfile(p)
+        if isfile(path)
             let f = Parquet.read_parquet(
                 path;
                 rows = (readrange.start-filerowrange.start+1):(readrange.stop-filerowrange.start+1),
