@@ -342,7 +342,7 @@ function WriteHelper(@nospecialize(format_value))
             # to have the S3 filesystem mounted at ~/s3fs/<bucket name>
         else
             # Prepend "efs/" for local paths
-            path = Banyan.getpath(path)
+            path = Banyan.getpath(path) 
         end
 
         # Write file for this partition
@@ -519,7 +519,7 @@ function WriteHelper(@nospecialize(format_value))
             # Copy over location and meta path
             actual_meta_path = get_meta_path(loc_params_path)
             actual_location_path = get_location_path(loc_params_path)
-            println("In WriteHelper with actual_meta_path=$actual_meta_path and actual_location_path=$actual_location_path using actualpath=$actualpath")
+            println("In WriteHelper with actual_meta_path=$actual_meta_path and actual_location_path=$actual_location_path using loc_params_path=$loc_params_path")
             if worker_idx == 1
                 cp(meta_path, actual_meta_path, force=true)
                 cp(location_path, actual_location_path, force=true)
