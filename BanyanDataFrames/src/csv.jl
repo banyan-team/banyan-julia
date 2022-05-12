@@ -58,17 +58,17 @@ get_sample_and_metadata(::Val{:csv}, p, sample_rate) =
 file_ending(::Val{:csv}) = "csv"
 
 function read_file(::Val{:csv}, path, rowrange, readrange, filerowrange, dfs)
-    @time begin
-    et = @elapsed begin
-    CSV.read(
-        path,
-        DataFrames.DataFrame;
-        header=1, skipto=2,
-        footerskip=0
-    )
-    end
-    println("Time on worker_idx=$(get_worker_idx()) for first CSV.read in read_file: $et seconds")
-    end
+    # @time begin
+    # et = @elapsed begin
+    # CSV.read(
+    #     path,
+    #     DataFrames.DataFrame;
+    #     header=1, skipto=2,
+    #     footerskip=0
+    # )
+    # end
+    # println("Time on worker_idx=$(get_worker_idx()) for first CSV.read in read_file: $et seconds")
+    # end
     @time begin
     et = @elapsed begin
     push!(
@@ -82,6 +82,7 @@ function read_file(::Val{:csv}, path, rowrange, readrange, filerowrange, dfs)
             footerskip = filerowrange.stop - readrange.stop,
         )
     )
+    println("In read_file for CSV with path=$path, rowrange=$rowrange, readrange=$readrange, filerowrange=$filerowrange, nrow.(dfs)=$(nrow.(dfs))")
     end
     println("Time on worker_idx=$(get_worker_idx()) for second CSV.read in read_file: $et seconds")
     end
