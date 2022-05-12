@@ -266,6 +266,7 @@ function ReadBlockHelper(@nospecialize(format_value))
                 @time begin
                 et = @elapsed begin
                 read_file(format_value, path, rowrange, readrange, filerowrange, dfs)
+                println("In ReadBlock after reading $path with length(dfs)=$(length(dfs))")
                 end
                 println("Time on worker_idx=$(get_worker_idx()) for calling read_file: $et seconds")
                 end
@@ -273,6 +274,7 @@ function ReadBlockHelper(@nospecialize(format_value))
             rowsscanned = newrowsscanned
         end
         end
+        println("In ReadBlock after reading with length(dfs)=$(length(dfs)) and nrow.(dfs)=$(nrow.(dfs))")
         println("Time on worker_idx=$(get_worker_idx()) for iterating over Table.rows in ReadBlock for data frame: $et seconds")
         end
         if Banyan.INVESTIGATING_LOSING_DATA
