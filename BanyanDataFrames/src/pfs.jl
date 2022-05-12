@@ -190,7 +190,7 @@ function ReadBlockHelper(@nospecialize(format_value))
         existing_path = getpath(loc_params_path)
         println("In ReadBlock with loc_params_path=$loc_params_path, existing_path=$existing_path")
         meta_path = loc_name == "Disk" ? sync_across(is_main_worker(comm) ? get_meta_path(existing_path) : "", comm=comm) : loc_params["meta_path"]::String
-        loc_params = loc_name == "Disk" ? (deserialize(get_location_path(existing_path))::Location).src_parameters : loc_params
+        loc_params = loc_name == "Disk" ? (deserialize(get_location_path(loc_params_path))::Location).src_parameters : loc_params
         @time begin
         et = @elapsed begin
         meta = Arrow.Table(meta_path)
@@ -416,8 +416,8 @@ function WriteHelper(@nospecialize(format_value))
         ##########################################
 
         # Get paths for reading in metadata and Location
-        meta_path = is_main ? get_meta_path(path) : ""
-        location_path = is_main ? get_location_path(path) : ""
+        meta_path = is_main ? get_meta_path(loc_params_path * ".tmp") : ""
+        location_path = is_main ? get_location_path(loc_params_path * ".tmp") : ""
         meta_path, location_path = sync_across((meta_path, location_path), comm=comm)
 
         # Read in meta path if it's there
@@ -517,8 +517,8 @@ function WriteHelper(@nospecialize(format_value))
 
         if nbatches > 1 && batch_idx == nbatches
             # Copy over location and meta path
-            actual_meta_path = get_meta_path(actualpath)
-            actual_location_path = get_location_path(actualpath)
+            actual_meta_path = get_meta_path(loc_params_path)
+            actual_location_path = get_location_path(loc_params_path)
             println("In WriteHelper with actual_meta_path=$actual_meta_path and actual_location_path=$actual_location_path using actualpath=$actualpath")
             if worker_idx == 1
                 cp(meta_path, actual_meta_path, force=true)
