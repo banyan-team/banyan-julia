@@ -3,7 +3,7 @@
 has_separate_metadata(::Val{:arrow}) = true
 get_metadata(::Val{:arrow}, p)::Int64 = Tables.rowcount(Arrow.Table(p))
 get_sample(::Val{:arrow}, p, sample_rate, len) = let rand_indices = sample_from_range(1:len, sample_rate)
-    if isempty(rand_indices)
+    if sample_rate != 1.0 && isempty(rand_indices)
         DataFrames.DataFrame()
     else
         get_sample_from_data(DataFrames.DataFrame(Arrow.Table(p); copycols=false), sample_rate, rand_indices)

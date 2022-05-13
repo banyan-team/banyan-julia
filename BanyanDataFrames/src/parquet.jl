@@ -5,7 +5,7 @@ using .Parquet
 has_separate_metadata(::Val{:parquet}) = true
 get_metadata(::Val{:parquet}, p)::Int64 = nrows(Parquet.File(p))
 get_sample(::Val{:parquet}, p, sample_rate, len) = let rand_indices = sample_from_range(1:len, sample_rate)
-    if isempty(rand_indices)
+    if sample_rate != 1.0 && isempty(rand_indices)
         DataFrames.DataFrame()
     else
         get_sample_from_data(DataFrames.DataFrame(Parquet.read_parquet(p; rows=1:len), copycols=false), sample_rate, rand_indices)

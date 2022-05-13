@@ -14,7 +14,7 @@ function get_metadata(::Val{:csv}, p)::Int64
     nrow(CSV.read(p, DataFrames.DataFrame; header=1, skipto=2, footerskip=0))
 end
 get_sample(::Val{:csv}, p, sample_rate, len) = let rand_indices = sample_from_range(1:len, sample_rate)
-    if isempty(rand_indices)
+    if sample_rate != 1.0 && isempty(rand_indices)
         println("In get_sample with p=$p, sample_rate=$sample_rate, and rand_indices=$rand_indices for len=$len producing an empty DataFrame")
         DataFrames.DataFrame()
     else
