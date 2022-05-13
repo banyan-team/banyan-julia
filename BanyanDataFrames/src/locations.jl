@@ -222,7 +222,7 @@ function _remote_table_source(remotepath, shuffled, metadata_invalid, sample_inv
                     break
                 end
             end
-            println("In sample collection with final exact_sample_needed_res=$exact_sample_needed_res and size.(local_samples)=$(size.(local_samples))")
+            # println("In sample collection with final exact_sample_needed_res=$exact_sample_needed_res and size.(local_samples)=$(size.(local_samples))")
         end
         @time begin
         et = @elapsed begin
