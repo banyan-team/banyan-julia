@@ -272,11 +272,11 @@ end
 
                 # Groupby species and perform select, transform, subset
                 if i == 1
-                    gdf_select = select(gdf, :, [:petal_length] => (pl) -> pl .- mean(pl))
-                    gdf_transform = transform(gdf, :species => x -> "iris-" .* x)
+                    # gdf_select = select(gdf, :, [:petal_length] => (pl) -> pl .- mean(pl))
+                    # gdf_transform = transform(gdf, :species => x -> "iris-" .* x)
                     gdf_subset = subset(gdf, :petal_length => pl -> pl .>= mean(pl))
-                    write_file(gdf_select_save_path, gdf_select)
-                    write_file(gdf_transform_save_path, gdf_transform)
+                    # write_file(gdf_select_save_path, gdf_select)
+                    # write_file(gdf_transform_save_path, gdf_transform)
                     write_file(gdf_subset_save_path, gdf_subset)
                 else
                     gdf_select = read_file(gdf_select_save_path)
@@ -285,8 +285,8 @@ end
                 end
 
                 # Collect results
-                gdf_select_size = size(gdf_select)
-                gdf_transform_size = size(gdf_transform)
+                # gdf_select_size = size(gdf_select)
+                # gdf_transform_size = size(gdf_transform)
                 gdf_subset_nrow = nrow(gdf_subset)
                 @test gdf_subset_nrow == 474
                 # gdf_subset_collected = sort(compute(gdf_subset))

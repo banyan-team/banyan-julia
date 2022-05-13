@@ -310,11 +310,11 @@ function MergeHelper(
             src = Consolidate(src, params, EMPTY_DICT, comm)
             println("In Merge after Consolidate size(src)=$(size(src))")
         end
+
+        println("In Merge at end with size(src)=$(size(src))")
     end
 
     # TODO: Handle Consolidate, Merge, WriteHDF5, WriteJuliaArray, WriteCSV/Parquet/Arrow receiving missing
-
-    println("In Merge at end with size(src)=$(size(src))")
 
     src
 end
