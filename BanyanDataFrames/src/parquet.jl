@@ -8,6 +8,7 @@ get_sample(::Val{:parquet}, p, sample_rate, len) = let rand_indices = sample_fro
     if sample_rate != 1.0 && isempty(rand_indices)
         DataFrames.DataFrame()
     else
+        println("In get_sample for Parquet with isfile(p)=$(isfile(p))")
         get_sample_from_data(DataFrames.DataFrame(Parquet.read_parquet(p; rows=1:len), copycols=false), sample_rate, rand_indices)
     end
 end
