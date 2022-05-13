@@ -28,7 +28,7 @@ get_sample_and_metadata(::Val{:csv}, p, sample_rate) =
     let sample_df = CSV.read(p, DataFrames.DataFrame; header=1, skipto=2, footerskip=0)
         num_rows = nrow(sample_df)
         res = get_sample_from_data(sample_df, sample_rate, num_rows), num_rows
-        println("In get_sample_and_metadata with size(sample_df)=$(size(sample_df)) size(res)=$(size(res))")
+        println("In get_sample_and_metadata with size(sample_df)=$(size(sample_df)) size(res[1])=$(size(res[1]))")
         res
     end
 

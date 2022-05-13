@@ -67,6 +67,7 @@ function setup_basic_tests(bucket_name=get_cluster_s3_bucket_name())
     ]
     if !isempty(to_be_downloaded)
         @info "Downloading $to_be_downloaded"
+        println("At start of setup_basic_tests")
         iris_download_path = "https://raw.githubusercontent.com/banyan-team/banyan-julia/v0.1.3/BanyanDataFrames/test/res/iris.csv"
         iris_species_info_download_path = "https://raw.githubusercontent.com/banyan-team/banyan-julia/v0.1.3/BanyanDataFrames/test/res/iris_species_info.csv"
         iris_local_path = download(iris_download_path)
@@ -87,6 +88,7 @@ function setup_basic_tests(bucket_name=get_cluster_s3_bucket_name())
             bucket_name,
             "iris_large.csv",
         )
+        println("After first setup_basic_tests")
         write_df_to_parquet_to_s3(
             df,
             "iris_large.parquet",
@@ -136,12 +138,14 @@ function setup_basic_tests(bucket_name=get_cluster_s3_bucket_name())
             bucket_name,
             "iris_species_info.arrow",
         )
+        println("After all setup_basic_tests")
     end
 end
 
 function setup_empty_tests(bucket_name=get_cluster_s3_bucket_name())
     # Write empty dataframe
     empty_df = DataFrames.DataFrame()
+    println("At start of setup_empty_tests")
     if !ispath(S3Path("s3://$bucket_name/empty_df.csv", config = Banyan.get_aws_config()))
         write_df_to_csv_to_s3(
             empty_df,
@@ -151,6 +155,7 @@ function setup_empty_tests(bucket_name=get_cluster_s3_bucket_name())
             "empty_df.csv",
         )
     end
+    println("After first setup_empty_tests")
     if !ispath(S3Path("s3://$bucket_name/empty_df.arrow", config = Banyan.get_aws_config()))
         write_df_to_arrow_to_s3(
             empty_df,
@@ -181,6 +186,7 @@ function setup_empty_tests(bucket_name=get_cluster_s3_bucket_name())
             "empty_df2.arrow",
         )
     end
+    println("After all setup_empty_tests")
 end
 
 function setup_nyc_taxi_stress_test(nbytes = "10 GB", bucket_name=get_cluster_s3_bucket_name())
