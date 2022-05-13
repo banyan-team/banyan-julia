@@ -3,20 +3,23 @@ using .Parquet
 # locations.jl
 
 has_separate_metadata(::Val{:parquet}) = true
-get_metadata(::Val{:parquet}, p)::Int64 = nrows(Parquet.File(p))
+get_metadata(::Val{:parquet}, p)::Int64 = isfile(p) ? nrows(Parquet.File(p)) : 0
 get_sample(::Val{:parquet}, p, sample_rate, len) = let rand_indices = sample_from_range(1:len, sample_rate)
-    if sample_rate != 1.0 && isempty(rand_indices)
+    if (sample_rate != 1.0 && isempty(rand_indices)) || !isfile(p)
         DataFrames.DataFrame()
     else
         println("In get_sample for Parquet with isfile(p)=$(isfile(p))")
         get_sample_from_data(DataFrames.DataFrame(Parquet.read_parquet(p; rows=1:len), copycols=false), sample_rate, rand_indices)
     end
 end
-get_sample_and_metadata(::Val{:parquet}, p, sample_rate) =
+get_sample_and_metadata(::Val{:parquet}, p, sample_rate) = if isfile(p)
     let sample_df = DataFrames.DataFrame(Parquet.File(p), copycols=false)
         num_rows = nrow(sample_df)
         get_sample_from_data(sample_df, sample_rate, num_rows), num_rows
     end
+else
+    DataFrames.DataFrame(), 0
+end
 
 # read_chunk(localfilepathp::String, ::Val{:parquet}) = Tables.partitions(Parquet.read_parquet(localfilepathp))
 
