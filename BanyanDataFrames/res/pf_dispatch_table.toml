@@ -17,6 +17,7 @@ scale_by_dst = 3
 src_required = { name = "Distributing" }
 dst_required = { name = "Replicating", replication = "all" }
 locations = [ { datatype = "GroupedDataFrame" } ]
+partition_memory_usage = "none"
 
 [casts.ReturnNullGroupingRebalanced]
 scale_by_src = 1
@@ -24,6 +25,7 @@ scale_by_dst = 3
 src_required = { name = "Distributing" }
 dst_required = { name = "Distributing", distribution = "blocked", balanced = true, id = "!" }
 locations = [ { datatype = "GroupedDataFrame" } ]
+partition_memory_usage = "none"
 
 # ReadBlock
 
@@ -70,6 +72,7 @@ views = false
 required = { name = "Distributing", distribution = "grouped", id = "!" }
 default = { rev = false }
 locations = [ { name = "Remote", format = "parquet" } ]
+partition_memory_usage = "part"
 
 [splits.ReadGroupArrow]
 expected = [ "key", "divisions" ]
@@ -79,6 +82,7 @@ views = false
 required = { name = "Distributing", distribution = "grouped", id = "!" }
 default = { rev = false }
 locations = [ { name = "Remote", format = "arrow" }, { name = "Disk", datatype = "DataFrame" } ]
+partition_memory_usage = "part"
 
 # CopyFrom
 

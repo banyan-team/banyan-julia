@@ -141,7 +141,7 @@ function pts_for_select(futures::Base.Vector{Future})
     gdf_parent, gdf, res, groupcols, groupkwargs, args, kwargs = futures
     groupingkeys::Base.Vector{String} = _get_res_groupingkeys(true, gdf_parent, sample(groupcols))
     gdf_parent_sample_for_grouping_keys::DFSampleForGrouping = sample_for_grouping(gdf_parent, groupingkeys)
-    pt(gdf_parent, Grouped(gdf_parent_sample_for_grouping_keys, scaled_by_same_as=res), match=res)
+    pt(gdf_parent, Grouped(gdf_parent_sample_for_grouping_keys, scaled_by_same_as=res))
     pt(gdf, BlockedAlong(1) & ScaledBySame(res))
     pt(res, ScaledBySame(gdf_parent))
     pt(gdf_parent, gdf, res, groupcols, groupkwargs, args, kwargs, Replicated())
