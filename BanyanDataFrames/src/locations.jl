@@ -123,6 +123,7 @@ function _remote_table_source(remotepath, shuffled, metadata_invalid, sample_inv
 
     # Get sample and also metadata if not yet valid at this point
     recollected_sample_needed = curr_sample_invalid || !is_metadata_valid
+    println("In sample collection with final shuffled=$shuffled and recollected_sample_needed=$recollected_sample_needed")
     meta_nrows, total_nrows, total_nbytes, remote_sample::Sample, empty_sample::String = if recollected_sample_needed
         # In this case, we actually recollect a sample. This is the case
         # where either we actually have an invalid sample or the sample is
@@ -154,6 +155,7 @@ function _remote_table_source(remotepath, shuffled, metadata_invalid, sample_inv
                 Colon(), length(local_paths_on_curr_worker), 0
             end
             meta_nrows_for_worker = meta_nrows_on_worker[shuffling_perm]
+            println("In collecting a sample where metadata is valid here and shuffling_perm=$shuffling_perm, nfiles_on_worker=$nfiles_on_worker, meta_nrows_on_worker=$meta_nrows_on_worker")
 
             # Get local sample
             @show shuffling_perm
@@ -183,6 +185,7 @@ function _remote_table_source(remotepath, shuffled, metadata_invalid, sample_inv
                 println("Time to call get_sample: $et seconds")
                 end
             end
+            println("In sample collection where metadata was invalid and called get_sample and got size.(local_samples)=$(size.(local_samples))")
         else
             # This is the case for formats like CSV where we must read in the
             # metadata with the data AND the metadata is stale and couldn't
@@ -190,6 +193,7 @@ function _remote_table_source(remotepath, shuffled, metadata_invalid, sample_inv
 
             local_nrows = 0
             # First see if we can get a random (inexact sample).
+            println("In case of having to call get_sample_and_metadata with local_paths_on_curr_worker=$local_paths_on_curr_worker")
             for exact_sample_needed_res in [false, true]
                 empty!(local_samples)
                 local_nrows = 0
@@ -218,6 +222,7 @@ function _remote_table_source(remotepath, shuffled, metadata_invalid, sample_inv
                     break
                 end
             end
+            println("In sample collection with final exact_sample_needed_res=$exact_sample_needed_res and size.(local_samples)=$(size.(local_samples))")
         end
         @time begin
         et = @elapsed begin

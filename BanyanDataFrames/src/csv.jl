@@ -15,15 +15,21 @@ function get_metadata(::Val{:csv}, p)::Int64
 end
 get_sample(::Val{:csv}, p, sample_rate, len) = let rand_indices = sample_from_range(1:len, sample_rate)
     if isempty(rand_indices)
+        println("In get_sample with p=$p, sample_rate=$sample_rate, and rand_indices=$rand_indices for len=$len producing an empty DataFrame")
         DataFrames.DataFrame()
     else
-        get_sample_from_data(CSV.read(p, DataFrames.DataFrame; header=1, skipto=2, footerskip=0), sample_rate, rand_indices)
+        println("Calling get_sample_from_data with size(CSV.read(p, DataFrames.DataFrame))=$(size(CSV.read(p, DataFrames.DataFrame)))")
+        res = get_sample_from_data(CSV.read(p, DataFrames.DataFrame; header=1, skipto=2, footerskip=0), sample_rate, rand_indices)
+        println("Calling get_sample_from_data with size(res)=$(size(res))")
+        res
     end
 end
 get_sample_and_metadata(::Val{:csv}, p, sample_rate) =
     let sample_df = CSV.read(p, DataFrames.DataFrame; header=1, skipto=2, footerskip=0)
         num_rows = nrow(sample_df)
-        get_sample_from_data(sample_df, sample_rate, num_rows), num_rows
+        res = get_sample_from_data(sample_df, sample_rate, num_rows), num_rows
+        println("In get_sample_and_metadata with size(sample_df)=$(size(sample_df)) size(res)=$(size(res))")
+        res
     end
 
 # get_csv_chunks(localfilepathp::String)::Any = 

@@ -586,6 +586,7 @@ end
 # Functions to be extended for different data formats
 
 function sample_from_range(r, sample_rate)
+    # TODO: Maybe return whole range if sample rate is 1
     len = length(r)
     sample_len = ceil(Int64, len / sample_rate)
     rand_indices = randsubseq(1:len, 1/sample_rate)

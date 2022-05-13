@@ -472,7 +472,7 @@ end
 
         for i = 1:2
             # Read empty df
-            df = read_file(path)
+            df = read_file(path, true)
 
             # Filter which results in an empty df and in a df with a single entry
             filtered_empty_save_path = get_save_path(bucket, "filtered_empty", path)
@@ -492,6 +492,7 @@ end
             has_num_cols = i != 2 || filetype != "parquet"
 
             # # Test sizes
+            @show sample(filtered_empty)
             filtered_empty_size = size(filtered_empty)
             filtered_single_size = size(filtered_single)
             @test filtered_empty_size == (has_num_cols ? (0, 5) : (0, 0))

@@ -457,6 +457,11 @@ function WriteHelper(@nospecialize(format_value))
         nbytes = part_res isa Empty ? 0 : Banyan.total_memory_usage(part_res)
         sample_rate = get_session().sample_rate
         sampled_part = part_res isa Empty ? empty_df : Banyan.get_sample_from_data(part_res, sample_rate, nrows)
+        if part isa Empty
+            println("In WriteHelper with batch_idx=$batch_idx, worker_idx=$worker_idx and part isa Empty")
+        else
+            println("In WriteHelper with batch_idx=$batch_idx, worker_idx=$worker_idx and size(part)=$(size(part)) and size(sampled_part)=$(size(sampled_part))")
+        end
         gathered_data =
             gather_across((nrows, nbytes, part_res isa Empty ? part_res : empty(part_res), sampled_part), comm)
         # new_nrows, new_nbytes, empty_parts, sampled_parts

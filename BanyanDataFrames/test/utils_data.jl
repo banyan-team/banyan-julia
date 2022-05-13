@@ -291,13 +291,13 @@ end
 # HELPER FUNCTIONS FOR TESTS #
 ##############################
 
-function read_file(path)
+function read_file(path, sample_invalid=false)
     if endswith(path, ".csv")
-        return BanyanDataFrames.read_csv(path)
+        return BanyanDataFrames.read_csv(path, sample_invalid=sample_invalid)
     elseif endswith(path, ".parquet")
-        return BanyanDataFrames.read_parquet(path)
+        return BanyanDataFrames.read_parquet(path, sample_invalid=sample_invalid)
     elseif endswith(path, ".arrow")
-        return BanyanDataFrames.read_arrow(path)
+        return BanyanDataFrames.read_arrow(path, sample_invalid=sample_invalid)
     else
         error("Invalid file format")
     end
