@@ -299,6 +299,7 @@ function MergeHelper(
 
         # Concatenate across batches
         to_merge = disallowempty(filter(piece -> !(piece isa Empty), src.pieces))
+        println("In Merge with size.(to_merge)=$(size.(to_merge))")
         src = isempty(to_merge) ? EMPTY : merge_on_executor(to_merge, key)
         # src = merge_on_executor(src.pieces; key = key)
         # TODO: Handle case where everything merges to become empty and also ensure WriteHDF5 is correct
@@ -307,10 +308,13 @@ function MergeHelper(
         nworkers = get_nworkers(comm)
         if nworkers > 1
             src = Consolidate(src, params, EMPTY_DICT, comm)
+            println("In Merge after Consolidate size(src)=$(size(src))")
         end
     end
 
     # TODO: Handle Consolidate, Merge, WriteHDF5, WriteJuliaArray, WriteCSV/Parquet/Arrow receiving missing
+
+    println("In Merge at end with size(src)=$(size(src))")
 
     src
 end

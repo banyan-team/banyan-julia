@@ -48,23 +48,16 @@
         )
 
         # Verify the location
-        if contains(src_name, "h5")
-            @test remote_source.ndims == 2
-            @test !contains(remote_source.path, "DS1")
-            @test remote_source.subpath == "DS1"
-            @test remote_source.size[1] == src_nrows
-        else
-            @test remote_source.nbytes > 0
-            @test remote_source.nrows == src_nrows
-
-            if contains(src_name, "dir")
-                @test length(remote_source.files) == 10
-                for f in remote_source.files
-                    @test f["nrows"] == 150
-                end
-            else
-                @test length(remote_source.files) == 1
+        
+        @test remote_source.nbytes > 0
+        @test remote_source.nrows == src_nrows
+        if contains(src_name, "dir")
+            @test length(remote_source.files) == 10
+            for f in remote_source.files
+                @test f["nrows"] == 150
             end
+        else
+            @test length(remote_source.files) == 1
         end
 
         # TODO: Add these tests

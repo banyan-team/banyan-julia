@@ -44,10 +44,10 @@ function ShuffleDataFrameHelper(
     # We don't have to worry about grouped data frames since they are always
     # block-partitioned.
 
-    println("In ShuffleDataFrame with divisions=$divisions, divisions_by_worker=$divisions_by_worker")
-
     # Get the divisions to apply
     worker_idx, nworkers = Banyan.get_worker_idx(comm), Banyan.get_nworkers(comm)
+
+    println("In ShuffleDataFrame with divisions=$divisions, divisions_by_worker=$divisions_by_worker, size(part)=$(size(part)) on worker_idx=$worker_idx")
 
     # Perform shuffle
     partition_idx_getter(val) = Banyan.get_partition_idx_from_divisions(
@@ -57,14 +57,14 @@ function ShuffleDataFrameHelper(
         boundedupper,
     )
     res = begin
-        gdf::Union{DataFrames.GroupedDataFrame,Nothing} = if !isempty(part)
+        gdf::DataFrames.GroupedDataFrame = if !isempty(part)
             # Compute the partition to send each row of the dataframe to
             DataFrames.transform!(part, key => ByRow(partition_idx_getter) => :banyan_shuffling_key)
 
             # Group the dataframe's rows by what partition to send to
             DataFrames.groupby(part, :banyan_shuffling_key, sort = true)
         else
-            nothing
+            DataFrames.groupby(DataFrames.DataFrame(:x => Int64[]), :x)
         end
 
         # Create buffer for sending dataframe's rows to all the partitions
@@ -74,7 +74,7 @@ function ShuffleDataFrameHelper(
         for partition_idx = 1:nworkers
             Arrow.write(
                 io,
-                if !isnothing(gdf) && haskey(gdf, (banyan_shuffling_key = partition_idx,))
+                if gdf.ngroups > 0 && haskey(gdf, (banyan_shuffling_key = partition_idx,))
                     gdf[(banyan_shuffling_key = partition_idx,)]
                 else
                     empty(part)
@@ -129,6 +129,8 @@ function ShuffleDataFrameHelper(
         splitting_divisions[res] =
             (divisions_by_worker[worker_idx], !hasdivision || worker_idx != firstdivisionidx, !hasdivision || worker_idx != lastdivisionidx)
     end
+
+    println("At the end of ShuffleDataFrame with size(res)=$(size(res)) on worker_idx=$worker_idx")
 
     res
 end
@@ -609,6 +611,8 @@ function SplitGroupDataFrame(
     partition_idx = Banyan.get_partition_idx(batch_idx, nbatches, comm)
     npartitions = get_npartitions(nbatches, comm)
 
+    println("At start of SplitGroupDataFrame with size(src)=$(size(src))")
+
     # Ensure that this partition has a schema that is suitable for usage
     # here. We have to do this for `Shuffle` and `SplitGroup` (which is
     # used by `DistributeAndShuffle`)
@@ -656,6 +660,8 @@ function SplitGroupDataFrame(
             !hasdivision || boundedupper || partition_idx != lastdivisionidx,
         )
     end
+
+    println("At end of SplitGroupDataFrame with size(res)=$(size(res))")
 
     res
 end
