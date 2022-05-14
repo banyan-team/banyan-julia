@@ -36,17 +36,17 @@ total_memory_usage(val)::Int64 =
 function indexapply(op::Function, obj::NTuple{N,Int64}, index::Int64) where {N}
     res = Base.collect(obj)
     res[index] = op(obj[index])
-    tuple(res)
+    Tuple(res)
 end
 function indexapply(op::Function, obj_a::NTuple{N,Int64}, obj_b::NTuple{N,Int64}, index::Int64) where {N}
     res = Base.collect(obj_a)
     res[index] = op(obj_a[index], obj_b[index])
-    tuple(res)
+    Tuple(res)
 end
 function indexapply(val::Int64, obj::NTuple{N,Int64}, index::Int64) where {N}
     res = Base.collect(obj)
     res[index] = val
-    tuple(res)
+    Tuple(res)
 end
 
 # converts give time as String to local timezone and returns DateTime
