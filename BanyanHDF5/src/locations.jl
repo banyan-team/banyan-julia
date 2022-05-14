@@ -294,6 +294,10 @@ function _remote_hdf5_source(path_and_subpath, shuffled, metadata_invalid, sampl
             nbytes,
             dset_sample,
         )
+        @show location_res
+        @show total_memory_usage(location_res)
+        @show total_memory_usage(location_res.sample)
+        @show total_memory_usage(location_res.sample.value)
         cache_location(remotepath, location_res, invalidate_sample, invalidate_metadata)
         location_res
     else
