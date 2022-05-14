@@ -196,7 +196,7 @@ function _remote_table_source(remotepath, shuffled, metadata_invalid, sample_inv
 
             local_nrows = 0
             # First see if we can get a random (inexact sample).
-            println("In case of having to call get_sample_and_metadata with local_paths_on_curr_worker=$local_paths_on_curr_worker")
+            println("In case of having to call get_sample_and_metadata with local_paths_on_curr_worker=$local_paths_on_curr_worker and session_sample_rate=$session_sample_rate")
             for exact_sample_needed_res in [false, true]
                 empty!(local_samples)
                 local_nrows = 0
@@ -212,10 +212,11 @@ function _remote_table_source(remotepath, shuffled, metadata_invalid, sample_inv
                     push!(local_samples, path_sample)
                     local_nrows += path_nrows
                     end
-                    println("Time on worker_idx=$(get_worker_idx()) to call get_sample_and_metadata: $et seconds")
+                    println("Time on worker_idx=$(get_worker_idx()) to call get_sample_and_metadata with local_nrows=$local_nrows after path_nrows=$path_nrows: $et seconds")
                     end
                 end
                 total_nrows_res = reduce_and_sync_across(+, local_nrows)
+                println("After reduce_and_sync_across on local_nrows=$local_nrows and total_nrows_res=$total_nrows_res where max_exact_sample_length=$max_exact_sample_length")
                 # If the sample is too small, redo it, getting an exact sample
                 if !exact_sample_needed_res && total_nrows_res < max_exact_sample_length
                     exact_sample_needed = true
