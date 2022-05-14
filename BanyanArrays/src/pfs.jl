@@ -62,6 +62,7 @@ function ReadBlockHelperJuliaArray(
             nrows += part_nrows
         end
     end
+    println("In ReadBlockJuliaArray from data with nrows=$nrows partitioned on dim=$dim and now being read in with dim_partitioning=$dim_partitioning")
     dim > 0 || error("Unable to find dimension of Julia-serialized array stored in directory $name_path")
     partitioned_on_dim = dim == dim_partitioning
 
@@ -107,7 +108,7 @@ function ReadBlockHelperJuliaArray(
                 push!(dfs, arr)
             end
             if Banyan.INVESTIGATING_LOSING_DATA
-                println("In ReadBlockJuliaArray with path=$path with rowrange=$rowrange, readrange=$readrange, filerowrange=$filerowrange")
+                println("In ReadBlockJuliaArray with path=$path with rowrange=$rowrange, readrange=$readrange, filerowrange=$filerowrange, dim=$dim")
             end
         end
         rowsscanned = newrowsscanned

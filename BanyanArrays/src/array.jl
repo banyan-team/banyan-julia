@@ -357,7 +357,9 @@ function Base.map(f, c::Array{<:Any,N}...; force_parallelism=false) where {T,N}
     #     res = Base.map(f, c...)
     # end end)
     @partitioned f c res begin
+        println("In map @partitioned with size.(c)=$(size.(c))")
         res = Base.map(f, c...)
+        println("In map @partitioned with size(res)=$(size(res))")
         # @show res
         # @show typeof(res)
         # @show eltype(res)
@@ -379,6 +381,7 @@ function pts_for_mapslices(futures::Base.Vector{Future})
 
     # Blocked PTs along dimensions _not_ being mapped along
     bpt = [bpt for bpt in Blocked(A) if !(dims_sample_isa_colon) && !(bpt.parameters["key"] in dims_sample_res)]
+    @show bpt
 
     if !isempty(bpt)
         # balanced
