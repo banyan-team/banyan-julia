@@ -689,7 +689,7 @@ function Reduce(
     # Perform reduction
     empty_worker_idx = find_worker_idx_where(part isa Empty; comm=comm)
     part = if empty_worker_idx == -1
-        reduce_and_sync_across(op, val, comm=comm)
+        reduce_and_sync_across(op, part, comm=comm)
     else
         gathered = gather_across(part, comm)
         sync_across((is_main_worker(comm) ? Base.reduce(op, gathered) : nothing); comm=comm)
