@@ -101,7 +101,7 @@ function ReadBlockHelperJuliaArray(
             end
             # TODO: Scale the memory usage appropriately when splitting with
             # this and garbage collect if too much memory is used.
-            arr = read_julia_array_file(path, readrange, filerowrange, dim)
+            arr = read_julia_array_file(path, readrange, filerowrange, dim_partitioning)
             if isempty(dfs)
                 dfs = typeof(arr)[arr]
             else
