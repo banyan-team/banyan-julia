@@ -299,7 +299,7 @@ function MergeHelper(
 
         # Concatenate across batches
         to_merge = disallowempty(filter(not_is_empty, src.pieces))
-        println("In Merge with size.(to_merge)=$(size.(to_merge)) and key=$key and eltype.(to_merge)=$(eltype.(to_merge)) with part=$part")
+        println("In Merge with size.(to_merge)=$(size.(to_merge)) and key=$key and eltype.(to_merge)=$(eltype.(to_merge))")
         src = isempty(to_merge) ? EMPTY : merge_on_executor(to_merge, key)
         # src = merge_on_executor(src.pieces; key = key)
         # TODO: Handle case where everything merges to become empty and also ensure WriteHDF5 is correct

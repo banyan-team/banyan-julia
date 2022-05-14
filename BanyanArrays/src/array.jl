@@ -381,7 +381,6 @@ function pts_for_mapslices(futures::Base.Vector{Future})
 
     # Blocked PTs along dimensions _not_ being mapped along
     bpt = [bpt for bpt in Blocked(A) if !(dims_sample_isa_colon) && !(bpt.parameters["key"] in dims_sample_res)]
-    @show bpt
 
     if !isempty(bpt)
         # balanced
@@ -465,7 +464,26 @@ function pts_for_getindex(futures::Base.Vector{Future})
     indices_sample = sample(indices)
     single_colon = length(indices_sample) == 1 && indices_sample[1] isa Colon
     allowed_splitting_dims::Base.Vector{Int64} = if single_colon
-        Int64[ndims(A_sample)]
+        # Return the last dimension that isn't length-1
+        # NOTE: We assume here that samples are taken on the first dimension.
+        # The main reason for not just returning `ndims(A_sample)` is that if we
+        # have an array of images that are passed into `mapslices(v->[v])` then we
+        # don't want to column-partition that when there is a single column.
+        A_sample_ndims = ndims(A_sample)
+        last_non_one_dim = A_sample_ndims
+        if !Banyan.INVESTIGATING_DIFFERENT_PARTITIONING_DIMS
+            # Iterate from the dimension before the last (the one we have chosen right now)
+            for i in (A_sample_ndims-1):-1:1
+                # Check if the currently selected dimension is 1, if so, change
+                # it to this one
+                if size(A_sample, i+1) == 1
+                    last_non_one_dim = i
+                end
+            end
+        end
+        @show Banyan.INVESTIGATING_DIFFERENT_PARTITIONING_DIMS
+        @show last_non_one_dim
+        Int64[last_non_one_dim]
     elseif length(indices_sample) == ndims(A_sample)
         Int64[i for i in 1:ndims(A_sample) if indices_sample[i] isa Colon]
     else
@@ -474,6 +492,8 @@ function pts_for_getindex(futures::Base.Vector{Future})
 
     # Blocked PTs along dimensions _not_ being mapped along
     bpt = PartitionType[bpt for bpt in Blocked(A) if (bpt.parameters["key"])::Int64 in allowed_splitting_dims]
+    @show bpt
+    @show single_colon
 
     if !isempty(bpt)
         # balanced

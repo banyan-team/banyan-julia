@@ -6,7 +6,7 @@
 # - Test shuffled, similar files, default, invalidated location but reused sample or reused location
 # - Verify no error, length of returned sample, location files and their nrows,
 # (eventually) ensure that rows come from the right files
-@testset "$exact_or_inexact sample collected from $file_extension $(single_file ? "file" : "directory") on $on $with_or_without_s3fs S3FS $with_or_without_shuffled shuffled reusing $reusing" for exact_or_inexact in
+@testset "$exact_or_inexact sample collected from $file_extension $(single_file ? "file" : "directory") on $on S3FS $with_or_without_shuffled shuffled reusing $reusing" for exact_or_inexact in
                                                                                                                                                                                                 [
         "Exact",
         "Inexact",
@@ -19,11 +19,11 @@
     reusing in ["nothing", "sample", "location", "sample and location"]
 
     # Use session with appropriate sample collection configuration
-    max_exact_sample_length = exact_or_inexact == "Exact" ? 1_024_000 : 0,
+    max_exact_sample_length = exact_or_inexact == "Exact" ? 1_024_000 : 0
     use_session_for_testing(sample_rate = 2) do
 
         # Use data to collect a sample from
-        src_name = use_data(file_extension, on, single_file)
+        src_name = use_data(on)
 
         # Construct location
         if reusing != "nothing"

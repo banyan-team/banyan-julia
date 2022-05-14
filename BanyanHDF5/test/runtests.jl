@@ -127,7 +127,11 @@ function use_data(data_src = "S3")
         # TODO: Maybe fsync here so that the directory gets properly updated
     end
 
-    data_for_testing = true
+    if data_src == "S3"
+        "s3://$(get_cluster_s3_bucket_name())/fillval.h5/DS1"
+    else
+        "https://support.hdfgroup.org/ftp/HDF5/examples/files/exbyapi/h5ex_d_fillval.h5/DS1"
+    end
 end
 
 include("hdf5.jl")
