@@ -260,8 +260,8 @@ function _remote_hdf5_source(path_and_subpath, shuffled, metadata_invalid, sampl
         if is_main
             # If the sample is a PooledArray or CategoricalArray, convert it to a
             # simple array so we can correctly compute its memory usage.
-            if !(dset_sample isa Base.Array)
-                dset_sample = Base.convert(Base.Array, dset_sample)
+            if !(dset_sample_value isa Base.Array)
+                dset_sample_value = Base.convert(Base.Array, dset_sample)
             end
             if exact_sample_needed
                 ExactSample(dset_sample_value, nbytes)
