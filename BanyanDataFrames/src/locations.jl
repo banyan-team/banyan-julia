@@ -206,7 +206,7 @@ function _remote_table_source(remotepath, shuffled, metadata_invalid, sample_inv
                     path_sample, path_nrows = get_sample_and_metadata(
                         format_value,
                         local_path_on_curr_worker,
-                        exact_sample_needed ? 1.0 : session_sample_rate
+                        exact_sample_needed_res ? 1.0 : session_sample_rate
                     )
                     meta_nrows_on_worker[i] = path_nrows
                     push!(local_samples, path_sample)
