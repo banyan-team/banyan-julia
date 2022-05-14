@@ -19,16 +19,15 @@
     reusing in ["nothing", "sample", "location", "sample and location"]
 
     # Use session with appropriate sample collection configuration
-    use_session_for_testing(
-        sample_rate = 2,
-        max_exact_sample_length = exact_or_inexact == "Exact" ? 1_024_000 : 0,
-    ) do
+    max_exact_sample_length = exact_or_inexact == "Exact" ? 1_024_000 : 0,
+    use_session_for_testing(sample_rate = 2) do
 
         # Use data to collect a sample from
         src_name = use_data(file_extension, on, single_file)
 
         # Construct location
         if reusing != "nothing"
+            RemoteHDF5Source(src_name, invalidate_metadata = true, invalidate_sample = true)
             RemoteHDF5Source(src_name, metadata_invalid = true, sample_invalid = true)
         end
         remote_source = RemoteHDF5Source(
@@ -36,6 +35,7 @@
             metadata_invalid = (reusing == "nothing" || reusing == "sample"),
             sample_invalid = (reusing == "nothing" || reusing == "location"),
             shuffled = with_or_without_shuffled == "with",
+            max_exact_sample_length = max_exact_sample_length
         )
 
         # Verify the location
@@ -51,10 +51,12 @@
 
         # Verify the sample
         sample_nrows = size(remote_source.sample.value, 1)
-        if exact_or_inexact == "Exact"
-            @test sample_nrows == src_nrows
-        else
-            @test sample_nrows == cld(src_nrows, 2)
+        if reusing == "nothing"
+            if exact_or_inexact == "Exact"
+                @test sample_nrows == src_nrows
+            else
+                @test sample_nrows == cld(src_nrows, 2)
+            end
         end
     end
 end

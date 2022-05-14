@@ -65,10 +65,12 @@
 
         # Verify the sample
         sample_nrows = nrow(remote_source.sample.value)
-        if exact_or_inexact == "Exact"
-            @test sample_nrows == src_nrows
-        else
-            @test sample_nrows == cld(src_nrows, 2)
+        if reusing == "nothing"
+            if exact_or_inexact == "Exact"
+                @test sample_nrows == src_nrows
+            else
+                @test sample_nrows == cld(src_nrows, 2)
+            end
         end
     end
 end

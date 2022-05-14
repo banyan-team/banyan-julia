@@ -189,11 +189,12 @@ end
 #     )
 # end
 
-function _remote_hdf5_source(path_and_subpath, shuffled, metadata_invalid, sample_invalid, invalidate_metadata, invalidate_sample)
+function _remote_hdf5_source(path_and_subpath, shuffled, metadata_invalid, sample_invalid, invalidate_metadata, invalidate_sample, max_exact_sample_length)
     # Get session information
     session_sample_rate = get_session().sample_rate
     worker_idx, nworkers = get_worker_idx(), get_nworkers()
     is_main = worker_idx == 1
+    max_exact_sample_length = max_exact_sample_length >= 0 ? max_exact_sample_length : get_max_exact_sample_length()
 
     # Get current location
     curr_location, curr_sample_invalid, curr_parameters_invalid = get_cached_location(path_and_subpath, metadata_invalid, sample_invalid)
@@ -235,7 +236,7 @@ function _remote_hdf5_source(path_and_subpath, shuffled, metadata_invalid, sampl
         # aggregate and concatenate it on the main worker
         rand_indices_range = split_len(datalength, worker_idx, nworkers)
         rand_indices = sample_from_range(rand_indices_range, session_sample_rate)
-        exact_sample_needed = datalength < Banyan.get_max_exact_sample_length()
+        exact_sample_needed = datalength < max_exact_sample_length
         remaining_colons = fill(Colon(), datandims-1)
         dset_sample_value = if exact_sample_needed
             samples_on_workers = gather_across(
@@ -300,7 +301,7 @@ function _remote_hdf5_source(path_and_subpath, shuffled, metadata_invalid, sampl
     end
 end
 
-function RemoteHDF5Source(remotepath; shuffled=false, metadata_invalid = false, sample_invalid = false, invalidate_metadata = false, invalidate_sample = false)::Location
+function RemoteHDF5Source(remotepath; shuffled=false, metadata_invalid = false, sample_invalid = false, invalidate_metadata = false, invalidate_sample = false, max_exact_sample_length = -1)::Location
     offloaded(
         _remote_hdf5_source,
         remotepath,
@@ -308,7 +309,8 @@ function RemoteHDF5Source(remotepath; shuffled=false, metadata_invalid = false, 
         metadata_invalid,
         sample_invalid,
         invalidate_metadata,
-        invalidate_sample;
+        invalidate_sample,
+        max_exact_sample_length;
         distributed=true
     )
 end
