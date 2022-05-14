@@ -1,8 +1,9 @@
 get_file_ending(remotepath::String)::String = splitext(remotepath)[2][2:end]
 
-function _remote_table_source(remotepath, shuffled, metadata_invalid, sample_invalid, invalidate_metadata, invalidate_sample)::Location
+function _remote_table_source(remotepath, shuffled, metadata_invalid, sample_invalid, invalidate_metadata, invalidate_sample, max_exact_sample_length)::Location
     session_sample_rate = get_session().sample_rate
     is_main = is_main_worker()
+    max_exact_sample_length = max_exact_sample_length >= 0 ? max_exact_sample_length : get_max_exact_sample_length()
     
     # Get cached Location and if it has valid parameters and sample, return
     @time begin
@@ -109,7 +110,8 @@ function _remote_table_source(remotepath, shuffled, metadata_invalid, sample_inv
     else
         curr_location.src_parameters["nrows"]
     end
-    exact_sample_needed = total_nrows_res < Banyan.get_max_exact_sample_length()
+    exact_sample_needed = total_nrows_res < max_exact_sample_length
+    println("In sample collection wiht total_nrows_res=$total_nrows_res, exact_sample_needed=$total_nrows_res, max_exact_sample_length=$max_exact_sample_length")
 
     # inv: (a) `meta_nrows_on_worker`, (b) `total_nrows_res`, and
     # (c) `exact_sample_needed` are only valid if either the format has
@@ -215,7 +217,7 @@ function _remote_table_source(remotepath, shuffled, metadata_invalid, sample_inv
                 end
                 total_nrows_res = reduce_and_sync_across(+, local_nrows)
                 # If the sample is too small, redo it, getting an exact sample
-                if !exact_sample_needed_res && total_nrows_res < Banyan.get_max_exact_sample_length()
+                if !exact_sample_needed_res && total_nrows_res < max_exact_sample_length
                     exact_sample_needed = true
                     exact_sample_needed_res = true
                 else
@@ -401,7 +403,7 @@ function _remote_table_source(remotepath, shuffled, metadata_invalid, sample_inv
     end
 end
 
-function RemoteTableSource(remotepath; shuffled=true, metadata_invalid = false, sample_invalid = false, invalidate_metadata = false, invalidate_sample = false)::Location
+function RemoteTableSource(remotepath; shuffled=true, metadata_invalid = false, sample_invalid = false, invalidate_metadata = false, invalidate_sample = false, max_exact_sample_length = -1)::Location
     offloaded(
         _remote_table_source,
         remotepath,
@@ -409,7 +411,8 @@ function RemoteTableSource(remotepath; shuffled=true, metadata_invalid = false, 
         metadata_invalid,
         sample_invalid,
         invalidate_metadata,
-        invalidate_sample;
+        invalidate_sample,
+        max_exact_sample_length;
         distributed=true
     )
 end

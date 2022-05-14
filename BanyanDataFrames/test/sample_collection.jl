@@ -18,18 +18,16 @@
         ("csv", true, "Internet", 150),
         ("parquet", true, "Internet", 150),
         ("arrow", true, "Internet", 150),
-        ("csv", false, "S3", 150 * 10),
-        ("parquet", false, "S3", 150 * 10),
-        ("arrow", false, "S3", 150 * 10),
+        ("csv", false, "S3", 150 * 20),
+        ("parquet", false, "S3", 150 * 20),
+        ("arrow", false, "S3", 150 * 20),
     ],
     with_or_without_shuffled in ["with", "without"],
     reusing in ["nothing", "sample", "location", "sample and location"]
 
     # Use session with appropriate sample collection configuration
-    use_session_for_testing(
-        sample_rate = 2,
-        max_exact_sample_length = exact_or_inexact == "Exact" ? 1_024_000 : 0,
-    ) do
+    max_exact_sample_length = exact_or_inexact == "Exact" ? 1_024_000 : 0
+    use_session_for_testing(sample_rate = 2) do
 
         # Use data to collect a sample from
         src_name = use_data(file_extension, on, single_file)
@@ -44,6 +42,7 @@
             metadata_invalid = (reusing == "nothing" || reusing == "sample"),
             sample_invalid = (reusing == "nothing" || reusing == "location"),
             shuffled = with_or_without_shuffled == "with",
+            max_exact_sample_length = max_exact_sample_length
         )
 
         # Verify the location
