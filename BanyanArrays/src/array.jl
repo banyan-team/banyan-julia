@@ -460,7 +460,8 @@ function pts_for_getindex(futures::Base.Vector{Future})
 
     A_sample = sample(A)
     indices_sample = sample(indices)
-    allowed_splitting_dims::Base.Vector{Int64} = if length(indices_sample) == 1 && indices_sample[1] isa Colon
+    single_colon = length(indices_sample) == 1 && indices_sample[1] isa Colon
+    allowed_splitting_dims::Base.Vector{Int64} = if single_colon
         Int64[ndims(A_sample)]
     elseif length(indices_sample) == ndims(A_sample)
         Int64[i for i in 1:ndims(A_sample) if indices_sample[i] isa Colon]
@@ -474,7 +475,11 @@ function pts_for_getindex(futures::Base.Vector{Future})
     if !isempty(bpt)
         # balanced
         pt(A, bpt & Balanced())
-        pt(res, BlockedAlong() & Balanced(), match=A, on="key")
+        if single_colon
+            pt(res, BlockedAlong(1) & Balanced())
+        else
+            pt(res, BlockedAlong() & Balanced(), match=A, on="key")
+        end
 
         # unbalanced
         pt(A, bpt & Unbalanced(res))
@@ -484,7 +489,7 @@ function pts_for_getindex(futures::Base.Vector{Future})
         # pt(A_size, Replicating())
         # pt(res_size, PartitionType(), match=A_size)
         # TODO: See if `quote` is no longer needed
-        pt(res_size, ReducingWithKey(add_sizes_on_axis), match=A, on="key")
+        pt(res_size, ReducingWithKey(add_sizes_on_axis), match=res, on="key")
     end
 
     pt(A, res, res_size, indices, Replicated())
@@ -501,6 +506,7 @@ function _getindex(A::Future, indices::Future, res_size::Future, res::Future)
         if res isa AbstractArray
             res_size = size(res)
         end
+        println("In getindex @partitioned with indices=$indices and res_size=$res_size")
     end
 
     res_sample = sample(res)
