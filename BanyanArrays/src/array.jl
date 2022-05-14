@@ -375,7 +375,7 @@ function pts_for_mapslices(futures::Base.Vector{Future})
 
     dims_sample = sample(dims)
     dims_sample_isa_colon = dims_sample isa Colon
-    dims_sample_res = dims isa Colon ? Int64[] : Base.collect(tuple(dims_sample))
+    dims_sample_res = dims_sample_isa_colon ? Int64[] : Base.collect(tuple(dims_sample))
 
     # Blocked PTs along dimensions _not_ being mapped along
     bpt = [bpt for bpt in Blocked(A) if !(dims_sample_isa_colon) && !(bpt.parameters["key"] in dims_sample_res)]
@@ -420,7 +420,7 @@ function Base.mapslices(f, A::Array{T,N}; dims) where {T,N}
     res = Future(datatype="Array")
     dims = Future(dims)
 
-    _mapslices(f, A.data, res_size, res, dims_sample_isa_colon, dims_sample, dims)
+    _mapslices(f, A.data, res_size, res, dims)
 end
 
 # function getindex_size(A_s, indices...)
@@ -522,7 +522,7 @@ function Base.getindex(A::Array{T,N}, indices...) where {T,N}
     res_size = Future()
     res = Future(datatype="Array")
 
-    _getindex(A.data, allowed_splitting_dims, indices, res_size, res)
+    _getindex(A.data, indices, res_size, res)
 end
 
 # TODO: Implement reduce and sortslices
