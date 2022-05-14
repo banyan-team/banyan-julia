@@ -298,7 +298,7 @@ function MergeHelper(
         delete!(splitting_divisions, part)
 
         # Concatenate across batches
-        to_merge = disallowempty(filter(piece -> !(piece isa Empty), src.pieces))
+        to_merge = disallowempty(filter(not_is_empty, src.pieces))
         println("In Merge with size.(to_merge)=$(size.(to_merge)) and key=$key and eltype.(to_merge)=$(eltype.(to_merge)) with part=$part")
         src = isempty(to_merge) ? EMPTY : merge_on_executor(to_merge, key)
         # src = merge_on_executor(src.pieces; key = key)
@@ -692,7 +692,16 @@ function Reduce(
         reduce_and_sync_across(op, part, comm=comm)
     else
         gathered = gather_across(part, comm)
-        sync_across((is_main_worker(comm) ? Base.reduce(op, gathered) : nothing); comm=comm)
+        sync_across(
+            if is_main_worker(comm)
+                let gathered_nonempty = disallowempty(filter(not_is_empty, gathered))
+                    isempty(gathered_nonempty) ? EMPTY : Base.reduce(op, gathered_nonempty)
+                end
+            else
+                nothing
+            end;
+            comm=comm
+        )
     end
 
     if Banyan.INVESTIGATING_LOSING_DATA

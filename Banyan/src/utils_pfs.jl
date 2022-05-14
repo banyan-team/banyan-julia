@@ -564,3 +564,5 @@ function getpath(path::String)::String
         "efs/"*path
     end
 end
+
+not_is_empty(piece) = !(piece isa Empty)

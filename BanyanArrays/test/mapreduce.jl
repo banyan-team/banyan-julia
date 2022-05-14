@@ -264,14 +264,14 @@ end
 ]
     use_session_for_testing(scheduling_config_name = scheduling_config) do
 
-        x = BanyanArrays.fill(1.0, (1000, 100))
-        x_vecs = mapslices(v -> [v], x, dims=2)[:, 1]
-        bc = BanyanArrays.collect(1:1000)
-        res = map(x_vecs, BanyanArrays.collect(1:1000)) do x_vec, i
-            length(x_vec) + i
-        end
-        res_sum_compute = compute(sum(res))
-        @test res_sum_compute == sum((1.0 * 100 + i for i in 1:1000))
+        # x = BanyanArrays.fill(1.0, (1000, 100))
+        # x_vecs = mapslices(v -> [v], x, dims=2)[:, 1]
+        # bc = BanyanArrays.collect(1:1000)
+        # res = map(x_vecs, BanyanArrays.collect(1:1000)) do x_vec, i
+        #     length(x_vec) + i
+        # end
+        # res_sum_compute = compute(sum(res))
+        # @test res_sum_compute == sum((1.0 * 100 + i for i in 1:1000))
 
         x = BanyanArrays.fill(1.0, (1000, 100))
         x_vecs = mapslices(v -> [v], x, dims=2)[:]
@@ -282,37 +282,37 @@ end
         res_sum_compute = compute(sum(res))
         @test res_sum_compute == sum((1.0 * 100 + i for i in 1:1000))
 
-        x = BanyanArrays.fill(1.0, (1000, 100))
-        x_vecs = mapslices(v -> [v], x, dims=2)[:]
-        bc = BanyanArrays.collect(1:length(x_vecs))
-        res = map(x_vecs, BanyanArrays.collect(1:1000)) do x_vec, i
-            length(x_vec) + i
-        end
-        compute_inplace(res)
-        res_sum_compute = compute(sum(res))
-        @test res_sum_compute == sum((1.0 * 100 + i for i in 1:1000))
+        # x = BanyanArrays.fill(1.0, (1000, 100))
+        # x_vecs = mapslices(v -> [v], x, dims=2)[:]
+        # bc = BanyanArrays.collect(1:length(x_vecs))
+        # res = map(x_vecs, BanyanArrays.collect(1:1000)) do x_vec, i
+        #     length(x_vec) + i
+        # end
+        # compute_inplace(res)
+        # res_sum_compute = compute(sum(res))
+        # @test res_sum_compute == sum((1.0 * 100 + i for i in 1:1000))
 
-        x = BanyanArrays.fill(1.0, (10, 100))
-        x_vecs = mapslices(v -> [v], x, dims=2)[:]
-        bc = BanyanArrays.collect(1:length(x_vecs))
-        offloaded() do 
-            bucket = readdir("s3")[1]
-            mkpath("s3/$bucket/test_getindex_and_collect/")
-        end
-        res = map(x_vecs, BanyanArrays.collect(1:1000)) do x_vec, i
-            if isdir("s3")
-                bucket = readdir("s3")[1]
-                write("s3/$bucket/test_getindex_and_collect/part$i.txt", string(x_vec))
-            end
-            0
-        end
-        compute_inplace(res)
-        part1_str = read(S3Path("s3://$(get_cluster_s3_bucket_name())/test_getindex_and_collect/part1.txt", config=Banyan.get_aws_config()), String)
-        offloaded() do 
-            bucket = readdir("s3")[1]
-            rm("s3/$bucket/test_getindex_and_collect/", recursive=true)
-        end
-        @test part1_str == string(Base.fill(1.0, 100))
+        # x = BanyanArrays.fill(1.0, (10, 100))
+        # x_vecs = mapslices(v -> [v], x, dims=2)[:]
+        # bc = BanyanArrays.collect(1:length(x_vecs))
+        # offloaded() do 
+        #     bucket = readdir("s3")[1]
+        #     mkpath("s3/$bucket/test_getindex_and_collect/")
+        # end
+        # res = map(x_vecs, BanyanArrays.collect(1:1000)) do x_vec, i
+        #     if isdir("s3")
+        #         bucket = readdir("s3")[1]
+        #         write("s3/$bucket/test_getindex_and_collect/part$i.txt", string(x_vec))
+        #     end
+        #     0
+        # end
+        # compute_inplace(res)
+        # part1_str = read(S3Path("s3://$(get_cluster_s3_bucket_name())/test_getindex_and_collect/part1.txt", config=Banyan.get_aws_config()), String)
+        # offloaded() do 
+        #     bucket = readdir("s3")[1]
+        #     rm("s3/$bucket/test_getindex_and_collect/", recursive=true)
+        # end
+        # @test part1_str == string(Base.fill(1.0, 100))
     end
 end
 
