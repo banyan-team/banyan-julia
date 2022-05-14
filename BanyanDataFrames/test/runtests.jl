@@ -101,11 +101,14 @@ function use_data(file_extension, remote_kind, single_file)
                 cp(Path(testing_dataset_local_path), testing_dataset_s3_path)
                 println("Copying testing_dataset_local_path=$testing_dataset_local_path to testing_dataset_s3_path=$testing_dataset_s3_path for file_extension=$file_extension")
             else
-                for i = 0:9
-                    cp(
-                        Path(testing_dataset_local_path),
-                        joinpath(testing_dataset_s3_path, "part_$i.$file_extension"),
-                    )
+                for i = 0:19
+                    dst = joinpath(testing_dataset_s3_path, "part_$i.$file_extension")
+                    if !isfile(dst)
+                        cp(
+                            Path(testing_dataset_local_path),
+                            dst,
+                        )
+                    end
                 end
             end
         end

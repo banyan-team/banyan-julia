@@ -150,7 +150,7 @@ function _remote_table_source(remotepath, shuffled, metadata_invalid, sample_inv
                         break
                     end
                 end
-                shuffling_perm, nfiles_on_worker_res, nrows_on_worker_so_far - nrows_on_worker_target
+                perm_for_shuffling, nfiles_on_worker_res, nrows_on_worker_so_far - nrows_on_worker_target
             else
                 Colon(), length(local_paths_on_curr_worker), 0
             end
