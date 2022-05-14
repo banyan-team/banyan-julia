@@ -16,14 +16,12 @@
         ("h5", true, "Internet", 10),
     ],
     with_or_without_shuffled in ["with", "without"],
-    reusing in ["nothing", "sample", "location", "sample and location"],
-    with_or_without_s3fs in ["with", "without"]
+    reusing in ["nothing", "sample", "location", "sample and location"]
 
     # Use session with appropriate sample collection configuration
     use_session_for_testing(
         sample_rate = 2,
         max_exact_sample_length = exact_or_inexact == "Exact" ? 1_024_000 : 0,
-        with_s3fs = with_or_without_s3fs == "with",
     ) do
 
         # Use data to collect a sample from
@@ -31,7 +29,7 @@
 
         # Construct location
         if reusing != "nothing"
-            Remote(src_name, metadata_invalid = true, sample_invalid = true)
+            RemoteHDF5Source(src_name, metadata_invalid = true, sample_invalid = true)
         end
         remote_source = RemoteHDF5Source(
             src_name,
@@ -42,31 +40,17 @@
 
         # Verify the location
         if contains(src_name, "h5")
-            @test remote_source.ndims == 2
-            @test !contains(remote_source.path, "DS1")
-            @test remote_source.subpath == "DS1"
-            @test remote_source.size[1] == src_nrows
-        else
-            @test remote_source.nbytes > 0
-            @test remote_source.nrows == src_nrows
-
-            if contains(src_name, "dir")
-                @test length(remote_source.files) == 10
-                for f in remote_source.files
-                    @test f["nrows"] == 150
-                end
-            else
-                @test length(remote_source.files) == 1
-            end
+            @test remote_source.src_parameters["ndims"] == 2
+            @test !contains(remote_source.src_parameters["path"], "DS1")
+            @test remote_source.src_parameters["subpath"] == "DS1"
+            @test remote_source.src_parameters["size"][1] == src_nrows
         end
 
         # TODO: Add these tests
         # TODO: Fix sample collection in the optimizations/reuse and nbytes
 
         # Verify the sample
-        sample_nrows =
-            contains(src_name, "h5") ? size(remote_source.sample.value, 1) :
-            nrow(remote_source.sample.value)
+        sample_nrows = size(remote_source.sample.value, 1)
         if exact_or_inexact == "Exact"
             @test sample_nrows == src_nrows
         else

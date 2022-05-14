@@ -530,7 +530,7 @@ function getpath(path::String)::String
         # TODO: Add option for Internet locations as to whether or not to
         # cache on disk
         hashed_path = get_remotepath_id(path)
-        joined_path = "efs/job_" * Banyan.get_session().resource_id * "_dataset_" * hashed_path * "_" * string(MPI.Comm_rank(MPI.COMM_WORLD))
+        joined_path = "efs/job_$(Banyan.get_session().resource_id)_dataset_$hashed_path\_$(MPI.Comm_rank(MPI.COMM_WORLD))"
         # @info "Downloading $path to $joined_path"
         # if MPI.Comm_rank(comm) == 0
         if !isfile(joined_path)

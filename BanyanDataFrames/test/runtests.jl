@@ -49,11 +49,13 @@ function use_data(file_extension, remote_kind, single_file)
             download(url, testing_dataset_local_path)
 
             # Convert file if needed
+            if file_extension == "parquet" || file_extension == "arrow"
+                df = CSV.read(testing_dataset_local_path, DataFrames.DataFrame)
+                df.species = string.(df.species)
+            end
             if file_extension == "parquet"
-                df = CSV.read(testing_dataset_local_path, DataFrame)
-                write_parquet(testing_dataset_local_path, df)
+                Parquet.write_parquet(testing_dataset_local_path, df)
             elseif file_extension == "arrow"
-                df = CSV.read(testing_dataset_local_path, DataFrame)
                 Arrow.write(testing_dataset_local_path, df)
             end
         end
@@ -84,11 +86,12 @@ function use_data(file_extension, remote_kind, single_file)
                 download(url, testing_dataset_local_path)
 
                 # Convert file if needed
+                df = CSV.read(testing_dataset_local_path, DataFrames.DataFrame)
+                df.species = string.(df.species)
                 if file_extension == "parquet"
-                    df = CSV.read(testing_dataset_local_path, DataFrame)
-                    write_parquet(testing_dataset_local_path, df)
+                    Parquet.write_parquet(testing_dataset_local_path, df)
+                    # cp(testing_dataset_local_path, "$(homedir())/iris_in_a_file.parquet", force=true)
                 elseif file_extension == "arrow"
-                    df = CSV.read(testing_dataset_local_path, DataFrame)
                     Arrow.write(testing_dataset_local_path, df)
                 end
             end
@@ -96,6 +99,7 @@ function use_data(file_extension, remote_kind, single_file)
             # Upload to S3
             if single_file
                 cp(Path(testing_dataset_local_path), testing_dataset_s3_path)
+                println("Copying testing_dataset_local_path=$testing_dataset_local_path to testing_dataset_s3_path=$testing_dataset_s3_path for file_extension=$file_extension")
             else
                 for i = 0:9
                     cp(
@@ -136,6 +140,7 @@ function use_empty_data()
 end
 
 include("sample_computation.jl")
+include("sample_collection.jl")
 include("latency.jl")
 include("groupby_filter_indexing.jl")
 
