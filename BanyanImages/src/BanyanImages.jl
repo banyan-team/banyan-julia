@@ -2,7 +2,7 @@ module BanyanImages
 
 using Banyan, BanyanArrays
 
-using Arrow, FileIO, ImageCore, ImageIO, MPI, ProgressMeter, Random
+using Arrow, FileIO, ImageCore, ImageIO, MPI, ProgressMeter, Random, Tables
 
 export read_png, # write_png,
     read_jpg #, write_jpg
