@@ -356,8 +356,7 @@ function _remote_image_source(
         ndims_res = ndims(remote_sample_value)
         dataeltype_res = eltype(remote_sample_value)
         nbytes_res = cld(length(remote_sample_value) * sizeof(dataeltype_res) * nimages, total_num_images_to_read_in)
-        datasize_res = size(remote_sample_value)
-        datasize_res[1] = nimages
+        datasize_res = indexapply(nimages, size(remote_sample_value), 1)
         remote_sample = if curr_sample_invalid
             exact_sample_needed ? ExactSample(remote_sample_value, nbytes_res) : Sample(remote_sample_value, nbytes_res)
         else
