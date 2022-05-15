@@ -194,7 +194,6 @@ function _remote_hdf5_source(path_and_subpath, shuffled, metadata_invalid, sampl
     session_sample_rate = get_session().sample_rate
     worker_idx, nworkers = get_worker_idx(), get_nworkers()
     is_main = worker_idx == 1
-    max_exact_sample_length = max_exact_sample_length >= 0 ? max_exact_sample_length : get_max_exact_sample_length()
 
     # Get current location
     curr_location, curr_sample_invalid, curr_parameters_invalid = get_cached_location(path_and_subpath, metadata_invalid, sample_invalid)
@@ -310,7 +309,7 @@ function _remote_hdf5_source(path_and_subpath, shuffled, metadata_invalid, sampl
     end
 end
 
-function RemoteHDF5Source(remotepath; shuffled=false, metadata_invalid = false, sample_invalid = false, invalidate_metadata = false, invalidate_sample = false, max_exact_sample_length = -1)::Location
+function RemoteHDF5Source(remotepath; shuffled=false, metadata_invalid = false, sample_invalid = false, invalidate_metadata = false, invalidate_sample = false, max_exact_sample_length = Banyan.get_max_exact_sample_length())::Location
     offloaded(
         _remote_hdf5_source,
         remotepath,

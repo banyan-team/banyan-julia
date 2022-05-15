@@ -6,6 +6,7 @@
 src in ["Internet", "S3"]
     use_session_for_testing(scheduling_config_name = scheduling_config) do
         use_data()
+        set_max_exact_sample_length(128)
 
         for _ in 1:2
             x = if src == "S3"
@@ -24,6 +25,8 @@ src in ["Internet", "S3"]
             x_sum_collect = compute(sum(x))
             @test x_sum_collect == 32100000
         end
+
+        set_max_exact_sample_length(2048)
     end
 end
 
@@ -37,6 +40,7 @@ end
 
     use_session_for_testing(scheduling_config_name = scheduling_config) do
         use_data(src)
+        set_max_exact_sample_length(128)
 
         # Determine where to read from
 
@@ -161,5 +165,7 @@ end
         #         end
         #     end
         # end
+
+        set_max_exact_sample_length(2048)
     end
 end
