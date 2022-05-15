@@ -310,6 +310,13 @@ function _remote_image_source(
     sync_across()
 
     # Load in the metadata and get the # of images
+    meta_path = if !curr_parameters_invalid
+        curr_location.src_parameters["meta_path"]::String
+    else
+        # Now it is safe to call this on all workers because the meta directory
+        # has definitely been created now
+        get_meta_path((remotepath, add_channelview))
+    end
     meta_table = Arrow.Table(meta_path)
     nimages = Tables.rowcount(meta_table)
     
@@ -317,7 +324,7 @@ function _remote_image_source(
     # regardless of whether we want to get the sample or the metadata
     exact_sample_needed = nimages < 50
     need_to_parallelize = nimages >= 50
-    println("On worker_idx=$worker_idx with nimages=$exact_sample_needed, exact_sample_needed=$exact_sample_needed, need_to_parallelize=$need_to_parallelize")
+    println("On worker_idx=$worker_idx with nimages=$nimages, exact_sample_needed=$exact_sample_needed, need_to_parallelize=$need_to_parallelize")
     total_num_images_to_read_in = if curr_sample_invalid
         exact_sample_needed ? nimages : cld(nimages, session_sample_rate)
     else
@@ -332,7 +339,9 @@ function _remote_image_source(
         paths_on_worker = meta_table.path[images_range_on_worker]
         images = map(add_channelview ? _load_image_and_add_channelview : _load_image, paths_on_worker)
         sample_on_worker = map(_reshape_image, images)
+        # sample_on_worker is an array of images
         need_to_parallelize ? gather_across(sample_on_worker) : [sample_on_worker]
+        # result is an array of arrays of images
     else
         []
     end
@@ -342,7 +351,7 @@ function _remote_image_source(
         # whether we need the sample or the metadata
         # though if we only need the sample we don't technically need the
         # metadata)
-        remote_sample_value = cat(samples_on_workers..., dims=1)
+        remote_sample_value = cat(vcat(samples_on_workers...)..., dims=1)
         println("In sample collection with eltype.(samples_on_workers)=$(eltype.(samples_on_workers)) and size.(samples_on_workers)=$(size.(samples_on_workers))")
         ndims_res = ndims(remote_sample_value)
         dataeltype_res = eltype(remote_sample_value)
