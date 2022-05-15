@@ -55,7 +55,11 @@
             if exact_or_inexact == "Exact"
                 @test sample_nrows == src_nrows
             else
-                @test sample_nrows == cld(src_nrows, 2)
+                @test sample_nrows == if isodd(src_nrows / 2)
+                    cld(src_nrows, 2 * 2) * 2
+                else
+                    cld(src_nrows, 2)
+                end
             end
         end
     end
