@@ -191,15 +191,29 @@ function send_message(queue_name, message)
 end
 
 function send_to_client(value_id::ValueId, value, worker_memory_used = 0)
-    send_message(
-        get_gather_queue(),
-        JSON.json(
-            Dict{String,Any}(
-                "kind" => "GATHER",
-                "value_id" => value_id,
-                "contents" => to_jl_value_contents(value)::String,
-                "worker_memory_used" => worker_memory_used
+    MAX_MESSAGE_LENGTH = 220_000
+    message = to_jl_value_contents(value)::string
+    while true
+        is_last_message = length(message) < MAX_MESSAGE_LENGTH
+        send_message(
+            get_gather_queue(),
+            JSON.json(
+                Dict{String,Any}(
+                    "kind" => (is_last_message ? "GATHER_END" ? "GATHER"),
+                    "value_id" => value_id,
+                    "contents" => if is_last_message
+                        message
+                    else
+                        msg = message[1:MAX_MESSAGE_LENGTH]
+                        message = message[MAX_MESSAGE_LENGTH+1:end]
+                        msg
+                    end,
+                    "worker_memory_used" => worker_memory_used
+                )
             )
         )
-    )
+        if is_last_message
+            break
+        end
+    end
 end

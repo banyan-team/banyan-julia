@@ -304,6 +304,7 @@ function _partitioned_computation_concrete(fut::Future, destination::Location, n
     # end
     error_for_main_stuck::Union{Nothing,String} = nothing
     error_for_main_stuck_time::Union{Nothing,DateTime} = nothing
+    partial_gathers = Dict{ValueId,String}()
     while true
         # TODO: Use to_jl_value and from_jl_value to support Client
         println("Time to receive_next_message")
@@ -331,10 +332,18 @@ function _partitioned_computation_concrete(fut::Future, destination::Location, n
         elseif message_type == "GATHER"
             # Receive gather
             value_id = message["value_id"]::ValueId
+            if !haskey(partial_gathers, value_id)
+                partial_gathers[value_id] = message["contents"]::String
+            else
+                partial_gathers[value_id] *= message["contents"]::String
+            end
+        elseif message_type == "GATHER_END"
+            value_id = message["value_id"]::ValueId
+            message = get(partial_gathers, value_id, message["contents"]::String)
             # @debug "Received gather request for $value_id"
             if haskey(session.futures_on_client, value_id)
                 @time begin
-                value = from_jl_value_contents(message["contents"]::String)
+                value = from_jl_value_contents(message)
                 f = session.futures_on_client[value_id]::Future
                 f.value = value
                 println("Time to get result from from_jl_value_contents and load it into f.value")
@@ -733,15 +742,26 @@ function offloaded(given_function::Function, args...; distributed::Bool = false)
     gather_queue = get_gather_queue()
     stored_message = nothing
     error_for_main_stuck, error_for_main_stuck_time = nothing, nothing
+    partial_gathers = Dict{ValueId,String}()
     while true
         message, error_for_main_stuck = @time receive_next_message(gather_queue, p, error_for_main_stuck, error_for_main_stuck_time)
         message_type = message["kind"]::String
-        if (message_type == "GATHER")
+        if message_type == "GATHER"
+            # Receive gather
             value_id = message["value_id"]::ValueId
+            contents = message["contents"]::String
+            if !haskey(partial_gathers, value_id)
+                partial_gathers[value_id] = contents
+            else
+                partial_gathers[value_id] *= contents
+            end
+        elseif message_type == "GATHER_END"
+            value_id = message["value_id"]::ValueId
+            contents = get(partial_gathers, value_id, message["contents"]::String)
             if (value_id == "-1")
                 memory_used = message["worker_memory_used"]::Int64
                 get_session().worker_memory_used = get_session().worker_memory_used + memory_used
-                stored_message = from_jl_value_contents(message["contents"]::String)
+                stored_message = from_jl_value_contents(contents)
             end
             error_for_main_stuck, error_for_main_stuck_time = check_worker_stuck_error(message, error_for_main_stuck, error_for_main_stuck_time)
         elseif (message_type == "EVALUATION_END")

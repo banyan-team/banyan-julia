@@ -43,21 +43,32 @@
     end
 end
 
-@testset "Simple image analysis on JPG" begin
-    use_session_for_testing(sample_rate = 50) do
+# , metadata_invalid in [
+#     true, false
+# ], sample_invalid in [
+#     true, false
+# ]
+
+@testset "Simple image analysis on JPG with add_channelview=$add_channelview" for add_channelview in [true, false]
+    use_session_for_testing(sample_rate = 75) do
         bucket_name = get_cluster_s3_bucket_name(ENV["BANYAN_CLUSTER_NAME"])
         nimages = 75
 
         path = get_test_path("Internet", "generator", "jpg", nimages, bucket_name)
-        images = read_jpg(path, add_channelview=true, sample_invalid=true, metadata_invalid=true)
+        images = read_jpg(path, add_channelview=add_channelview, sample_invalid=true, metadata_invalid=true)
 
-        black_values_count = BanyanArrays.mapslices(
-            img -> sum(img .== 0),
-            images,
-            dims=[2, 3, 4]
-        )
-        black_values_count = compute(black_values_count)
-        @show black_values_count
+        if add_channelview
+            black_values_count = BanyanArrays.mapslices(
+                img -> sum(img .== 0),
+                images,
+                dims=[2, 3, 4]
+            )
+            black_values_count = compute(black_values_count)
+            @show black_values_count
+            @test size(images) == (nimages, 3, 100, 100)
+        else
+            @test size(images) == (nimages, 100, 100)
+        end
     end
 end
 
