@@ -12,7 +12,7 @@
         "Inexact",
     ],
     (file_extension, single_file, on, src_nrows) in [
-        ("h5", true, "S3", 10),
+        ("h5", true, "S3", 20),
         ("h5", true, "Internet", 10),
     ],
     with_or_without_shuffled in ["with", "without"],

@@ -238,10 +238,11 @@ function _remote_hdf5_source(path_and_subpath, shuffled, metadata_invalid, sampl
         rand_indices = sample_from_range(rand_indices_range, session_sample_rate)
         exact_sample_needed = datalength < max_exact_sample_length
         remaining_colons = Base.fill(Colon(), datandims-1)
-        dset_sample_value = if exact_sample_needed
+        dset_sample_value = if !exact_sample_needed
             samples_on_workers = gather_across(
                 if shuffled || isempty(rand_indices)
-                    dset[1:length(rand_indices), remaining_colons...]
+                    range_for_this_worker = rand_indices_range.start:(rand_indices_range.start+length(rand_indices)-1)
+                    dset[range_for_this_worker, remaining_colons...]
                 else
                     vcat(
                         (
