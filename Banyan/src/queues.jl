@@ -192,7 +192,7 @@ end
 
 function send_to_client(value_id::ValueId, value, worker_memory_used = 0)
     MAX_MESSAGE_LENGTH = 220_000
-    message = to_jl_value_contents(value)::string
+    message = to_jl_value_contents(value)::String
     while true
         is_last_message = length(message) < MAX_MESSAGE_LENGTH
         send_message(
