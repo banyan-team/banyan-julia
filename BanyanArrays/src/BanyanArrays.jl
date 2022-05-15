@@ -21,6 +21,8 @@ export ReadBlockJuliaArray,
     ConsolidateArray,
     ShuffleArray
 
+export add_sizes_on_axis
+
 include("array.jl")
 include("utils_pfs.jl")
 include("pfs.jl")

@@ -45,9 +45,9 @@ function use_session_for_testing(
         else
             start_session(
                 cluster_name = ENV["BANYAN_CLUSTER_NAME"],
-                nworkers = 2,
+                nworkers = parse(Int64, get(ENV, "BANYAN_NWORKERS", "2")),
                 sample_rate = sample_rate,
-                print_logs = false,
+                print_logs = true,
                 url = "https://github.com/banyan-team/banyan-julia.git",
                 branch = get(ENV, "BANYAN_JULIA_BRANCH", Banyan.get_branch_name()),
                 directory = "banyan-julia/BanyanImages/test",
@@ -56,6 +56,7 @@ function use_session_for_testing(
                     "banyan-julia/BanyanArrays",
                     "banyan-julia/BanyanImages"
                 ],
+                force_update_files=get(ENV, "BANYAN_REUSE_RESOURCES", "0") == "1" ? false : true,
                 # BANYAN_REUSE_RESOURCES should be 1 when the compute resources
                 # for sessions being run can be reused; i.e., there is no
                 # forced pulling, cloning, or installation going on. When it is
@@ -66,11 +67,12 @@ function use_session_for_testing(
                 # TODO: Make it so that sessions that can't reuse existing sessions
                 # will instead destroy sessions so that when it creates a new session
                 # it can reuse the existing underlying resources.
-                release_resources_after = get(ENV, "BANYAN_REUSE_RESOURCES", "0") == "1" ? 20 : 0,
-                force_pull = get(ENV, "BANYAN_FORCE_SYNC", "0") == "0",
+                release_resources_after = get(ENV, "BANYAN_REUSE_RESOURCES", "0") == "1" ? 5 : 0,
+                force_pull = get(ENV, "BANYAN_FORCE_PULL", "0") == "1",
                 force_sync = get(ENV, "BANYAN_FORCE_SYNC", "0") == "1",
                 force_install = get(ENV, "BANYAN_FORCE_INSTALL", "0") == "1",
-                store_logs_on_cluster=get(ENV, "BANYAN_STORE_LOGS_ON_CLUSTER", "0") == "1"
+                store_logs_on_cluster=get(ENV, "BANYAN_STORE_LOGS_ON_CLUSTER", "0") == "1",
+                log_initialization = true
             )
         end
     )

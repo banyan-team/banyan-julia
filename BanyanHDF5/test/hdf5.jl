@@ -96,21 +96,21 @@ end
 
             # Test basic case of reading from remote file
             x_length_collect = length(x)
-            @test x_length_collect == src_is_internet ? 600000 : 240
+            @test x_length_collect == (src_is_internet ? 600000 : 240)
             x_size_collect = size(x)
-            @test x_size_collect == src_is_internet ? (1000, 600) : (20, 12)
+            @test x_size_collect == (src_is_internet ? (1000, 600) : (20, 12))
             x_sum_collect = compute(sum(x)) # here?
-            @test x_sum_collect == src_is_internet ? 321000000 : 128400 # incorrect
+            @test x_sum_collect == (src_is_internet ? 321000000 : 128400) # incorrect
             x_sum_collect = compute(sum(x))
-            @test x_sum_collect == src_is_internet ? 321000000 : 128400 # incorrect
+            @test x_sum_collect == (src_is_internet ? 321000000 : 128400) # incorrect
             x_minimum_collect = compute(minimum(x))
             @test x_minimum_collect == -60
             x_maximum_collect = compute(maximum(x))
             @test x_maximum_collect == 990
             x_length_collect = length(x)
-            @test x_length_collect == src_is_internet ? 600000 : 240
+            @test x_length_collect == (src_is_internet ? 600000 : 240)
             x_size_collect = size(x)
-            @test x_size_collect == src_is_internet ? (1000, 600) : (20, 12)
+            @test x_size_collect == (src_is_internet ? (1000, 600) : (20, 12))
         end
 
 
