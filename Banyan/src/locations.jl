@@ -334,7 +334,12 @@ Disk()::Location = deepcopy(DISK)
 # overall data size. This way, two arrays that have the same actual size will
 # be guaranteed to have the same sample size.
 
-MAX_EXACT_SAMPLE_LENGTH = parse(Int64, get(ENV, "BANYAN_MAX_EXACT_SAMPLE_LENGTH", "2048")::String)
+# Things to think about when choosing max sample length
+# - You might have massive 2D (or even higher dimensional) arrays
+# - You might have lots of huge images
+# - You might have lots of workers so your sample rate is really large
+
+MAX_EXACT_SAMPLE_LENGTH = parse(Int64, get(ENV, "BANYAN_MAX_EXACT_SAMPLE_LENGTH", "1024")::String)
 get_max_exact_sample_length()::Int64 = MAX_EXACT_SAMPLE_LENGTH
 function set_max_exact_sample_length(val)
     global MAX_EXACT_SAMPLE_LENGTH

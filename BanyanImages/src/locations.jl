@@ -313,8 +313,8 @@ function _remote_image_source(
     
     # Read in images on each worker. We need to read in at least one image
     # regardless of whether we want to get the sample or the metadata
-    exact_sample_needed = nimages < Banyan.get_max_exact_sample_length()
-    need_to_parallelize = nimages >= Banyan.get_max_exact_sample_length()
+    exact_sample_needed = nimages < 50
+    need_to_parallelize = nimages >= 50
     total_num_images_to_read_in = if curr_sample_invalid
         exact_sample_needed ? nimages : cld(nimages, session_sample_rate)
     else

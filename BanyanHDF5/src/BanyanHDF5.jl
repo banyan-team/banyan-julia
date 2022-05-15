@@ -4,7 +4,8 @@ using Banyan,
     BanyanArrays,
     HDF5,
     MPI,
-    Random
+    Random,
+    Serialization
 
 # The main functions
 export read_hdf5, write_hdf5

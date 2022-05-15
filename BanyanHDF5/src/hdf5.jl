@@ -7,7 +7,9 @@ function read_hdf5(path; kwargs...)
     end
     A = Future(datatype="Array", source=A_loc)
     A_loc_size = A_loc.src_parameters["size"]
-    BanyanArrays.Array{A_loc.eltype,A_loc.ndims}(A, Future(A_loc_size))
+    A_loc_eltype = A_loc.src_parameters["eltype"]
+    A_loc_ndims = A_loc.src_parameters["ndims"]
+    BanyanArrays.Array{A_loc_eltype,A_loc_ndims}(A, Future(A_loc_size))
 end
 
 function write_hdf5(

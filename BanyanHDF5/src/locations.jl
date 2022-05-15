@@ -324,6 +324,7 @@ function RemoteHDF5Source(remotepath; shuffled=false, metadata_invalid = false, 
 end
 
 function RemoteHDF5Destination(remotepath)::Location
+    path_and_subpath = remotepath
     remotepath, datasetpath, isa_hdf5 = extract_dataset_path(remotepath)
     isa_hdf5 || error("Expected HDF5 dataset for $remotepath")
     LocationDestination(
@@ -331,6 +332,7 @@ function RemoteHDF5Destination(remotepath)::Location
         Dict{String,Any}(
             "path" => remotepath,
             "subpath" => datasetpath,
+            "path_and_subpath" => path_and_subpath,
             "nbytes" => 0,
             "format" => "hdf5"
         )
