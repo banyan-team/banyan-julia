@@ -31,8 +31,8 @@ function ReadBlockImageHelper(
     empty_sample_eltype = eltype(empty_sample)
     images = Base.Array{empty_sample_eltype}(undef, part_size)
     for (i, f) in enumerate(files_sub)
-        filepath = Banyan.getpath(f)
-        image = load(filepath)
+        # filepath = Banyan.getpath(f)
+        image = load(f)
         if add_channelview
             image = ImageCore.channelview(image)
             images[i, :, :, :] = image
