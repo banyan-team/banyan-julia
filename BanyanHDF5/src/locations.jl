@@ -247,7 +247,9 @@ function _remote_hdf5_source(path_and_subpath, shuffled, metadata_invalid, sampl
                 else
                     vcat(
                         (
-                            dset[[CartesianIndex()], rand_index, remaining_colons...]
+                            let dset_read = dset[rand_index, remaining_colons...]
+                                reshape(dset_read, (1, size(dset_read)...))
+                            end
                             for rand_index in rand_indices
                         )...
                     )
