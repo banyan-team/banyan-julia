@@ -199,7 +199,7 @@ function send_to_client(value_id::ValueId, value, worker_memory_used = 0)
             get_gather_queue(),
             JSON.json(
                 Dict{String,Any}(
-                    "kind" => (is_last_message ? "GATHER_END" ? "GATHER"),
+                    "kind" => (is_last_message ? "GATHER_END" : "GATHER"),
                     "value_id" => value_id,
                     "contents" => if is_last_message
                         message
