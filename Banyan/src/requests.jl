@@ -339,7 +339,7 @@ function _partitioned_computation_concrete(fut::Future, destination::Location, n
             end
         elseif message_type == "GATHER_END"
             value_id = message["value_id"]::ValueId
-            message = get(partial_gathers, value_id, message["contents"]::String)
+            message = get(partial_gathers, value_id, "") * message["contents"]::String
             # @debug "Received gather request for $value_id"
             if haskey(session.futures_on_client, value_id)
                 @time begin
@@ -757,7 +757,7 @@ function offloaded(given_function::Function, args...; distributed::Bool = false)
             end
         elseif message_type == "GATHER_END"
             value_id = message["value_id"]::ValueId
-            contents = get(partial_gathers, value_id, message["contents"]::String)
+            contents = get(partial_gathers, value_id, "") * message["contents"]::String
             if (value_id == "-1")
                 memory_used = message["worker_memory_used"]::Int64
                 get_session().worker_memory_used = get_session().worker_memory_used + memory_used
