@@ -14,7 +14,7 @@
 
         s = RemoteImageSource(path; metadata_invalid=metadata_invalid, sample_invalid=sample_invalid)
         @test s.src_parameters["nimages"] == 1
-        @test s.src_parameters.total_memory_usage == sizeof(ImageCore.RGB{N0f8}) * image_size  # exact sample
+        @test s.total_memory_usage == sizeof(ImageCore.RGB{N0f8}) * image_size  # exact sample
         @test s.src_parameters["nbytes"] == sizeof(ImageCore.RGB{N0f8}) * image_size
         @test s.src_parameters["ndims"] == 3
         @test s.src_parameters["size"] == (1, sqrt(image_size), sqrt(image_size))

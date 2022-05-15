@@ -322,8 +322,8 @@ function _remote_image_source(
     
     # Read in images on each worker. We need to read in at least one image
     # regardless of whether we want to get the sample or the metadata
-    exact_sample_needed = nimages < 50
-    need_to_parallelize = nimages >= 50
+    exact_sample_needed = nimages < 10
+    need_to_parallelize = nimages >= 10
     println("On worker_idx=$worker_idx with nimages=$nimages, exact_sample_needed=$exact_sample_needed, need_to_parallelize=$need_to_parallelize")
     total_num_images_to_read_in = if curr_sample_invalid
         exact_sample_needed ? nimages : cld(nimages, session_sample_rate)
@@ -384,6 +384,11 @@ function _remote_image_source(
             nbytes_res,
             remote_sample,
         )
+        @show total_memory_usage(location_res)
+        @show total_memory_usage(location_res.sample)
+        @show total_memory_usage(location_res.sample.value)
+        @show location_res.src_parameters
+        @show size(location_res.sample.value)
         cache_location(remotepath, location_res, invalidate_sample, invalidate_metadata)
         location_res
     else

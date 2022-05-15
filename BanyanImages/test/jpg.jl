@@ -44,12 +44,12 @@
 end
 
 @testset "Simple image analysis on JPG" begin
-    use_session_for_testing() do
+    use_session_for_testing(sample_rate = 50) do
         bucket_name = get_cluster_s3_bucket_name(ENV["BANYAN_CLUSTER_NAME"])
-        nimages = 20
+        nimages = 75
 
         path = get_test_path("Internet", "generator", "jpg", nimages, bucket_name)
-        images = read_jpg(path, add_channelview=true)
+        images = read_jpg(path, add_channelview=true, sample_invalid=true, metadata_invalid=true)
 
         black_values_count = BanyanArrays.mapslices(
             img -> sum(img .== 0),
