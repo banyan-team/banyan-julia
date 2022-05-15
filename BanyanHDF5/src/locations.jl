@@ -238,6 +238,7 @@ function _remote_hdf5_source(path_and_subpath, shuffled, metadata_invalid, sampl
         rand_indices = sample_from_range(rand_indices_range, session_sample_rate)
         exact_sample_needed = datalength < max_exact_sample_length
         remaining_colons = Base.fill(Colon(), datandims-1)
+        println("In HDF5 sample collection with rand_indices_range=$rand_indices_range, rand_indices=$rand_indices, worker_idx=$worker_idx, max_exact_sample_length=$max_exact_sample_length, datalength=$datalength, exact_sample_needed=$exact_sample_needed, shuffled=$shuffled")
         dset_sample_value = if !exact_sample_needed
             samples_on_workers = gather_across(
                 if shuffled || isempty(rand_indices)
