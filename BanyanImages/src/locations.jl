@@ -376,7 +376,8 @@ function _remote_image_source(
                     "size" => datasize_res,
                     "eltype" => dataeltype_res,
                     "empty_sample" => to_jl_value_contents(Base.Array{dataeltype_res}(undef, empty_part_size)),
-                    "add_channelview" => add_channelview
+                    "add_channelview" => add_channelview,
+                    "format" => "image"
                 )
             else
                 curr_location.src_parameters

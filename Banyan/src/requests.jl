@@ -339,11 +339,11 @@ function _partitioned_computation_concrete(fut::Future, destination::Location, n
             end
         elseif message_type == "GATHER_END"
             value_id = message["value_id"]::ValueId
-            message = get(partial_gathers, value_id, "") * message["contents"]::String
+            contents = get(partial_gathers, value_id, "") * message["contents"]::String
             # @debug "Received gather request for $value_id"
             if haskey(session.futures_on_client, value_id)
                 @time begin
-                value = from_jl_value_contents(message)
+                value = from_jl_value_contents(contents)
                 f = session.futures_on_client[value_id]::Future
                 f.value = value
                 println("Time to get result from from_jl_value_contents and load it into f.value")
