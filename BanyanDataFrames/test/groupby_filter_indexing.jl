@@ -782,17 +782,21 @@ end
 
 @testset "NYC Taxi Stress Test" begin
     use_session_for_testing(scheduling_config_name = "default scheduling", sample_rate=1024) do
-        setup_nyc_taxi_stress_test("5 GB")
+        p = setup_nyc_taxi_stress_test(nbytes="1 GB")
         for iter in 1:2
             @time begin
                 s3_bucket_name = get_cluster_s3_bucket_name()
+                @time begin
                 df = read_csv(
                     # "s3://$s3_bucket_name/nyc_tripdata.csv",
-                    "s3://$s3_bucket_name/nyc_tripdata_large.csv",
+                    # "s3://$s3_bucket_name/nyc_tripdata_large.csv",
+                    p,
                     # sample_invalid=true,
                     # metadata_invalid=true,
                     shuffled=true
                 )
+                println("Time in read_csv")
+                end
                 # @show sample(df)
                 println("Finished reading df")
                 @debug Banyan.format_available_memory()
@@ -804,7 +808,7 @@ end
                     df
                 )
                 println("Finished filtering to long_trips")
-                @debug Banyan.format_available_memory()
+                # @debug Banyan.format_available_memory()
                 # @show sample(long_trips)
 
                 gdf = groupby(long_trips, :PULocationID)

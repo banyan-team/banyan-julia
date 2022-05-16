@@ -189,43 +189,75 @@ function setup_empty_tests(bucket_name=get_cluster_s3_bucket_name())
     println("After all setup_empty_tests")
 end
 
-function setup_nyc_taxi_stress_test(nbytes = "10 GB", bucket_name=get_cluster_s3_bucket_name())
-    nyc_trip_data_120_mb_path = nothing
-    path_in_s3 = nothing
-    num_bytes = Banyan.parse_bytes(nbytes)
-    num_bytes_so_far = 0
-    idx = 0
-    part_names = []
-    while num_bytes_so_far < num_bytes
-        dst_path = S3Path("s3://$bucket_name/nyc_tripdata_large.csv/part$idx.csv", config = Banyan.get_aws_config())
-        if Banyan.INVESTIGATING_SETUP_NYC_TAXI_STRESS_TEST
-            println("In while loop in setup_nyc_taxi_stress_test")
-            @show dst_path
-            @show !s3_exists(Banyan.get_aws_config(), bucket_name, "nyc_tripdata_large.csv/part$idx.csv")
+# function setup_nyc_taxi_stress_test(nbytes = "10 GB", bucket_name=get_cluster_s3_bucket_name())
+#     nyc_trip_data_120_mb_path = nothing
+#     path_in_s3 = nothing
+#     num_bytes = Banyan.parse_bytes(nbytes)
+#     num_bytes_so_far = 0
+#     idx = 0
+#     part_names = []
+#     while num_bytes_so_far < num_bytes
+#         dst_path = S3Path("s3://$bucket_name/nyc_tripdata_large.csv/part$idx.csv", config = Banyan.get_aws_config())
+#         if Banyan.INVESTIGATING_SETUP_NYC_TAXI_STRESS_TEST
+#             println("In while loop in setup_nyc_taxi_stress_test")
+#             @show dst_path
+#             @show !s3_exists(Banyan.get_aws_config(), bucket_name, "nyc_tripdata_large.csv/part$idx.csv")
+#         end
+#         if !s3_exists(Banyan.get_aws_config(), bucket_name, "nyc_tripdata_large.csv/part$idx.csv")
+#             if isnothing(nyc_trip_data_120_mb_path)
+#                 nyc_trip_data_120_mb_path = Path(download("https://s3.amazonaws.com/nyc-tlc/trip+data/yellow_tripdata_2021-01.csv"))
+#             end
+#             cp(isnothing(path_in_s3) ? nyc_trip_data_120_mb_path : path_in_s3, dst_path)
+#             path_in_s3 = dst_path
+#         end
+#         num_bytes_so_far += Banyan.parse_bytes("120 MB")
+#         idx += 1
+#         push!(part_names, "part$idx.csv")
+#     end
+#     if Banyan.INVESTIGATING_SETUP_NYC_TAXI_STRESS_TEST
+#         println("Outside while loop in setup_nyc_taxi_stress_test")
+#         @show part_names
+#     end
+#     for p in s3_list_keys(Banyan.get_aws_config(), bucket_name, "nyc_tripdata_large.csv/")
+#         p_str = string(p)
+#         if !any((endswith(p_str, part_name) for part_name in part_names))
+#             if Banyan.INVESTIGATING_SETUP_NYC_TAXI_STRESS_TEST
+#                 println("In final for loop in setup_nyc_taxi_stress_test with p=$p")
+#             end
+#             s3_delete(Banyan.get_aws_config(), bucket_name, p)
+#         end
+#     end
+# end
+
+function setup_nyc_taxi_stress_test(;nrows=-1, nbytes="")
+    nrows > 0 || !isempty(nbytes) || error("Please specify # of rows or # of bytes")
+    offloaded(nrows, nbytes) do nrows, nbytes
+        num_files = if !isempty(nbytes)
+            cld(
+                Banyan.parse_bytes(nbytes),
+                Banyan.parse_bytes("36.4 MB")
+            )
+        else
+            cld(nrows, 2_463_931)
         end
-        if !s3_exists(Banyan.get_aws_config(), bucket_name, "nyc_tripdata_large.csv/part$idx.csv")
-            if isnothing(nyc_trip_data_120_mb_path)
-                nyc_trip_data_120_mb_path = Path(download("https://s3.amazonaws.com/nyc-tlc/trip+data/yellow_tripdata_2021-01.csv"))
-            end
-            cp(isnothing(path_in_s3) ? nyc_trip_data_120_mb_path : path_in_s3, dst_path)
-            path_in_s3 = dst_path
+        nbytes_descriptor = Banyan.format_bytes(Banyan.parse_bytes("36.4 MB") * num_files)
+        nbytes_descriptor_dom = split(nbytes_descriptor, ".")[1]
+        nbytes_descriptor_mul = split(nbytes_descriptor, " ")[2]
+        p = "s3/$(get_cluster_s3_bucket_name())/nyc_tripdata_yellow_$(nbytes_descriptor_dom)_$(nbytes_descriptor_mul).parquet"
+        if !isdir(p)
+            mkdir(p)
         end
-        num_bytes_so_far += Banyan.parse_bytes("120 MB")
-        idx += 1
-        push!(part_names, "part$idx.csv")
-    end
-    if Banyan.INVESTIGATING_SETUP_NYC_TAXI_STRESS_TEST
-        println("Outside while loop in setup_nyc_taxi_stress_test")
-        @show part_names
-    end
-    for p in s3_list_keys(Banyan.get_aws_config(), bucket_name, "nyc_tripdata_large.csv/")
-        p_str = string(p)
-        if !any((endswith(p_str, part_name) for part_name in part_names))
-            if Banyan.INVESTIGATING_SETUP_NYC_TAXI_STRESS_TEST
-                println("In final for loop in setup_nyc_taxi_stress_test with p=$p")
-            end
-            s3_delete(Banyan.get_aws_config(), bucket_name, p)
+        p_1 = joinpath(p, "part_1")
+        if !isfile(p_1)
+            # 36.4 MB with 2_463_931 rows
+            Downloads.download("https://nyc-tlc.s3.amazonaws.com/trip+data/yellow_tripdata_2022-01.parquet", p_1)
         end
+        num_files = num_files
+        for i in 2:num_files
+            p_i = joinpath(p, "part_1")
+            cp(p_1, p_i)
+        end
+        p
     end
 end
 
