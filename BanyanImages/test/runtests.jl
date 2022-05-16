@@ -1,7 +1,7 @@
 using Banyan, BanyanArrays, BanyanImages
 
 using ReTest
-using AWSS3, FileIO, ImageIO, ImageCore, Random, MPI
+using AWSS3, FileIO, FilePathsBase, ImageIO, ImageCore, Random, MPI
 using Downloads, JSON
 
 MPI.Init()
