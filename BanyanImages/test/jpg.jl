@@ -65,9 +65,11 @@ end
             )
             black_values_count = compute(black_values_count)
             @show black_values_count
-            @test size(images) == (nimages, 3, 100, 100)
+            @show size(black_values_count)
+            @show eltype(black_values_count)
+            @test size(images) == (nimages, 3, 512, 512)
         else
-            @test size(images) == (nimages, 100, 100)
+            @test size(images) == (nimages, 512, 512)
         end
     end
 end

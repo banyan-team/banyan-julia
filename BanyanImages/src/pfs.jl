@@ -30,9 +30,10 @@ function ReadBlockImageHelper(
     part_size = (length(files_sub), (datasize)[2:end]...)
     empty_sample_eltype = eltype(empty_sample)
     images = Base.Array{empty_sample_eltype}(undef, part_size)
+    # TODO: Make it so that the Arrow file only contains the paths and the local paths are computed here
     for (i, f) in enumerate(files_sub)
-        # filepath = Banyan.getpath(f)
-        image = load(f)
+        filepath = Banyan.getpath(f)
+        image = load(filepath)
         if add_channelview
             image = ImageCore.channelview(image)
             images[i, :, :, :] = image

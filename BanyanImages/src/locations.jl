@@ -218,19 +218,28 @@
 #     )
 # end
 
+# TODO: Fix this so that you don't need to invalidate your metadata each time you use
+# a different cluster
+
+localtoremote(path) = replace(path, "/home/ec2-user/s3/" => "s3://")
+
 function getpaths(remotepath::String)::Base.Vector{String}
     # directory
-    localpath = getpath(remotepath)
-    if isdir(localpath)
-        readdir(localpath, join=true)
+    if startswith(path, "s3://")
+        localpath = replace(path, "s3://" => "/home/ec2-user/s3/")
+        if isdir(localpath)
+            localpaths = readdir(localpath, join=true)
+            map(localtoremote, localpaths)
+        else
+            String[path]
+        end
     else
-        isfile(localpath) || error("Cannot read image from $remotepath which does not exist")
-        String[localpath]
+        String[path]
     end
 end
 
 # list of paths
-getpaths(remotepath::Base.Vector)::Base.Vector{String} = map(getpath, remotepath)
+getpaths(remotepath::Base.Vector)::Base.Vector{String} = remotepath
 
 function getpaths(remotepath::Tuple)::Base.Vector{String}
     # tuple storing info about a generator
@@ -239,11 +248,11 @@ function getpaths(remotepath::Tuple)::Base.Vector{String}
         error("Remotepath is invalid")
     elseif length(remotepath) == 3
         for idx in remotepath[2]
-            push!(files, getpath(Base.invokelatest(remotepath[3], (remotepath[1], idx...))))
+            push!(files, Base.invokelatest(remotepath[3], (remotepath[1], idx...)))
         end
     else
         for idx in remotepath[1]
-            push!(files, getpath(Base.invokelatest(remotepath[2], (idx...))))
+            push!(files, Base.invokelatest(remotepath[2], (idx...)))
         end
     end
     files
@@ -336,7 +345,7 @@ function _remote_image_source(
         # If we don't need to paralellize then we are only reading on the main
         # worker amd we don't gather across.
         images_range_on_worker = need_to_parallelize ? split_len(total_num_images_to_read_in, worker_idx, nworkers) : 1:1
-        paths_on_worker = meta_table.path[images_range_on_worker]
+        paths_on_worker = map(getpath, meta_table.path[images_range_on_worker])
         images = map(add_channelview ? _load_image_and_add_channelview : _load_image, paths_on_worker)
         sample_on_worker = map(_reshape_image, images)
         # sample_on_worker is an array of images
