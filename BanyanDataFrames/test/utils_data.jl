@@ -254,10 +254,12 @@ function setup_nyc_taxi_stress_test(;nrows=-1, nbytes="")
         end
         num_files = num_files
         for i in 2:num_files
-            p_i = joinpath(p, "part_1")
-            cp(p_1, p_i)
+            p_i = joinpath(p, "part_$i")
+            if !isfile(p_i)
+                cp(p_1, p_i)
+            end
         end
-        p
+        replace(p, "s3/" => "s3://")
     end
 end
 

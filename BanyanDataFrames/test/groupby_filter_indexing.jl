@@ -782,7 +782,8 @@ end
 
 @testset "NYC Taxi Stress Test" begin
     use_session_for_testing(scheduling_config_name = "default scheduling", sample_rate=1024) do
-        p = setup_nyc_taxi_stress_test(nbytes="1 GB")
+        # p = setup_nyc_taxi_stress_test(nbytes="1 GB")
+        p = setup_nyc_taxi_stress_test(nrows = 1_000_000_000)
         for iter in 1:2
             @time begin
                 s3_bucket_name = get_cluster_s3_bucket_name()
@@ -795,31 +796,36 @@ end
                     # metadata_invalid=true,
                     shuffled=true
                 )
-                println("Time in read_csv")
+                println("Time in read_csv on run #$iter")
                 end
                 # @show sample(df)
-                println("Finished reading df")
-                @debug Banyan.format_available_memory()
 
                 # Filter all trips with distance longer than 1.0. Group by passenger count
                 # and get the average trip distance for each group.
+                @time begin
                 long_trips = filter(
                     row -> row.trip_distance < 1.0,
                     df
                 )
-                println("Finished filtering to long_trips")
+                println("Time for filtering to long_trips on run #$iter")
+                end
                 # @debug Banyan.format_available_memory()
                 # @show sample(long_trips)
 
                 gdf = groupby(long_trips, :PULocationID)
                 println("Finished groupby by location to gdf")
                 @debug Banyan.format_available_memory()
+                @time begin
                 trip_means = combine(gdf, :trip_distance => mean)
-                println("Finished combining by mean to trip_means")
+                println("Time for combining by mean to trip_means on run #$iter")
+                end
                 @debug Banyan.format_available_memory()
 
+                @time begin
                 trip_means = compute(trip_means)
-                println("Finished collecting to trip_means")
+                println("Time for calling compute on trip_means on run #$iter")
+                end
+                println("Total time after starting session on run #$iter")
                 @debug Banyan.format_available_memory()
             end
         end

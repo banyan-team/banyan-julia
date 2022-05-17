@@ -40,6 +40,7 @@ function read_file(::Val{:parquet}, path, rowrange, readrange, filerowrange, dfs
                 DataFrames.DataFrame(f, copycols=false)
             end
         else
+            !startswith(path, "efs/s3/") || error("Path \"$path\" should not start with \"s3/\"")
             DataFrames.DataFrame()
         end
     )

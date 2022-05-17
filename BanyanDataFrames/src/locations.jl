@@ -12,6 +12,7 @@ function _remote_table_source(remotepath, shuffled, metadata_invalid, sample_inv
     println("Time for get_cached_location: $et seconds")
     end
     if !curr_parameters_invalid && !curr_sample_invalid
+        println("Returning cached curr_location=$curr_location")
         return curr_location
     end
 

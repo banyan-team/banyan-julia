@@ -572,6 +572,7 @@ function get_cached_location(remotepath, metadata_invalid, sample_invalid)
     Random.seed!(hash(get_session_id(), remotepath_id))
     session_s3_bucket_name = get_cluster_s3_bucket_name()
     location_path = "s3/$session_s3_bucket_name/banyan_locations/$remotepath_id"
+    println("In get_cached_location with remotepath=$remotepath, remotepath_id=$remotepath_id, location_path=$location_path, isfile(location_path)=$(isfile(location_path))")
     curr_location::Location = isfile(location_path) ? deserialize(location_path) : INVALID_LOCATION
     curr_location.sample_invalid = curr_location.sample_invalid || sample_invalid
     curr_location.parameters_invalid = curr_location.parameters_invalid || metadata_invalid
