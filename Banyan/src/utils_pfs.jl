@@ -271,15 +271,7 @@ function get_divisions(divisions::Base.Vector{Division{V}}, npartitions::Int64):
         for (division_idx::Int64, division::Division{V}) in enumerate(divisions)
             # Determine the range (from `firstpartitioni` to `lastpartitioni`) of
             # partitions that own this division
-            # islastdivision = division_idx == ndivisions
-            # firstpartitioni = ((division_idx-1) * npartitions_per_division) + 1
-            # lastpartitioni = islastdivision ? npartitions : division_idx * npartitions_per_division
-            # partitionsrange = firstpartitioni:lastpartitioni
             partitionsrange = split_len(npartitions, division_idx, ndivisions)
-
-            # # If the current partition is in that division, compute the
-            # # subdivision it should use for its partition
-            # if partition_idx in partitionsrange
 
             # We need to split the division among all the partitions in
             # its range
@@ -289,9 +281,6 @@ function get_divisions(divisions::Base.Vector{Division{V}}, npartitions::Int64):
             divisionbegin::V = division[1]
             divisionend::V = division[2]
             T = eltype(divisionbegin)
-
-            # @show divisionbegin
-            # @show divisionend
 
             # Initialize divisions for each split
             # V_nonstatic = Base.Vector{T}
@@ -307,11 +296,7 @@ function get_divisions(divisions::Base.Vector{Division{V}}, npartitions::Int64):
                 # Find the first index in the `Base.Vector{Number}` where
                 # there is a difference that we can interpolate between
                 if dbegin != dend
-                    # dpersplit = div(dend-dbegin, ndivisionsplits)
                     # Iterate through each split
-                    # @show dpersplit
-                    # @show dbegin
-                    # @show dend
                     start::T = copy(dbegin)
                     for j::Int64 = 1:ndivisionsplits
                         # Update the start and end of the division
@@ -320,8 +305,6 @@ function get_divisions(divisions::Base.Vector{Division{V}}, npartitions::Int64):
                         start += cld(dend - dbegin, ndivisionsplits)
                         start = min(start, dend)
                         splitdivisions[j][2][i] = j == ndivisionsplits ? dend : copy(start)
-                        # splitdivisions[j][1][i] = dbegin + (dpersplit * (j-1))
-                        # splitdivisions[j][2][i] = islastsplit ? dend : dbegin + dpersplit * j
 
                         # Ensure that the remaining indices are matching between the start and end.
                         if j < ndivisionsplits
@@ -337,26 +320,6 @@ function get_divisions(divisions::Base.Vector{Division{V}}, npartitions::Int64):
                     break
                 end
             end
-
-            # # Convert back to `Number` if the divisions were originally
-            # # `Number`s. We support either numbers or lists of numbers for the
-            # # ordering hashes that we use for the min-max bounds.
-            # if !(first(division) isa Vector)
-            #     splitdivisions = [
-            #         # NOTE: When porting this stuff to Python, be sure
-            #         # to take into account the fact that Julia treats
-            #         # many values as arrays
-            #         (first(splitdivisionbegin), first(splitdivisionend)) for
-            #         (splitdivisionbegin, splitdivisionend) in splitdivisions
-            #     ]
-            # end
-
-            # # Get the split of the division that this partition should own
-            # splitdivision = splitdivisions[1+partition_idx-first(partitionsrange)]
-
-            # # Stop because we have found a division that this partition
-            # # is supposed to own a split from
-            # break
 
             # Each partition must have a _list_ of divisions so we must have a list
             # for each partition. So `allsplitdivisions` is an array where
@@ -375,8 +338,6 @@ function get_divisions(divisions::Base.Vector{Division{V}}, npartitions::Int64):
                     push!(allsplitdivisions, Division{V}[(convert(V, splitdivision[1]), convert(V, splitdivision[2]))])
                 end
             end
-
-            # end
         end
 
         allsplitdivisions

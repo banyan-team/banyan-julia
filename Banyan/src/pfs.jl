@@ -299,7 +299,6 @@ function MergeHelper(
 
         # Concatenate across batches
         to_merge = disallowempty(filter(not_is_empty, src.pieces))
-        println("In Merge with size.(to_merge)=$(size.(to_merge)) and key=$key and eltype.(to_merge)=$(eltype.(to_merge))")
         src = isempty(to_merge) ? EMPTY : merge_on_executor(to_merge, key)
         # src = merge_on_executor(src.pieces; key = key)
         # TODO: Handle case where everything merges to become empty and also ensure WriteHDF5 is correct
@@ -308,10 +307,7 @@ function MergeHelper(
         nworkers = get_nworkers(comm)
         if nworkers > 1
             src = Consolidate(src, params, EMPTY_DICT, comm)
-            println("In Merge after Consolidate size(src)=$(size(src))")
         end
-
-        println("In Merge at end with size(src)=$(size(src))")
     end
 
     # TODO: Handle Consolidate, Merge, WriteHDF5, WriteJuliaArray, WriteCSV/Parquet/Arrow receiving missing
@@ -411,10 +407,6 @@ CopyFromJulia(
     loc_params,
 ) = begin
     path = getpath(loc_params["path"]::String)
-    if isfile(path)
-        @show deserialize(path)
-    end
-    println("In CopyFromJulia with loc_params=$loc_params, path=$path, isfile(path)=$(isfile(path))")
     isfile(path) ? deserialize(path) : nothing
 end
 
@@ -441,7 +433,6 @@ CopyToClient(
     loc_name,
     loc_params,
 ) = begin
-    println("In CopyToClient with part=$part and batch_idx=$batch_idx and loc_params=$loc_params")
     if get_worker_idx(comm) == 1 && batch_idx == nbatches
         send_to_client(loc_params["value_id"], part)
     end
@@ -457,14 +448,7 @@ function CopyToJulia(
     loc_name,
     loc_params,
 )
-    println("In CopyToJulia with get_worker_idx(comm)=$(get_worker_idx(comm)) and loc_params=$loc_params and part=$part and batch_idx=$batch_idx, nbatches=$nbatches")
     if get_worker_idx(comm) == 1 && batch_idx == nbatches
-        # # This must be on disk; we don't support Julia serialized objects
-        # # as a remote location yet. We will need to first refactor locations
-        # # before we add support for that.
-        # if isa_gdf(part)
-        #     part = nothing
-        # end
         serialize(getpath(loc_params["path"]), part)
     end
     if batch_idx == nbatches
@@ -511,16 +495,11 @@ function ReduceAndCopyToJulia(
 ) where {T}
     # Merge reductions from batches
     # TODO: Ensure that we handle reductions that can produce nothing
-    println("In ReduceAndCopyToJulia before reduce_in_memory with part=$part, src=$src, and loc_name=$loc_name")
     src = reduce_in_memory(src, part, op)
-
-    println("In ReduceAndCopyToJulia after reduce_in_memory with src=$src and loc_name=$loc_name")
 
     # Merge reductions across workers
     if batch_idx == nbatches
         src = Reduce(src, params, EMPTY_DICT, comm)
-
-        println("In ReduceAndCopyToJulia after Reduce before CopyToJulia with src=$src and loc_name=$loc_name")
 
         if loc_name != "Memory"
             # We use 1 here so that it is as if we are copying from the head

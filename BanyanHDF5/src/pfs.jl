@@ -26,7 +26,6 @@ function ReadBlockHelperHDF5(
         println("In ReadBlockHDF5 with HDF5.ishdf5(path)=$(HDF5.ishdf5(path))")
     end
        
-    # @show isfile(path)
     f = h5open(path, "r")
     if Banyan.INVESTIGATING_PARALLEL_HDF5
         println("In ReadBlockHDF5 after h5open")
@@ -215,22 +214,6 @@ function WriteHelperHDF5(
         # Get offset length
         offset = MPI.Exscan(part isa Empty ? 0 : size(part, dim), +, comm)
         offset = worker_idx == 1 ? 0 : offset
-
-        # # Determine the offset into the resulting HDF5 dataset where this
-        # # worker should write
-        # offset_size, offset_eltype = MPI.Exscan(
-        #     (
-        #         part isa Empty ? EMPTY : size(part),
-        #         part isa Emtpy ? EMPTY : eltype(part)
-        #     ),
-        #     reduce_sizes_and_eltypes,
-        #     comm
-        # )
-        # offset_size = MPI.Exscan
-        # if worker_idx == nworkers && offset_size isa Empty && part isa Empty
-        #     error("Cannot write an empty array to an HDF5 dataset")
-        # end
-        # offset = (worker_idx == 1 || offset_size isa Empty) ? 0 : offset_size[dim]
 
         # Create file if not yet created
         # TODO: Figure out why sometimes a deleted file still `isfile`
@@ -480,7 +463,6 @@ function WriteHelperHDF5(
                     group = group_prefix * "_part$idx" * "_dim=$dim"
                     partdset_reading = partdset[Base.fill(Colon(), ndims(dset))...]
 
-                    # # println("In writing worker_idx=$worker_idx, batch_idx=$batch_idx/$nbatches: after reading batch $batch_i with available memory: $(Banyan.format_available_memory())")
                     dim_selector = []
                     for d = 1:ndims(dset)
                         if d == dim

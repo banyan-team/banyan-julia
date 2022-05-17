@@ -2,8 +2,6 @@
 # GET QUEUE URL #
 #################
 
-
-# "https://sqs.us-east-2.amazonaws.com/123456789012/MyQueue"
 get_sqs_dict_from_url(url::String)::Dict{Symbol,Any} =
     merge(
         get_aws_config(),
@@ -12,53 +10,19 @@ get_sqs_dict_from_url(url::String)::Dict{Symbol,Any} =
 
 get_scatter_queue()::Dict{Symbol,Any} =
     get_sqs_dict_from_url(get_session().scatter_queue_url)
-# get_scatter_queue(resource_id::Union{ResourceId,Nothing}=nothing) =
-#     get_scatter_queue(isnothing(resource_id) ? get_session().resource_id : resource_id)
-# function get_scatter_queue(resource_id::ResourceId)
-#     if isnothing(resource_id)
-#         resource_id = get_session().resource_id
-#     end
-#     return sqs_get_queue_with_retries(
-#         get_aws_config(),
-#         string("banyan_", resource_id, "_scatter.fifo"),
-#     )
-# end
 
 get_gather_queue()::Dict{Symbol,Any} =
     get_sqs_dict_from_url(get_session().gather_queue_url)
-# get_gather_queue(resource_id::Union{ResourceId,Nothing}=nothing) =
-#     get_gather_queue(isnothing(resource_id) ? get_session().resource_id : resource_id)
-# function get_gather_queue(resource_id::ResourceId)
-#     if isnothing(resource_id)
-#         resource_id = get_session().resource_id
-#     end
-#     return sqs_get_queue_with_retries(
-#         get_aws_config(),
-#         string("banyan_", resource_id, "_gather.fifo"),
-#     )
-# end
 
 get_execution_queue()::Dict{Symbol,Any} =
     get_sqs_dict_from_url(get_session().execution_queue_url)
-# get_execution_queue(resource_id::Union{ResourceId,Nothing}=nothing) =
-#     get_execution_queue(isnothing(resource_id) ? get_session().resource_id : resource_id)
-# function get_execution_queue(resource_id::ResourceId)
-#     return sqs_get_queue_with_retries(
-#         get_aws_config(),
-#         string("banyan_", resource_id, "_execution.fifo"),
-#     )
-# end
-
 
 ###################
 # RECEIVE MESSAGE #
 ###################
 
 function sqs_receive_message_with_long_polling(queue)
-    @time begin
     r = AWSSQS.sqs(queue, "ReceiveMessage", MaxNumberOfMessages = "1")
-    println("Time to call AWSSQS.sqs")
-    end
     r = r["messages"]
 
     if isnothing(r)
@@ -84,21 +48,17 @@ function get_next_message(
     error_for_main_stuck::Union{Nothing,String} = nothing,
     error_for_main_stuck_time::Union{Nothing,DateTime} = nothing
 )::Tuple{String,Union{Nothing,String}}
-    println("Time for sqs_receive_message_with_long_polling from queue=$queue:")
-    m = @time sqs_receive_message_with_long_polling(queue)
+    m = sqs_receive_message_with_long_polling(queue)
     while (isnothing(m))
         error_for_main_stuck = check_worker_stuck(error_for_main_stuck, error_for_main_stuck_time)
-        println("Time for sqs_receive_message_with_long_polling from queue=$queue:")
-        m = @time sqs_receive_message_with_long_polling(queue)
-        # @debug "Waiting for message from SQS"
+        m = sqs_receive_message_with_long_polling(queue)
         if !isnothing(p)
             p::ProgressMeter.ProgressUnknown
             next!(p)
         end
     end
     if delete
-        println("Time for sqs_delete_message:")
-        @time sqs_delete_message(queue, m)
+        sqs_delete_message(queue, m)
     end
     return m[:message]::String, error_for_main_stuck
 end
@@ -109,11 +69,7 @@ function receive_next_message(
     error_for_main_stuck=nothing,
     error_for_main_stuck_time=nothing
 )::Tuple{Dict{String,Any},Union{Nothing,String}}
-    @time begin
     content::String, error_for_main_stuck::Union{Nothing,String} = get_next_message(queue_name, p; error_for_main_stuck=error_for_main_stuck, error_for_main_stuck_time=error_for_main_stuck_time)
-    println("Time for get_next_message")
-    end
-    println("Received message with content=$content")
     res::Dict{String,Any} = if startswith(content, "JOB_READY") || startswith(content, "SESSION_READY")
         Dict{String,Any}(
             "kind" => "SESSION_READY"
@@ -136,7 +92,6 @@ function receive_next_message(
         if !isnothing(p) && !p.done
             finish!(p, spinner='✗')
         end
-        # @debug "Session failed"
         # Print session logs. Will be empty if `print_logs=false` for the session. Remove
         # "JOB_FAILURE" and "JOB_END" from the message content. Note that logs
         # are streamed in multiple parts, due to SQS message limits.

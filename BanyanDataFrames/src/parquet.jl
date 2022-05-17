@@ -8,7 +8,6 @@ get_sample(::Val{:parquet}, p, sample_rate, len) = let rand_indices = sample_fro
     if (sample_rate != 1.0 && isempty(rand_indices)) || !isfile(p)
         DataFrames.DataFrame()
     else
-        println("In get_sample for Parquet with isfile(p)=$(isfile(p))")
         get_sample_from_data(DataFrames.DataFrame(Parquet.read_parquet(p; rows=1:len), copycols=false), sample_rate, rand_indices)
     end
 end
@@ -20,10 +19,6 @@ get_sample_and_metadata(::Val{:parquet}, p, sample_rate) = if isfile(p)
 else
     DataFrames.DataFrame(), 0
 end
-
-# read_chunk(localfilepathp::String, ::Val{:parquet}) = Tables.partitions(Parquet.read_parquet(localfilepathp))
-
-# get_nrow(localfilepathp::String, ::Val{:parquet}) = nrows(Parquet.File(localfilepathp))
 
 # pfs.jl
 

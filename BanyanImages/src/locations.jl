@@ -308,14 +308,12 @@ function _remote_image_source(
     if is_main && curr_parameters_invalid
         localpaths::Base.Vector{String} = getpaths(remotepath)
         Arrow.write(meta_path, (path=localpaths,))
-        @show localpaths
     end
     if !curr_parameters_invalid
         # Now the banyan_metadata directory has surely been created so we can
         # get_meta_path on all workers.
         meta_path = get_meta_path((remotepath, add_channelview))
     end
-    println("Before sync_across with meta_path=$meta_path, isfile(meta_path)=$(isfile(meta_path)), curr_parameters_invalid=$curr_parameters_invalid")
     sync_across()
 
     # Load in the metadata and get the # of images
@@ -333,7 +331,6 @@ function _remote_image_source(
     # regardless of whether we want to get the sample or the metadata
     exact_sample_needed = nimages < 10
     need_to_parallelize = nimages >= 10
-    println("On worker_idx=$worker_idx with nimages=$nimages, exact_sample_needed=$exact_sample_needed, need_to_parallelize=$need_to_parallelize")
     total_num_images_to_read_in = if curr_sample_invalid
         exact_sample_needed ? nimages : cld(nimages, session_sample_rate)
     else
@@ -361,7 +358,6 @@ function _remote_image_source(
         # though if we only need the sample we don't technically need the
         # metadata)
         remote_sample_value = cat(vcat(samples_on_workers...)..., dims=1)
-        println("In sample collection with eltype.(samples_on_workers)=$(eltype.(samples_on_workers)) and size.(samples_on_workers)=$(size.(samples_on_workers))")
         ndims_res = ndims(remote_sample_value)
         dataeltype_res = eltype(remote_sample_value)
         nbytes_res = cld(length(remote_sample_value) * sizeof(dataeltype_res) * nimages, total_num_images_to_read_in)
@@ -394,11 +390,6 @@ function _remote_image_source(
             nbytes_res,
             remote_sample,
         )
-        @show total_memory_usage(location_res)
-        @show total_memory_usage(location_res.sample)
-        @show total_memory_usage(location_res.sample.value)
-        @show location_res.src_parameters
-        @show size(location_res.sample.value)
         cache_location(remotepath, location_res, invalidate_sample, invalidate_metadata)
         location_res
     else
@@ -418,6 +409,8 @@ function RemoteImageSource(remotepath; metadata_invalid = false, sample_invalid 
         distributed=true
     )
 end
+
+# TODO: Implement writing
 
 # function RemoteImageDestination(remotepath; invalidate_metadata = true, invalidate_sample = true)::Location
 #     RemoteDestination(p, invalidate_metadata = invalidate_metadata, invalidate_sample = invalidate_sample) do remotepath

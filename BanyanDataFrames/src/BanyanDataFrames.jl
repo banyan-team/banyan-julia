@@ -1,25 +1,19 @@
 module BanyanDataFrames
 
-@time begin
-@time using Banyan
-@time using BanyanArrays
-@time using DataFrames
-@time using Dates
-@time using Downloads
-@time using FileIO
-@time using FilePathsBase
-@time using Missings
-@time using MPI
-@time using ProgressMeter
-@time using Random
-@time using Requires
-@time using Serialization
-println("Time to `using` packages for BanyanDataFrames.jl")
-end
-
-# TODO: Use Requires for these
-println("Times to using CSV, Parquet, and Arrow")
-@time using Arrow
+using Arrow,
+    Banyan,
+    BanyanArrays,
+    DataFrames,
+    Dates,
+    Downloads,
+    FileIO,
+    FilePathsBase,
+    Missings,
+    MPI,
+    ProgressMeter,
+    Random,
+    Requires,
+    Serialization
 
 # Types
 export DataFrame, GroupedDataFrame
@@ -51,6 +45,7 @@ export groupby, select, transform, combine, subset
 # Missing
 export allowmissing, disallowmissing
 
+# PFs
 export ReadBlockCSV,
     ReadBlockParquet,
     ReadBlockArrow,
@@ -77,6 +72,7 @@ export ReadBlockCSV,
     ReturnNullGroupingRebalanced,
     add_sizes
 
+# Locations
 export RemoteTableSource, RemoteTableDestination
 
 include("locations.jl")
@@ -89,8 +85,8 @@ include("pfs.jl")
 include("arrow.jl")
 
 function __init__()
-    @require CSV="336ed68f-0bac-5ca0-87d4-7b16caf5d00b" include("csv.jl")
-    @require Parquet="626c502c-15b0-58ad-a749-f091afb673ae" include("parquet.jl")
+    @require CSV = "336ed68f-0bac-5ca0-87d4-7b16caf5d00b" include("csv.jl")
+    @require Parquet = "626c502c-15b0-58ad-a749-f091afb673ae" include("parquet.jl")
 end
 
 if Base.VERSION >= v"1.4.2"

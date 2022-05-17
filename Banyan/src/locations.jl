@@ -19,28 +19,6 @@ LocationDestination(
     parameters::LocationParameters
 )::Location = Location("None", name, LocationParameters(), parameters, -1, Sample(), false, false)
 
-# function Base.getproperty(loc::Location, name::Symbol)
-#     if hasfield(Location, name)
-#         return getfield(loc, name)
-#     end
-
-#     n = string(name)
-#     # `n` might exist in both the source parameters _AND_ the destination
-#     # parameters but we prioritize the source.
-#     if haskey(loc.src_parameters, n)
-#         loc.src_parameters[n]
-#     elseif haskey(loc.dst_parameters, n)
-#         loc.dst_parameters[n]
-#     else
-#         error("$name not found among location source $(loc.src_name) with parameters $(loc.src_parameters) and destination $(loc.dst_name) with parameters $(loc.dst_parameters)")
-#     end
-# end
-
-# function Base.hasproperty(loc::Location, name::Symbol)
-#     n = string(name)
-#     hasfield(Location, name) || haskey(loc.src_parameters, n) || haskey(loc.dst_parameters, n)
-# end
-
 function to_jl(lt::Location)
     return Dict{String,Any}(
         "src_name" => lt.src_name,
@@ -217,45 +195,7 @@ function located(fut::Future, location::Location)
 
     session.locations[value_id] = location
     record_request(RecordLocationRequest(value_id, location))
-    # @debug size(location.sample.value)
 end
-
-# function located(futs...)
-#     futs = futs .|> obj -> convert(Future, obj)
-#     maxindfuts = argmax([get_location(f).total_memory_usage for f in futs])
-#     for fut in futs
-#         located(fut, get_location(futs[maxindfuts]))
-#     end
-# end
-
-# NOTE: The below operations (mem and val) should rarely be used if every. We
-# should probably even remove them at some point. Memory usage of each sample
-# is automatically detected and stored. If you want to make a future have Value
-# location type, simply use the `Future` constructor and pass your value in.
-
-# NOTE: The below mem and val are not used anywhere.
-
-# function mem(fut, estimated_total_memory_usage::Int64)
-#     fut = convert(Future, fut)
-#     location = get_location(fut)
-#     location.total_memory_usage = estimated_total_memory_usage
-#     record_request(RecordLocationRequest(fut.value_id, location))
-# end
-
-# mem(fut, n::Int64, ty::DataType) = mem(fut, n * sizeof(ty))
-# mem(fut) = mem(fut, sizeof(convert(Future, fut).value))
-
-# function mem(futs...)
-#     for fut in futs
-#         mem(fut, maximum([
-#             begin
-#                 get_location(f).total_memory_usage
-#             end for f in futs
-#         ]))
-#     end
-# end
-
-# val(fut) = located(fut, Value(convert(Future, fut).value))
 
 ################################
 # Methods for getting location #
@@ -383,166 +323,6 @@ invalidate_all_locations() = offloaded(_invalidate_all_locations)
 invalidate_metadata(p) = offloaded(_invalidate_metadata, p)
 invalidate_sample(p) = offloaded(_invalidate_sample, p)
 
-# Getting remote location info and samples is not easy. So we cache it and
-# allow a function to be passed in to actually process the given path and get
-# the location if needed.
-
-# It's not just simple caching. The function for actually getting the
-# location/sample may only need to get the sample or only the location
-# info and if just the location info or just the sample is cached
-
-@nospecialize
-
-# function RemoteSource(
-#     @nospecialize(get_remote_source::Function),
-#     p,
-#     shuffled::Bool,
-#     metadata_invalid::Bool,
-#     sample_invalid::Bool,
-#     invalidate_metadata::Bool,
-#     invalidate_sample::Bool
-# )::Location
-#     # In the context of remote locations, the location refers to just the non-sample part of it; i.e., the
-#     # info about what files are in the dataset and how many rows they have.
-
-#     # Set shuffled to true if the data is fully shuffled and so we can just take
-#     # the first rows of the data to get our sample.
-#     # Set similar_files to true if the files are simialr enough (in their distribution
-#     # of data) that we can just randomly select files and only sample from those.
-#     # Invalidate the location only when the number of files or their names or the
-#     # number of rows they have changes. If you just update a few rows, there's no
-#     # need to invalidate the location.
-#     # Invalidate the sample only when the data has drifted enough. So if you update
-#     # a row to have an outlier or if you add a whole bunch of new rows, make sure
-#     # to udpate the sample.
-
-#     # TODO: Store the time it took to collect a sample so that the user is
-#     # warned when invalidating a sample that took a long time to collect
-
-#     # TODO: Document the caching behavior better
-#     # Read location from cache. The location will include metadata like the
-#     # number of rows in each file as well as a sample that can be used on the
-#     # client side for estimating memory usage and data skew among other things.
-#     # Get paths with cached locations and samples
-#     locationspath = joinpath(homedir(), ".banyan", "sources")
-#     samplespath = joinpath(homedir(), ".banyan", "samples")
-#     p_hash_string::String = string(hash(p))
-#     locationpath = joinpath(locationspath, p_hash_string)
-#     samplepath = joinpath(samplespath, p_hash_string)
-
-#     # Get cached sample if it exists
-#     remote_sample::Sample = if isfile(samplepath) && !sample_invalid
-#         deserialize(samplepath)
-#     else
-#         NOTHING_SAMPLE
-#     end
-
-#     # Get cached location if it exists
-#     remote_source::Location = if isfile(locationpath) && !metadata_invalid
-#         deserialize(locationpath)
-#     else
-#         NOTHING_LOCATION
-#     end
-#     remote_source = get_remote_source_cached(get_remote_source, p, remote_source, remote_sample, shuffled)
-#     remote_sample = remote_source.sample
-
-#     if Banyan.INVESTIGATING_CACHING_LOCATION_INFO || Banyan.INVESTIGATING_CACHING_SAMPLES
-#         println("In RemoteSource")
-#         @show locationpath samplepath isfile(samplepath) sample_invalid isfile(locationpath) metadata_invalid
-#     end
-
-#     # Store location in cache. The same logic below applies to having a
-#     # `&& isempty(remote_source.files)` which effectively allows us
-#     # to reuse the location (computed files and row lengths) but only if the
-#     # location was actually already written to. If this is the first time we
-#     # are calling `write_parquet` with `invalidate_metadata=false`, then
-#     # the location will not be saved. But on future writes, the first write's
-#     # location will be used.
-#     remote_source_src_name::String = remote_source.src_name
-#     remote_source_nbytes::Int64 = remote_source.src_parameters["nbytes"]
-#     if !invalidate_metadata && remote_source_src_name == "Remote" && remote_source_nbytes > 0
-#         mkpath(locationspath)
-#         serialize(locationpath, remote_source)
-#     else
-#         rm(locationpath, force=true, recursive=true)
-#     end
-
-#     # Store sample in cache. We don't store null samples because they are
-#     # either samples for locations that don't exist yet (write-only) or are
-#     # really cheap to collect the sample. Yes, it is true that generally we
-#     # will invalidate the sample on reads but for performance reasons someone
-#     # might not. But if they don't invalidate the sample, we only want to reuse
-#     # the sample if it was for a location that was actually written to.
-#     if !invalidate_sample && !isnothing(remote_sample)
-#         mkpath(samplespath)
-#         serialize(samplepath, remote_sample)
-#     else
-#         rm(samplepath, force=true, recursive=true)
-#     end
-
-#     remote_source
-# end
-
-# function RemoteDestination(
-#     @nospecialize(get_remote_destination::Function),
-#     p::String;
-#     invalidate_metadata::Bool = true,
-#     invalidate_sample::Bool = true
-# )::Location
-#     p_hash_string = string(hash(p))
-#     if invalidate_metadata
-#         rm(joinpath(homedir(), ".banyan", "sources", p_hash_string), force=true, recursive=true)
-#     end
-#     if invalidate_sample
-#         rm(joinpath(homedir(), ".banyan", "samples", p_hash_string), force=true, recursive=true)
-#     end
-
-#     get_remote_destination(p)::Location
-# end
-
-# function get_remote_source_cached(get_remote_source, remotepath, remote_source, remote_sample, shuffled)::Location
-#     # If both the location and sample are already cached, just return them
-#     if !isnothing(remote_source) && !isnothing(remote_sample)
-#         remote_source.sample = remote_sample
-#         return remote_source
-#     end
-
-#     # This is so that we can make sure that any random selection fo rows is
-#     # deterministic. Might not be needed...
-#     Random.seed!(hash(get_session_id()))
-
-#     get_remote_source(
-#         remotepath,
-#         Base.inferencebarrier(remote_source),
-#         Base.inferencebarrier(remote_sample),
-#         Base.inferencebarrier(shuffled)
-#     )
-# end
-
-# function get_remote_destination(remotepath)::Location
-#     # Handle HDF5 paths (which include the dataset in the path)
-#     remotepath, datasetpath, isa_hdf5 = extract_dataset_path(remotepath)
-
-#     # Return either an HDF5 location or a table location
-#     if isa_hdf5
-#         get_remote_hdf5_destination(remotepath, datasetpath)
-#     else
-#         get_remote_table_destination(remotepath)
-#     end
-# end
-
-# function convert_to_unpooled(A::T) where {T}
-#     type_name = typeof(A).name.name
-#     if type_name == :PooledArray
-#         Base.collect(A)
-#     elseif type_name == :CategoricalArray
-#         unwrap.(A)
-#     else
-#         # For handling SentinelArrays.MissingVector
-#         Base.convert(Array, A)
-#     end
-# end
-
 @specialize
 
 # Helper functions for location constructors; these should only be called from the main worker
@@ -569,16 +349,11 @@ end
 
 function get_cached_location(remotepath, metadata_invalid, sample_invalid)
     remotepath_id = get_remotepath_id(remotepath)
-    println("In get_cached_location on worker_idx=$(get_worker_idx()) before Random.seed!")
     Random.seed!(hash(get_session_id(), remotepath_id))
-    println("In get_cached_location on worker_idx=$(get_worker_idx()) before get_cluster_s3_bucket_name()")
     session_s3_bucket_name = get_cluster_s3_bucket_name()
     location_path = "s3/$session_s3_bucket_name/banyan_locations/$remotepath_id"
-    println("In get_cached_location on worker_idx=$(get_worker_idx()) with remotepath=$remotepath, remotepath_id=$remotepath_id, location_path=$location_path, filesize(location_path)=$(filesize(location_path))")
-    println("In get_cached_location on worker_idx=$(get_worker_idx()) with remotepath=$remotepath, remotepath_id=$remotepath_id, location_path=$location_path, isfile(location_path)=$(isfile(location_path))")
 
     curr_location::Location = isfile(location_path) ? deserialize(location_path) : INVALID_LOCATION
-    println("In get_cached_location with Banyan.total_memory_usage(curr_location)=$(Banyan.total_memory_usage(curr_location))")
     curr_location.sample_invalid = curr_location.sample_invalid || sample_invalid
     curr_location.parameters_invalid = curr_location.parameters_invalid || metadata_invalid
     curr_sample_invalid = curr_location.sample_invalid

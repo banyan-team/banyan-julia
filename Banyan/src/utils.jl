@@ -191,15 +191,6 @@ function configure(user_id, api_key, ec2_key_pair_name, banyanconfig_path)
         error("Your user ID and API key must be specified using either keyword arguments, environment variables, or banyanconfig.toml")
     end
 
-    # # aws.region
-    # if !isnothing(region) && (
-    #     !(haskey(banyan_config["aws"], "region")) ||
-    #     region != banyan_config["aws"]["region"]
-    # )
-    #     banyan_config["aws"]["region"] = region
-    #     is_modified = true
-    # end
-
     # Update config file if it was modified
     if existing_banyan_config != banyan_config
         write_config(banyanconfig_path)
@@ -228,20 +219,6 @@ function get_aws_config()::Dict{Symbol,Any}
 
     # Get AWS configuration
     if isnothing(aws_config_in_usage)
-        # aws_conf = global_aws_config()
-        # aws_conf_creds = aws_conf.credentials
-        # aws_config_in_usage = Dict(
-        #     :creds => AWSCore.AWSCredentials(
-        #         aws_conf_creds.access_key_id,
-        #         aws_conf_creds.secret_key,
-        #         aws_conf_creds.token,
-        #         aws_conf_creds.user_arn,
-        #         aws_conf_creds.account_number;
-        #         expiry = aws_conf_creds.expiry,
-        #         renew = aws_conf_creds.renew,
-        #     ),
-        #     :region => aws_conf.region
-        # )
         # Get region according to ENV, then credentials, then config files
         profile = get(ENV, "AWS_DEFAULT_PROFILE", get(ENV, "AWS_DEFAULT_PROFILE", "default"))
         region::String = get(ENV, "AWS_DEFAULT_REGION", "")
@@ -269,14 +246,6 @@ function get_aws_config()::Dict{Symbol,Any}
             :region => region
         )
     end
-
-    # # Use default location if needed
-    # if !haskey(aws_config_in_usage, :region)
-    #     @warn "Using default AWS region of us-west-2 in \$HOME/.banyan/banyanconfig.toml"
-    #     aws_config_in_usage[:region] = "us-west-2"
-    # end
-
-    # Convert to dictionary and return
 
     aws_config_in_usage
 end
@@ -454,7 +423,9 @@ function load_json(path::String)
         JSON.parsefile(path[8:end])
     elseif startswith(path, "s3://")
         error("S3 path not currently supported")
-        # JSON.parsefile(S3Path(path, config=get_aws_config()))
+        # TODO: Maybe support with
+        # `JSON.parsefile(S3Path(path, config=get_aws_config()))` and also down
+        # in `load_toml`
     elseif startswith(path, "http://") || startswith(path, "https://")
 	    JSON.parse(request_body(path)[2])
     else
@@ -463,7 +434,6 @@ function load_json(path::String)
 end
 
 function load_toml(path::String)
-    @time begin
     res = if startswith(path, "file://")
         if !isfile(path[8:end])
             error("File $path does not exist")
@@ -476,8 +446,6 @@ function load_toml(path::String)
 	    TOML.parse(request_body(path)[2])
     else
         error("Path $path must start with \"file://\", \"s3://\", or \"http(s)://\"")
-    end
-    println("Time for loading a TOML file from $path with typeof(res)=$(typeof(res)):")
     end
     res
 end

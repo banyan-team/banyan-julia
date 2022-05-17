@@ -15,18 +15,11 @@ get_sample_and_metadata(::Val{:arrow}, p, sample_rate) =
         get_sample_from_data(sample_df, sample_rate, num_rows), num_rows
     end
 
-# read_chunk(localfilepathp::String, ::Val{:arrow}) = Arrow.Stream(localfilepathp)
-
-# get_nrow(localfilepathp::String, ::Val{:arrow}) = Tables.rowcount(Arrow.Table(localfilepathp))
-
 # pfs.jl
 
 file_ending(::Val{:arrow}) = "arrow"
 
 function read_file(::Val{:arrow}, path, rowrange, readrange, filerowrange, dfs)
-    # println("In read_file with path=$path isfile(path)=$(isfile(path))")
-    # ptable = Arrow.Table(path)
-    # println("In read_filew ith Tables.rowcount(ptable)=$(Tables.rowcount(ptable))")
     rbrowrange = filerowrange.start:(filerowrange.start-1)
     for tbl in Arrow.Stream(path)
         rbrowrange = (rbrowrange.stop+1):(rbrowrange.stop+Tables.rowcount(tbl))
@@ -51,10 +44,8 @@ ReadBlockArrow = ReadBlockHelper(Val(:arrow))
 ReadGroupHelperArrow = ReadGroupHelper(ReadBlockArrow, ShuffleDataFrame)
 ReadGroupArrow = ReadGroup(ReadGroupHelperArrow)
 
-write_file(::Val{:arrow}, part::DataFrames.DataFrame, path, nrows) = begin
-    println("Calling Arrow.write to path=$path with nrow(part)=$(nrow(part))")
+write_file(::Val{:arrow}, part::DataFrames.DataFrame, path, nrows)
     Arrow.write(path, part)
-end
 
 WriteArrow = WriteHelper(Val(:arrow))
 

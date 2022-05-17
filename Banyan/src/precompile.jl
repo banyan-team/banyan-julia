@@ -75,7 +75,6 @@ function _precompile_()
     Base.precompile(Tuple{Core.kwftype(typeof(configure_scheduling)),NamedTuple{(:name,), Tuple{String}},typeof(configure_scheduling)})   # time: 0.005944979
     Base.precompile(Tuple{Type{PartitionType},Union{PartitioningConstraint, Function, String, Pair{String}},Union{PartitioningConstraint, Function, String, Pair{String}}})   # time: 0.005579519
     Base.precompile(Tuple{Type{PartitionType},Union{PartitioningConstraint, Function, String, Pair{String}}})   # time: 0.00484481
-    Base.precompile(Tuple{typeof(RemoteSource),Function,Any,Bool,Bool,Bool,Bool,Bool})   # time: 0.004186021
     isdefined(Banyan, Symbol("#76#77")) && Base.precompile(Tuple{getfield(Banyan, Symbol("#76#77")),Future})   # time: 0.00397727
     let fbody = try __lookup_kwbody__(which(partitioned_with, (Function,Vector{Future},))) catch missing end
         if !ismissing(fbody)
@@ -87,7 +86,6 @@ function _precompile_()
     Base.precompile(Tuple{Core.kwftype(typeof(Type)),NamedTuple{(:datatype,), Tuple{String}},Type{Future}})   # time: 0.003504575
     Base.precompile(Tuple{typeof(merge_pts!),PartitionType,PartitionType,Vector{PartitionType}})   # time: 0.003056493
     Base.precompile(Tuple{typeof(get_key_for_sample_computation_cache),SampleComputationCache,UInt64})   # time: 0.002846733
-    Base.precompile(Tuple{typeof(get_remote_source_cached),Any,Any,Any,Any,Any})   # time: 0.001446164
     Base.precompile(Tuple{Type{Sample},Any,Int64})   # time: 0.001376823
     let fbody = try __lookup_kwbody__(which(get_cluster, (String,))) catch missing end
         if !ismissing(fbody)
@@ -217,7 +215,7 @@ function _precompile_()
         precompile(get_all_divisions, (Base.Vector{OH}, Int64))
         Base.precompile(Tuple{typeof(_minimum),Vector{OH}})   # time: 0.003270399
         Base.precompile(Tuple{typeof(_maximum),Vector{OH}})
-        Base.precompile(Tuple{typeof(get_all_divisions),Vector{OHT},Int64})   # time: 0.005706646
+        Base.precompile(Tuple{typeof(get_all_divisions),Vector{OH},Int64})   # time: 0.005706646
     end
 
     # sessions.jl
@@ -265,7 +263,7 @@ function _precompile_()
         (
             Future,
             Int64,
-            Bool,
+        Bool,
             Vector{Future},
             Vector{Future},
             Vector{Future},
@@ -340,7 +338,6 @@ function _precompile_()
     #     mutated(out)
     #     t.scaled = Future[in, out]
 
-    #     @time begin
     #     apply_partitioned_using_func(
     #         PartitionedUsingFunc{K}(
     #             true,
@@ -353,7 +350,5 @@ function _precompile_()
     #             false
     #         )
     #     )
-    #     println("Time for apply_partitioned_using_func in precompilation")
-    #     end
     # end
 end

@@ -28,18 +28,11 @@ function Banyan.merge_on_executor(
     obj::Base.Vector{DF},
     key
 ) where DF <: AnyDataFrame
-    # @show typeof(obj)
-    # @show length(obj)
-    # @show nrow.(obj)
-    # @show names.(obj)
     res = if length(obj) == 1
         obj[1]
     else
         vcat(obj...)
     end
-    # @show typeof(res)
-    # @show length(res)
-    # @show typeof.(res)
     res
 end
 
@@ -52,40 +45,14 @@ function Banyan.sync_across(df::DataFrames.DataFrame; comm=MPI.COMM_WORLD)
     count = Ref{Cint}()
     if is_main
         io = IOBuffer()
-        @time begin
-        et = @elapsed begin
         Arrow.write(io, df)
-        end
-        println("Time for calling Arrow.write on worker_idx=$(get_worker_idx()) in sync_across: $et seconds")
-        end
-        @time begin
-        et = @elapsed begin
         buf = MPI.Buffer(view(io.data, 1:io.size))
-        end
-        println("Time for calling MPI.Buffer on worker_idx=$(get_worker_idx()) in sync_across: $et seconds")
-        end
         count[] = length(buf.data)
     end
-    @time begin
-    et = @elapsed begin
     MPI.Bcast!(count, 0, comm)
-    end
-    println("Time for calling first MPI.Bcast! on worker_idx=$(get_worker_idx()) in sync_across: $et seconds")
-    end
     if !is_main
         buf = MPI.Buffer(Base.Array{UInt8}(undef, count[]))
     end
-    @time begin
-    et = @elapsed begin
     MPI.Bcast!(buf, 0, comm)
-    end
-    println("Time for calling second MPI.Bcast! on worker_idx=$(get_worker_idx()) in sync_across: $et seconds")
-    end
-    @time begin
-    et = @elapsed begin
-    res = DataFrames.DataFrame(Arrow.Table(IOBuffer(view(buf.data, 1:buf.count))))
-    end
-    println("Time for calling DataFrames.DataFrame(Arrow.Table(IOBuffer(view( on worker_idx=$(get_worker_idx()) in sync_across: $et seconds")
-    end
-    res
+    DataFrames.DataFrame(Arrow.Table(IOBuffer(view(buf.data, 1:buf.count))))
 end

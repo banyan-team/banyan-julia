@@ -5,16 +5,8 @@ function _remote_table_source(remotepath, shuffled, metadata_invalid, sample_inv
     is_main = is_main_worker()
     
     # Get cached Location and if it has valid parameters and sample, return
-    @time begin
-    et = @elapsed begin
     curr_location, curr_sample_invalid, curr_parameters_invalid = get_cached_location(remotepath, metadata_invalid, sample_invalid)
-    end
-    println("Time for get_cached_location: $et seconds")
-    end
-    println("Got cached location on worker_idx=$(get_worker_idx()) with curr_parameters_invalid=$curr_parameters_invalid and curr_sample_invalid=$curr_sample_invalid")
-    # return curr_location
     if !curr_parameters_invalid && !curr_sample_invalid
-        # println("Returning cached curr_location=$curr_location")
         return curr_location
     end
 
@@ -23,15 +15,10 @@ function _remote_table_source(remotepath, shuffled, metadata_invalid, sample_inv
     # 2. Metadata stored in an Arrow file at `meta_path`
 
     # Get metadata if it is still valid
-    @time begin
-    et = @elapsed begin
     curr_meta::Arrow.Table = if !curr_parameters_invalid
         Arrow.Table(curr_location.src_parameters["meta_path"]::String)
     else
         Arrow.Table()
-    end
-    end
-    println("Time for Arrow.Table: $et seconds")
     end
 
     # Metadata file structure
@@ -40,15 +27,11 @@ function _remote_table_source(remotepath, shuffled, metadata_invalid, sample_inv
     # - Columns: file name, # of rows, # of bytes
 
     # Get list of local paths
-    @time begin
-    et = @elapsed begin
     localpaths::Base.Vector{String} = if !curr_parameters_invalid
-        @show curr_meta
         convert(Base.Vector{String}, curr_meta[:path])
     else
         localpath::String = getpath(remotepath)
         localpath_is_dir = isdir(localpath)
-        @show localpath
         paths = if localpath_is_dir
             paths_on_main = is_main ? readdir(localpath, join=true) : String[]
             sync_across(paths_on_main)
@@ -57,12 +40,8 @@ function _remote_table_source(remotepath, shuffled, metadata_invalid, sample_inv
         end
         paths
     end
-    @show localpaths
     curr_meta_nrows::Base.Vector{Int64} = !curr_parameters_invalid ? convert(Base.Vector{Int64}, curr_meta[:nrows]) : Int64[]
     local_paths_on_curr_worker::Base.Vector{String} = split_across(localpaths)
-    end
-    println("Time to sync_across with paths to read in: $et seconds")
-    end
 
     # Get format
     format_string = get_file_ending(remotepath)
@@ -70,8 +49,6 @@ function _remote_table_source(remotepath, shuffled, metadata_invalid, sample_inv
     format_has_separate_metadata = has_separate_metadata(format_value)
 
     # Get nrows, nbytes for each file in local_paths_on_curr_worker
-    @time begin
-    et = @elapsed begin
     meta_nrows_on_worker::Base.Vector{Int64} = if curr_parameters_invalid
         meta_nrows_on_worker_res = Base.zeros(length(local_paths_on_curr_worker))
         if format_has_separate_metadata
@@ -86,23 +63,13 @@ function _remote_table_source(remotepath, shuffled, metadata_invalid, sample_inv
     else
         split_across(curr_meta_nrows)
     end
-    end
-    println("Time for getting metadata: $et seconds")
-    end
-    @show eltype(meta_nrows_on_worker)
 
     # Compute the total # of rows so that if the current sample is invalid
     # we can determine whether to get an exact or inexact sample and
     # otherwise so that we can update the sample rate.
     total_nrows_res = if curr_parameters_invalid
         if format_has_separate_metadata
-            @time begin
-            et = @elapsed begin
-            reduce_and_sync_across_res = reduce_and_sync_across(+, sum(meta_nrows_on_worker))
-            end
-            println("Time for reduce_and_sync_across: $et seconds")
-            end
-            reduce_and_sync_across_res
+            reduce_and_sync_across(+, sum(meta_nrows_on_worker))
         else
             # For formats with metadata stored with the data (CSV), we
             # determine the # of rows later in the below case where
@@ -113,7 +80,6 @@ function _remote_table_source(remotepath, shuffled, metadata_invalid, sample_inv
         curr_location.src_parameters["nrows"]
     end
     exact_sample_needed = total_nrows_res < max_exact_sample_length
-    println("In sample collection wiht total_nrows_res=$total_nrows_res, exact_sample_needed=$total_nrows_res, max_exact_sample_length=$max_exact_sample_length")
 
     # inv: (a) `meta_nrows_on_worker`, (b) `total_nrows_res`, and
     # (c) `exact_sample_needed` are only valid if either the format has
@@ -123,11 +89,9 @@ function _remote_table_source(remotepath, shuffled, metadata_invalid, sample_inv
     # If the metadata isn't valid then we anyway have to read in all the data
     # so we can't leverage the data being shuffled by only reading in some of the files
     shuffled = shuffled && is_metadata_valid && !exact_sample_needed
-    # TODO: Use this
 
     # Get sample and also metadata if not yet valid at this point
     recollected_sample_needed = curr_sample_invalid || !is_metadata_valid
-    println("In sample collection with final shuffled=$shuffled and recollected_sample_needed=$recollected_sample_needed")
     meta_nrows, total_nrows, total_nbytes, remote_sample::Sample, empty_sample::String = if recollected_sample_needed
         # In this case, we actually recollect a sample. This is the case
         # where either we actually have an invalid sample or the sample is
@@ -136,8 +100,6 @@ function _remote_table_source(remotepath, shuffled, metadata_invalid, sample_inv
         # any recollection of sample.
 
         # Get local sample
-        @time begin
-        et = @elapsed begin
         local_samples = DataFrames.DataFrame[]
         if is_metadata_valid
             # Determine which files to read from if shuffled
@@ -154,23 +116,14 @@ function _remote_table_source(remotepath, shuffled, metadata_invalid, sample_inv
                         break
                     end
                 end
-                println("Shuffling with nfiles_on_worker_res=$nfiles_on_worker_res, length(meta_nrows_on_worker)=$(length(meta_nrows_on_worker)), nrows_on_worker_target=$nrows_on_worker_target, nrows_on_worker_so_far=$nrows_on_worker_so_far - nrows_on_worker_target=$nrows_on_worker_target")
                 perm_for_shuffling, nfiles_on_worker_res, nrows_on_worker_so_far - nrows_on_worker_target
             else
                 Colon(), length(local_paths_on_curr_worker), 0
             end
             meta_nrows_for_worker = meta_nrows_on_worker[shuffling_perm]
-            println("In collecting a sample where metadata is valid here and shuffling_perm=$shuffling_perm, nfiles_on_worker=$nfiles_on_worker, meta_nrows_on_worker=$meta_nrows_on_worker")
 
             # Get local sample
-            @show shuffling_perm
-            @show local_paths_on_curr_worker
             for (i, local_path_on_curr_worker) in zip(1:nfiles_on_worker, local_paths_on_curr_worker[shuffling_perm])
-                @show i
-                @show local_path_on_curr_worker
-                @show meta_nrows_for_worker
-                @time begin
-                et = @elapsed begin
                 push!(
                     local_samples,
                     let df = get_sample(
@@ -186,25 +139,18 @@ function _remote_table_source(remotepath, shuffled, metadata_invalid, sample_inv
                         end
                     end
                 )
-                end
-                println("Time to call get_sample: $et seconds")
-                end
             end
-            println("In sample collection where metadata was invalid and called get_sample and got size.(local_samples)=$(size.(local_samples))")
         else
             # This is the case for formats like CSV where we must read in the
             # metadata with the data AND the metadata is stale and couldn't
             # just have been read from the Arrow metadata file.
 
             local_nrows = 0
-            # First see if we can get a random (inexact sample).
-            println("In case of having to call get_sample_and_metadata with local_paths_on_curr_worker=$local_paths_on_curr_worker and session_sample_rate=$session_sample_rate")
             for exact_sample_needed_res in [false, true]
+                # First see if we can get a random (inexact sample).
                 empty!(local_samples)
                 local_nrows = 0
                 for (i, local_path_on_curr_worker) in enumerate(local_paths_on_curr_worker)
-                    @time begin
-                    et = @elapsed begin
                     path_sample, path_nrows = get_sample_and_metadata(
                         format_value,
                         local_path_on_curr_worker,
@@ -213,12 +159,9 @@ function _remote_table_source(remotepath, shuffled, metadata_invalid, sample_inv
                     meta_nrows_on_worker[i] = path_nrows
                     push!(local_samples, path_sample)
                     local_nrows += path_nrows
-                    end
-                    println("Time on worker_idx=$(get_worker_idx()) to call get_sample_and_metadata with local_nrows=$local_nrows after path_nrows=$path_nrows: $et seconds")
-                    end
                 end
                 total_nrows_res = reduce_and_sync_across(+, local_nrows)
-                println("After reduce_and_sync_across on local_nrows=$local_nrows and total_nrows_res=$total_nrows_res where max_exact_sample_length=$max_exact_sample_length")
+
                 # If the sample is too small, redo it, getting an exact sample
                 if !exact_sample_needed_res && total_nrows_res < max_exact_sample_length
                     exact_sample_needed = true
@@ -228,21 +171,10 @@ function _remote_table_source(remotepath, shuffled, metadata_invalid, sample_inv
                     break
                 end
             end
-            # println("In sample collection with final exact_sample_needed_res=$exact_sample_needed_res and size.(local_samples)=$(size.(local_samples))")
         end
-        @time begin
-        et = @elapsed begin
         local_sample::DataFrames.DataFrame = isempty(local_samples) ? DataFrames.DataFrame() : vcat(local_samples...)
-        end
-        println("Time to vcat local_samples: $et seconds")
-        end
-        end
-        println("Time to get samples locally: $et seconds")
-        end
 
         # Concatenate local samples and nrows together
-        @time begin
-        et = @elapsed begin
         remote_sample_value::DataFrames.DataFrame, meta_nrows_on_workers::Base.Vector{Int64} = if curr_parameters_invalid
             sample_and_meta_nrows_per_worker::Base.Vector{Tuple{DataFrames.DataFrame,Base.Vector{Int64}}} =
                 gather_across((local_sample, meta_nrows_on_worker))
@@ -253,12 +185,7 @@ function _remote_table_source(remotepath, shuffled, metadata_invalid, sample_inv
                     push!(sample_per_worker, sample_and_meta_nrows[1])
                     push!(meta_nrows_per_worker, sample_and_meta_nrows[2])
                 end
-                @time begin
-                et = @elapsed begin
                 res = vcat(sample_per_worker...), vcat(meta_nrows_per_worker...)
-                end
-                println("Time on worker_idx=$(get_worker_idx()) to vcat sample_per_worker and meta_nrows_per_Worker: $et seconds")
-                end
                 res
             else
                 DataFrames.DataFrame(), Int64[]
@@ -271,9 +198,6 @@ function _remote_table_source(remotepath, shuffled, metadata_invalid, sample_inv
                 DataFrames.DataFrame(), Int64[]
             end
         end
-        end
-        println("Time on worker_idx=$(get_worker_idx()) to concatenate samples across workers: $et seconds")
-        end
 
         # At this point the metadata is valid regardless of whether this
         # format has metadata stored separately or not. We have a valid
@@ -283,12 +207,7 @@ function _remote_table_source(remotepath, shuffled, metadata_invalid, sample_inv
 
         # Return final Sample on main worker now that we have gathered both the sample and metadata
         if is_main
-            @time begin
-            et = @elapsed begin
             empty_sample_value_serialized::String = to_jl_value_contents(empty(remote_sample_value))
-            end
-            println("Time on worker_idx=$(get_worker_idx()) to call to_jl_value_contents on an empty data frame: $et seconds")
-            end
 
             # Construct Sample with the concatenated value, memory usage, and sample rate
             remote_sample_value_memory_usage = total_memory_usage(remote_sample_value)
@@ -307,8 +226,6 @@ function _remote_table_source(remotepath, shuffled, metadata_invalid, sample_inv
             else
                 Sample(remote_sample_value, total_nbytes_res)
             end
-            # TODO: Ensure all if statements are handled
-            # TODO: Ensure that the right stuff is running on main worker
             meta_nrows_on_workers, total_nrows_res, total_nbytes_res, remote_sample_res, empty_sample_value_serialized
         else
             Base.zeros(length(localpaths)), -1, -1, NOTHING_SAMPLE, to_jl_value_contents(DataFrames.DataFrame())
@@ -349,27 +266,9 @@ function _remote_table_source(remotepath, shuffled, metadata_invalid, sample_inv
     # Write the metadata to an Arrow file
     meta_path = is_main ? get_meta_path(remotepath) : ""
     if curr_parameters_invalid
-        # @time begin
-        # et = @elapsed begin
-        # meta_path = 
-        # end
-        # println("Time to get_meta_path: $et seconds")
-        # end
-        
         # Write `NamedTuple` with metadata to `meta_path` with `Arrow.write`
-        @time begin
-        et = @elapsed begin
         Arrow.write(is_main ? meta_path : IOBuffer(), (path=localpaths, nrows=meta_nrows))
-        end
-        println("Time to Arrow.write metadata: $et seconds")
-        end
     end
-
-    # TODO: Modify invalidate_* functions
-    # TODO: Modify location destination constructor
-    # TODO: Modify other `locations.jl` files in BanyanHDF5.jl, BanyanImages.jl
-    # TODO: Make writing PFs update sample and parameters and make write_*
-    # functions not invalidate the sample
 
     # Return LocationSource
     if is_main
@@ -393,12 +292,7 @@ function _remote_table_source(remotepath, shuffled, metadata_invalid, sample_inv
         )
 
         # Write out the updated `Location`
-        @time begin
-        et = @elapsed begin
         cache_location(remotepath, location_res, invalidate_sample, invalidate_metadata)
-        end
-        println("Time to cache_location: $et seconds")
-        end
 
         location_res
     else
@@ -419,22 +313,6 @@ function RemoteTableSource(remotepath; shuffled=true, metadata_invalid = false, 
         distributed=true
     )
 end
-
-# function RemoteTableSource(remotepath; shuffled=false, metadata_invalid = false, sample_invalid = false, invalidate_metadata = false, invalidate_sample = false)::Location
-#     if Banyan.INVESTIGATING_CACHING_LOCATION_INFO || Banyan.INVESTIGATING_CACHING_SAMPLES
-#         println("Before call to RemoteSource")
-#         @show remotepath metadata_invalid sample_invalid
-#     end
-#     RemoteSource(
-#         get_remote_table_source,
-#         remotepath,
-#         shuffled,
-#         metadata_invalid,
-#         sample_invalid,
-#         invalidate_metadata,
-#         invalidate_sample
-#     )
-# end
 
 # Load metadata for writing
 # NOTE: `remotepath` should end with `.parquet` or `.csv` if Parquet

@@ -91,9 +91,6 @@ function keep_all_sample_keys(participants::Base.Vector{Future}, drifted::Bool, 
     # Take the union of discovered grouping keys. Grouping keys are discovered
     # through calls to `keep_keys` in functions where we know that we need
     # to allow grouping by certain keys such as sorting and join functions.
-    # println("In keep_all_sample_keys")
-    # @show participants
-    # @show [sample(p, :groupingkeys) for p in participants]
     for p in participants
         p_s::Sample = get_location(p).sample
         p_sample = p_s.value
@@ -165,27 +162,14 @@ keep_all_sample_keys_renamed(
     keep_all_sample_keys_renamed((old, old_s, old_s.value), (new, new_s, new_s.value), K, keeping_same_statistics)
 end
 
-# function keep_keytype(participants::Vector{Future}, K::DataType)
-#     for p in participants
-#         p_sample::Sample = get_location(p).sample
-#         p_sample.groupingkeys = convert(Vector{K}, p_sample.groupingkeys)::Vector{K}
-#     end
-# end
-
 function keep_sample_keys_named(
     participants::Vector{Tuple{Future,Vector{K}}},
     drifted::Bool,
     keeping_same_statistics::Vector{Tuple{Future,K,Future,K}}
 ) where {K}
-    # println("In keep_sample_keys_named")
     # `participants` maps from futures to lists of key names such that all
     # participating futures have the same sample properties for the keys at
     # same indices in those lists
-    # participants = [
-    #     (participant, Symbol.(to_vector(key_names))) for
-    #     (participant, key_names) in participants
-    # ]
-    # @show participants
     first_participant_pair = first(participants)
     first_participant::Future = first_participant_pair[1]
     first_keys::Vector{K} = first_participant_pair[2]
@@ -194,9 +178,6 @@ function keep_sample_keys_named(
         # Copy over allowed grouping keys
         for (p::Future, keys::Vector{K}) in participants
             p_key::K = keys[i]
-            # @show p
-            # @show p_key
-            # @show union(sample(p, :groupingkeys), [p_key])
             p_sample = get_location(p).sample
             p_sample_groupingkeys::Vector{K} = p_sample.groupingkeys
             if !(p_key in p_sample_groupingkeys)
@@ -315,21 +296,14 @@ function apply_partitioned_using_func(f::PartitionedUsingFunc{K}) where {K}
     # outputs would require mutation for the future to be an output. And
     # that would have been marked by a call to `mutated` that is made in the
     # `Future` constructor.
-    # println("In apply_partitioned_using_func with K=$K, grouped=$grouped, keys=$keys, keys_by_future=$keys_by_future, get_task()=$(get_task())")
-    # @time begin
-    # @time begin
     grouping_needed = keep_same_keys || !isempty(keys) || !isempty(keys_by_future) || renamed
     curr_delayed_task::DelayedTask = get_task()
     curr_delayed_task_mutation::IdDict{Future,Future} = curr_delayed_task.mutation
     curr_delayed_task_scaled::Vector{Future} = curr_delayed_task.scaled
-    
-    # println("Time for creating variables in apply_partitioned_using_func")
-    # end
     outputs::Vector{Future}, inputs::Vector{Future}, outputs_grouped::Vector{Future}, inputs_grouped::Vector{Future} =
         get_inputs_and_outputs(curr_delayed_task_mutation, curr_delayed_task_scaled, grouping_needed, grouped)
 
     # Propagate information about keys that can be used for grouping
-    # @time begin
     if grouping_needed
         keeping_same_statistics::Vector{Tuple{Future,K,Future,K}} = Tuple{Future,K,Future,K}[]
         if keep_same_keys
@@ -339,11 +313,6 @@ function apply_partitioned_using_func(f::PartitionedUsingFunc{K}) where {K}
                 end
                 keep_all_sample_keys_renamed(inputs_grouped[1], outputs_grouped[1], K, keeping_same_statistics)
             else
-                # @show inputs
-                # @show outputs
-                # @show grouped
-                # @show inputs_grouped
-                # @show outputs_grouped
                 keep_all_sample_keys(grouped, drifted, keeping_same_statistics)
             end
         end
@@ -357,20 +326,13 @@ function apply_partitioned_using_func(f::PartitionedUsingFunc{K}) where {K}
             apply_keeping_same_statistics(keeping_same_statistics)
         end
     end
-    # println("Time for keeping stuff in apply_partitioned_using_func")
-    # end
 
     # Propgate sample rates
-    # @time begin
     apply_partitioned_using_func_for_sample_rates(inputs, keep_same_sample_rate, outputs)
-    # println("Time for sample rates in apply_partitioned_using_func")
-    # end
 
     # Store the important inputs and outputs for scaling memory usage
     curr_delayed_task.inputs = inputs
     curr_delayed_task.outputs = outputs
-    # println("Time for running main part of apply_partitioned_using_func")
-    # end
 end
 
 function _partitioned_with(
@@ -471,7 +433,6 @@ function partitioned_with(
         # versions of functions are used.
         keytype
     end
-    println("In partitioned_with with K=$K")
     _partitioned_with(
         handler,
         futures,
@@ -517,22 +478,14 @@ function pt_partition_type_composition(
     end
 
     # Handle constraints that have been delayed till PT assignment
-    @time begin
     efunc = evaluate_constraint_func(fut)
     for pty in ptype.pts
         new_constraints::Vector{PartitioningConstraint} = map(efunc, pty.constraints.constraints)
         pty.constraints.constraints = new_constraints
     end
-    println("Time to evaluate constraints")
-    end
 
     # Add to PAs information about how partitions are produced
     pa.partitions.pt_stacks[fut.value_id] = ptype
-
-    # # Add to PAs information about how partitioning is constrained
-    # for c in get(kwargs, :constrain, [])
-    #     push!(pa.constraints.constraints, c)
-    # end
 
     # Handle `match`, `on` in keyword arguments
     if !isempty(to_match)
@@ -560,19 +513,13 @@ function pt_partition_type(ptype::PartitionType, futs::Vector{Future}, match::Ve
     pt_composition::PartitionTypeComposition =
         PartitionTypeComposition(PartitionType[ptype])
     for fut in futs
-        @time begin
         pt_partition_type_composition(fut, deepcopy(pt_composition), match, on, cross)
-        println("Time to call pt_partition_type_composition")
-        end
     end
 end
 
 function pt_partition_type(ptype::PartitionTypeComposition, futs::Vector{Future}, match::Vector{Future}, on::Vector{String}, cross::Vector{Future})
     for fut in futs
-        @time begin
         pt_partition_type_composition(fut, ptype, match, on, cross)
-        println("Time to call pt_partition_type_composition")
-        end
     end
 end
 
@@ -580,10 +527,7 @@ function pt_partition_type(ptype::Base.Vector{PartitionType}, futs::Vector{Futur
     for fut in futs
         for i in 1:length(ptype)
             pt_composition = PartitionTypeComposition(ptype[i:i])
-            @time begin
             pt_partition_type_composition(fut, pt_composition, match, on, cross)
-            println("Time to call pt_partition_type_composition")
-            end
         end
     end
 end
@@ -605,13 +549,8 @@ function pt(
     # cross::Vector{<:AbstractFuture} = Future[]
 )
     @nospecialize
-    @time begin
     length(args) >= 1 || error("Cannot assign partition type with `pt` unless at least one argument is passed in")
 
-    # futs_res::Vector{Future} = convert(Vector{Future}, Base.collect(args[1:end-1]))
-    # match_res::Vector{Future} = isnothing(match) ? Future[] : Future[convert(Future, match)]
-    # on_res::Vector{String} = on isa String ? String[on] : on
-    # cross_res::Vector{Future} = convert(Vector{Future}, cross)
     futs_res::Vector{Future} = Base.collect(args[1:end-1])
     match_res::Vector{Future} = isnothing(match) ? Future[] : Future[match]
     on_res::Vector{String} = isnothing(on) ? String[] : (on isa String ? String[on] : on)
@@ -619,12 +558,7 @@ function pt(
 
     ptype = deepcopy(args[end])
     if length(futs_res) > 0
-        @time begin
         pt_partition_type(ptype, futs_res, match_res, on_res, cross_res)
-        println("Time to call pt_partition_type")
-        end
-    end
-    println("Time inside of pt")
     end
 end
 
@@ -850,7 +784,6 @@ function finish_partitioned_code_region(splatted_futures::Vector{Future})
                 # usage which might have been modified using past memory
                 # usage constraints like ScaleBy and ScaleTo.
                 task.memory_usage[fut.value_id]["final"] = Base.convert(Int64, ceil(factor * total_input_memory_usage))::Int64
-                # @show total_sampled_input_memory_usage factor total_input_memory_usage task.memory_usage[fut.value_id]["final"]
             elseif task.memory_usage[fut.value_id]["initial"] != 0
                 # If the input is nonzero then the output is the same
                 # because we don't support a change in memory usage that
@@ -1056,10 +989,8 @@ function partitioned_code_region(
     # reassigning_futures::Vector{Expr}
 )
     code_string::String = string(code)
-    @time begin
     res = quote
         # Convert arguments to `Future`s if they aren't already
-        @time begin
         unsplatted_futures::Vector{Union{Future,Vector{Future}}} =
             map(
                 v -> if v isa Tuple
@@ -1069,14 +1000,8 @@ function partitioned_code_region(
                 end,
                 [$(variables...)]
             )
-        println("Time for getting unsplatted futures")
-        end
-        @time begin
         splatted_futures::Vector{Future} = get_splatted_futures(unsplatted_futures)    
-        println("Time for getting splatted futures")
-        end
         
-
         # TODO: Allow for any Julia object (even stuff that can't be converted
         # to `Future`s) to be passed into an @partitioned and by default have
         # it be replicated across all workers and batches
@@ -1099,38 +1024,28 @@ function partitioned_code_region(
         unsplatted_variable_names::Vector{String} = String[$(variable_names...)]
         
         code::String = $code_string
-        @time begin
         prepare_task_for_partitioned_code_region(
             unsplatted_futures,
             unsplatted_variable_names,
             splatted_futures,
             code
         )
-        println("Time for prepare_task_for_partitioned_code_region")
-        end
 
         # TODO: When mutating a value, ensure that the old future has a sample
         # of the old value and the new future of the new
 
         # Perform computation on samples
-        @time begin
         try
             let ($(variables...),) = [$(assigning_samples...)]
                 begin
                     # Run the computation
-                    @time begin
                     $(esc(code))
-                    println("Time for running computation")
-                    end
                     # Move results from variables back into the samples. Also, update the
                     # memory usage accordingly.
                     # TODO: Determine if other sample properties need to be invalidated (or
                     # updated) after modified by an annotated code region.
                     # $(reassigning_futures...)
-                    @time begin
                     reassign_futures(unsplatted_futures, Any[$(variables...)])
-                    println("Time for reassigning futures")
-                    end
                 end
             end
         catch
@@ -1138,20 +1053,13 @@ function partitioned_code_region(
             finish_task()
             rethrow()
         end
-        println("Time spent in try/catch")
-        end
 
         # NOTE: We only update futures' state, record requests, update samples,
         # apply mutation _IF_ the sample computation succeeds. Regardless of
         # whether it succeeds, we make sure to clear the task (so that future
         # usage in the REPL or notebook can proceed, generating new tasks) and
         # reassign all variables.
-        @time begin
         finish_partitioned_code_region(splatted_futures)
-        println("Time for finish_partitioned_code_region")
-        end
-    end
-    println("Time spent in quote")
     end
     res
 end
@@ -1181,41 +1089,14 @@ macro partitioned(ex...)
             assigning_samples,
             quote get_samples(unsplatted_futures[$i]) end
         )
-
-        # # Re-assign futures to variables that were used in annotated code
-        # # TODO: Ensure that it is okay for different `quote...end` blocks to refer
-        # # to the same variable name. They shouldn't have different gensym-ed
-        # # variable names in the macro expansion.
-        # # TODO: Only do this for mutated futures
-        # push!(
-        #     reassigning_futures,
-        #     quote
-        #         if unsplatted_futures[$i] isa Vector
-        #             uf = unsplatted_futures[$i]
-        #             for j = 1:length(uf)
-        #                 fe::Future = uf[j]
-        #                 setsample!(fe, $variable[j])
-        #                 setsample!(fe, :memory_usage, sample_memory_usage($variable[j]))
-        #             end
-        #         else
-        #             uf = Future[unsplatted_futures[$i]]
-        #             setsample!(uf[1], $variable)
-        #             setsample!(uf[1], :memory_usage, sample_memory_usage($variable))
-        #         end
-        #     end
-        # )
     end
 
-    @time begin
     res = partitioned_code_region(
         variables,
         variable_names,
         code,
         assigning_samples,
-        # reassigning_futures
     )
-    println("Time spent in partitioned_code_region:")
-    end
     res
 end
 
@@ -1344,20 +1225,10 @@ function duplicated_constraints_for_batching(pc::PartitioningConstraints, pa::Pa
 end
 
 function duplicate_for_batching!(pa::PartitionAnnotation)
-    # @show pa
     # Duplicate PT stacks
     for pt_stack::PartitionTypeComposition in values(pa.partitions.pt_stacks)
         # Copy over the PT stack
         second_half::Vector{PartitionType} = deepcopy(pt_stack.pts)
-
-        # # Don't duplicate parameters that have bang values
-        # for pt in second_half
-        #     for (k, v) in pt.parameters
-        #         if v == "!"
-        #             pop!(pt.parameters, k)
-        #         end
-        #     end
-        # end
 
         # Append to form a compositions of PTs that is twic in length
         append!(pt_stack.pts, second_half)
@@ -1365,7 +1236,6 @@ function duplicate_for_batching!(pa::PartitionAnnotation)
 
     # Duplicate annotation-level constraints for Co, Equal, Cross, AtMost, ScaleBy
     pa.constraints = duplicated_constraints_for_batching(pa.constraints, pa)
-    # println(pa.constraints)
 
     # Add constraints for second half being Sequential and Match-ing the first
     # half
@@ -1381,10 +1251,6 @@ function duplicate_for_batching!(pa::PartitionAnnotation)
             )
             # Since we have duplicated all constraints, we don't need to
             # constrain both halves of the PT composition to match
-            # push!(
-            #     pa.constraints.constraints,
-            #     PartitioningConstraintOverGroup("MATCH", [(v, i - 1), (v, dupi - 1)]),
-            # )
 
             # Duplicate PT-level constraints
             pt_dup::PartitionType = pt_stack.pts[dupi]

@@ -15,63 +15,22 @@ function get_metadata(::Val{:csv}, p)::Int64
 end
 get_sample(::Val{:csv}, p, sample_rate, len) = let rand_indices = sample_from_range(1:len, sample_rate)
     if sample_rate != 1.0 && isempty(rand_indices)
-        println("In get_sample with p=$p, sample_rate=$sample_rate, and rand_indices=$rand_indices for len=$len producing an empty DataFrame")
         DataFrames.DataFrame()
     else
-        println("Calling get_sample_from_data with size(CSV.read(p, DataFrames.DataFrame))=$(size(CSV.read(p, DataFrames.DataFrame)))")
-        res = get_sample_from_data(CSV.read(p, DataFrames.DataFrame; header=1, skipto=2, footerskip=0), sample_rate, rand_indices)
-        println("Calling get_sample_from_data with size(res)=$(size(res))")
-        res
+        get_sample_from_data(CSV.read(p, DataFrames.DataFrame; header=1, skipto=2, footerskip=0), sample_rate, rand_indices)
     end
 end
 get_sample_and_metadata(::Val{:csv}, p, sample_rate) =
     let sample_df = CSV.read(p, DataFrames.DataFrame; header=1, skipto=2, footerskip=0)
         num_rows = nrow(sample_df)
-        res = get_sample_from_data(sample_df, sample_rate, num_rows), num_rows
-        println("In get_sample_and_metadata with size(sample_df)=$(size(sample_df)) size(res[1])=$(size(res[1]))")
-        res
+        get_sample_from_data(sample_df, sample_rate, num_rows), num_rows
     end
-
-# get_csv_chunks(localfilepathp::String)::Any = 
-#     try
-#         CSV.Chunks(localfilepathp)
-#     catch e
-#         # An ArgumentError may get thrown if the file cannot be
-#         # read in with the multi-threaded chunked iterator for
-#         # some reason. See
-#         # https://github.com/JuliaData/CSV.jl/blob/main/src/context.jl#L583-L641
-#         # for possible reasons for `ctx.threaded` in CSV.jl
-#         # code to be false.
-#         if isa(e, ArgumentError)
-#             [CSV.File(localfilepathp)]
-#         else
-#             throw(e)
-#         end
-#     end
-
-# read_chunk(localfilepathp::String, ::Val{:csv}) = get_csv_chunks(localfilepathp)
-
-# function get_nrow(localfilepathp::String, ::Val{:csv})
-#     num_rows = 0
-#     for _ in CSV.Rows(localfilepathp)
-#         num_rows += 1
-#     end
-#     num_rows
-# end 
 
 # pfs.jl
 
 file_ending(::Val{:csv}) = "csv"
 
 function read_file(::Val{:csv}, path, rowrange, readrange, filerowrange, dfs)
-    @time begin
-    et = @elapsed begin
-    @show nrow(CSV.read(path, DataFrames.DataFrame))
-    end
-    println("Time on worker_idx=$(get_worker_idx()) for first CSV.read in read_file: $et seconds")
-    end
-    @time begin
-    et = @elapsed begin
     push!(
         dfs,
         CSV.read(
@@ -83,10 +42,6 @@ function read_file(::Val{:csv}, path, rowrange, readrange, filerowrange, dfs)
             footerskip = filerowrange.stop - readrange.stop,
         )
     )
-    println("In read_file for CSV with path=$path, rowrange=$rowrange, readrange=$readrange, filerowrange=$filerowrange, nrow.(dfs)=$(nrow.(dfs))")
-    end
-    println("Time on worker_idx=$(get_worker_idx()) for second CSV.read in read_file: $et seconds")
-    end
 end
 
 ReadBlockCSV = ReadBlockHelper(Val(:csv))
@@ -108,22 +63,12 @@ CopyFromCSV(
 )::DataFrames.DataFrame = begin
     params["key"] = 1
     part::DataFrames.DataFrame = if is_main_worker(comm)
-        @time begin
-        et = @elapsed begin
         part = ReadBlockCSV(src, params, 1, 1, MPI.COMM_SELF, loc_name, loc_params)
-        end
-        println("Time for calling ReadBlockCSV from CopyFromCSV on main worker: $et seconds")
-        end
         part
     else
         DataFrames.DataFrame()
     end
-    @time begin
-    et = @elapsed begin
     res = sync_across(part, comm=comm)
-    end
-    println("Time for calling sync_across from CopyFromCSV: $et seconds")
-    end
     res
 end
 

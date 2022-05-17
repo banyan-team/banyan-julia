@@ -9,18 +9,11 @@ function Base.copy(fut::AbstractFuture)
 
     res = Future(from=fut)
 
-    # partitioned_using() do
-    #     keep_all_sample_keys(res, fut)
-    #     keep_sample_rate(res, fut)
-    # end
-
     # TODO: Ensure that the CopyTo function can always be used to split anything
     # for which there is no specified PT. But make sure that other splitting
     # functions such as those that split arrays are expecting a name to be
     # provided. If we do that, we can un-comment the below and allow for
-    # copying anything  
-    # pt(fut, PartitionType())
-    # pt(res, PartitionType(), match=fut)
+    # copying anything.
     partitioned_with(pts_for_replicating, [fut, res], scaled=[fut, res])
 
     @partitioned fut res begin
@@ -35,18 +28,11 @@ function Base.deepcopy(fut::AbstractFuture)
 
     res = Future(from=fut)
 
-    # partitioned_using() do
-    #     keep_all_sample_keys(res, fut)
-    #     keep_sample_rate(res, fut)
-    # end
-
     # TODO: Ensure that the CopyTo function can always be used to split anything
     # for which there is no specified PT. But make sure that other splitting
     # functions such as those that split arrays are expecting a name to be
     # provided. If we do that, we can un-comment the below and allow for
     # copying anything  
-    # pt(fut, PartitionType())
-    # pt(res, PartitionType(), match=fut)
     partitioned_with(pts_for_replicating, [fut, res], scaled=[fut, res])
 
     @partitioned fut res begin
@@ -77,7 +63,6 @@ Base.convert(::Type{Array}, arr::AbstractArray{T}) where {T} = convert(Array{T},
 Base.convert(::Type{Vector{T}}, arr::AbstractVector) where {T} = convert(Array{T}, arr)
 
 Banyan.convert(::Type{Future}, A::Array{T,N}) where {T,N} = A.data
-# Banyan.sample(A::Array{T,N})::Base.AbstractArray{T,N} = sample(A.data)
 
 # Array sample
 
@@ -124,12 +109,6 @@ function partitioned_for_fill(A::Future, fillingdims::Future, v::Future)
     # having its sample taken
     partitioned_with(pts_for_fill, [A, fillingdims, v], scaled=[A])
 
-    # TODO: Remove the println @macroexpand
-    # println(@macroexpand begin @partitioned A v fillingdims begin
-    #     println(A)
-    #     println(v)
-    #     A = fill(v, fillingdims)
-    # end end)
     @partitioned A v fillingdims begin
         A = Base.fill(v, fillingdims)
     end
@@ -153,13 +132,7 @@ function fill(v, dims::NTuple{N,Integer}) where {N}
     # NOTE: If a value is being created for the first time in a code region, it
     # is being mutated. The only exception is a value that is already created
     # on the client and is merely being replicated in the code region.
-    # partition(A, Replicated())
-    # partition(dims, Replicated())
-    
-    # for axis in 1:min(4, ndims(A))
-    #     # Partition with distribution of either balanced, grouped, or unknown
-    #     partition(A, Blocked(key=a))
-    # end
+
     partitioned_for_fill(A, fillingdims, v)
 
     Array{typeof(v_sample),N}(A, A_dims)
@@ -311,14 +284,6 @@ function pts_for_map(futures::Base.Vector{Future})
     end
 end
 
-# function _map(c::Base.Vector{Future}, r::Base.Vector{Future}, f::Future, no_replication::Bool)
-#     c_and_res = copy(c)
-#     append!(c_and_res, res)
-#     futures = copy(c_and_res)
-#     append!(futures, [f, Future(no_replication)])
-#     partitioned_with(pts_for_map, futures, scaled=c_and_res)
-# end
-
 function Base.map(f, c::Array{<:Any,N}...; force_parallelism=false) where {T,N}
     @nospecialize
 
@@ -353,21 +318,9 @@ function Base.map(f, c::Array{<:Any,N}...; force_parallelism=false) where {T,N}
 
     partitioned_with(pts_for_map, [c_args..., res, f, Future(force_parallelism)], scaled=c_args)
 
-    # println(@macroexpand begin @partitioned f c res begin
-    #     res = Base.map(f, c...)
-    # end end)
     @partitioned f c res begin
-        println("In map @partitioned with size.(c)=$(size.(c))")
         res = Base.map(f, c...)
-        println("In map @partitioned with size(res)=$(size(res))")
-        # @show res
-        # @show typeof(res)
-        # @show eltype(res)
     end
-
-    # @show sample(res)
-    # @show typeof(sample(res))
-    # @show eltype(sample(res))
 
     make_map_res(sample(res), res, res_size)
 end
@@ -425,38 +378,6 @@ function Base.mapslices(f, A::Array{T,N}; dims) where {T,N}
     _mapslices(f, A.data, res_size, res, dims)
 end
 
-# function getindex_size(A_s, indices...)
-#     if length(indices) == 1
-#         # Linear-indexing case
-#         if indices[1] isa Colon
-#             prod(A_s)
-#         elseif indices[1] isa Vector
-#             length(indices[1])
-#         else
-#             # Accessing a single element
-#             1
-#         end
-#     else
-#         # Multi-dimensional indexing case
-#         if all((i isa Integer for i in indices))
-#             # Accessing a single element
-#             1
-#         else
-#             tuple(
-#                 [
-#                     if indices[i] isa Colon
-#                         s
-#                     else 
-#                         length(indices[i])
-#                     end
-#                     for (i, s) in enumerate(A_s)
-#                     if indices[i] isa Colon || indices[i] isa Vector
-#                 ]
-#             )
-#         end
-#     end
-# end
-
 function pts_for_getindex(futures::Base.Vector{Future})
     A, indices, res_size, res = futures
 
@@ -481,8 +402,6 @@ function pts_for_getindex(futures::Base.Vector{Future})
                 end
             end
         end
-        @show Banyan.INVESTIGATING_DIFFERENT_PARTITIONING_DIMS
-        @show last_non_one_dim
         Int64[last_non_one_dim]
     elseif length(indices_sample) == ndims(A_sample)
         Int64[i for i in 1:ndims(A_sample) if indices_sample[i] isa Colon]
@@ -492,8 +411,6 @@ function pts_for_getindex(futures::Base.Vector{Future})
 
     # Blocked PTs along dimensions _not_ being mapped along
     bpt = PartitionType[bpt for bpt in Blocked(A) if (bpt.parameters["key"])::Int64 in allowed_splitting_dims]
-    @show bpt
-    @show single_colon
 
     if !isempty(bpt)
         # balanced
@@ -529,7 +446,6 @@ function _getindex(A::Future, indices::Future, res_size::Future, res::Future)
         if res isa AbstractArray
             res_size = size(res)
         end
-        println("In getindex @partitioned with indices=$indices and res_size=$res_size")
     end
 
     res_sample = sample(res)
@@ -546,8 +462,6 @@ function Base.getindex(A::Array{T,N}, indices...) where {T,N}
     end
 
     indices = Future(indices)
-    # A_size = A.size
-    # res_size = Future(A_size, mutation=A_s->getindex_size(A_s, indices...))
     res_size = Future()
     res = Future(datatype="Array")
 
@@ -593,11 +507,6 @@ function _reduce(op::Future, A::Future, res_size::Future, res::Future, dims::Fut
     # TODO: Ensure that MatchOn value is being discovered
 
     @partitioned op A dims kwargs res res_size begin
-        if is_debug_on()
-            # @show size(A)
-            # @show dims # TODO: Figure out why dims is sometimes a function
-        end
-        println("In reduce @partitioned with size(A)=$(size(A))")
         if isempty(A)
             res = EMPTY
             res_size = EMPTY
@@ -609,7 +518,6 @@ function _reduce(op::Future, A::Future, res_size::Future, res::Future, dims::Fut
                 res_size = EMPTY
             end
         end
-        println("In reduce @partitioned with res=$res, res_size=$res_size")
     end
 
     res_sample = sample(res)
@@ -683,58 +591,7 @@ Base.sort(A::Array{T,N}; kwargs...) where {T,N} = sortslices(A, dims=Colon(); kw
 
 # Array aggregation
 
-# TODO: Determine split between what happens in annotations vs PT constructors
-# - Annotations
-#   - Collecting axes/keys that are relevant to the computation by looking at arguments
-#   - Iterating through keys that require special partitioning
-#   - Registering a delayed PA and passing in job with info
-# - PT Library
-#   - Maintaining job_properties with keys and axes that are used
-
-# for (op, agg) in [(:(sum), :(Base.:+)), (:(minimum), :(min)), (:(maximum), :(max))]
-#     @eval begin
-#         function $op(A::Array{T, N})
-#             dims = dims isa Tuple ? dims : tuple(dims)
-#             dimensions = Future(dims)
-#             operator = Future($op)
-#             res = Future()
-#         end
-
-#         function $op(A::Array{T, N}; dims=:) where {T, N}
-#             dims = dims isa Tuple ? dims : tuple(dims)
-#             dimensions = Future(dims)
-#             operator = Future($op)
-#             res_size = Future() # TODO: Compute this here using Future, mutation=
-#             res = Array{T, N}(Future(), res_size)
-
-#             partition(A, Replicated())
-#             partition(res, Replicated())
-
-#             # Partition by distributing across 1 of up to 4 axes
-#             for axis in 1:min(4, ndims(A))
-#                 # Partition with distribution of either balanced, grouped, or unknown
-#                 partition(A, Blocked(key=axis))
-
-#                 # Partition the result based on whether the reduction is across the dimension of partitioning
-#                 if axis in dims
-#                     partition(res, Reducing(reducer=$agg))
-#                 else
-#                     partition(res, Partitioned(), matches_with=A)
-#                 end
-#             end
-
-#             # Partition all as replicated
-#             partition(operator, Replicated())
-#             partition(res_size, Replicated())
-
-#             @partitioned A dimensions operator aggregaton res res_size begin
-#                 res = $op(V, dims=dimensions)
-#                 res_size = size(res)
-#             end
-#         end
-#     end
-# end
-
+# TODO: Maybe add mean function or add this in BanyanStatsBase.jl
 # function mean(V::Vector)
 #     # TODO: Accept vector partitioned in different dimensions and return
 #     # replicated with reducing or distributed with same id potentially grouped
@@ -778,90 +635,4 @@ end
 @specialize
 
 # TODO: Add broadcasting support
-
-# # Binary operators
-# for op in (:+, :-, :>, :<, :>=, :<=, :≥, :≤, :(==), :!=)
-#     @eval begin
-#         function Base.$op(A::Array{T, N}, B::Array{T, N}) where {T, N}
-#             A_size = A.size
-#             res_size = Future(A_size)
-#             res = Array{T, N}(Future(), res_size)
-#             op = Future(op)
-#             # TODO:
-#             # - make samples get computed instantly
-#             # TODO: Put info in partitioned:
-#             # - Future
-#             # - PT (replicated, balanced, grouped, pseudo)
-#             # - PCs (matching on, at most)
-#             # - location (None) with sample, sample properties, total memory
-#             # - mutating (constant)
-#             # TODO: for columns: how to partition on grouped
-#             # - maintain set of possible keys to group by
-#             # - compute atmost whenever needed
-#             # TODO: Implement new Distributed to support group-by views - how to partition on unknown?
-#             # - distribution = balanced by axis|grouped by axis or key with divisions|unknown
-#             # - identified by id = true|false
-#             # - axis
-#             # - key
-#             # - divisions - ensure that a split function can't be used if it is required but not provided
-#             # - ID (must be null for splitting or casting to)
-#             # TODO: Auto-generate default random on casts and splits
-#             # "!" for parameters that are to be randomly assigned, can be used both in PAs and in PT library
-            
-#             # TODO: Accept replicated or balanced or distributed with same ID for inputs and outputs while grouped by any valid key
-
-#             partition(A, Replicated())
-#             for axis in 1:min(4, ndims(A))
-#                 partition(A, Blocked(key=axis))
-#             end
-#             partition(B, Partitioned(), matches_with=A)
-#             partition(res, Partitioned(), matches_with=A, mutating=true)
-#             partition(res_size, ReplicatedOrReducing(), match=A_size)
-#             partition(op, Replicated())
-
-#             # colnames = propertynames(sample(df))
-#             # partition() do job
-#             #     job.properties[:keys]
-#             #     Grouped(propertynames(sample(df)))
-#             #     Grouped(df, groupingkey, reverse=false)
-#             # end
-#             # partition(A, Balanced())
-#             # partition(A, Distributed(like=B))
-#             # partition(A_size, Replicated())
-#             # partition(B, Distributed(), matches_with=A)
-#             # partition(res, Distributed(), matches_with=A)
-#             # partition(res_nrows, Replicated())
-#             # partition(op, Replicated())
-
-#             @partitioned res res_size A A_size B op begin
-#                 res = op(A, B)
-#                 res_size = A_size
-#             end
-
-#             res
-#         end
-#     end
-# end
-
-# # TODO: Implement unary operators
-
-# # TODO: Implement element-wise operations
-
-# # Array reshaping
-
-# # TODO: Support sorting once we have a non-verbose way of specifying grouping for both dataframes and arrays
-
-# # function sort(A::Array; kwargs...)
-# #     # TODO: Accept replicated or grouped on key used for sotring and return same but with same ID but
-# #     # newly generated ID if the input has id set to null because of casting or re-splitting
-# #     # TODO: Accept A as either blocked on some other dimension or grouped on the dimension
-# #     # used for sorting. Then have the result be blocked. And then use Blocked everywhere else and
-# #     # ensure that getindex will only return Vector that is Blocked and not Grouped
-# #     res = Future()
-# #     partition(A, Grouped())
-# # end
-
-# function sortslices(A::Array)
-#     # TODO: use the first of the dims to sort on to split the array
-#     # TODO: use the first of the slice when splitting the array on the dim to get quantiles
-# end
+# TODO: Add reshaping

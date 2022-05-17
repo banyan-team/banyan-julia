@@ -47,8 +47,6 @@ function ShuffleDataFrameHelper(
     # Get the divisions to apply
     worker_idx, nworkers = Banyan.get_worker_idx(comm), Banyan.get_nworkers(comm)
 
-    println("In ShuffleDataFrame with divisions=$divisions, divisions_by_worker=$divisions_by_worker, size(part)=$(size(part)) on worker_idx=$worker_idx")
-
     # Perform shuffle
     partition_idx_getter(val) = Banyan.get_partition_idx_from_divisions(
         val,
@@ -130,8 +128,6 @@ function ShuffleDataFrameHelper(
             (divisions_by_worker[worker_idx], !hasdivision || worker_idx != firstdivisionidx, !hasdivision || worker_idx != lastdivisionidx)
     end
 
-    println("At the end of ShuffleDataFrame with size(res)=$(size(res)) on worker_idx=$worker_idx")
-
     res
 end
 
@@ -147,7 +143,6 @@ function ShuffleDataFrame(
 )
     divisions = dst_params["divisions"]
     has_divisions_by_worker = haskey(dst_params, "divisions_by_worker")
-    println("In ShuffleDataFrame with dst_params=$dst_params")
     V = if !isempty(divisions)
         typeof(divisions[1][1])
     elseif has_divisions_by_worker
@@ -194,52 +189,11 @@ function ReadBlockHelper(@nospecialize(format_value))
         # is ready to be read in even if the cluster has changed but same S3 bucket
         # with cached location is used.
         existing_path = getpath(loc_params_path)
-        println("In ReadBlock with loc_params_path=$loc_params_path, existing_path=$existing_path")
         meta_path = loc_name == "Disk" ? sync_across(is_main_worker(comm) ? get_meta_path(loc_params_path) : "", comm=comm) : loc_params["meta_path"]::String
         loc_params = loc_name == "Disk" ? (deserialize(get_location_path(loc_params_path))::Location).src_parameters : loc_params
-        @time begin
-        et = @elapsed begin
         meta = Arrow.Table(meta_path)
-        end
-        println("Time on worker_idx=$(get_worker_idx()) for calling Arrow.Table in ReadBlock for data frame: $et seconds")
-        end
-        println("In ReadBlock with loc_params=$loc_params and meta[:path]=$(meta[:path]) and meta[:nrows]=$(meta[:nrows])")
 
         # Handle multi-file tabular datasets
-
-        # # Handle None location by finding all files in directory used for spilling
-        # # this value to disk
-        # if loc_name == "Disk"
-        #     # TODO: Only collect files and nrows info for this location associated
-        #     # with a unique name corresponding to the value ID - only if this is
-        #     # the first batch or loop iteration.
-        #     name = loc_params["path"]::String
-        #     name_path = path
-        #     # TODO: isdir might not work for S3FS
-        #     if isdir(name_path)
-        #         files = []
-        #         nrows = 0
-        #         for partfilename in readdir(name_path)
-        #             part_nrows = parse(
-        #                 Int64,
-        #                 replace(split(partfilename, "_nrows=")[end], ".arrow" => ""),
-        #             )
-        #             push!(
-        #                 files,
-        #                 Dict{String,Any}("nrows" => part_nrows, "path" => joinpath(name, partfilename)),
-        #             )
-        #             nrows += part_nrows
-        #         end
-        #         loc_params["files"] = files
-        #         loc_params["nrows"] = nrows
-        #     else
-        #         # This is the case where no data has been spilled to disk and this
-        #         # is maybe just an intermediate variable only used for this stage.
-        #         # We never spill tabular data to a single file - it's always a
-        #         # directory of Arrow files.
-        #         return nothing
-        #     end
-        # end
 
         # Iterate through files and identify which ones correspond to the range of
         # rows for the batch currently being processed by this worker
@@ -247,8 +201,6 @@ function ReadBlockHelper(@nospecialize(format_value))
         rowrange = Banyan.split_len(nrows, batch_idx, nbatches, comm)
         dfs::Base.Vector{DataFrames.DataFrame} = DataFrames.DataFrame[]
         rowsscanned = 0
-        @time begin
-        et = @elapsed begin
         for (file_path::String, file_nrows::Int64) in Tables.rows(meta)
             newrowsscanned = rowsscanned + file_nrows
             filerowrange = (rowsscanned+1):newrowsscanned
@@ -269,19 +221,9 @@ function ReadBlockHelper(@nospecialize(format_value))
                 if Banyan.INVESTIGATING_LOSING_DATA
                     println("In ReadBlock calling read_file with path=$path, filerowrange=$filerowrange, readrange=$readrange, rowrange=$rowrange")
                 end
-                @time begin
-                et = @elapsed begin
                 read_file(format_value, path, rowrange, readrange, filerowrange, dfs)
-                println("In ReadBlock after reading $path with length(dfs)=$(length(dfs))")
-                end
-                println("Time on worker_idx=$(get_worker_idx()) for calling read_file: $et seconds")
-                end
             end
             rowsscanned = newrowsscanned
-        end
-        end
-        println("In ReadBlock after reading with length(dfs)=$(length(dfs)) and nrow.(dfs)=$(nrow.(dfs))")
-        println("Time on worker_idx=$(get_worker_idx()) for iterating over Table.rows in ReadBlock for data frame: $et seconds")
         end
         if Banyan.INVESTIGATING_LOSING_DATA
             println("In ReadBlock with rowrange=$rowrange, nrow.(dfs)=$(nrow.(dfs))")
@@ -293,8 +235,6 @@ function ReadBlockHelper(@nospecialize(format_value))
         # guaranteed to have its ndims correct) and so if a split/merge/cast
         # function requires the schema (for example for grouping) then it must be
         # sure to take that account
-        @time begin
-        et = @elapsed begin
         res = if isempty(dfs)
             # When we construct the location, we store an empty data frame with The
             # correct schema.
@@ -303,9 +243,6 @@ function ReadBlockHelper(@nospecialize(format_value))
             dfs[1]
         else
             vcat(dfs...)
-        end
-        end
-        println("Time on worker_idx=$(get_worker_idx()) for getting res in ReadBlock for data frame: $et seconds")
         end
         res
     end
@@ -381,7 +318,7 @@ function WriteHelper(@nospecialize(format_value))
             MPI.Barrier(comm)
         end
 
-        if worker_idx == 1
+        if is_main
             if nbatches == 1
                 # If there is no batching we can delete the original directory
                 # right away. Otherwise, we must delete the original directory
@@ -459,19 +396,11 @@ function WriteHelper(@nospecialize(format_value))
         nbytes = part_res isa Empty ? 0 : Banyan.total_memory_usage(part_res)
         sample_rate = get_session().sample_rate
         sampled_part = part_res isa Empty ? empty_df : Banyan.get_sample_from_data(part_res, sample_rate, nrows)
-        if part isa Empty
-            println("In WriteHelper with batch_idx=$batch_idx, worker_idx=$worker_idx and part isa Empty")
-        else
-            println("In WriteHelper with batch_idx=$batch_idx, worker_idx=$worker_idx and size(part)=$(size(part)) and size(sampled_part)=$(size(sampled_part))")
-        end
         gathered_data =
             gather_across((nrows, nbytes, part_res isa Empty ? part_res : empty(part_res), sampled_part), comm)
-        # new_nrows, new_nbytes, empty_parts, sampled_parts
-
-        println("In WriteHelper with meta_path=$meta_path and location_path=$location_path from path=$path")
         
         # On the main worker, finalize metadata and location info.
-        if worker_idx == 1
+        if is_amin
             # Determine paths and #s of rows for metadata file
             for worker_i in 1:nworkers
                 push!(
@@ -507,9 +436,7 @@ function WriteHelper(@nospecialize(format_value))
             curr_location.sample = Sample(vcat(sampled_parts...), curr_location.total_memory_usage)
 
             # Determine paths for this batch and gather # of rows
-            @show eltype(curr_nrows)
             Arrow.write(meta_path, (path=curr_localpaths, nrows=curr_nrows))
-            println("Writing to meta_path$meta_path with curr_localpaths=$curr_localpaths and curr_nrows=$curr_nrows")
 
             if batch_idx == nbatches && total_nrows <= get_max_exact_sample_length()
                 # If the total # of rows turns out to be inexact then we can simply mark it as
@@ -531,7 +458,6 @@ function WriteHelper(@nospecialize(format_value))
             # Copy over location and meta path
             actual_meta_path = get_meta_path(loc_params_path)
             actual_location_path = get_location_path(loc_params_path)
-            println("In WriteHelper with actual_meta_path=$actual_meta_path and actual_location_path=$actual_location_path using loc_params_path=$loc_params_path")
             if worker_idx == 1
                 cp(meta_path, actual_meta_path, force=true)
                 cp(location_path, actual_location_path, force=true)
@@ -539,7 +465,7 @@ function WriteHelper(@nospecialize(format_value))
 
             # Copy over files to actual location
             tmpdir = readdir(path)
-            if worker_idx == 1
+            if is_main
                 Banyan.rmdir_on_nfs(actualpath)
                 mkpath(actualpath)
             end
@@ -561,7 +487,7 @@ function WriteHelper(@nospecialize(format_value))
                 end
             end
             MPI.Barrier(comm)
-            if worker_idx == 1
+            if is_main
                 Banyan.rmdir_on_nfs(path)
             end
         elseif nbatches > 1
@@ -611,8 +537,6 @@ function SplitGroupDataFrame(
     partition_idx = Banyan.get_partition_idx(batch_idx, nbatches, comm)
     npartitions = get_npartitions(nbatches, comm)
 
-    println("At start of SplitGroupDataFrame with size(src)=$(size(src))")
-
     # Ensure that this partition has a schema that is suitable for usage
     # here. We have to do this for `Shuffle` and `SplitGroup` (which is
     # used by `DistributeAndShuffle`)
@@ -660,8 +584,6 @@ function SplitGroupDataFrame(
             !hasdivision || boundedupper || partition_idx != lastdivisionidx,
         )
     end
-
-    println("At end of SplitGroupDataFrame with size(res)=$(size(res))")
 
     res
 end

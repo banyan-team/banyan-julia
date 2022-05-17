@@ -8,38 +8,36 @@
 module Banyan
 
 global BANYAN_JULIA_BRANCH_NAME = "v22.02.13"
-global BANYAN_JULIA_PACKAGES = String["Banyan", "BanyanArrays", "BanyanDataFrames", "BanyanImages", "BanyanONNXRunTime", "BanyanHDF5"]
+global BANYAN_JULIA_PACKAGES = String[
+    "Banyan",
+    "BanyanArrays",
+    "BanyanDataFrames",
+    "BanyanImages",
+    "BanyanONNXRunTime",
+    "BanyanHDF5",
+]
 global NOT_USING_MODULES = String["ProfileView", "SnoopCompileCore"]
-@time begin
+
 using FilePathsBase: joinpath, isempty
 using Base: notnothing, env_project_file
 
-using AWSCore
-using AWSS3
-using AWSSQS
-using Base64
-using Dates
-using DataStructures
-using Downloads
-using JSON
-using Random
-using Serialization
-using TOML
-
-using FileIO
-using FilePathsBase
-using IniFile
-
-# For PFs:
-using Serialization, Base64, MPI
-
-# For loading
-using ProgressMeter
-
-# For testing utils
-using LibGit2
-println("Time to `using` libraries for Banyan.jl")
-end
+using AWSCore,
+    AWSS3,
+    AWSSQS,
+    Base64,
+    Dates,
+    FileIO,
+    FilePathsBase,
+    DataStructures,
+    Downloads,
+    JSON,
+    IniFile,
+    LibGit2,
+    MPI,
+    ProgressMeter,
+    Random,
+    Serialization,
+    TOML
 
 global BANYAN_API_ENDPOINT
 
@@ -83,29 +81,22 @@ export AbstractFuture, Future, partitioned_computation, compute_inplace, compute
 
 # Samples
 export Sample, ExactSample, sample, sample_for_grouping, SampleForGrouping, setsample!
-export sample_memory_usage,
-    total_memory_usage,
-    sample_axes,
-    sample_keys,
-    sample_by_key
-    # sample_divisions,
-    # sample_percentile,
-    # sample_max_ngroups,
-    # sample_min,
-    # sample_max,
-    # get_sample_computation_cache,
-    # SampleComputationCache,
-    # insert_in_sample_computation_cache,
-    # get_key_for_sample_computation_cache
+export sample_memory_usage, total_memory_usage, sample_axes, sample_keys, sample_by_key
 export NOTHING_SAMPLE
 
 # Locations
 export Location, LocationSource, LocationDestination, located, sourced, destined
-export Value, Size, Client, Disk, None, RemoteSource, RemoteDestination
+export Value, Size, Client, Disk, None
 export invalidate_all_locations, invalidate_metadata, invalidate_sample
 export NOTHING_LOCATION, INVALID_LOCATION
 export has_separate_metadata, get_sample, get_metadata, get_sample_and_metadata
-export get_remotepath_id, get_meta_path, get_location_path, get_cached_location, cache_location, get_max_exact_sample_length, set_max_exact_sample_length
+export get_remotepath_id,
+    get_meta_path,
+    get_location_path,
+    get_cached_location,
+    cache_location,
+    get_max_exact_sample_length,
+    set_max_exact_sample_length
 
 # Serialization
 export from_jl_value_contents, to_jl_value_contents
@@ -186,12 +177,7 @@ export is_debug_on,
     EMPTY_DICT
 
 # Utilities for handling empty case
-export
-    Empty,
-    EMPTY,
-    nonemptytype,
-    disallowempty,
-    empty_handler
+export Empty, EMPTY, nonemptytype, disallowempty, empty_handler
 
 # Utilities for location constructors
 export get_cached_location, cache_location, get_sample_from_data, sample_from_range
@@ -273,8 +259,6 @@ include("annotation.jl")
 # Utilities
 include("requests.jl")
 
-# include("offloaded.jl")
-
 function __init__()
     # The user must provide the following for authentication:
     # - User ID
@@ -284,21 +268,23 @@ function __init__()
 
     global BANYAN_API_ENDPOINT
     BANYAN_API_ENDPOINT = get(
-        ENV,"BANYAN_API_ENDPOINT",
-        "https://4whje7txc2.execute-api.us-west-2.amazonaws.com/prod/"
+        ENV,
+        "BANYAN_API_ENDPOINT",
+        "https://4whje7txc2.execute-api.us-west-2.amazonaws.com/prod/",
     )
 
     # Downloads settings
     global downloader
     downloader = Downloads.Downloader()
-    downloader.easy_hook = (easy, info) ->
-       Downloads.Curl.setopt(easy, Downloads.Curl.CURLOPT_LOW_SPEED_TIME, 40)
+    downloader.easy_hook =
+        (easy, info) ->
+            Downloads.Curl.setopt(easy, Downloads.Curl.CURLOPT_LOW_SPEED_TIME, 40)
 end
 
 if Base.VERSION >= v"1.4.2"
     include("precompile.jl")
-    # _precompile_()
-    # precompile(__init__, ()) || @warn "Banyan failed to precompile `__init__`"
+    _precompile_()
+    precompile(__init__, ()) || @warn "Banyan failed to precompile `__init__`"
 end
 
 end # module
