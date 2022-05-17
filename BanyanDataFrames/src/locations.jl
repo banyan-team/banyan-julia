@@ -1,7 +1,6 @@
 get_file_ending(remotepath::String)::String = splitext(remotepath)[2][2:end]
 
 function _remote_table_source(remotepath, shuffled, metadata_invalid, sample_invalid, invalidate_metadata, invalidate_sample, max_exact_sample_length)::Location
-    return INVALID_LOCATION
     session_sample_rate = get_session().sample_rate
     is_main = is_main_worker()
     
@@ -15,6 +14,7 @@ function _remote_table_source(remotepath, shuffled, metadata_invalid, sample_inv
     println("Got cached location on worker_idx=$(get_worker_idx()) with curr_parameters_invalid=$curr_parameters_invalid and curr_sample_invalid=$curr_sample_invalid")
     if !curr_parameters_invalid && !curr_sample_invalid
         println("Returning cached curr_location=$curr_location")
+        return INVALID_LOCATION
         return curr_location
     end
 
