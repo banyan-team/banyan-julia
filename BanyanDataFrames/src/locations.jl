@@ -1,6 +1,7 @@
 get_file_ending(remotepath::String)::String = splitext(remotepath)[2][2:end]
 
 function _remote_table_source(remotepath, shuffled, metadata_invalid, sample_invalid, invalidate_metadata, invalidate_sample, max_exact_sample_length)::Location
+    return INVALID_LOCATION
     session_sample_rate = get_session().sample_rate
     is_main = is_main_worker()
     
