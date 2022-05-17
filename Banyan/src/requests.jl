@@ -763,9 +763,11 @@ function offloaded(given_function::Function, args...; distributed::Bool = false)
                 get_session().worker_memory_used = get_session().worker_memory_used + memory_used
                 stored_message = from_jl_value_contents(contents)
             end
-            error_for_main_stuck, error_for_main_stuck_time = check_worker_stuck_error(message, error_for_main_stuck, error_for_main_stuck_time)
+            error_for_main_stuck, error_for_main_stuck_time = check_worker_stuck_error(message, error_for_main_stuck, error_for_main_stuck_time) 
         elseif (message_type == "EVALUATION_END")
-            return stored_message
+            if message["end"]::Bool == true
+                return stored_message
+            end
         end
     end
 end
