@@ -400,7 +400,7 @@ function WriteHelper(@nospecialize(format_value))
             gather_across((nrows, nbytes, part_res isa Empty ? part_res : empty(part_res), sampled_part), comm)
         
         # On the main worker, finalize metadata and location info.
-        if is_amin
+        if is_main
             # Determine paths and #s of rows for metadata file
             for worker_i in 1:nworkers
                 push!(
