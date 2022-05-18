@@ -344,12 +344,16 @@ function WriteHelper(@nospecialize(format_value))
         sortableidx = Banyan.sortablestring(idx, npartitions)
         part_res = part isa Empty ? part : convert(DataFrames.DataFrame, part)
         if !(part isa Empty)
+            @time begin
+            dst = joinpath(path, "part_$sortableidx" * ".$format_string")
             write_file(
                 format_value,
                 part_res,
-                joinpath(path, "part_$sortableidx" * ".$format_string"),
+                dst,
                 nrows
             )
+            println("Time to write with Banyan.total_memory_usage(part_res)=$(Banyan.total_memory_usage(part_res)) and filesize(dst)=$(filesize(dst)) to dst=$dst")
+            end
         end 
         # We don't need this barrier anymore because we do a broadcast right after
         # MPI.Barrier(comm)
