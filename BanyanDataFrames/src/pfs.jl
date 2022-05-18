@@ -351,6 +351,7 @@ function WriteHelper(@nospecialize(format_value))
         part_res = part isa Empty ? part : convert(DataFrames.DataFrame, part)
         if !(part isa Empty)
             @time begin
+            et = @elapsed begin
             dst = joinpath(path, "part_$sortableidx" * ".$format_string")
             write_file(
                 format_value,
@@ -358,6 +359,7 @@ function WriteHelper(@nospecialize(format_value))
                 dst,
                 nrows
             )
+            end
             println("Time to write with Banyan.total_memory_usage(part_res)=$(Banyan.format_bytes(Banyan.total_memory_usage(part_res))) and filesize(dst)=$(Banyan.format_bytes(filesize(dst))) to dst=$dst on worker_idx=$worker_idx and batch_idx=$batch_idx = $et seconds for $(Banyan.format_bytes(round(Int64, filesize(dst) / et))) per second")
             end
         end 
