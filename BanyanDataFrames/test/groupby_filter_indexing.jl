@@ -782,8 +782,8 @@ end
 
 @testset "NYC Taxi Stress Test" begin
     use_session_for_testing(scheduling_config_name = "default scheduling", sample_rate=1024) do
-        p = setup_nyc_taxi_stress_test(nbytes="512 MB")
-        # p = setup_nyc_taxi_stress_test(nbytes="1 GB")
+        # p = setup_nyc_taxi_stress_test(nbytes="512 MB")
+        p = setup_nyc_taxi_stress_test(nbytes="1 GB")
         # p = setup_nyc_taxi_stress_test(nrows = 1_000_000_000)
         for iter in 1:2
             @time begin
