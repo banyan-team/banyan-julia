@@ -221,7 +221,11 @@ function ReadBlockHelper(@nospecialize(format_value))
                 if Banyan.INVESTIGATING_LOSING_DATA
                     println("In ReadBlock calling read_file with path=$path, filerowrange=$filerowrange, readrange=$readrange, rowrange=$rowrange")
                 end
-                read_file(format_value, path, rowrange, readrange, filerowrange, dfs)
+                @time begin
+                res = read_file(format_value, path, rowrange, readrange, filerowrange, dfs)
+                println("Time to read with Banyan.total_memory_usage(res)=$(Banyan.total_memory_usage(res)) and filesize(path)=$(filesize(path)) from path=$path on get_worker_idx(comm)=$(get_worker_idx(comm)) and batch_idx=$batch_idx")
+                end
+                res
             end
             rowsscanned = newrowsscanned
         end
@@ -352,7 +356,7 @@ function WriteHelper(@nospecialize(format_value))
                 dst,
                 nrows
             )
-            println("Time to write with Banyan.total_memory_usage(part_res)=$(Banyan.total_memory_usage(part_res)) and filesize(dst)=$(filesize(dst)) to dst=$dst")
+            println("Time to write with Banyan.total_memory_usage(part_res)=$(Banyan.total_memory_usage(part_res)) and filesize(dst)=$(filesize(dst)) to dst=$dst on worker_idx=$worker_idx and batch_idx=$batch_idx")
             end
         end 
         # We don't need this barrier anymore because we do a broadcast right after
