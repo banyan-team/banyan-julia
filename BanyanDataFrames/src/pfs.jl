@@ -222,8 +222,10 @@ function ReadBlockHelper(@nospecialize(format_value))
                     println("In ReadBlock calling read_file with path=$path, filerowrange=$filerowrange, readrange=$readrange, rowrange=$rowrange")
                 end
                 @time begin
+                et = @elapsed begin
                 res = read_file(format_value, path, rowrange, readrange, filerowrange, dfs)
-                println("Time to read with Banyan.total_memory_usage(res)=$(Banyan.total_memory_usage(res)) and filesize(path)=$(filesize(path)) from path=$path on get_worker_idx(comm)=$(get_worker_idx(comm)) and batch_idx=$batch_idx")
+                end
+                println("Time to read with Banyan.total_memory_usage(res)=$(Banyan.format_bytes(Banyan.total_memory_usage(res))) and filesize(path)=$(Banyan.format_bytes(filesize(path))) from path=$path on get_worker_idx(comm)=$(get_worker_idx(comm)) and batch_idx=$batch_idx = $et seconds for $(Banyan.format_bytes(round(Int64, filesize(path) / et))) per second")
                 end
                 res
             end
@@ -356,7 +358,7 @@ function WriteHelper(@nospecialize(format_value))
                 dst,
                 nrows
             )
-            println("Time to write with Banyan.total_memory_usage(part_res)=$(Banyan.total_memory_usage(part_res)) and filesize(dst)=$(filesize(dst)) to dst=$dst on worker_idx=$worker_idx and batch_idx=$batch_idx")
+            println("Time to write with Banyan.total_memory_usage(part_res)=$(Banyan.format_bytes(Banyan.total_memory_usage(part_res))) and filesize(dst)=$(Banyan.format_bytes(filesize(dst))) to dst=$dst on worker_idx=$worker_idx and batch_idx=$batch_idx = $et seconds for $(Banyan.format_bytes(round(Int64, filesize(dst) / et))) per second")
             end
         end 
         # We don't need this barrier anymore because we do a broadcast right after
