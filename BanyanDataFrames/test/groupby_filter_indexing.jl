@@ -798,7 +798,7 @@ end
                 #     end
                 # end
                 # s3_bucket_name = get_cluster_s3_bucket_name()
-                @time begin
+                # @time begin
                 df = read_csv(
                     # "s3://$s3_bucket_name/nyc_tripdata.csv",
                     # "s3://$s3_bucket_name/nyc_tripdata_large.csv",
@@ -808,8 +808,8 @@ end
                     shuffled=true
                 )
                 # @show sample(df)
-                println("Time in read_csv on run #$iter")
-                end
+                # println("Time in read_csv on run #$iter")
+                # end
                 # # @show sample(df)
 
                 # Filter all trips with distance longer than 1.0. Group by passenger count

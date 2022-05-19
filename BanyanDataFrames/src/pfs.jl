@@ -569,15 +569,16 @@ function SplitGroupDataFrame(
     # Apply divisions to get only the elements relevant to this worker
     # TODO: Do the groupby and filter on batch_idx == 1 and then share
     # among other batches
-    res = filter(
-        row -> Banyan.get_partition_idx_from_divisions(
+    filter_mask = falses(nrow(src))
+    for (i, row) in enumerate(eachrow(src))
+        filter_mask[i] = Banyan.get_partition_idx_from_divisions(
             row[key],
             divisions_by_partition,
             boundedlower,
             boundedupper,
-        ) == partition_idx,
-        src
-    )
+        ) == partition_idx
+    end
+    res = src[filter_mask, :]
 
     if store_splitting_divisions
         # The first and last partitions (used if this lacks a lower or upper bound)
