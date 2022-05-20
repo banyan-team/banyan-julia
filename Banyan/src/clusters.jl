@@ -116,7 +116,7 @@ function delete_cluster(name::String; kwargs...)
     )
 end
 
-function update_cluster(name::String, nowait=false; kwargs...)
+function update_cluster(name::String; nowait=false, kwargs...)
     configure(; kwargs...)
     @info "Updating cluster named $name"
     send_request_get_response(
