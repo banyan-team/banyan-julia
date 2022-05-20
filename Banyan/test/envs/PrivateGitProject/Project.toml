@@ -1,0 +1,7 @@
+[deps]
+AWSS3 = "1c724243-ef5b-51ab-93f4-b0a88ac62a95"
+Banyan = "706d138b-e922-45b9-a636-baf8ae0d5317"
+Pkg = "44cfe95a-1eb2-52ea-b672-e2afdf69b78f"
+ReTest = "e0db7c4e-2690-44b9-bad6-7687da720f89"
+TestPkg = "08002b0d-d334-4f8f-90c6-e769fb28d22a"
+TestPkg2 = "488ce48c-07c8-4b77-9394-dd66370f8dcc"
