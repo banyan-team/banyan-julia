@@ -116,13 +116,16 @@ function delete_cluster(name::String; kwargs...)
     )
 end
 
-function update_cluster(name::String; kwargs...)
+function update_cluster(name::String; nowait=false, kwargs...)
     configure(; kwargs...)
     @info "Updating cluster named $name"
     send_request_get_response(
         :update_cluster,
         Dict{String, Any}("cluster_name" => name)
     )
+    if !nowait
+        wait_for_cluster(name)
+    end
 end
 
 function assert_cluster_is_ready(name::String; kwargs...)
