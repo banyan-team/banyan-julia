@@ -140,7 +140,6 @@ function start_session(;
                 s3_put(get_aws_config(), s3_bucket_name, "$(environment_hash)/Manifest.toml", manifest_toml)
             end
         end
-    # TODO: Else case is the same
     else
         # Otherwise, use url and optionally a particular branch
         environment_info["url"] = url
@@ -169,7 +168,7 @@ function start_session(;
         end
     end
     # TODO: Optimize so that we only upload (and download onto cluster) the files if the filename doesn't already exist
-    # Example of f might be "C:/Users/Melany Winston/.../src/clusters.py" --> "cluster.py" extracting out cluster.py
+    # Example of f might be "C:/Users/ShaunTheSheep/.../src/clusters.py" --> "cluster.py" extracting out cluster.py
     session_configuration["files"] = [basename(f) for f in files]
     session_configuration["code_files"] = [basename(f) for f in code_files]
 
@@ -182,7 +181,6 @@ function start_session(;
     end
     pf_dispatch_table_loaded = load_toml(pf_dispatch_table)
     session_configuration["pf_dispatch_table"] = pf_dispatch_table_loaded
-    session_configuration["language"] = "jl" 
 
     # Start the session
     @debug "Sending request for session start"
@@ -476,13 +474,13 @@ function run_session(;
                     directory = directory, dev_paths = dev_paths, force_sync = force_sync, force_pull = force_pull, force_install = force_install, 
                     estimate_available_memory = estimate_available_memory, nowait = false, email_when_ready = email_when_ready, for_running = true)
     catch
-        try
+        session_id = try
             get_session_id()
         catch
             nothing
         end
         if !isnothing(session_id)
-            end_session(get_session_id(), failed=true)
+            end_session(session_id, failed=true)
         end
         rethrow()
     finally
@@ -492,7 +490,7 @@ function run_session(;
             nothing
         end
         if !isnothing(session_id)
-            end_session(get_session_id(), failed=false)
+            end_session(session_id, failed=false)
         end    
     end
 end
