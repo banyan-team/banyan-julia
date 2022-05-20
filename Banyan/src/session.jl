@@ -20,5 +20,3 @@ mutable struct Session
         new(session_id, resource_id, nworkers, sample_rate, Dict(), [], Dict(), cluster_name, 0)
     end
 end
-
-
