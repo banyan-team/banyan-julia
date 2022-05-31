@@ -182,6 +182,7 @@ function _get_clusters(cluster_name::String)::Dict{String,Cluster}
         filters["cluster_name"] = cluster_name
     end
     response = send_request_get_response(:describe_clusters, Dict{String,Any}("filters"=>filters))
+    @show response
     clusters_dict::Dict{String,Cluster} = Dict{String,Cluster}()
     for (name::String, c::Dict{String,Any}) in response["clusters"]::Dict{String,Any}
         clusters_dict[name] = Cluster(

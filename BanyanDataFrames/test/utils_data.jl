@@ -5,7 +5,7 @@ function verify_file_in_s3(bucket, path, download_path)
     if !s3_exists(Banyan.get_aws_config(), bucket, path)
         if typeof(download_path) == String &&
            (startswith(download_path, "https://") || startswith(download_path, "http://"))
-            download(
+            Downloads.download(
                 download_path,
                 S3Path("s3://$(bucket)/$(path)", config = Banyan.get_aws_config()),
             )
@@ -70,8 +70,8 @@ function setup_basic_tests(bucket_name=get_cluster_s3_bucket_name())
         println("At start of setup_basic_tests")
         iris_download_path = "https://raw.githubusercontent.com/banyan-team/banyan-julia/v0.1.3/BanyanDataFrames/test/res/iris.csv"
         iris_species_info_download_path = "https://raw.githubusercontent.com/banyan-team/banyan-julia/v0.1.3/BanyanDataFrames/test/res/iris_species_info.csv"
-        iris_local_path = download(iris_download_path)
-        iris_species_info_local_path = download(iris_species_info_download_path)
+        iris_local_path = Downloads.download(iris_download_path)
+        iris_species_info_local_path = Downloads.download(iris_species_info_download_path)
         df = CSV.read(iris_local_path, DataFrames.DataFrame, stringtype=String)
         df_s = CSV.read(iris_species_info_local_path, DataFrames.DataFrame, stringtype=String)
         # Duplicate df six times and change the species names
@@ -286,7 +286,7 @@ function setup_stress_tests(bucket_name=get_cluster_s3_bucket_name())
         end
         # If at least one file doesn't exist in s3, we need to download and write to s3
         if length(dst_s3_paths_missing) > 0
-            local_path = download(download_path)
+            local_path = Downloads.download(download_path)
             println("Downloaded $local_path")
             df = CSV.read(local_path, DataFrames.DataFrame)
             println("Read $local_path into memory")

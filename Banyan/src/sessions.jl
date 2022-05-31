@@ -135,7 +135,7 @@ function _start_session(
         "store_logs_in_s3" => store_logs_in_s3,
         "store_logs_on_cluster" => store_logs_on_cluster,
         "log_initialization" => log_initialization,
-        "julia_version" => julia_version,
+        "version" => version,
         "benchmark" => get(ENV, "BANYAN_BENCHMARK", "0")::String == "1",
         "main_modules" => main_modules,
         "using_modules" => using_modules,
@@ -170,7 +170,7 @@ function _start_session(
         else
             manifest_toml = load_file("file://" * local_environment_dir * "Manifest.toml")
         end
-        environment_hash = get_hash(project_toml * manifest_toml * julia_version)
+        environment_hash = get_hash(project_toml * manifest_toml * version)
         environment_info["environment_hash"] = environment_hash
         environment_info["project_toml"] = "$(environment_hash)/Project.toml"
         file_already_in_s3 = isfile(S3Path("s3://$(s3_bucket_name)/$(environment_hash)/Project.toml", config=get_aws_config()))
