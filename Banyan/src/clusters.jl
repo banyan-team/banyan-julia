@@ -27,6 +27,7 @@ function create_cluster(;
     iam_policy_arn::Union{String,Nothing} = nothing,
     s3_bucket_arn::Union{String,Nothing} = nothing,
     s3_bucket_name::Union{String,Nothing} = nothing,
+    disk_capacity = "1200 GiB",
     scaledown_time = 25,
     region = nothing,
     vpc_id = nothing,
@@ -87,6 +88,11 @@ function create_cluster(;
         "s3_read_write_resource" => s3_bucket_arn,
         "scaledown_time" => scaledown_time,
         "recreate" => false,
+        # We need to pass in the disk capacity in # of GiB and we do this by dividing the input
+        # by size of 1 GiB and then round up. Then the backend will determine how to adjust the
+        # disk capacity to an allowable increment (e.g., 1200 GiB or an increment of 2400 GiB
+        # for AWS FSx Lustre filesystems)
+        "disk_capacity" => ceil(Int64, parse_bytes(disk_capacity) / 1.073741824e7)
     )
     if haskey(c["aws"], "ec2_key_pair_name")
         cluster_config["ec2_key_pair"] = c["aws"]["ec2_key_pair_name"]
