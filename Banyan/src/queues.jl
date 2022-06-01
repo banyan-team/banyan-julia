@@ -68,6 +68,8 @@ function get_next_message(
             @show j
         end
     end
+    @show sqs_count(queue)
+    @show sqs_busy_count(queue)
     if delete
         println("Before sqs_delete_message with ID $(m[:id]) and handle $(m[:handle])")
         sqs_delete_message(queue, m)
@@ -164,7 +166,7 @@ function send_message(queue_name, message)
 end
 
 function send_to_client(value_id::ValueId, value, worker_memory_used = 0)
-    MAX_MESSAGE_LENGTH = 220_000
+    MAX_MESSAGE_LENGTH = 110_000 # 220_000
     message = to_jl_value_contents(value)::String
     i = 1
     while true
