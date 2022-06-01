@@ -53,6 +53,7 @@ function get_next_message(
     @show m
     i = 1
     j = 1
+    println("After receiving message before while loop with delete = $delete")
     while (isnothing(m))
         error_for_main_stuck = check_worker_stuck(error_for_main_stuck, error_for_main_stuck_time)
         println("Waiting on queue=$queue for next message")
@@ -68,7 +69,9 @@ function get_next_message(
         end
     end
     if delete
+        println("Before sqs_delete_message with ID $(m[:id]) and handle $(m[:handle])")
         sqs_delete_message(queue, m)
+        println("After sqs_delete_message")
     end
     return m[:message]::String, error_for_main_stuck
 end
@@ -151,6 +154,7 @@ end
 
 function send_message(queue_name, message)
     generated_message_id = generate_message_id()
+    @show generated_message_id
     sqs_send_message(
         queue_name,
         message,
@@ -165,6 +169,7 @@ function send_to_client(value_id::ValueId, value, worker_memory_used = 0)
     i = 1
     while true
         is_last_message = length(message) < MAX_MESSAGE_LENGTH
+        @show i
         send_message(
             get_gather_queue(),
             JSON.json(
