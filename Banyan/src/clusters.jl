@@ -5,6 +5,8 @@ struct Cluster
     s3_bucket_arn::String
     organization_id::String
     curr_cluster_instance_id::String
+    num_sessions_running::Int64
+    num_workers_running::Int64
 end
 
 # Process-local dictionary mapping from cluster names to instances of `Cluster`
@@ -196,7 +198,9 @@ function _get_clusters(cluster_name::String)::Dict{String,Cluster}
             haskey(c, "status_explanation") ? c["status_explanation"]::String : "",
             c["s3_read_write_resource"]::String,
             c["organization_id"]::String,
-            haskey(c, "curr_cluster_instance_id") ? c["curr_cluster_instance_id"]::String : ""
+            haskey(c, "curr_cluster_instance_id") ? c["curr_cluster_instance_id"]::String : "",
+            get(c, "num_sessions", 0),
+            get(c, "num_workers_in_use", 0)
         )
     end
 

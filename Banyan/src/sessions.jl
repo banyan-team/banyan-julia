@@ -238,11 +238,31 @@ function _start_session(
     scatter_queue_url = response["scatter_queue_url"]::String
     gather_queue_url = response["gather_queue_url"]::String
     execution_queue_url = response["execution_queue_url"]::String
-    if for_running
-        @info "Running session with ID $session_id and $code_files"
-    else
-        @info "Starting session with ID $session_id on cluster named \"$cluster_name\""
+    num_sessions = response["num_sessions"]::Int64
+    num_workers_in_use = response["num_workers_in_use"]::Int64
+    msg = begin
+        message = if for_running
+            "Running session with ID $session_id and $code_files"
+        else
+            "Starting session with ID $session_id on cluster named \"$cluster_name\""
+        end
+        if num_sessions == 0
+            message *= " with no sessions running yet"
+        elseif num_sessions == 1
+            message *= " with 1 session already running"
+        else
+            message *= " with $num_sessions sessions already running"
+        end
+        if num_workers_in_use > 0
+            if num_sessions == 0 
+                message *= " but $num_workers_in_use workers running"
+            else
+                message *= " on $num_workers_in_use workers"
+            end
+        end
+        message
     end
+    @info msg
     # Store in global state
     sessions[session_id] = Session(
         cluster_name,
@@ -354,7 +374,6 @@ function end_session(session_id::SessionId = get_session_id(); failed = false, r
     # Configure using parameters
     configure(; kwargs...)
 
-    @info "Ending session with ID $session_id"
     request_params = Dict{String,Any}("session_id" => session_id, "failed" => failed, "release_resources_now" => release_resources_now)
     if !isnothing(release_resources_after)
         request_params["release_resources_after"] = release_resources_after
@@ -363,6 +382,7 @@ function end_session(session_id::SessionId = get_session_id(); failed = false, r
         :end_session,
         request_params,
     )
+    @info "Ending session with ID $session_id"
 
     # Remove from global state
     set_session("")

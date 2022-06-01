@@ -48,14 +48,23 @@ function get_next_message(
     error_for_main_stuck::Union{Nothing,String} = nothing,
     error_for_main_stuck_time::Union{Nothing,DateTime} = nothing
 )::Tuple{String,Union{Nothing,String}}
+    println("Waiting on queue=$queue for first message")
     m = sqs_receive_message_with_long_polling(queue)
     @show m
+    i = 1
+    j = 1
     while (isnothing(m))
         error_for_main_stuck = check_worker_stuck(error_for_main_stuck, error_for_main_stuck_time)
+        println("Waiting on queue=$queue for next message")
         m = sqs_receive_message_with_long_polling(queue)
+        @show m
+        i += 1
+        @show i
         if !isnothing(p)
             p::ProgressMeter.ProgressUnknown
             next!(p)
+            j += 1
+            @show j
         end
     end
     if delete
@@ -70,7 +79,9 @@ function receive_next_message(
     error_for_main_stuck=nothing,
     error_for_main_stuck_time=nothing
 )::Tuple{Dict{String,Any},Union{Nothing,String}}
+    println("In receive_next_message before calling get_next_message")
     content::String, error_for_main_stuck::Union{Nothing,String} = get_next_message(queue_name, p; error_for_main_stuck=error_for_main_stuck, error_for_main_stuck_time=error_for_main_stuck_time)
+    println("In receive_next_message after calling get_next_message")
     res::Dict{String,Any} = if startswith(content, "JOB_READY") || startswith(content, "SESSION_READY")
         Dict{String,Any}(
             "kind" => "SESSION_READY"
@@ -115,6 +126,7 @@ function receive_next_message(
         # @debug "Received scatter or gather request"
         JSON.parse(content)
     end
+    println("In receive_next_message before returning")
     res, error_for_main_stuck
 end
 
@@ -150,6 +162,7 @@ end
 function send_to_client(value_id::ValueId, value, worker_memory_used = 0)
     MAX_MESSAGE_LENGTH = 220_000
     message = to_jl_value_contents(value)::String
+    i = 1
     while true
         is_last_message = length(message) < MAX_MESSAGE_LENGTH
         send_message(
@@ -165,10 +178,12 @@ function send_to_client(value_id::ValueId, value, worker_memory_used = 0)
                         message = message[MAX_MESSAGE_LENGTH+1:end]
                         msg
                     end,
-                    "worker_memory_used" => worker_memory_used
+                    "worker_memory_used" => worker_memory_used,
+                    "gather_page_idx" => i
                 )
             )
         )
+        i += 1
         @show is_last_message, length(message), MAX_MESSAGE_LENGTH
         if is_last_message
             break

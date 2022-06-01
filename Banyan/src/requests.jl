@@ -632,11 +632,14 @@ function offloaded(given_function::Function, args...; distributed::Bool = false)
     
     session = get_session()
     gather_queue = get_gather_queue()
+    @show gather_queue
     stored_message = nothing
     error_for_main_stuck, error_for_main_stuck_time = nothing, nothing
     partial_gathers = Dict{ValueId,String}()
     while true
+        println("Before calling receive_next_message")
         message, error_for_main_stuck = receive_next_message(gather_queue, p, error_for_main_stuck, error_for_main_stuck_time)
+        println("After receive_next_message with message=$message and partial_gathers=$partial_gathers")
         message_type = message["kind"]::String
         if message_type == "GATHER"
             # Receive gather
@@ -647,7 +650,9 @@ function offloaded(given_function::Function, args...; distributed::Bool = false)
             else
                 partial_gathers[value_id] *= contents
             end
+            println("Finished handling GATHER")
         elseif message_type == "GATHER_END"
+            println("Handling GATHER_END")
             value_id = message["value_id"]::ValueId
             contents = get(partial_gathers, value_id, "") * message["contents"]::String
             if (value_id == "-1")
