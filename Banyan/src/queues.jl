@@ -49,6 +49,7 @@ function get_next_message(
     error_for_main_stuck_time::Union{Nothing,DateTime} = nothing
 )::Tuple{String,Union{Nothing,String}}
     m = sqs_receive_message_with_long_polling(queue)
+    @show m
     while (isnothing(m))
         error_for_main_stuck = check_worker_stuck(error_for_main_stuck, error_for_main_stuck_time)
         m = sqs_receive_message_with_long_polling(queue)
@@ -168,6 +169,7 @@ function send_to_client(value_id::ValueId, value, worker_memory_used = 0)
                 )
             )
         )
+        @show is_last_message, length(message), MAX_MESSAGE_LENGTH
         if is_last_message
             break
         end

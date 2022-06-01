@@ -188,7 +188,6 @@ function _get_clusters(cluster_name::String)::Dict{String,Cluster}
         filters["cluster_name"] = cluster_name
     end
     response = send_request_get_response(:describe_clusters, Dict{String,Any}("filters"=>filters))
-    @show response
     clusters_dict::Dict{String,Cluster} = Dict{String,Cluster}()
     for (name::String, c::Dict{String,Any}) in response["clusters"]::Dict{String,Any}
         clusters_dict[name] = Cluster(
@@ -279,12 +278,12 @@ function _wait_for_cluster(name::String)
         error("Cluster $name has unexpected status: $cluster_status")
     end
 end
-function wait_for_cluster(kwargs...)
-    configure(kwargs...)
+function wait_for_cluster(;kwargs...)
+    configure(;kwargs...)
     _wait_for_cluster(get_cluster_name())
 end
-function wait_for_cluster(name::String, kwargs...)
-    configure(kwargs...)
+function wait_for_cluster(name::String; kwargs...)
+    configure(;kwargs...)
     _wait_for_cluster(name)
 end
 
