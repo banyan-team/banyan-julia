@@ -22,7 +22,9 @@ get_execution_queue()::Dict{Symbol,Any} =
 ###################
 
 function sqs_receive_message_with_long_polling(queue)
+    println("Before call to AWSSQS.sqs")
     r = AWSSQS.sqs(queue, "ReceiveMessage", MaxNumberOfMessages = "1")
+    println("After call to AWSSQS.sqs")
     r = r["messages"]
 
     if isnothing(r)
@@ -49,6 +51,12 @@ function get_next_message(
     error_for_main_stuck_time::Union{Nothing,DateTime} = nothing
 )::Tuple{String,Union{Nothing,String}}
     println("Waiting on queue=$queue for first message")
+    for i in 1:10
+        @show sqs_busy_count(queue)
+        @show sqs_count(queue)
+        @show sqs_busy_count(queue)
+        sleep(3)
+    end
     m = sqs_receive_message_with_long_polling(queue)
     @show m
     i = 1
@@ -168,6 +176,9 @@ end
 function send_to_client(value_id::ValueId, value, worker_memory_used = 0)
     MAX_MESSAGE_LENGTH = 110_000 # 220_000
     message = to_jl_value_contents(value)::String
+    if length(message) > MAX_MESSAGE_LENGTH
+        message = message[1:(MAX_MESSAGE_LENGTH*2)]
+    end
     i = 1
     while true
         is_last_message = length(message) < MAX_MESSAGE_LENGTH
