@@ -296,7 +296,7 @@ function upload_to_s3(src_path; dst_name=basename(src_path), cluster_name=get_cl
     bucket_name = get_cluster_s3_bucket_name(cluster_name)
     s3_dst_path = S3Path("s3://$bucket_name/$dst_name", config=get_aws_config())
     if startswith(src_path, "http://") || startswith(src_path, "https://")
-        Base.download(
+        Downloads.download(
             src_path,
             s3_dst_path
         )

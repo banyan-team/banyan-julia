@@ -1,6 +1,6 @@
 using ReTest
 using Banyan, BanyanArrays
-using FilePathsBase, AWSS3
+using FilePathsBase
 
 global sessions_for_testing = Dict()
 

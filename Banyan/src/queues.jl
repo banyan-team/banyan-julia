@@ -131,7 +131,7 @@ function receive_next_message(
             # provisioned nodes should stick around for a bit so it should
             # only be a couple of minutes before the session is back up and
             # running.
-            end_session(failed=true, release_resoDurces_now=startswith(content, "JOB_FAILURE")) # This will reset the `current_session_id` and delete from `sessions`
+            end_session(failed=true, release_resources_now=startswith(content, "JOB_FAILURE")) # This will reset the `current_session_id` and delete from `sessions`
             error("Session failed; see preceding output")
         end
         Dict{String,Any}("kind" => "SESSION_FAILURE")
@@ -174,14 +174,11 @@ function send_message(queue_name, message)
 end
 
 function send_to_client(value_id::ValueId, value, worker_memory_used = 0)
-    MAX_MESSAGE_LENGTH = 110_000 # 220_000
+    MAX_MESSAGE_LENGTH = 220_000
     message = to_jl_value_contents(value)::String
-    if length(message) > MAX_MESSAGE_LENGTH
-        message = message[1:(MAX_MESSAGE_LENGTH*2)]
-    end
     i = 1
     while true
-        is_last_message = length(message) < MAX_MESSAGE_LENGTH
+        is_last_message = length(message) <= MAX_MESSAGE_LENGTH
         @show i
         send_message(
             get_gather_queue(),

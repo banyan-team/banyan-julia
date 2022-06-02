@@ -2,7 +2,7 @@ using DataFrames, CSV, Statistics
 
 function main()
     println("download")
-    @time f = download("https://raw.githubusercontent.com/banyan-team/banyan-julia/v0.1.3/BanyanDataFrames/test/res/iris.csv")
+    @time f = Downloads.download("https://raw.githubusercontent.com/banyan-team/banyan-julia/v0.1.3/BanyanDataFrames/test/res/iris.csv")
     println("CSV.read")
     @time iris_df = CSV.read(f, DataFrame)
     println("filter")

@@ -46,7 +46,7 @@ function use_data(file_extension, remote_kind, single_file)
         if !isfile(testing_dataset_local_path)
             # Download to local ~/.banyan/testing_datasets
             mkpath(joinpath(homedir(), ".banyan", "testing_datasets"))
-            download(url, testing_dataset_local_path)
+            Downloads.download(url, testing_dataset_local_path)
 
             # Convert file if needed
             if file_extension == "parquet" || file_extension == "arrow"
@@ -83,7 +83,7 @@ function use_data(file_extension, remote_kind, single_file)
             if !isfile(testing_dataset_local_path)
                 # Download to local ~/.banyan/testing_datasets
                 mkpath(joinpath(homedir(), ".banyan", "testing_datasets"))
-                download(url, testing_dataset_local_path)
+                Downloads.download(url, testing_dataset_local_path)
 
                 # Convert file if needed
                 df = CSV.read(testing_dataset_local_path, DataFrames.DataFrame)

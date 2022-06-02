@@ -99,7 +99,7 @@ function use_data(data_src = "S3")
 
     if !data_for_testing && data_src == "S3"
         original = h5open(
-            download(
+            Downloads.download(
                 "https://support.hdfgroup.org/ftp/HDF5/examples/files/exbyapi/h5ex_d_fillval.h5",
             ),
         )

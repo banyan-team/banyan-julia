@@ -1,6 +1,6 @@
 function upload_iris_all_formats_to_s3(bucket_name)
     iris_download_path = "https://raw.githubusercontent.com/banyan-team/banyan-julia/v0.1.3/BanyanDataFrames/test/res/iris.csv"
-    iris_local_path = download(iris_download_path)
+    iris_local_path = Downloads.download(iris_download_path)
     df = CSV.read(iris_local_path, DataFrames.DataFrame)
     # CSV
     verify_file_in_s3(

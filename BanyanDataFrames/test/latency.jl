@@ -44,7 +44,7 @@ function test_csv_from_s3_latency()
         if !s3_exists(Banyan.get_aws_config(), s3_bucket_name, "nyc_tripdata_small.csv")
             data_path = "https://s3.amazonaws.com/nyc-tlc/trip+data/yellow_tripdata_2016-01.csv"
             offloaded(s3_bucket_name, data_path) do s3_bucket_name, data_path
-                temp_path = download(data_path)
+                temp_path = Downloads.download(data_path)
                 cp(
                     Path(temp_path),
                     S3Path("s3://$s3_bucket_name/nyc_tripdata_small.csv", config=Banyan.get_aws_config())

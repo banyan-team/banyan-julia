@@ -460,7 +460,7 @@ function load_toml(paths::Vector{String})
     npaths = length(paths)
     loaded_dir = mktempdir()
     @sync for i = 1:npaths
-        @async Base.download(paths[i], joinpath(loaded_dir, "part" * string(i)))
+        @async Downloads.download(paths[i], joinpath(loaded_dir, "part" * string(i)))
     end
     loaded = Vector{String}(undef, npaths)
     for i = 1:npaths
