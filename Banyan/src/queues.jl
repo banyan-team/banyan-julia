@@ -51,12 +51,6 @@ function get_next_message(
     error_for_main_stuck_time::Union{Nothing,DateTime} = nothing
 )::Tuple{String,Union{Nothing,String}}
     println("Waiting on queue=$queue for first message")
-    for i in 1:10
-        @show sqs_busy_count(queue)
-        @show sqs_count(queue)
-        @show sqs_busy_count(queue)
-        sleep(3)
-    end
     m = sqs_receive_message_with_long_polling(queue)
     @show m
     i = 1

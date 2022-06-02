@@ -569,7 +569,7 @@ function SplitGroupDataFrame(
     # Apply divisions to get only the elements relevant to this worker
     # TODO: Do the groupby and filter on batch_idx == 1 and then share
     # among other batches
-    filter_mask = falses(nrow(src))
+    filter_mask = Base.falses(nrow(src))
     for (i, row) in enumerate(eachrow(src))
         filter_mask[i] = Banyan.get_partition_idx_from_divisions(
             row[key],
@@ -772,3 +772,12 @@ ConsolidateDataFrame(
     dst_params,
     comm
 )
+
+function ReduceGroupBy(
+    part::Empty,
+    src_params::Dict{String,Any},
+    dst_params::Dict{String,Any},
+    comm::MPI.Comm
+)
+    
+end
