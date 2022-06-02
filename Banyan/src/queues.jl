@@ -22,9 +22,7 @@ get_execution_queue()::Dict{Symbol,Any} =
 ###################
 
 function sqs_receive_message_with_long_polling(queue)
-    println("Before call to AWSSQS.sqs")
     r = AWSSQS.sqs(queue, "ReceiveMessage", MaxNumberOfMessages = "1")
-    println("After call to AWSSQS.sqs")
     r = r["messages"]
 
     if isnothing(r)
@@ -50,15 +48,11 @@ function get_next_message(
     error_for_main_stuck::Union{Nothing,String} = nothing,
     error_for_main_stuck_time::Union{Nothing,DateTime} = nothing
 )::Tuple{String,Union{Nothing,String}}
-    println("Waiting on queue=$queue for first message")
     m = sqs_receive_message_with_long_polling(queue)
-    @show m
     i = 1
     j = 1
-    println("After receiving message before while loop with delete = $delete")
     while (isnothing(m))
         error_for_main_stuck = check_worker_stuck(error_for_main_stuck, error_for_main_stuck_time)
-        println("Waiting on queue=$queue for next message")
         m = sqs_receive_message_with_long_polling(queue)
         @show m
         i += 1
@@ -70,12 +64,8 @@ function get_next_message(
             @show j
         end
     end
-    @show sqs_count(queue)
-    @show sqs_busy_count(queue)
     if delete
-        println("Before sqs_delete_message with ID $(m[:id]) and handle $(m[:handle])")
         sqs_delete_message(queue, m)
-        println("After sqs_delete_message")
     end
     return m[:message]::String, error_for_main_stuck
 end
@@ -86,9 +76,7 @@ function receive_next_message(
     error_for_main_stuck=nothing,
     error_for_main_stuck_time=nothing
 )::Tuple{Dict{String,Any},Union{Nothing,String}}
-    println("In receive_next_message before calling get_next_message")
     content::String, error_for_main_stuck::Union{Nothing,String} = get_next_message(queue_name, p; error_for_main_stuck=error_for_main_stuck, error_for_main_stuck_time=error_for_main_stuck_time)
-    println("In receive_next_message after calling get_next_message")
     res::Dict{String,Any} = if startswith(content, "JOB_READY") || startswith(content, "SESSION_READY")
         Dict{String,Any}(
             "kind" => "SESSION_READY"
@@ -133,7 +121,6 @@ function receive_next_message(
         # @debug "Received scatter or gather request"
         JSON.parse(content)
     end
-    println("In receive_next_message before returning")
     res, error_for_main_stuck
 end
 
