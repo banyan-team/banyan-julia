@@ -632,7 +632,6 @@ function offloaded(given_function::Function, args...; distributed::Bool = false)
     
     session = get_session()
     gather_queue = get_gather_queue()
-    @show gather_queue
     stored_message = nothing
     error_for_main_stuck, error_for_main_stuck_time = nothing, nothing
     partial_gathers = Dict{ValueId,String}()
@@ -653,6 +652,7 @@ function offloaded(given_function::Function, args...; distributed::Bool = false)
             contents = get(partial_gathers, value_id, "") * message["contents"]::String
             if (value_id == "-1")
                 memory_used = message["worker_memory_used"]::Int64
+                @show memory_used
                 get_session().worker_memory_used = get_session().worker_memory_used + memory_used
                 stored_message = from_jl_value_contents(contents)
             end

@@ -310,6 +310,7 @@ _invalidate_metadata(remotepath) =
         if isfile(p)
             loc = deserialize(p)
             loc.parameters_invalid = true
+            serialize(p, loc)
         end
     end
 _invalidate_sample(remotepath) =
@@ -317,6 +318,7 @@ _invalidate_sample(remotepath) =
         if isfile(p)
             loc = deserialize(p)
             loc.sample_invalid = true
+            serialize(p, loc)
         end
     end
 invalidate_all_locations() = offloaded(_invalidate_all_locations)

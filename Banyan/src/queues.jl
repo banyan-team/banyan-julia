@@ -54,14 +54,11 @@ function get_next_message(
     while (isnothing(m))
         error_for_main_stuck = check_worker_stuck(error_for_main_stuck, error_for_main_stuck_time)
         m = sqs_receive_message_with_long_polling(queue)
-        @show m
         i += 1
-        @show i
         if !isnothing(p)
             p::ProgressMeter.ProgressUnknown
             next!(p)
             j += 1
-            @show j
         end
     end
     if delete
@@ -145,7 +142,6 @@ end
 
 function send_message(queue_name, message)
     generated_message_id = generate_message_id()
-    @show generated_message_id
     sqs_send_message(
         queue_name,
         message,
@@ -160,7 +156,6 @@ function send_to_client(value_id::ValueId, value, worker_memory_used = 0)
     i = 1
     while true
         is_last_message = length(message) <= MAX_MESSAGE_LENGTH
-        @show i
         send_message(
             get_gather_queue(),
             JSON.json(
@@ -180,7 +175,6 @@ function send_to_client(value_id::ValueId, value, worker_memory_used = 0)
             )
         )
         i += 1
-        @show is_last_message, length(message), MAX_MESSAGE_LENGTH
         if is_last_message
             break
         end
