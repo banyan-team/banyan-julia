@@ -209,6 +209,14 @@ function _remote_table_source(remotepath, shuffled, metadata_invalid, sample_inv
         if is_main
             empty_sample_value_serialized::String = to_jl_value_contents(empty(remote_sample_value))
 
+            # Convert dataframe to a buffer storing Arrow-serialized data.
+            # Then when we receive this on the client side we can simply
+            # parse it back into a data frame. This is just to achieve lower
+            # latency for retrieving metadata/samples for BDF.jl.
+            io = IOBuffer()
+            Arrow.write(io, remote_sample_value, compress=:zstd)
+            remote_sample_value_arrow = io
+
             # Construct Sample with the concatenated value, memory usage, and sample rate
             remote_sample_value_memory_usage = total_memory_usage(remote_sample_value)
             total_nbytes_res = if exact_sample_needed
@@ -222,9 +230,9 @@ function _remote_table_source(remotepath, shuffled, metadata_invalid, sample_inv
                 # return as the `total_memory_usage` for the `Location` and so
                 # we might as well avoid recomputing it in the `Sample`
                 # constructors
-                ExactSample(remote_sample_value, total_nbytes_res)
+                ExactSample(remote_sample_value_arrow, total_nbytes_res)
             else
-                Sample(remote_sample_value, total_nbytes_res)
+                Sample(remote_sample_value_arrow, total_nbytes_res)
             end
             meta_nrows_on_workers, total_nrows_res, total_nbytes_res, remote_sample_res, empty_sample_value_serialized
         else
@@ -300,8 +308,8 @@ function _remote_table_source(remotepath, shuffled, metadata_invalid, sample_inv
     end
 end
 
-function RemoteTableSource(remotepath; shuffled=true, metadata_invalid = false, sample_invalid = false, invalidate_metadata = false, invalidate_sample = false, max_exact_sample_length = Banyan.get_max_exact_sample_length())::Location
-    offloaded(
+RemoteTableSource(remotepath; shuffled=true, metadata_invalid = false, sample_invalid = false, invalidate_metadata = false, invalidate_sample = false, max_exact_sample_length = Banyan.get_max_exact_sample_length())::Location =
+    let loc = offloaded(
         _remote_table_source,
         remotepath,
         shuffled,
@@ -312,7 +320,9 @@ function RemoteTableSource(remotepath; shuffled=true, metadata_invalid = false, 
         max_exact_sample_length;
         distributed=true
     )
-end
+        loc.sample.value = loc.sample.value |> seekstart |> Arrow.Table |> DataFrames.DataFrame
+        loc
+    end
 
 # Load metadata for writing
 # NOTE: `remotepath` should end with `.parquet` or `.csv` if Parquet

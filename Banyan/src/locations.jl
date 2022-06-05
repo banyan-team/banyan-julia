@@ -304,7 +304,11 @@ getsamplenrows(totalnrows::Int64)::Int64 =
 # Banyan is not aware of mutates the location. Locations should be
 # eventually stored and updated in S3 on each write.
 
-_invalidate_all_locations() = rm("s3/$(get_cluster_s3_bucket_name())/banyan_locations/", force=true, recursive=true)
+_invalidate_all_locations() = begin
+    for dir_name in ["banyan_locations", "banyan_meta"]
+        rm("s3/$(get_cluster_s3_bucket_name())/$dir_name/", force=true, recursive=true)
+    end
+end
 _invalidate_metadata(remotepath) =
     let p = get_location_path(remotepath)
         if isfile(p)
@@ -332,8 +336,8 @@ invalidate_sample(p) = offloaded(_invalidate_sample, p)
 # TODO: Hash in a more general way so equivalent paths hash to same value
 # This hashes such that an extra slash at the end won't make a difference``
 get_remotepath_id(remotepath::String) =
-    remotepath |> splitpath |> joinpath |> hash
-get_remotepath_id(remotepath) = remotepath |> hash
+    (get_julia_version(), (remotepath |> splitpath |> joinpath)) |> hash
+get_remotepath_id(remotepath) = (get_julia_version(), remotepath) |> hash
 function get_location_path(remotepath)
     session_s3_bucket_name = get_cluster_s3_bucket_name()
     if !isdir("s3/$session_s3_bucket_name/banyan_locations/")
@@ -351,7 +355,7 @@ end
 
 function get_cached_location(remotepath, metadata_invalid, sample_invalid)
     remotepath_id = get_remotepath_id(remotepath)
-    Random.seed!(hash(get_session_id(), remotepath_id))
+    Random.seed!(hash((get_session_id(), remotepath_id)))
     session_s3_bucket_name = get_cluster_s3_bucket_name()
     location_path = "s3/$session_s3_bucket_name/banyan_locations/$remotepath_id"
 

@@ -314,7 +314,7 @@ function start_session(;
     force_sync::Bool = false,
     force_pull::Bool = false,
     force_install::Bool = false,
-    estimate_available_memory::Bool = false,
+    estimate_available_memory::Bool = true,
     nowait::Bool = true,
     email_when_ready::Union{Bool,Nothing} = nothing,
     for_running::Bool = false,

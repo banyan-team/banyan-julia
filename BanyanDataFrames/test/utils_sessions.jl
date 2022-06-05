@@ -58,6 +58,7 @@ function use_session_for_testing(
                 force_sync = get(ENV, "BANYAN_FORCE_SYNC", "0") == "1",
                 force_install = get(ENV, "BANYAN_FORCE_INSTALL", "0") == "1",
                 store_logs_on_cluster=get(ENV, "BANYAN_STORE_LOGS_ON_CLUSTER", "0") == "1",
+                # estimate_available_memory=true
                 # log_initialization=true
             )
         end,
