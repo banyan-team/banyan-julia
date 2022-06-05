@@ -449,7 +449,12 @@ function WriteHelper(@nospecialize(format_value))
                 Sample()
             else
                 sampled_parts = [gathered[4] for gathered in gathered_data]
-                Sample(vcat(sampled_parts...), curr_location.total_memory_usage)
+                if batch_idx > 1
+                    push!(sampled_parts, curr_location.sample.value |> seekstart |> Arrow.Table |> DataFrames.DataFrame)
+                end
+                new_sample_value_arrow = IOBuffer()
+                Arrow.write(new_sample_value_arrow, vcat(sampled_parts...))
+                Sample(new_sample_value_arrow, curr_location.total_memory_usage)
             end
 
             # Determine paths for this batch and gather # of rows
