@@ -13,7 +13,8 @@ using Arrow,
     ProgressMeter,
     Random,
     Requires,
-    Serialization
+    Serialization,
+    Statistics
 
 # Types
 export DataFrame, GroupedDataFrame
