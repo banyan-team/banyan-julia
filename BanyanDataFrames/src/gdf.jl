@@ -43,6 +43,7 @@ function pts_for_groupby(futures::Base.Vector{Future})
 
     df_sample_for_grouping = _sample_df_for_grouping(df, cols)
     pt(df, Grouped(df_sample_for_grouping, scaled_by_same_as=gdf))
+    pt(df, BlockedAlong(1))
     # TODO: Avoid circular dependency
     # TODO: Specify key for Blocked
     # TODO: Ensure that bangs in splitting functions in PF library are used
@@ -168,6 +169,12 @@ function pts_for_combine(futures::Base.Vector{Future})
     # TODO: If we want to support `keepkeys=false`, we need to make the
     # result be Blocked and `filtered_from` the input
     pts_for_filtering(gdf_parent, res, groupingkeys)
+    for rpt in ReducingGroupBy(sample(groupcols), sample(groupkwargs), sample(args), sample(kwargs))
+        pt(gdf_parent, BlockedAlong(1))
+        pt(res, rpt)
+    end
+    # TODO: Make a ReducingGroupBy PT constructor that is similar to Reducing but takes in groupcols, groupkwargs, args, kwargs to determine the reducing_op and finishing_op
+    # TODO: Iterate over result of ReducingGroupBy and, annotate gdf_parent with Blocked and res with the ReducingGroupBy
     pt(gdf, BlockedAlong(1) & ScaledBySame(gdf_parent))
     pt(res_nrows, Reducing(+)) # TODO: Change to + if possible
     # pt(gdf_parent, res, gdf, res_nrows, groupcols, groupkwargs, args, kwargs, Replicated())

@@ -275,7 +275,7 @@ function _remote_table_source(remotepath, shuffled, metadata_invalid, sample_inv
     meta_path = is_main ? get_meta_path(remotepath) : ""
     if curr_parameters_invalid
         # Write `NamedTuple` with metadata to `meta_path` with `Arrow.write`
-        Arrow.write(is_main ? meta_path : IOBuffer(), (path=localpaths, nrows=meta_nrows))
+        Arrow.write(is_main ? meta_path : IOBuffer(), (path=localpaths, nrows=meta_nrows), compress=:zstd)
     end
 
     # Return LocationSource

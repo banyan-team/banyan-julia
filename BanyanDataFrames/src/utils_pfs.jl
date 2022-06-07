@@ -45,14 +45,64 @@ function Banyan.sync_across(df::DataFrames.DataFrame; comm=MPI.COMM_WORLD)
     count = Ref{Cint}()
     if is_main
         io = IOBuffer()
-        Arrow.write(io, df)
+        Arrow.write(io, df, compress=:zstd)
         buf = MPI.Buffer(view(io.data, 1:io.size))
         count[] = length(buf.data)
     end
     MPI.Bcast!(count, 0, comm)
-    if !is_main
+    if !is_mainVector{UInt8}(undef, count_max)
         buf = MPI.Buffer(Base.Array{UInt8}(undef, count[]))
     end
     MPI.Bcast!(buf, 0, comm)
     DataFrames.DataFrame(Arrow.Table(IOBuffer(view(buf.data, 1:buf.count))))
 end
+
+function get_variable_sized_blob(whole_blob::Base.Vector{UInt8})
+    blob_length = reinterpret(Int64, whole_blob[1:8])
+    whole_blob[9:(8+blob_length)]
+end
+
+function make_reducev_op(op)
+    (a, b) -> begin
+        a_df = get_variable_sized_blob(a) |> IOBuffer |> Arrow.Table |> DataFrames.DataFrame
+        b_df = get_variable_sized_blob(b) |> IOBuffer |> Arrow.Table |> DataFrames.DataFrame
+        res_df = op(a_df, b_df)
+        res_blob = Vector{UInt8}(undef, length(a))
+        res_io = IOBuffer(sizehint=length(a))
+        write(res_io, reinterpret(UInt8, Int64(1)))
+        Arrow.write(res_io, res_df)
+        res_blob_length_blob = reinterpret(UInt8, [res_io.size - 8])
+        if length(res_blob_length_blob) != 8
+            error("Data frame being reduced is so large that its size cannot be represented with 8 bytes")
+        end
+        res_io.data[1:8] = res_blob_length_blob
+        res_io.data
+    end
+end
+
+function Banyan.reduce_across(op::Function, df::DataFrames.AbstractDataFrame; to_worker_idx=1, comm=MPI.COMM_WORLD, sync_across=false)
+    # An optimized version of sync_across that syncs data frames across workers
+    io = IOBuffer()
+    Arrow.write(io, df, compress=:zstd)
+    blob_length = MPI.Allreduce(io.size, +, comm)
+    blob_length_blob = reinterpret(UInt8, [blob_length])
+    if length(blob_length_blob) != 8
+        error("Data frame being reduced is so large that its size cannot be represented with 8 bytes")
+    end
+    reducable_blob = Vector{UInt8}(undef, blob_length + 8)
+    reducable_blob[1:length(count_max_blob)] = count_max_blob
+    reducable_blob[9:(8+length(io.size))] = view(io.data, 1:io.size)
+    reduced_blob = if sync_across
+        MPI.Allreduce(reducable_blob, make_reducev_op(op), comm)
+    else
+        MPI.Reduce(reducable_blob, make_reducev_op(op), to_worker_idx-1, comm)
+    end
+    if sync_across || get_worker_idx(comm) == to_worker_idx
+        get_variable_sized_blob(reduced_blob) |> IOBuffer |> Arrow.Table |> DataFrames.DataFrame
+    else
+        nothing
+    end
+end
+
+Banyan.reduce_and_sync_across(op::Function, df::DataFrames.AbstractDataFrame; comm=MPI.COMM_WORLD) =
+    reduce_across(op, df; comm=comm, sync_across=true)

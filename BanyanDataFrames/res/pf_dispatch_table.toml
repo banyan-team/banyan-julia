@@ -156,6 +156,14 @@ views = false
 required = { name = "Replicating", replication = "all" }
 locations = [ { name = "Remote", format = "arrow" }, { name = "Disk", datatype = "DataFrame" } ]
 
+[merges.ReduceAndCopyToArrow]
+expected = [ "reducing_op", "finishing_op" ]
+location_names = [ "Memory", "Disk" ]
+partition_memory_usage = "all"
+scale_by = 2
+views = false
+required = { name = "Replicating" }
+
 [casts.ConsolidateDataFrame]
 src_expected = [ "key" ]
 scale_by_src = 1
@@ -179,3 +187,9 @@ src_required = { name = "Distributing" }
 dst_required = { name = "Distributing", distribution = "grouped", id = "!" }
 dst_default = { rev = false }
 locations = [ { datatype = "DataFrame"} ]
+
+[casts.ReduceDataFrame]
+src_expected = [ "reducing_op", "finishing_op" ]
+scale_by_dst = 2
+src_required = { name = "Replicating" }
+dst_required = { name = "Replicating", replication = "all" }

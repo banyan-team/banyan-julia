@@ -77,6 +77,7 @@ function ShuffleDataFrameHelper(
                 else
                     empty(part)
                 end,
+                compress=:zstd
             )
             push!(df_counts, io.size - nbyteswritten)
             nbyteswritten = io.size
@@ -453,12 +454,12 @@ function WriteHelper(@nospecialize(format_value))
                     push!(sampled_parts, curr_location.sample.value |> seekstart |> Arrow.Table |> DataFrames.DataFrame)
                 end
                 new_sample_value_arrow = IOBuffer()
-                Arrow.write(new_sample_value_arrow, vcat(sampled_parts...))
+                Arrow.write(new_sample_value_arrow, vcat(sampled_parts...), compress=:zstd)
                 Sample(new_sample_value_arrow, curr_location.total_memory_usage)
             end
 
             # Determine paths for this batch and gather # of rows
-            Arrow.write(meta_path, (path=curr_localpaths, nrows=curr_nrows))
+            Arrow.write(meta_path, (path=curr_localpaths, nrows=curr_nrows), compress=:zstd)
 
             if !is_disk && batch_idx == nbatches && total_nrows <= get_max_exact_sample_length()
                 # If the total # of rows turns out to be inexact then we can simply mark it as
@@ -704,6 +705,7 @@ function RebalanceDataFrame(
                 end,
                 Base.fill(:, ndims(part) - dim)...,
             ),
+            compress=:zstd 
         )
 
         # Add the count of the size of this chunk in bytes
@@ -752,7 +754,7 @@ RebalanceDataFrame(
 
 function ConsolidateDataFrame(part::DataFrames.DataFrame, src_params::Dict{String,Any}, dst_params::Dict{String,Any}, comm::MPI.Comm)
     io = IOBuffer()
-    Arrow.write(io, part)
+    Arrow.write(io, part, compress=:zstd)
     sendbuf = MPI.Buffer(view(io.data, 1:io.size))
     recvvbuf = Banyan.buftovbuf(sendbuf, comm)
     # TODO: Maybe sometimes use gatherv if all sendbuf's are known to be equally sized
@@ -783,11 +785,92 @@ ConsolidateDataFrame(
     comm
 )
 
-function ReduceGroupBy(
-    part::Empty,
+function combine_in_memory(a, b, groupcols, groupkwargs, combinecols, combineargs, combinekwargs)
+    concatenated = vcat(a, b)
+    grouped = groupby(concatenated, groupcols; groupkwargs...)
+    combined = combine(grouped, combineargs...; combinekwargs...)
+end
+
+function ReduceDataFrame(
+    part,
     src_params::Dict{String,Any},
     dst_params::Dict{String,Any},
     comm::MPI.Comm
 )
+    res = reduce_and_sync_across(src_params["reducing_op"], part, comm)
+    src_params["finishing_op"](res)
+end
+
+ReduceDataFrame(part::Empty, src_params::Dict{String,Any}, dst_params::Dict{String,Any}, comm::MPI.Comm) =
+    ReduceDataFrame(DataFrames.DataFrame(), src_params, dst_params, comm)
+
+function ReduceAndCopyToArrow(
+    src,
+    part::T,
+    params::Dict{String,Any},
+    batch_idx::Int64,
+    nbatches::Int64,
+    comm::MPI.Comm,
+    loc_name::String,
+    loc_params::Dict{String,Any},
+    @nospecialize(reduce_op::Function),
+    @nospecialize(finish_op::Function)
+) where {T}
+    # Concatenate all data frames on this worker
+    src = if nbatches > 1
+        Merge(
+            src,
+            part,
+            params,
+            batch_idx,
+            nbatches,
+            MPI.COMM_SELF,
+            loc_name,
+            loc_params
+        )
+    else
+        part
+    end
+
+    # Merge reductions across workers
+    if batch_idx == nbatches
+        src = reduce_op(src, DataFrames.DataFrame())
+
+        if nworkers > 1
+            src = reduce_across(reduce_op, src, comm=comm)
+        end
+
+        if loc_name != "Memory"
+            # We use 1 here so that it is as if we are copying from the head
+            # node
+            src = finish_op(src)
+            CopyToArrow(src, src, params, nbatches, nbatches, comm, loc_name, loc_params)
+        end
+    end
     
+    src
+end
+
+function ReduceAndCopyToArrow(
+    src,
+    part::T,
+    params::Dict{String,Any},
+    batch_idx::Int64,
+    nbatches::Int64,
+    comm::MPI.Comm,
+    loc_name::String,
+    loc_params::Dict{String,Any},
+) where {T}
+    ReduceAndCopyToArrow(
+        src isa Empty ? DataFrames.DataFrame() : src,
+        part,
+        params,
+        batch_idx,
+        nbatches,
+        comm,
+        loc_name,
+        loc_params,
+        params["reducing_op"],
+        params["finishing_op"]
+    )
 end
