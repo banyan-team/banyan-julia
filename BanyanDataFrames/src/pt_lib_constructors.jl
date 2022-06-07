@@ -67,5 +67,5 @@ function ReducingGroupBy(groupcols, groupkwargs, args, kwargs)::Base.Vector{Part
     end
 
     # Return the partition type
-    PartitionType[PartitionType("name" => "Replicating", noscale, "replication" => nothing, "reducing_op" => to_jl_value(reducing_op), "finishing_op" => to_jl_value(finishing_op))]
+    PartitionType[PartitionType("name" => "Replicating", Banyan.noscale, "replication" => nothing, "reducing_op" => to_jl_value(reducing_op), "finishing_op" => to_jl_value(finishing_op))]
 end
