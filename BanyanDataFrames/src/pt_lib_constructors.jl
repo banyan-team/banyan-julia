@@ -43,7 +43,7 @@ function ReducingGroupBy(groupcols, groupkwargs, args, kwargs)::Base.Vector{Part
             push!(reducing_args, to => func => to)
         elseif func == mean
             push!(reducing_args, to => sum => to)
-            push!(reducing_args, DataFrames.nrow => banyan_averaging_nrow)
+            push!(reducing_args, DataFrames.nrow => :banyan_averaging_nrow)
             push!(mean_cols, to)
         else
             return PartitionType[]
