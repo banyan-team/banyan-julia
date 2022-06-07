@@ -1,4 +1,4 @@
-function ReducingGroupBy(groupcols, groupkwargs, args, kwargs)::Vector{PartitionType}
+function ReducingGroupBy(groupcols, groupkwargs, args, kwargs)::Base.Vector{PartitionType}
     # We must be keeping keys so that we can groupby and combine the results
     # of the individual partitioned computations.
     if !get(kwargs, :keepkeys, true)
@@ -10,7 +10,7 @@ function ReducingGroupBy(groupcols, groupkwargs, args, kwargs)::Vector{Partition
     for arg in args
         if arg isa Pair
             push!(pairs, arg)
-        elseif arg isa AbstractVector{Pair}
+        elseif arg isa Base.AbstractVector{Pair}
             append!(pairs, arg)
         elseif arg isa Function
             push!(pairs, nothing => arg => string(arg))
