@@ -70,6 +70,8 @@ export ReadBlockCSV,
     ReturnNullGrouping,
     ReturnNullGroupingConsolidated,
     ReturnNullGroupingRebalanced,
+    ReduceDataFrame,
+    ReduceAndCopyToArrow,
     add_sizes
 
 # Locations
