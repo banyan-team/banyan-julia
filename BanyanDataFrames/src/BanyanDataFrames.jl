@@ -77,6 +77,7 @@ export ReadBlockCSV,
 # Locations
 export RemoteTableSource, RemoteTableDestination
 
+include("pt_lib_constructors.jl")
 include("locations.jl")
 include("df.jl")
 include("gdf.jl")
