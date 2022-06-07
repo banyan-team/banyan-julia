@@ -552,13 +552,13 @@ function ReducingGroupBy(groupcols, groupkwargs, args, kwargs)::Vector{Partition
     reducing_args = []
     mean_cols = []
     for (from, func, to) in triplets
-        if func == nrow
+        if func == DataFrames.nrow
             push!(reducing_args, to => sum => to)
         elseif func == minimum || func == maximum || func == sum
             push!(reducing_args, to => func => to)
         elseif func == mean
             push!(reducing_args, to => sum => to)
-            push!(reducing_args, nrow => banyan_averaging_nrow)
+            push!(reducing_args, DataFrames.nrow => banyan_averaging_nrow)
             push!(mean_cols, to)
         else
             return PartitionType[]
