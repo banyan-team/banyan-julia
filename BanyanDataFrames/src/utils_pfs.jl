@@ -72,7 +72,7 @@ function make_reducev_op(op)
         b_df = b |> Base.collect |> get_variable_sized_blob |> IOBuffer |> Arrow.Table |> DataFrames.DataFrame
         res_df = op(a_df, b_df)
         res_io = IOBuffer(sizehint=length(a))
-        write(res_io, reinterpret(UInt8, Int64(1)))
+        write(res_io, reinterpret(UInt8, Int64[1]))
         Arrow.write(res_io, res_df)
         res_blob_length_blob = reinterpret(UInt8, [res_io.size - 8])
         if length(res_blob_length_blob) != 8
