@@ -64,6 +64,8 @@ end
 
 function make_reducev_op(op)
     (a, b) -> begin
+        @show typeof(a)
+        @show typeof(b)
         a_df = get_variable_sized_blob(a) |> IOBuffer |> Arrow.Table |> DataFrames.DataFrame
         b_df = get_variable_sized_blob(b) |> IOBuffer |> Arrow.Table |> DataFrames.DataFrame
         res_df = op(a_df, b_df)
@@ -75,7 +77,9 @@ function make_reducev_op(op)
             error("Data frame being reduced is so large that its size cannot be represented with 8 bytes")
         end
         res_io.data[1:8] = res_blob_length_blob
-        res_io.data
+        res = res_io.data
+        @show typeof(res)
+        res
     end
 end
 
@@ -91,6 +95,7 @@ function Banyan.reduce_across(op::Function, df::DataFrames.AbstractDataFrame; to
     reducable_blob = Base.Vector{UInt8}(undef, blob_length + 8)
     reducable_blob[1:8] = blob_length_blob
     reducable_blob[9:(8+io.size)] = view(io.data, 1:io.size)
+    @show typeof(reducable_blob)
     reduced_blob = if sync_across
         MPI.Allreduce(reducable_blob, make_reducev_op(op), comm)
     else
