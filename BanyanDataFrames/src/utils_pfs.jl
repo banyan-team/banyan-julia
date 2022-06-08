@@ -85,6 +85,12 @@ function make_reducev_op(op)
     end
 end
 
+function reduce_buffers(a::Base.Vector{UInt8}, b::Base.Vector{UInt8})
+    @show a
+    @show b
+    a
+end
+
 function Banyan.reduce_across(op::Function, df::DataFrames.AbstractDataFrame; to_worker_idx=1, comm=MPI.COMM_WORLD, sync_across=false)
     # An optimized version of sync_across that syncs data frames across workers
     io = IOBuffer()
@@ -101,8 +107,9 @@ function Banyan.reduce_across(op::Function, df::DataFrames.AbstractDataFrame; to
     reduced_blob = Base.Vector{UInt8}(undef, blob_length + 8)
     reducable_buf = MPI.RBuffer(reducable_blob, reduced_blob, blob_length + 8, MPI.Datatype(UInt8))
     @show reducable_blob
+    @show reducable_buf
     if sync_across
-        MPI.Allreduce!(reducable_buf, make_reducev_op(op), comm)
+        MPI.Allreduce!(reducable_buf, reduce_buffers, comm)
     else
         MPI.Reduce!(reducable_buf, make_reducev_op(op), to_worker_idx-1, comm)
     end
