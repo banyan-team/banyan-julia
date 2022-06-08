@@ -89,7 +89,7 @@ function Banyan.reduce_across(op::Function, df::DataFrames.AbstractDataFrame; to
         error("Data frame being reduced is so large that its size cannot be represented with 8 bytes")
     end
     reducable_blob = Base.Vector{UInt8}(undef, blob_length + 8)
-    reducable_blob[1:length(count_max_blob)] = count_max_blob
+    reducable_blob[1:8] = blob_length_blob
     reducable_blob[9:(8+length(io.size))] = view(io.data, 1:io.size)
     reduced_blob = if sync_across
         MPI.Allreduce(reducable_blob, make_reducev_op(op), comm)
