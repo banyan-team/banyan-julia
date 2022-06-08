@@ -63,7 +63,7 @@ function get_variable_sized_blob(whole_blob::Base.Vector{UInt8})
 end
 
 function make_reducev_op(op)
-    (a::Vector{UInt8}, b::Vector{UInt8}) -> begin
+    (a::Base.Vector{UInt8}, b::Base.Vector{UInt8}) -> begin
         @show typeof(a)
         @show typeof(b)
         @show a
