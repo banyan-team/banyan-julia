@@ -203,64 +203,65 @@ end
     "parallelism and batches encouraged",
 ]
     use_session_for_testing(scheduling_config_name = scheduling_config) do
-    use_basic_data()
-    for path in [
-        "s3://$(bucket)/iris_large.csv",
-        "s3://$(bucket)/iris_large.parquet",
-        "s3://$(bucket)/iris_large.arrow",
-    ]
-        for func in [sum, minimum, maximum, mean, nrow]
-            println("Testing fast groupby reduce with scheduling_config=$scheduling_config, path=$path, function=$function")
-            df = read_file(path)
-            gdf = groupby(df, :species)
-            gdf_keepkeys_true_names = Set(names(combine(gdf, nrow, keepkeys = true)))
-            res =
-                combine(gdf, func == nrow ? nrow : (:petal_length => func))
-            compute(res)
-            @show res
+        use_basic_data()
+        bucket = get_cluster_s3_bucket_name()
+        for path in [
+            "s3://$(bucket)/iris_large.csv",
+            "s3://$(bucket)/iris_large.parquet",
+            "s3://$(bucket)/iris_large.arrow",
+        ]
+            for func in [sum, minimum, maximum, mean, nrow]
+                println("Testing fast groupby reduce with scheduling_config=$scheduling_config, path=$path, func=$func")
+                df = read_file(path)
+                gdf = groupby(df, :species)
+                res =
+                    combine(gdf, func == nrow ? nrow : (:petal_length => func))
+                @show compute(res)
+            end
+            # @test gdf_keepkeys_true_names == Set(["nrow", "species"])
+            # @test petal_length_mean == [
+            #     1.46,
+            #     1.46,
+            #     1.46,
+            #     1.46,
+            #     1.46,
+            #     1.46,
+            #     4.26,
+            #     4.26,
+            #     4.26,
+            #     4.26,
+            #     4.26,
+            #     4.26,
+            #     5.55,
+            #     5.55,
+            #     5.55,
+            #     5.55,
+            #     5.55,
+            #     5.55,
+            # ]
+            # @test temp_names == Set(["petal_length", "species"])
+            # @test temp_petal_length == [
+            #     1.46,
+            #     1.46,
+            #     1.46,
+            #     1.46,
+            #     1.46,
+            #     1.46,
+            #     4.26,
+            #     4.26,
+            #     4.26,
+            #     4.26,
+            #     4.26,
+            #     4.26,
+            #     5.55,
+            #     5.55,
+            #     5.55,
+            #     5.55,
+            #     5.55,
+            #     5.55,
+            # ]
         end
-        # @test gdf_keepkeys_true_names == Set(["nrow", "species"])
-        # @test petal_length_mean == [
-        #     1.46,
-        #     1.46,
-        #     1.46,
-        #     1.46,
-        #     1.46,
-        #     1.46,
-        #     4.26,
-        #     4.26,
-        #     4.26,
-        #     4.26,
-        #     4.26,
-        #     4.26,
-        #     5.55,
-        #     5.55,
-        #     5.55,
-        #     5.55,
-        #     5.55,
-        #     5.55,
-        # ]
-        # @test temp_names == Set(["petal_length", "species"])
-        # @test temp_petal_length == [
-        #     1.46,
-        #     1.46,
-        #     1.46,
-        #     1.46,
-        #     1.46,
-        #     1.46,
-        #     4.26,
-        #     4.26,
-        #     4.26,
-        #     4.26,
-        #     4.26,
-        #     4.26,
-        #     5.55,
-        #     5.55,
-        #     5.55,
-        #     5.55,
-        #     5.55,
-        #     5.55,
-        # ]
+    end
 end
 
 @testset "Groupby basic for initial functionality with $scheduling_config" for scheduling_config in
