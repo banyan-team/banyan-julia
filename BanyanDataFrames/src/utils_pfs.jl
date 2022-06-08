@@ -66,6 +66,8 @@ function make_reducev_op(op)
     (a, b) -> begin
         @show typeof(a)
         @show typeof(b)
+        @show a
+        @show b
         a_df = get_variable_sized_blob(a) |> IOBuffer |> Arrow.Table |> DataFrames.DataFrame
         b_df = get_variable_sized_blob(b) |> IOBuffer |> Arrow.Table |> DataFrames.DataFrame
         res_df = op(a_df, b_df)
@@ -98,6 +100,7 @@ function Banyan.reduce_across(op::Function, df::DataFrames.AbstractDataFrame; to
     @show typeof(reducable_blob)
     reduced_blob = Base.Vector{UInt8}(undef, blob_length + 8)
     reducable_buf = MPI.RBuffer(reducable_blob, reduced_blob, blob_length + 8, MPI.Datatype(UInt8))
+    @show reducable_blob
     if sync_across
         MPI.Allreduce!(reducable_buf, make_reducev_op(op), comm)
     else
