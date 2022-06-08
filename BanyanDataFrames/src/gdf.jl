@@ -172,8 +172,9 @@ function pts_for_combine(futures::Base.Vector{Future})
     rpts = ReducingGroupBy(sample(groupcols), sample(groupkwargs), sample(args), sample(kwargs))
     for rpt in rpts
         @show rpt
-        pt(gdf_parent, BlockedAlong(1))
-        pt(res, rpt)
+        pt(gdf_parent, BlockedAlong(1) & Balanced())
+        pt(gdf_parent, BlockedAlong(1) & Unbalanced(res))
+        pt(res, rpt & ScaledBySame(gdf_parent))
     end
     !isempty(rpts) || error()
     # TODO: Make a ReducingGroupBy PT constructor that is similar to Reducing but takes in groupcols, groupkwargs, args, kwargs to determine the reducing_op and finishing_op
