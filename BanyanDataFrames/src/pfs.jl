@@ -841,10 +841,10 @@ function ReduceAndCopyToArrow(
         end
 
         if loc_name != "Memory"
-            # We use 1 here so that it is as if we are copying from the head
-            # node
-            src = finish_op(src)
-            CopyToArrow(src, src, params, nbatches, nbatches, comm, loc_name, loc_params)
+            if is_main_worker(comm)
+                src = finish_op(src)
+            end
+            CopyToArrow(src, src, params, 1, 1, comm, loc_name, loc_params)
         end
     end
     
