@@ -93,7 +93,7 @@ end
 
 function Banyan.reduce_across(op::Function, df::DataFrames.AbstractDataFrame; to_worker_idx=1, comm=MPI.COMM_WORLD, sync_across=false)
     # An optimized version of sync_across that syncs data frames across workers
-    @show MPI.Types.create_vector!(Datatype(), 3, 2, 5, MPI.Datatype(Int64))
+    @show MPI.Types.create_vector!(MPI.Datatype(), 3, 2, 5, MPI.Datatype(Int64))
     io = IOBuffer()
     Arrow.write(io, df, compress=:zstd)
     blob_length = MPI.Allreduce(io.size, +, comm)
