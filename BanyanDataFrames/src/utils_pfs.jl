@@ -107,7 +107,7 @@ function Banyan.reduce_across(op::Function, df::DataFrames.AbstractDataFrame; to
     reduced_blob = Base.Vector{UInt8}(undef, blob_length + 8)
     @show blob_length + 8
     @show MPI.Datatype(UInt8)
-    reducing_dtype = MPI.Types.create_contiguous(blob_length + 8, MPI.Datatype(UInt8))
+    reducing_dtype = MPI.Types.create_vector(blob_length + 8, 1, 1, MPI.Datatype(UInt8))
     @show reducing_dtype
     reducing_dtype = MPI.Types.commit!(reducing_dtype)
     MPI.Barrier(comm)
