@@ -68,8 +68,8 @@ AtMost(npartitions::Int64, f::Future) =
 Scale(arg::Future; to::Union{Real,String,Nothing}=nothing, by::Real=1.0, relative_to::Vector{Future}=Future[]) =
     Scale(arg, isnothing(to) ? -1.0 : parse_bytes(to), convert(Float64, by)::Float64, relative_to)
 function Scale(arg::Future, to::Float64, by::Float64, relative_to::Vector{Future})
-    new_relative_to::Vector{Future} = copy(relative_to)
-    push!(new_relative_to, arg)
+    new_relative_to::Vector{Future} = Future[arg]
+    append!(new_relative_to, copy(relative_to))
     PartitioningConstraintOverGroup(
         to < 0.0 ? "SCALE_BY=$by" : "SCALE_TO=$to",
         pt_refs_to_jl(new_relative_to)

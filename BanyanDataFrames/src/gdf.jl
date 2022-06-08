@@ -168,11 +168,14 @@ function pts_for_combine(futures::Base.Vector{Future})
 
     # TODO: If we want to support `keepkeys=false`, we need to make the
     # result be Blocked and `filtered_from` the input
-    pts_for_filtering(gdf_parent, res, groupingkeys)
-    for rpt in ReducingGroupBy(sample(groupcols), sample(groupkwargs), sample(args), sample(kwargs))
+    # pts_for_filtering(gdf_parent, res, groupingkeys)
+    rpts = ReducingGroupBy(sample(groupcols), sample(groupkwargs), sample(args), sample(kwargs))
+    for rpt in rpts
+        @show rpt
         pt(gdf_parent, BlockedAlong(1))
         pt(res, rpt)
     end
+    !isempty(rpts) || error()
     # TODO: Make a ReducingGroupBy PT constructor that is similar to Reducing but takes in groupcols, groupkwargs, args, kwargs to determine the reducing_op and finishing_op
     # TODO: Iterate over result of ReducingGroupBy and, annotate gdf_parent with Blocked and res with the ReducingGroupBy
     pt(gdf, BlockedAlong(1) & ScaledBySame(gdf_parent))

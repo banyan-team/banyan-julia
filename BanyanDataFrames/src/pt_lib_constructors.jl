@@ -1,36 +1,60 @@
 function ReducingGroupBy(groupcols, groupkwargs, args, kwargs)::Base.Vector{PartitionType}
     # We must be keeping keys so that we can groupby and combine the results
     # of the individual partitioned computations.
+    if Banyan.INVESTIGATING_REDUCING_GROUPBY
+        @show kwargs
+    end
+    renamecols = get(kwargs, :renamecols, true)
     if !get(kwargs, :keepkeys, true)
         return PartitionType[]
     end
 
+    args_flattened = []
+    if Banyan.INVESTIGATING_REDUCING_GROUPBY
+        @show args
+    end
+    for arg in args
+        if arg isa Base.AbstractVector{Pair}
+            append!(args_flattened, arg)
+        else
+            push!(args_flattened, arg)
+        end
+    end
+    if Banyan.INVESTIGATING_REDUCING_GROUPBY
+        @show args_flattened
+    end
+
     # Convert arguments to pairs
     pairs = []
-    for arg in args
+    for arg in args_flattened
         if arg isa Pair
             push!(pairs, arg)
-        elseif arg isa Base.AbstractVector{Pair}
-            append!(pairs, arg)
         elseif arg isa Function
             push!(pairs, nothing => arg => string(arg))
         else
             return PartitionType[]
         end
     end
+    if Banyan.INVESTIGATING_REDUCING_GROUPBY
+        @show pairs
+    end
+    
 
     # Convert arguments to triplets (e.g., `:init => (max => :final)`)
     triplets = []
-    for arg in args
+    for arg in pairs
         if arg[2] isa Pair && arg[2][1] isa Function
             push!(triplets, (arg[1], arg[2][1], arg[2][2]))
         elseif arg[1] isa Function
             push!(triplets, (nothing, arg[1], arg[2]))
         elseif arg[2] isa Function
-            push!(triplets, (arg[1], arg[2], arg[1]))
+            push!(triplets, (arg[1], arg[2], renamecols ? ("$(arg[1])_$(arg[2])") : arg[1]))
         else
             return PartitionType[]
         end
+    end
+    if Banyan.INVESTIGATING_REDUCING_GROUPBY
+        @show triplets
     end
 
     # Convert to arguments to pass into combine
@@ -48,6 +72,10 @@ function ReducingGroupBy(groupcols, groupkwargs, args, kwargs)::Base.Vector{Part
         else
             return PartitionType[]
         end
+    end
+    if Banyan.INVESTIGATING_REDUCING_GROUPBY
+        @show reducing_args
+        @show mean_cols
     end
 
     # Create the functions

@@ -1,7 +1,7 @@
 # I think it's actually _good_ for this file to be check in. It's good
 # to see in each commit what was being investigated.
 
-const INVESTIGATING_MEMORY_USAGE = false
+const INVESTIGATING_MEMORY_USAGE = true
 const INVESTIGATING_CACHING_LOCATION_INFO = false
 const INVESTIGATING_CACHING_SAMPLES = false
 # Sometimes we get a smaller aggregation result or a size is smaller than
@@ -14,6 +14,7 @@ const INVESTIGATING_TASKS = false
 const INVESTIGATING_CODE_EXECUTION_FINISHING = false
 const INVESTIGATING_PARALLEL_HDF5 = false
 global INVESTIGATING_DIFFERENT_PARTITIONING_DIMS = false
+global INVESTIGATING_REDUCING_GROUPBY = true
 
 function investigate_different_partitioning_dims(val=false)
     global INVESTIGATING_DIFFERENT_PARTITIONING_DIMS

@@ -836,7 +836,7 @@ function ReduceAndCopyToArrow(
     if batch_idx == nbatches
         src = reduce_op(src, DataFrames.DataFrame())
 
-        if nworkers > 1
+        if get_nworkers(comm) > 1
             src = reduce_across(reduce_op, src, comm=comm)
         end
 
