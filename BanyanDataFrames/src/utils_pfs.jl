@@ -63,7 +63,7 @@ function get_variable_sized_blob(whole_blob::Base.Vector{UInt8})
 end
 
 function make_reducev_op(op)
-    (a::Base.Vector{UInt8}, b::Base.Vector{UInt8}) -> begin
+    (a, b) -> begin
         @show typeof(a)
         @show typeof(b)
         @show a
@@ -79,7 +79,7 @@ function make_reducev_op(op)
             error("Data frame being reduced is so large that its size cannot be represented with 8 bytes")
         end
         res_io.data[1:8] = res_blob_length_blob
-        res = res_io.data
+        res = Tuple(res_io.data)
         @show typeof(res)
         res
     end
@@ -119,7 +119,7 @@ function Banyan.reduce_across(op::Function, df::DataFrames.AbstractDataFrame; to
     @show reducable_blob
     @show reducable_buf
     if sync_across
-        MPI.Allreduce!(reducable_buf, MPI.Op(reduce_buffers, Base.NTuple{(blob_length + 8), UInt8}, iscommutative=true), comm)
+        MPI.Allreduce!(reducable_buf, MPI.Op(make_reducev_op(op), Base.NTuple{(blob_length + 8), UInt8}, iscommutative=true), comm)
     else
         MPI.Reduce!(reducable_buf, make_reducev_op(op), to_worker_idx-1, comm)
     end
