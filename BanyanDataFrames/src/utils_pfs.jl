@@ -68,8 +68,8 @@ function make_reducev_op(op)
         @show typeof(b)
         @show a
         @show b
-        a_df = get_variable_sized_blob(a) |> IOBuffer |> Arrow.Table |> DataFrames.DataFrame
-        b_df = get_variable_sized_blob(b) |> IOBuffer |> Arrow.Table |> DataFrames.DataFrame
+        a_df = get_variable_sized_blob(a) |> Base.collect |> IOBuffer |> Arrow.Table |> DataFrames.DataFrame
+        b_df = get_variable_sized_blob(b) |> Base.collect |> IOBuffer |> Arrow.Table |> DataFrames.DataFrame
         res_df = op(a_df, b_df)
         res_io = IOBuffer(sizehint=length(a))
         write(res_io, reinterpret(UInt8, Int64(1)))
@@ -79,7 +79,7 @@ function make_reducev_op(op)
             error("Data frame being reduced is so large that its size cannot be represented with 8 bytes")
         end
         res_io.data[1:8] = res_blob_length_blob
-        res = res_io.data
+        res = Tuple(res_io.data)
         @show typeof(res)
         res
     end
@@ -105,7 +105,7 @@ function Banyan.reduce_across(op::Function, df::DataFrames.AbstractDataFrame; to
     reducable_blob[1:8] = blob_length_blob
     reducable_blob[9:(8+io.size)] = view(io.data, 1:io.size)
     @show typeof(reducable_blob)
-    reduced_blob = Base.Vector{UInt8}(undef, blob_length + 8)
+    reduced_blob = Tuple(Base.Vector{UInt8}(undef, blob_length + 8))
     @show blob_length + 8
     @show MPI.Datatype(UInt8)
     reducing_dtype = MPI.Types.create_contiguous(blob_length + 8, MPI.Datatype(UInt8))
@@ -113,18 +113,20 @@ function Banyan.reduce_across(op::Function, df::DataFrames.AbstractDataFrame; to
     reducing_dtype = MPI.Types.commit!(reducing_dtype)
     MPI.Barrier(comm)
     @show reducing_dtype
-    reducable_buf = MPI.RBuffer(reducable_blob, reduced_blob, 1, reducing_dtype)
+    reducing_dtype = MPI.Datatype(NTuple{(blob_length + 8), UInt8})
+    @show reducing_dtype
+    reducable_buf = MPI.RBuffer(Tuple(reducable_blob), reduced_blob, 1, reducing_dtype)
     @show reducable_blob
     @show reducable_buf
     if sync_across
-        MPI.Allreduce!(reducable_buf, MPI.Op(reduce_buffers, Base.Vector{UInt8}, iscommutative=true), comm)
+        MPI.Allreduce!(reducable_buf, MPI.Op(reduce_buffers, Base.NTuple{(blob_length + 8), UInt8}, iscommutative=true), comm)
     else
         MPI.Reduce!(reducable_buf, make_reducev_op(op), to_worker_idx-1, comm)
     end
     @show reducable_buf
     @show reduced_blob
     if sync_across || get_worker_idx(comm) == to_worker_idx
-        get_variable_sized_blob(reduced_blob) |> IOBuffer |> Arrow.Table |> DataFrames.DataFrame
+        get_variable_sized_blob(reduced_blob) |> Base.collect |> IOBuffer |> Arrow.Table |> DataFrames.DataFrame
     else
         nothing
     end
