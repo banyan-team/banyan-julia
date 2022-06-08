@@ -105,8 +105,13 @@ function Banyan.reduce_across(op::Function, df::DataFrames.AbstractDataFrame; to
     reducable_blob[9:(8+io.size)] = view(io.data, 1:io.size)
     @show typeof(reducable_blob)
     reduced_blob = Base.Vector{UInt8}(undef, blob_length + 8)
+    @show blob_length + 8
+    @show MPI.Datatype(UInt8)
     reducing_dtype = MPI.Types.create_contiguous(blob_length + 8, MPI.Datatype(UInt8))
-    MPI.Types.commit!(reducing_dtype)
+    @show reducing_dtype
+    reducing_dtype = MPI.Types.commit!(reducing_dtype)
+    MPI.Barrier(comm)
+    @show reducing_dtype
     reducable_buf = MPI.RBuffer(reducable_blob, reduced_blob, 1, reducing_dtype)
     @show reducable_blob
     @show reducable_buf
