@@ -58,7 +58,7 @@ function Banyan.sync_across(df::DataFrames.DataFrame; comm=MPI.COMM_WORLD)
 end
 
 function get_variable_sized_blob(whole_blob::Base.Vector{UInt8})
-    blob_length = reinterpret(Int64, whole_blob[1:8])
+    blob_length = reinterpret(Int64, whole_blob[1:8])[1]
     whole_blob[9:(8+blob_length)]
 end
 
