@@ -68,8 +68,8 @@ function make_reducev_op(op)
         @show typeof(b)
         @show a
         @show b
-        a_df = get_variable_sized_blob(a) |> Base.collect |> IOBuffer |> Arrow.Table |> DataFrames.DataFrame
-        b_df = get_variable_sized_blob(b) |> Base.collect |> IOBuffer |> Arrow.Table |> DataFrames.DataFrame
+        a_df = a |> Base.collect |> get_variable_sized_blob |> IOBuffer |> Arrow.Table |> DataFrames.DataFrame
+        b_df = b |> Base.collect |> get_variable_sized_blob |> IOBuffer |> Arrow.Table |> DataFrames.DataFrame
         res_df = op(a_df, b_df)
         res_io = IOBuffer(sizehint=length(a))
         write(res_io, reinterpret(UInt8, Int64(1)))
