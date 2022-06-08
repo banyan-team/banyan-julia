@@ -109,7 +109,7 @@ function Banyan.reduce_across(op::Function, df::DataFrames.AbstractDataFrame; to
     @show reducable_blob
     @show reducable_buf
     if sync_across
-        MPI.Allreduce!(reducable_buf, Op(reduce_buffers, Vector{UInt8}, iscommutative=true), comm)
+        MPI.Allreduce!(reducable_buf, Op(reduce_buffers, Base.Vector{UInt8}, iscommutative=true), comm)
     else
         MPI.Reduce!(reducable_buf, make_reducev_op(op), to_worker_idx-1, comm)
     end
