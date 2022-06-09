@@ -103,6 +103,7 @@ function ReducingGroupBy(groupcols, groupkwargs, args, kwargs)::Base.Vector{Part
         for to in mean_cols
             df[!, to] = df[!, to] .* df.banyan_averaging_nrow
         end
+        df
     end
     finishing_op = df -> begin
         @show df
