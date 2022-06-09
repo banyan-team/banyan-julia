@@ -69,7 +69,7 @@ function make_reducev_op(op)
         res_df = op(a_df, b_df)
         res_io = IOBuffer(sizehint=length(a))
         write(res_io, reinterpret(UInt8, Int64[1]))
-        Arrow.write(res_io, res_df)
+        Arrow.write(res_io, res_df, compress=:zstd)
         res_blob_length_blob = reinterpret(UInt8, [res_io.size - 8])
         if length(res_blob_length_blob) != 8
             error("Data frame being reduced is so large that its size cannot be represented with 8 bytes")
@@ -78,7 +78,7 @@ function make_reducev_op(op)
         res = Tuple(res_io.data[1:length(a)])
         @show length(res)
         @show length(res_io.data)
-        @show length(res_io.size)
+        @show res_io.size
         res
     end
 end
