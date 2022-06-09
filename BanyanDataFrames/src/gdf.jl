@@ -193,7 +193,8 @@ function partitioned_for_combine(gdf_parent::Future, gdf::Future, res_nrows::Fut
             if !(gdf isa DataFrames.GroupedDataFrame) || gdf.parent !== gdf_parent
                 gdf = DataFrames.groupby(gdf_parent, groupcols; groupkwargs...)
             end
-            res = DataFrames.combine(gdf, args...; kwargs...)
+            # TODO: Remove banyan_averaging_nrow when ReducingGroupBy isn't used
+            res = DataFrames.combine(gdf, args..., nrow => :banyan_averaging_nrow; kwargs...)
         end
         res_nrows = DataFrames.nrow(res)
     end
