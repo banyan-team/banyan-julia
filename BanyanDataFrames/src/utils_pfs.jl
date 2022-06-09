@@ -89,18 +89,19 @@ function Banyan.reduce_across(op::Function, df::DataFrames.AbstractDataFrame; to
     if length(blob_length_blob) != 8
         error("Data frame being reduced is so large that its size cannot be represented with 8 bytes")
     end
-    reducable_blob = Base.Vector{UInt8}(undef, blob_length + 8)
+    sized_blob_length = blob_length + 8
+    reducable_blob = Base.Vector{UInt8}(undef, sized_blob_length)
     reducable_blob[1:8] = blob_length_blob
     reducable_blob[9:(8+io.size)] = view(io.data, 1:io.size)
-    reduced_blob = Base.Vector{UInt8}(undef, blob_length + 8)
-    reducing_dtype = MPI.Datatype(NTuple{(blob_length + 8), UInt8})
+    reduced_blob = Base.Vector{UInt8}(undef, sized_blob_length)
+    reducing_dtype = MPI.Datatype(NTuple{sized_blob_length, UInt8})
     reducable_buf = MPI.RBuffer(reducable_blob, reduced_blob, 1, reducing_dtype)
-    reducing_op = MPI.Op(make_reducev_op(op), Base.NTuple{(blob_length + 8), UInt8}, iscommutative=true)
+    reducing_op = MPI.Op(make_reducev_op(op), Base.NTuple{sized_blob_length, UInt8})
     @show reducable_blob
     @show reduced_blob
     @show reducing_dtype
     @show blob_length
-    @show Base.NTuple{(blob_length + 8), UInt8}
+    @show Base.NTuple{sized_blob_length, UInt8}
     @show reducing_op
     if sync_across
         MPI.Allreduce!(reducable_buf, reducing_op, comm)
