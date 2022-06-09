@@ -78,6 +78,7 @@ function make_reducev_op(op)
         res = Tuple(res_io.data[1:length(a)])
         @show length(res)
         @show length(res_io.data)
+        @show length(res_io.size)
         res
     end
 end
