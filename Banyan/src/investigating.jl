@@ -20,3 +20,19 @@ function investigate_different_partitioning_dims(val=false)
     global INVESTIGATING_DIFFERENT_PARTITIONING_DIMS
     INVESTIGATING_DIFFERENT_PARTITIONING_DIMS = val
 end
+
+global times = Dict()
+
+function record_time(key, t)
+    global times
+    if !haskey(times, key)
+        times[key] = t
+    else
+        times[key] += t
+    end
+end
+
+function get_time(key)
+    global times
+    times[key]
+end
