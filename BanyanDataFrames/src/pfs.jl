@@ -822,9 +822,11 @@ function ReduceAndCopyToArrow(
     @nospecialize(finish_op::Function)
 ) where {T}
     # Get the # of rows of each group if this is a group-by-mean that is being reduced
+    @show part
     if loc_name == "Memory"
         part = start_op(part)
     end
+    @show part
 
     # Concatenate all data frames on this worker
     src = if nbatches > 1
