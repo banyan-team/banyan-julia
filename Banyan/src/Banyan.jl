@@ -175,7 +175,10 @@ export is_debug_on,
     isinvestigating,
     Division,
     isnotempty,
-    EMPTY_DICT
+    EMPTY_DICT,
+    set_parent,
+    get_parent,
+    forget_parent
 
 # Utilities for handling empty case
 export Empty, EMPTY, nonemptytype, disallowempty, empty_handler
