@@ -11,6 +11,8 @@ function setsample!(fut::Future, value::Any)
     rate::Int64 = s.rate
     s.value = value
     s.memory_usage = convert(Int64, round(memory_usage / rate))::Int64
+    println("In setsample!")
+    @show memory_usage rate s.memory_usage fut.value_id
     s.objectid = objectid(value)
 end
 

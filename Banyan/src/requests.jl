@@ -538,10 +538,13 @@ end
 
 pt_for_replicated(futures::Vector{Future}) = pt(futures[1], Replicated())
 
-compute(fut::AbstractFuture) = compute(convert(Future, fut)::Future)
-function compute(f::Future)
+compute(fut::AbstractFuture; destroy=Future[]) = compute(convert(Future, fut)::Future; destroy=convert(Vector{Future}, destroy))
+function compute(f::Future; destroy=Future[])
     # NOTE: We might be in the middle of an annotation when this is called so
     # we need to avoid partitioned computation (which will reset the task)
+    for f in destroy
+        destroy_future(f)
+    end
 
     # Fast case for where the future has not been mutated and isn't stale
     if f.mutated || f.stale

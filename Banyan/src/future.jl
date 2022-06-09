@@ -16,11 +16,16 @@ is_total_memory_usage_known(f::Future) = f.total_memory_usage != -1
 
 isview(f::AbstractFuture) = false
 
+destroy_future(fut::AbstractFuture) = destroy_future(convert(Future, fut))
+function destroy_future(fut::Future)
+    Banyan.record_request(Banyan.DestroyRequest(fut.value_id))
+end
+
 function _finalize_future(fut::Future)
     session_id = _get_session_id_no_error()
     sessions_dict = get_sessions_dict()
     if !isempty(session_id) && haskey(sessions_dict, session_id)
-        Banyan.record_request(Banyan.DestroyRequest(fut.value_id))
+        destroy_future(fut)
     # else
         # `record_request` will fail if there isn't any session to add the
         # request to. So we just continue silently.

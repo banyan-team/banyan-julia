@@ -754,7 +754,7 @@ function finish_partitioned_code_region(splatted_futures::Vector{Future})
             total_sampled_input_memory_usage::Int64 = 0
             for scaled_fut in task.scaled
                 if task.effects[scaled_fut.value_id] == "CONST"
-                    total_sampled_input_memory_usage = get_location(scaled_fut).sample.memory_usage
+                    total_sampled_input_memory_usage += get_location(scaled_fut).sample.memory_usage
                 end
             end
             if Banyan.INVESTIGATING_MEMORY_USAGE
@@ -1035,6 +1035,7 @@ function partitioned_code_region(
         # of the old value and the new future of the new
 
         # Perform computation on samples
+        et = @elapsed begin
         try
             let ($(variables...),) = [$(assigning_samples...)]
                 begin
@@ -1053,6 +1054,9 @@ function partitioned_code_region(
             finish_task()
             rethrow()
         end
+        end
+        record_time(:computation, et)
+        println("Time so far computing in code regions = $(get_time(:computation)) seconds")
 
         # NOTE: We only update futures' state, record requests, update samples,
         # apply mutation _IF_ the sample computation succeeds. Regardless of

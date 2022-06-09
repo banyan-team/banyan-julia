@@ -224,6 +224,7 @@ function _remote_table_source(remotepath, shuffled, metadata_invalid, sample_inv
             else
                 ceil(Int64, remote_sample_value_memory_usage * session_sample_rate)
             end
+            @show remote_sample_value_memory_usage total_nbytes_res session_sample_rate
             remote_sample_res::Sample = if exact_sample_needed
                 # Technically we don't need to be passing in `total_bytes_res`
                 # here but we do it because we are anyway computing it to
@@ -254,6 +255,7 @@ function _remote_table_source(remotepath, shuffled, metadata_invalid, sample_inv
             cached_remote_sample_res::Sample = curr_location.sample
             remote_sample_value_nrows = nrow(cached_remote_sample_res.value)
             remote_sample_value_nbytes = total_memory_usage(cached_remote_sample_res.value)
+            @show remote_sample_value_nbytes remote_sample_value_nrows total_nrows_res
             total_nbytes_res = ceil(Int64, remote_sample_value_nbytes * total_nrows_res / remote_sample_value_nrows)
 
             # Update the sample's sample rate and memory usage based on the
@@ -261,6 +263,7 @@ function _remote_table_source(remotepath, shuffled, metadata_invalid, sample_inv
             # has been invalidated)
             cached_remote_sample_res.rate = ceil(Int64, total_nrows_res / remote_sample_value_nrows)
             cached_remote_sample_res.memory_usage = ceil(Int64, total_nbytes_res / cached_remote_sample_res.rate)::Int64
+            @show cached_remote_sample_res.rate total_nbytes_res cached_remote_sample_res.memory_usage
 
             meta_nrows_res, total_nrows_res, total_nbytes_res, cached_remote_sample_res, curr_location.src_parameters["empty_sample"]
         else
@@ -281,6 +284,7 @@ function _remote_table_source(remotepath, shuffled, metadata_invalid, sample_inv
     # Return LocationSource
     if is_main
         # Construct the `Location` to return
+        @show total_nbytes
         location_res = LocationSource(
             "Remote",
             Dict(
