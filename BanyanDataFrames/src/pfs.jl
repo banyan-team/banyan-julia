@@ -818,6 +818,7 @@ function ReduceAndCopyToArrow(
 ) where {T}
     # Concatenate all data frames on this worker
     src = if nbatches > 1
+        println("Before Merge on get_worker_idx(comm)=$(get_worker_idx(comm)) with batch_idx=$batch_idx")
         Merge(
             src,
             part,
@@ -834,19 +835,25 @@ function ReduceAndCopyToArrow(
 
     # Merge reductions across workers
     if batch_idx == nbatches
+        println("Before reduce_op on get_worker_idx(comm)=$(get_worker_idx(comm)) with batch_idx=$batch_idx")
         src = reduce_op(src, DataFrames.DataFrame())
 
         if get_nworkers(comm) > 1
+            println("Before reduce_across on get_worker_idx(comm)=$(get_worker_idx(comm)) with batch_idx=$batch_idx")
             src = reduce_across(reduce_op, src, comm=comm)
         end
 
         if loc_name != "Memory"
+            println("Before finish_op on get_worker_idx(comm)=$(get_worker_idx(comm)) with batch_idx=$batch_idx")
             if is_main_worker(comm)
                 src = finish_op(src)
             end
+            println("Before CopyToArrow on get_worker_idx(comm)=$(get_worker_idx(comm)) with batch_idx=$batch_idx")
             CopyToArrow(src, src, params, 1, 1, comm, loc_name, loc_params)
+            println("After CopyToArrow on get_worker_idx(comm)=$(get_worker_idx(comm)) with batch_idx=$batch_idx")
         end
     end
+    println("At end of ReduceAndCopyToArrow on get_worker_idx(comm)=$(get_worker_idx(comm)) with batch_idx=$batch_idx")
     
     src
 end
