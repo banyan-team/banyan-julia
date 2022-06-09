@@ -80,10 +80,19 @@ function ReducingGroupBy(groupcols, groupkwargs, args, kwargs)::Base.Vector{Part
 
     # Create the functions
     reducing_op = (a, b) -> begin
-        gdf = DataFrames.groupby(vcat(a, b), groupcols; groupkwargs...)
-        DataFrames.combine(gdf, reducing_args...; kwargs...)
+        @show a b
+        reducing_res = if isempty(a) && isempty(b)
+            ncol(a) > ncol(b) ? a : b
+        else
+            gdf = DataFrames.groupby(vcat(a, b), groupcols; groupkwargs...)
+            DataFrames.combine(gdf, reducing_args...; kwargs...)
+        end
+        @show reducing_res
+        reducing_res
     end
     finishing_op = df -> begin
+        @show df
+        @show mean_cols
         for to in mean_cols
             # TODO: Determine whether ./ will work even if from and to are not just single columns
             df[!, to] = df[!, to] ./ df[!, :banyan_averaging_nrow]
@@ -91,6 +100,8 @@ function ReducingGroupBy(groupcols, groupkwargs, args, kwargs)::Base.Vector{Part
         if !isempty(mean_cols)
             DataFrames.select!(df, Not(:banyan_averaging_nrow))
         end
+        res_df = df
+        @show res_df
         df
     end
 

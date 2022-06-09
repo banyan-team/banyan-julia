@@ -797,8 +797,12 @@ function ReduceDataFrame(
     dst_params::Dict{String,Any},
     comm::MPI.Comm
 )
+    @show part
     res = reduce_and_sync_across(src_params["reducing_op"], part; comm=comm)
-    src_params["finishing_op"](res)
+    @show res
+    res_finished = src_params["finishing_op"](res)
+    @show res_finished
+    res_finished
 end
 
 ReduceDataFrame(part::Empty, src_params::Dict{String,Any}, dst_params::Dict{String,Any}, comm::MPI.Comm) =

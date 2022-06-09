@@ -168,7 +168,6 @@ function pts_for_combine(futures::Base.Vector{Future})
 
     # TODO: If we want to support `keepkeys=false`, we need to make the
     # result be Blocked and `filtered_from` the input
-    # pts_for_filtering(gdf_parent, res, groupingkeys)
     rpts = ReducingGroupBy(sample(groupcols), sample(groupkwargs), sample(args), sample(kwargs))
     for rpt in rpts
         @show rpt
@@ -176,7 +175,7 @@ function pts_for_combine(futures::Base.Vector{Future})
         pt(gdf_parent, BlockedAlong(1) & Unbalanced(res))
         pt(res, rpt & ScaledBySame(gdf_parent))
     end
-    !isempty(rpts) || error()
+    pts_for_filtering(gdf_parent, res, groupingkeys)
     # TODO: Make a ReducingGroupBy PT constructor that is similar to Reducing but takes in groupcols, groupkwargs, args, kwargs to determine the reducing_op and finishing_op
     # TODO: Iterate over result of ReducingGroupBy and, annotate gdf_parent with Blocked and res with the ReducingGroupBy
     pt(gdf, BlockedAlong(1) & ScaledBySame(gdf_parent))
@@ -188,10 +187,14 @@ end
 function partitioned_for_combine(gdf_parent::Future, gdf::Future, res_nrows::Future, res::Future, res_groupingkeys::Base.Vector{String}, groupcols::Future, groupkwargs::Future, args::Future, kwargs::Future)
     partitioned_with(pts_for_combine, Future[gdf_parent, gdf, res_nrows, res, groupcols, groupkwargs, args, kwargs], scaled=[gdf_parent, gdf, res], grouped=[gdf_parent, res], keys=res_groupingkeys, drifted=true, modules=["BanyanDataFrames.DataFrames"], keytype=String)
     @partitioned gdf gdf_parent groupcols groupkwargs args kwargs res res_nrows begin
-        if !(gdf isa DataFrames.GroupedDataFrame) || gdf.parent !== gdf_parent
-            gdf = DataFrames.groupby(gdf_parent, groupcols; groupkwargs...)
+        if isempty(gdf_parent)
+            res = select(gdf_parent, groupcols)
+        else
+            if !(gdf isa DataFrames.GroupedDataFrame) || gdf.parent !== gdf_parent
+                gdf = DataFrames.groupby(gdf_parent, groupcols; groupkwargs...)
+            end
+            res = DataFrames.combine(gdf, args...; kwargs...)
         end
-        res = DataFrames.combine(gdf, args...; kwargs...)
         res_nrows = DataFrames.nrow(res)
     end
 end
