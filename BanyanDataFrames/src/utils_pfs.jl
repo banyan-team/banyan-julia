@@ -75,7 +75,9 @@ function make_reducev_op(op)
             error("Data frame being reduced is so large that its size cannot be represented with 8 bytes")
         end
         res_io.data[1:8] = res_blob_length_blob
-        res = Tuple(res_io.data)
+        res = Tuple(res_io.data[1:length(a)])
+        @show length(res)
+        @show length(res_io.data)
         res
     end
 end
