@@ -197,6 +197,7 @@ function partitioned_for_combine(gdf_parent::Future, gdf::Future, res_nrows::Fut
             # TODO: Make there be a starting_function that 
             res = DataFrames.combine(gdf, args...; kwargs...)
             set_parent(res, gdf)
+            res
         end
         res_nrows = DataFrames.nrow(res)
     end
