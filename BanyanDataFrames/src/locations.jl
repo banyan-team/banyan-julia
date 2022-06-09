@@ -226,6 +226,8 @@ function _remote_table_source(remotepath, shuffled, metadata_invalid, sample_inv
             else
                 ceil(Int64, remote_sample_value_memory_usage * session_sample_rate)
             end
+            remote_sample_value_nrows = nrow(remote_sample_value)
+            @show total_nrows_res remote_sample_value_nrows
             @show remote_sample_value_memory_usage total_nbytes_res session_sample_rate
             remote_sample_res::Sample = if exact_sample_needed
                 # Technically we don't need to be passing in `total_bytes_res`
