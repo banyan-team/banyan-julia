@@ -10,6 +10,8 @@ function _remote_table_source(remotepath, shuffled, metadata_invalid, sample_inv
         return curr_location
     end
 
+    @show curr_sample_invalid curr_parameters_invalid
+
     # There are two things we cache for each call `to _remote_table_source`:
     # 1. A `Location` serialized to a `location_path`
     # 2. Metadata stored in an Arrow file at `meta_path`

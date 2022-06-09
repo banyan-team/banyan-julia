@@ -657,6 +657,10 @@ function offloaded(given_function::Function, args...; distributed::Bool = false)
                 memory_used = message["worker_memory_used"]::Int64
                 @show get_session().worker_memory_used
                 @show memory_used
+                # Note that while the memory usage from offloaded computation does get
+                # reset with each session even if it reuses the same job, we do
+                # recompute the initial available memory every time we start a session
+                # and this should presumably include the offloaded memory usage.
                 get_session().worker_memory_used = get_session().worker_memory_used + memory_used
                 stored_message = from_jl_value_contents(contents)
             end

@@ -825,7 +825,7 @@ end
                 # end
                 # s3_bucket_name = get_cluster_s3_bucket_name()
                 # @time begin
-                df = read_csv(
+                df = read_parquet(
                     # "s3://$s3_bucket_name/nyc_tripdata.csv",
                     # "s3://$s3_bucket_name/nyc_tripdata_large.csv",
                     p,
