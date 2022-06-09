@@ -76,9 +76,9 @@ function make_reducev_op(op)
         end
         res_io.data[1:8] = res_blob_length_blob
         res = Tuple(res_io.data[1:length(a)])
-        @show length(res)
-        @show length(res_io.data)
-        @show res_io.size
+        # @show length(res)
+        # @show length(res_io.data)
+        # @show res_io.size
         res
     end
 end
@@ -100,12 +100,12 @@ function Banyan.reduce_across(op::Function, df::DataFrames.AbstractDataFrame; to
     reducing_dtype = MPI.Datatype(NTuple{sized_blob_length, UInt8})
     reducable_buf = MPI.RBuffer(reducable_blob, reduced_blob, 1, reducing_dtype)
     reducing_op = MPI.Op(make_reducev_op(op), Base.NTuple{sized_blob_length, UInt8})
-    @show reducable_blob
-    @show reduced_blob
-    @show reducing_dtype
-    @show blob_length
-    @show Base.NTuple{sized_blob_length, UInt8}
-    @show reducing_op
+    # @show reducable_blob
+    # @show reduced_blob
+    # @show reducing_dtype
+    # @show blob_length
+    # @show Base.NTuple{sized_blob_length, UInt8}
+    # @show reducing_op
     if sync_across
         MPI.Allreduce!(reducable_buf, reducing_op, comm)
     else

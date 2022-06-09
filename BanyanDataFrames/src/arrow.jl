@@ -77,17 +77,13 @@ function CopyToArrow(
     loc_name::String,
     loc_params::Dict{String,Any},
 )
-    println("In CopyToArrow with get_worker_idx()=$(get_worker_idx())")
-    println("Before WriteArrow on get_worker_idx(comm)=$(get_worker_idx(comm)) with batch_idx=$batch_idx")
     if Banyan.get_partition_idx(batch_idx, nbatches, comm) == 1
         params["key"] = 1
         WriteArrow(src, part, params, 1, 1, MPI.COMM_SELF, loc_name, loc_params)
     end
-    println("After WriteArrow on get_worker_idx(comm)=$(get_worker_idx(comm)) with batch_idx=$batch_idx")
     if batch_idx == 1
         MPI.Barrier(comm)
     end
-    println("After MPI.Barrier on get_worker_idx(comm)=$(get_worker_idx(comm)) with batch_idx=$batch_idx")
 end
 
 # df.jl
