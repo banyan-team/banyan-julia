@@ -817,9 +817,15 @@ function ReduceAndCopyToArrow(
     comm::MPI.Comm,
     loc_name::String,
     loc_params::Dict{String,Any},
+    @nospecialize(start_op::Function),
     @nospecialize(reduce_op::Function),
     @nospecialize(finish_op::Function)
 ) where {T}
+    # Get the # of rows of each group if this is a group-by-mean that is being reduced
+    if loc_name == "Memory"
+        part = start_op(part)
+    end
+
     # Concatenate all data frames on this worker
     src = if nbatches > 1
         println("Before Merge on get_worker_idx(comm)=$(get_worker_idx(comm)) with batch_idx=$batch_idx")
@@ -883,6 +889,7 @@ function ReduceAndCopyToArrow(
         comm,
         loc_name,
         loc_params,
+        params["starting_op"],
         params["reducing_op"],
         params["finishing_op"]
     )

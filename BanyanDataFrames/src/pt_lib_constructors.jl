@@ -69,7 +69,7 @@ function ReducingGroupBy(groupcols, groupkwargs, args, kwargs)::Base.Vector{Part
         elseif func == mean
             push!(reducing_args, to => sum => to)
             if !summing_banyan_averaging_nrow
-                push!(reducing_args, :banyan_averaging_nrow => sum)
+                push!(reducing_args, :banyan_averaging_nrow => sum => :banyan_averaging_nrow)
                 summing_banyan_averaging_nrow
             end
             push!(mean_cols, to)
@@ -94,12 +94,22 @@ function ReducingGroupBy(groupcols, groupkwargs, args, kwargs)::Base.Vector{Part
         @show reducing_res
         reducing_res
     end
+    starting_op = df -> begin
+        if !isempty(mean_cols)
+            gdf = get_parent(df)
+            df.banyan_averaging_nrow = combine(gdf, nrow).nrow
+            forget_parent(df)
+        end
+        for to in mean_cols
+            df.to = df.to .* df.banyan_averaging_nrow
+        end
+    end
     finishing_op = df -> begin
         @show df
         @show mean_cols
         for to in mean_cols
             # TODO: Determine whether ./ will work even if from and to are not just single columns
-            df[!, to] = df[!, to] ./ df[!, :banyan_averaging_nrow]
+            df.to = df.to ./ df.banyan_averaging_nrow
         end
         if !isempty(mean_cols)
             DataFrames.select!(df, Not(:banyan_averaging_nrow))
@@ -110,5 +120,15 @@ function ReducingGroupBy(groupcols, groupkwargs, args, kwargs)::Base.Vector{Part
     end
 
     # Return the partition type
-    PartitionType[PartitionType("name" => "Replicating", Banyan.noscale, "replication" => nothing, "reducing_op" => to_jl_value(reducing_op), "finishing_op" => to_jl_value(finishing_op), "key" => 1)]
+    PartitionType[
+        PartitionType(
+            "name" => "Replicating",
+            Banyan.noscale,
+            "replication" => nothing,
+            "starting_op" => to_jl_value(starting_op),
+            "reducing_op" => to_jl_value(reducing_op),
+            "finishing_op" => to_jl_value(finishing_op),
+            "key" => 1
+        )
+    ]
 end

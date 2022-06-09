@@ -4,6 +4,23 @@
 # splitting/casting/merging that describes how data should be partitioned
 # in order for that function to be applicable.
 
+global parents = IdDict()
+
+function set_parent(child, parent)
+    global parents
+    parents[child] = parent
+end
+
+function get_parent(child)
+    global parents
+    get(parents, child, nothing)
+end
+
+function forget_parent(child)
+    global parents
+    delete!(parents, child)
+end
+
 ###################################
 # Splitting and merging functions #
 ###################################
