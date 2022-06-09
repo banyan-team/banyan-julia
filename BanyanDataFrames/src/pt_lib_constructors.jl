@@ -101,7 +101,7 @@ function ReducingGroupBy(groupcols, groupkwargs, args, kwargs)::Base.Vector{Part
             forget_parent(df)
         end
         for to in mean_cols
-            df.to = df.to .* df.banyan_averaging_nrow
+            df[!, to] = df[!, to] .* df.banyan_averaging_nrow
         end
     end
     finishing_op = df -> begin
@@ -109,7 +109,7 @@ function ReducingGroupBy(groupcols, groupkwargs, args, kwargs)::Base.Vector{Part
         @show mean_cols
         for to in mean_cols
             # TODO: Determine whether ./ will work even if from and to are not just single columns
-            df.to = df.to ./ df.banyan_averaging_nrow
+            df[!, to] = df[!, to] ./ df.banyan_averaging_nrow
         end
         if !isempty(mean_cols)
             DataFrames.select!(df, Not(:banyan_averaging_nrow))
