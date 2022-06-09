@@ -847,6 +847,8 @@ function ReduceAndCopyToArrow(
             println("Before finish_op on get_worker_idx(comm)=$(get_worker_idx(comm)) with batch_idx=$batch_idx")
             if is_main_worker(comm)
                 src = finish_op(src)
+            else
+                src = DataFrames.DataFrame()
             end
             println("Before CopyToArrow on get_worker_idx(comm)=$(get_worker_idx(comm)) with batch_idx=$batch_idx and get_worker_idx()=$(get_worker_idx())")
             CopyToArrow(src, src, params, 1, 1, comm, loc_name, loc_params)
