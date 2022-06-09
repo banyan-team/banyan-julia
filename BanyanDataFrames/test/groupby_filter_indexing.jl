@@ -218,48 +218,6 @@ end
                     combine(gdf, func == nrow ? nrow : (:petal_length => func))
                 @show compute(res)
             end
-            # @test gdf_keepkeys_true_names == Set(["nrow", "species"])
-            # @test petal_length_mean == [
-            #     1.46,
-            #     1.46,
-            #     1.46,
-            #     1.46,
-            #     1.46,
-            #     1.46,
-            #     4.26,
-            #     4.26,
-            #     4.26,
-            #     4.26,
-            #     4.26,
-            #     4.26,
-            #     5.55,
-            #     5.55,
-            #     5.55,
-            #     5.55,
-            #     5.55,
-            #     5.55,
-            # ]
-            # @test temp_names == Set(["petal_length", "species"])
-            # @test temp_petal_length == [
-            #     1.46,
-            #     1.46,
-            #     1.46,
-            #     1.46,
-            #     1.46,
-            #     1.46,
-            #     4.26,
-            #     4.26,
-            #     4.26,
-            #     4.26,
-            #     4.26,
-            #     4.26,
-            #     5.55,
-            #     5.55,
-            #     5.55,
-            #     5.55,
-            #     5.55,
-            #     5.55,
-            # ]
         end
     end
 end
@@ -385,10 +343,10 @@ end
                         :petal_length_mean,
                     ]
                 petal_length_mean = map(m -> round(m, digits = 2), petal_length_mean)
-                # temp = combine(gdf, :petal_length => mean, renamecols = false)
-                # temp_names = Set(names(temp))
-                # temp_petal_length = sort(compute(temp)[:, :petal_length])
-                # temp_petal_length = map(l -> round(l, digits = 2), temp_petal_length)
+                temp = combine(gdf, :petal_length => mean, renamecols = false)
+                temp_names = Set(names(temp))
+                temp_petal_length = sort(compute(temp)[:, :petal_length])
+                temp_petal_length = map(l -> round(l, digits = 2), temp_petal_length)
 
                 # Assert
                 @test gdf_select_size == (900, 6)
@@ -424,27 +382,27 @@ end
                     5.55,
                     5.55,
                 ]
-                # @test temp_names == Set(["petal_length", "species"])
-                # @test temp_petal_length == [
-                #     1.46,
-                #     1.46,
-                #     1.46,
-                #     1.46,
-                #     1.46,
-                #     1.46,
-                #     4.26,
-                #     4.26,
-                #     4.26,
-                #     4.26,
-                #     4.26,
-                #     4.26,
-                #     5.55,
-                #     5.55,
-                #     5.55,
-                #     5.55,
-                #     5.55,
-                #     5.55,
-                # ]
+                @test temp_names == Set(["petal_length", "species"])
+                @test temp_petal_length == [
+                    1.46,
+                    1.46,
+                    1.46,
+                    1.46,
+                    1.46,
+                    1.46,
+                    4.26,
+                    4.26,
+                    4.26,
+                    4.26,
+                    4.26,
+                    4.26,
+                    5.55,
+                    5.55,
+                    5.55,
+                    5.55,
+                    5.55,
+                    5.55,
+                ]
             end
         end
     end
