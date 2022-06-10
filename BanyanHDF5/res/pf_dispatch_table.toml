@@ -6,10 +6,13 @@ views = false
 required = { name = "Distributing", distribution = "blocked", id = "!" }
 locations = [ {name = "Remote", format = "hdf5"} ]
 
+# These were previously scaled_by = 9 but reduced to 4 because it seemed to
+# be causing unnecessary batched I/O and because GC should take care of the extra allocations.
+
 [splits.ReadGroupHDF5]
 expected = [ "key", "divisions" ]
 partition_memory_usage = "part"
-scale_by = 9
+scale_by = 4
 views = false
 required = { name = "Distributing", distribution = "grouped", id = "!" }
 default = { rev = false }

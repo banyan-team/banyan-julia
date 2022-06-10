@@ -498,6 +498,10 @@ function pts_for_reduce(futures::Base.Vector{Future})
 end
 
 function _reduce(op::Future, A::Future, res_size::Future, res::Future, dims::Future, kwargs::Future)
+    # TODO: Don't mark res as scaled if dims includes 1. This is because we sample
+    # by randomly selecting rows (dim = 1) and so when we reduce then if we annotate the
+    # result as scaled, the result's memory usage will be greater than it actually is. This could
+    # cause problems by making it impossible to replicate and return the data to the client side.
     partitioned_with(pts_for_reduce, [op, A, res_size, res, dims, kwargs], scaled=[A, res])
     # TODO: Duplicate annotations to handle the balanced and unbalanced cases
     # seperately

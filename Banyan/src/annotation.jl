@@ -693,6 +693,12 @@ function finish_partitioned_code_region(splatted_futures::Vector{Future})
         task.memory_usage[fut.value_id] = Dict{String,Int64}("initial" => fut_initial_memory_usage)
     end
 
+    @show task.scaled
+    @show task.effects
+    @show task.inputs
+    @show task.outputs
+    @show task.keep_same_sample_rate
+
     # Get the final memory usage if it is not dependent on a constraint or other sample rates
     for fut in splatted_futures
         # Figure out if the future is mutated by this code region
@@ -718,14 +724,18 @@ function finish_partitioned_code_region(splatted_futures::Vector{Future})
             # memory usage doesn't scale to larger values
             is_fut_scaled::Bool = false
             for f in task.scaled
-                fut.value_id == f.value_id
-                is_fut_scaled = true
+                if fut.value_id == f.value_id
+                    is_fut_scaled = true
+                end
             end
+            @show is_fut_scaled final_memory_usage_set fut.value_id
             if !final_memory_usage_set && !is_fut_scaled
                 task.memory_usage[fut.value_id]["final"] = get_location(fut).sample.memory_usage
             end
         end
     end
+
+    @show task.memory_usage
 
     # Apply SCALE_BY constraints to determine final memory usage
     for fut in splatted_futures

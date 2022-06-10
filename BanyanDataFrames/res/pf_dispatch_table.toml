@@ -29,10 +29,13 @@ partition_memory_usage = "none"
 
 # ReadBlock
 
+# These were previously scaled_by = 3 but reduced to 2 because it seemed to
+# be causing unnecessary batched I/O.
+
 [splits.ReadBlockCSV]
 expected = [ "key" ]
 partition_memory_usage = "part"
-scale_by = 3
+scale_by = 2
 views = false
 required = { name = "Distributing", distribution = "blocked", id = "!" }
 locations = [ { name = "Remote", format = "csv" } ]
@@ -40,7 +43,7 @@ locations = [ { name = "Remote", format = "csv" } ]
 [splits.ReadBlockParquet]
 expected = [ "key" ]
 partition_memory_usage = "part"
-scale_by = 3
+scale_by = 2
 views = false
 required = { name = "Distributing", distribution = "blocked", id = "!" }
 locations = [ { name = "Remote", format = "parquet" } ]
@@ -48,17 +51,20 @@ locations = [ { name = "Remote", format = "parquet" } ]
 [splits.ReadBlockArrow]
 expected = [ "key" ]
 partition_memory_usage = "part"
-scale_by = 3
+scale_by = 2
 views = false
 required = { name = "Distributing", distribution = "blocked", id = "!" }
 locations = [ { name = "Remote", format = "arrow" }, { name = "Disk", datatype = "DataFrame" } ]
 
 # ReadGroup
 
+# These were previously scaled_by = 6 but reduced to 4 because it seemed to
+# be causing unnecessary batched I/O.
+
 [splits.ReadGroupCSV]
 expected = [ "key", "divisions" ]
 partition_memory_usage = "part"
-scale_by = 6
+scale_by = 4
 views = false
 required = { name = "Distributing", distribution = "grouped", id = "!" }
 default = { rev = false }
@@ -67,7 +73,7 @@ locations = [ { name = "Remote", format = "csv" } ]
 [splits.ReadGroupParquet]
 expected = [ "key", "divisions" ]
 scale_by_num_partitions = false
-scale_by = 6
+scale_by = 4
 views = false
 required = { name = "Distributing", distribution = "grouped", id = "!" }
 default = { rev = false }
@@ -77,7 +83,7 @@ partition_memory_usage = "part"
 [splits.ReadGroupArrow]
 expected = [ "key", "divisions" ]
 scale_by_num_partitions = false
-scale_by = 6
+scale_by = 4
 views = false
 required = { name = "Distributing", distribution = "grouped", id = "!" }
 default = { rev = false }
@@ -86,16 +92,19 @@ partition_memory_usage = "part"
 
 # CopyFrom
 
+# These were previously scaled_by = 4 but reduced to 2 because it seemed to
+# be causing unnecessary batched I/O.
+
 [splits.CopyFromCSV]
 partition_memory_usage = "all"
-scale_by = 4
+scale_by = 2
 views = false
 required = { name = "Replicating", dividing = false }
 locations = [ { name = "Remote", format = "csv" } ]
 
 [splits.CopyFromParquet]
 partition_memory_usage = "all"
-scale_by = 4
+scale_by = 2
 views = false
 required = { name = "Replicating", dividing = false }
 
@@ -105,7 +114,7 @@ required = { name = "Replicating", dividing = false }
 
 [splits.CopyFromArrow]
 partition_memory_usage = "all"
-scale_by = 4
+scale_by = 2
 views = false
 required = { name = "Replicating", dividing = false }
 locations = [ { name = "Remote", format = "arrow" }, { name = "Disk", datatype = "DataFrame" } ]
@@ -156,40 +165,43 @@ views = false
 required = { name = "Replicating", replication = "all" }
 locations = [ { name = "Remote", format = "arrow" }, { name = "Disk", datatype = "DataFrame" } ]
 
+# These were previously scaled_by = 3 but reduced to 2 because it seemed to
+# be causing unnecessary batched I/O.
+
 [merges.ReduceAndCopyToArrow]
-expected = [ "reducing_op", "finishing_op" ]
+expected = [ "reducing_op", "finishing_op", "starting_op" ]
 location_names = [ "Memory", "Disk" ]
 partition_memory_usage = "all"
-scale_by = 2
+scale_by = 1
 views = false
 required = { name = "Replicating" }
 
 [casts.ConsolidateDataFrame]
 src_expected = [ "key" ]
 scale_by_src = 1
-scale_by_dst = 3
+scale_by_dst = 2
 src_required = { name = "Distributing" }
 dst_required = { name = "Replicating", replication = "all" }
 locations = [ { datatype = "DataFrame" } ]
 
 [casts.RebalanceDataFrame]
 scale_by_src = 1
-scale_by_dst = 3
+scale_by_dst = 2
 src_required = { name = "Distributing" }
 dst_required = { name = "Distributing", distribution = "blocked", balanced = true, id = "!" }
 locations = [ { datatype = "DataFrame" } ]
 
 [casts.ShuffleDataFrame]
 dst_expected = [ "key", "divisions" ]
-scale_by_src = 3
-scale_by_dst = 3
+scale_by_src = 2
+scale_by_dst = 2
 src_required = { name = "Distributing" }
 dst_required = { name = "Distributing", distribution = "grouped", id = "!" }
 dst_default = { rev = false }
 locations = [ { datatype = "DataFrame"} ]
 
 [casts.ReduceDataFrame]
-src_expected = [ "reducing_op", "finishing_op" ]
+src_expected = [ "reducing_op", "finishing_op", "starting_op" ]
 scale_by_dst = 2
 src_required = { name = "Replicating" }
 dst_required = { name = "Replicating", replication = "all" }
