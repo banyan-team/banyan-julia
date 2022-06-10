@@ -85,9 +85,11 @@ end
 
 function Banyan.reduce_across(op::Function, df::DataFrames.AbstractDataFrame; to_worker_idx=1, comm=MPI.COMM_WORLD, sync_across=false)
     # An optimized version of sync_across that syncs data frames across workers
+    println("In reduce_across at start with get_worker_idx(comm)=$(get_worker_idx(comm)), get_worker_idx()=$(get_worker_idx())")
     io = IOBuffer()
     Arrow.write(io, df, compress=:zstd)
     blob_length = MPI.Allreduce(io.size, +, comm)
+    println("In reduce_across after MPI.Allreduce with get_worker_idx(comm)=$(get_worker_idx(comm)), get_worker_idx()=$(get_worker_idx())")
     blob_length_blob = reinterpret(UInt8, [blob_length])
     if length(blob_length_blob) != 8
         error("Data frame being reduced is so large that its size cannot be represented with 8 bytes")
@@ -106,11 +108,13 @@ function Banyan.reduce_across(op::Function, df::DataFrames.AbstractDataFrame; to
     # @show blob_length
     # @show Base.NTuple{sized_blob_length, UInt8}
     # @show reducing_op
+    println("In reduce_across before MPI reduction with get_worker_idx(comm)=$(get_worker_idx(comm)), get_worker_idx()=$(get_worker_idx())")
     if sync_across
         MPI.Allreduce!(reducable_buf, reducing_op, comm)
     else
         MPI.Reduce!(reducable_buf, reducing_op, to_worker_idx-1, comm)
     end
+    println("In reduce_across after MPI reduction with get_worker_idx(comm)=$(get_worker_idx(comm)), get_worker_idx()=$(get_worker_idx())")
     if sync_across || get_worker_idx(comm) == to_worker_idx
         get_variable_sized_blob(reduced_blob) |> IOBuffer |> Arrow.Table |> DataFrames.DataFrame
     else

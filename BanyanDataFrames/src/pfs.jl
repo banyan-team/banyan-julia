@@ -826,12 +826,14 @@ function ReduceAndCopyToArrow(
     @nospecialize(reduce_op::Function),
     @nospecialize(finish_op::Function)
 ) where {T}
+    println("In ReduceAndCopyToArrow at start with batch_idx=$batch_idx, get_worker_idx(comm)=$(get_worker_idx(comm)), get_worker_idx()=$(get_worker_idx())")
     # Get the # of rows of each group if this is a group-by-mean that is being reduced
     if loc_name == "Memory"
         part = start_op(part)
     end
 
     # Concatenate all data frames on this worker
+    println("In ReduceAndCopyToArrow before Merge with batch_idx=$batch_idx, get_worker_idx(comm)=$(get_worker_idx(comm)), get_worker_idx()=$(get_worker_idx())")
     src = if nbatches > 1
         Merge(
             src,
@@ -849,8 +851,10 @@ function ReduceAndCopyToArrow(
 
     # Merge reductions across workers
     if batch_idx == nbatches
+        println("In ReduceAndCopyToArrow before reduce_op batch_idx=$batch_idx, get_worker_idx(comm)=$(get_worker_idx(comm)), get_worker_idx()=$(get_worker_idx())")
         src = reduce_op(src, DataFrames.DataFrame())
 
+        println("In ReduceAndCopyToArrow before reduce_across batch_idx=$batch_idx, get_worker_idx(comm)=$(get_worker_idx(comm)), get_worker_idx()=$(get_worker_idx())")
         if get_nworkers(comm) > 1
             src = reduce_across(reduce_op, src, comm=comm)
         end
@@ -861,9 +865,12 @@ function ReduceAndCopyToArrow(
             else
                 src = DataFrames.DataFrame()
             end
+            println("In ReduceAndCopyToArrow before CopyToArrow with batch_idx=$batch_idx, get_worker_idx(comm)=$(get_worker_idx(comm)), get_worker_idx()=$(get_worker_idx())")
             CopyToArrow(src, src, params, 1, 1, comm, loc_name, loc_params)
         end
     end
+
+    println("In ReduceAndCopyToArrow at end with batch_idx=$batch_idx, get_worker_idx(comm)=$(get_worker_idx(comm)), get_worker_idx()=$(get_worker_idx())")
     
     src
 end
