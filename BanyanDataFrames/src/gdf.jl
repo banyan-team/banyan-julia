@@ -1,4 +1,4 @@
-struct GroupedDataFrame <: AbstractFuture
+mutable struct GroupedDataFrame <: AbstractFuture
     data::Future
     length::Future
     parent::DataFrame

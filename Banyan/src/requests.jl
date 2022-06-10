@@ -143,6 +143,7 @@ function _partitioned_computation_concrete(fut::Future, destination::Location, n
     finish_task()
 
     # Iterate through tasks for further processing before recording them
+    forget_parents()
     for t::DelayedTask in tasks
         # Apply defaults to PAs
         for pa::PartitionAnnotation in t.pa_union
@@ -186,6 +187,7 @@ function _partitioned_computation_concrete(fut::Future, destination::Location, n
         # because of a `mutated(old, new)`
         if req isa DestroyRequest
             req_value_id::ValueId = req.value_id
+            @show req_value_id
             # If this value was to be downloaded to or uploaded from the
             # client side, delete the reference to its data. We do the
             # `GC.gc()` before this and store `futures_on_client` in a

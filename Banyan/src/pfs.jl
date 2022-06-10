@@ -21,6 +21,11 @@ function forget_parent(child)
     delete!(parents, child)
 end
 
+function forget_parents()
+    global parents
+    empty!(parents)
+end
+
 ###################################
 # Splitting and merging functions #
 ###################################

@@ -35,7 +35,7 @@ partition_memory_usage = "none"
 [splits.ReadBlockCSV]
 expected = [ "key" ]
 partition_memory_usage = "part"
-scale_by = 2
+scale_by = 3
 views = false
 required = { name = "Distributing", distribution = "blocked", id = "!" }
 locations = [ { name = "Remote", format = "csv" } ]
@@ -43,7 +43,7 @@ locations = [ { name = "Remote", format = "csv" } ]
 [splits.ReadBlockParquet]
 expected = [ "key" ]
 partition_memory_usage = "part"
-scale_by = 2
+scale_by = 3
 views = false
 required = { name = "Distributing", distribution = "blocked", id = "!" }
 locations = [ { name = "Remote", format = "parquet" } ]
@@ -51,7 +51,7 @@ locations = [ { name = "Remote", format = "parquet" } ]
 [splits.ReadBlockArrow]
 expected = [ "key" ]
 partition_memory_usage = "part"
-scale_by = 2
+scale_by = 3
 views = false
 required = { name = "Distributing", distribution = "blocked", id = "!" }
 locations = [ { name = "Remote", format = "arrow" }, { name = "Disk", datatype = "DataFrame" } ]
@@ -64,7 +64,7 @@ locations = [ { name = "Remote", format = "arrow" }, { name = "Disk", datatype =
 [splits.ReadGroupCSV]
 expected = [ "key", "divisions" ]
 partition_memory_usage = "part"
-scale_by = 4
+scale_by = 5
 views = false
 required = { name = "Distributing", distribution = "grouped", id = "!" }
 default = { rev = false }
@@ -73,7 +73,7 @@ locations = [ { name = "Remote", format = "csv" } ]
 [splits.ReadGroupParquet]
 expected = [ "key", "divisions" ]
 scale_by_num_partitions = false
-scale_by = 4
+scale_by = 5
 views = false
 required = { name = "Distributing", distribution = "grouped", id = "!" }
 default = { rev = false }
@@ -83,7 +83,7 @@ partition_memory_usage = "part"
 [splits.ReadGroupArrow]
 expected = [ "key", "divisions" ]
 scale_by_num_partitions = false
-scale_by = 4
+scale_by = 5
 views = false
 required = { name = "Distributing", distribution = "grouped", id = "!" }
 default = { rev = false }
@@ -97,14 +97,14 @@ partition_memory_usage = "part"
 
 [splits.CopyFromCSV]
 partition_memory_usage = "all"
-scale_by = 2
+scale_by = 3
 views = false
 required = { name = "Replicating", dividing = false }
 locations = [ { name = "Remote", format = "csv" } ]
 
 [splits.CopyFromParquet]
 partition_memory_usage = "all"
-scale_by = 2
+scale_by = 3
 views = false
 required = { name = "Replicating", dividing = false }
 
@@ -114,7 +114,7 @@ required = { name = "Replicating", dividing = false }
 
 [splits.CopyFromArrow]
 partition_memory_usage = "all"
-scale_by = 2
+scale_by = 3
 views = false
 required = { name = "Replicating", dividing = false }
 locations = [ { name = "Remote", format = "arrow" }, { name = "Disk", datatype = "DataFrame" } ]
