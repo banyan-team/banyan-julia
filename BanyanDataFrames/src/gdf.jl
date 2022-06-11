@@ -170,7 +170,9 @@ function pts_for_combine(futures::Base.Vector{Future})
     # result be Blocked and `filtered_from` the input
     rpts = ReducingGroupBy(sample(groupcols), sample(groupkwargs), sample(args), sample(kwargs))
     for rpt in rpts
-        @show rpt
+        if Banyan.INVESTIGATING_REDUCING_GROUPBY
+            @show rpt
+        end
         pt(gdf_parent, BlockedAlong(1) & Balanced())
         pt(gdf_parent, BlockedAlong(1) & Unbalanced(res))
         pt(res, rpt & ScaledBySame(gdf_parent))

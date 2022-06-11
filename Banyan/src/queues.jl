@@ -75,7 +75,6 @@ function receive_next_message(
 )::Tuple{Dict{String,Any},Union{Nothing,String}}
     content::String, error_for_main_stuck::Union{Nothing,String} = get_next_message(queue_name, p; error_for_main_stuck=error_for_main_stuck, error_for_main_stuck_time=error_for_main_stuck_time)
     res::Dict{String,Any} = if startswith(content, "JOB_READY") || startswith(content, "SESSION_READY")
-        @show content
         Dict{String,Any}(
             "kind" => "SESSION_READY"
         )

@@ -693,11 +693,13 @@ function finish_partitioned_code_region(splatted_futures::Vector{Future})
         task.memory_usage[fut.value_id] = Dict{String,Int64}("initial" => fut_initial_memory_usage)
     end
 
-    @show task.scaled
-    @show task.effects
-    @show task.inputs
-    @show task.outputs
-    @show task.keep_same_sample_rate
+    if Banyan.INVESTIGATING_MEMORY_USAGE
+        @show task.scaled
+        @show task.effects
+        @show task.inputs
+        @show task.outputs
+        @show task.keep_same_sample_rate
+    end
 
     # Get the final memory usage if it is not dependent on a constraint or other sample rates
     for fut in splatted_futures
@@ -728,14 +730,18 @@ function finish_partitioned_code_region(splatted_futures::Vector{Future})
                     is_fut_scaled = true
                 end
             end
-            @show is_fut_scaled final_memory_usage_set fut.value_id
+            if Banyan.INVESTIGATING_MEMORY_USAGE
+                @show is_fut_scaled final_memory_usage_set fut.value_id
+            end
             if !final_memory_usage_set && !is_fut_scaled
                 task.memory_usage[fut.value_id]["final"] = get_location(fut).sample.memory_usage
             end
         end
     end
 
-    @show task.memory_usage
+    if Banyan.INVESTIGATING_MEMORY_USAGE
+        @show task.memory_usage
+    end
 
     # Apply SCALE_BY constraints to determine final memory usage
     for fut in splatted_futures
@@ -1045,7 +1051,6 @@ function partitioned_code_region(
         # of the old value and the new future of the new
 
         # Perform computation on samples
-        et = @elapsed begin
         try
             let ($(variables...),) = [$(assigning_samples...)]
                 begin
@@ -1064,9 +1069,6 @@ function partitioned_code_region(
             finish_task()
             rethrow()
         end
-        end
-        record_time(:computation, et)
-        println("Time so far computing in code regions = $(get_time(:computation)) seconds")
 
         # NOTE: We only update futures' state, record requests, update samples,
         # apply mutation _IF_ the sample computation succeeds. Regardless of

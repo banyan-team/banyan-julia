@@ -187,7 +187,9 @@ function _partitioned_computation_concrete(fut::Future, destination::Location, n
         # because of a `mutated(old, new)`
         if req isa DestroyRequest
             req_value_id::ValueId = req.value_id
-            @show req_value_id
+            if Banyan.INVESTIGATING_DESTROYING_FUTURES
+                @show req_value_id
+            end
             # If this value was to be downloaded to or uploaded from the
             # client side, delete the reference to its data. We do the
             # `GC.gc()` before this and store `futures_on_client` in a
@@ -657,8 +659,10 @@ function offloaded(given_function::Function, args...; distributed::Bool = false)
             contents = get(partial_gathers, value_id, "") * message["contents"]::String
             if (value_id == "-1")
                 memory_used = message["worker_memory_used"]::Int64
-                @show get_session().worker_memory_used
-                @show memory_used
+                if Banyan.INVESTIGATING_MEMORY_USAGE
+                    @show get_session().worker_memory_used
+                    @show memory_used
+                end
                 # Note that while the memory usage from offloaded computation does get
                 # reset with each session even if it reuses the same job, we do
                 # recompute the initial available memory every time we start a session

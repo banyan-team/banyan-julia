@@ -11,8 +11,10 @@ function setsample!(fut::Future, value::Any)
     rate::Int64 = s.rate
     s.value = value
     s.memory_usage = memory_usage
-    println("In setsample!")
-    @show memory_usage rate s.memory_usage fut.value_id
+    if Banyan.INVESTIGATING_MEMORY_USAGE
+        println("In setsample!")
+        @show memory_usage rate s.memory_usage fut.value_id
+    end
     s.objectid = objectid(value)
 end
 
