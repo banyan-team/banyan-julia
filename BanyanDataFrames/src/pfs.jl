@@ -196,6 +196,9 @@ function ReadBlockHelper(@nospecialize(format_value))
 
         # Handle multi-file tabular datasets
 
+        time_key = loc_name == "Disk" ? (:reading_lustre) : (:reading_remote)
+        files_memory_usage = []
+
         # Iterate through files and identify which ones correspond to the range of
         # rows for the batch currently being processed by this worker
         nrows::Int64 = loc_params["nrows"]::Int64
@@ -226,10 +229,9 @@ function ReadBlockHelper(@nospecialize(format_value))
                 et = @elapsed begin
                 res = read_file(format_value, path, rowrange, readrange, filerowrange, dfs)
                 end
-                time_key = loc_name == "Disk" ? (:reading_lustre) : (:reading_remote)
                 record_time(time_key, et)
-                println("Time to read $loc_name so far = $(get_time(time_key)) seconds")
-                println("Time to read with Banyan.total_memory_usage(res)=$(Banyan.format_bytes(Banyan.total_memory_usage(res))) and filesize(path)=$(Banyan.format_bytes(filesize(path))) from path=$path on get_worker_idx(comm)=$(get_worker_idx(comm)) and batch_idx=$batch_idx = $et seconds for $(Banyan.format_bytes(round(Int64, filesize(path) / et))) per second")
+                push!(files_memory_usage, Banyan.format_bytes(Banyan.total_memory_usage(res)))
+                println("Time to read $(length(rowrange)) rows from file with $(length(filerowrange)) rows with Banyan.total_memory_usage(res)=$(files_memory_usage[end]) and filesize(path)=$(Banyan.format_bytes(filesize(path))) from path=$path on get_worker_idx(comm)=$(get_worker_idx(comm)) and batch_idx=$batch_idx = $et seconds for $(Banyan.format_bytes(round(Int64, filesize(path) / et))) per second on get_worker_idx()=$(get_worker_idx())")
                 end
                 res
             end
@@ -245,6 +247,7 @@ function ReadBlockHelper(@nospecialize(format_value))
         # guaranteed to have its ndims correct) and so if a split/merge/cast
         # function requires the schema (for example for grouping) then it must be
         # sure to take that account
+        println("Time to read $loc_name so far = $(get_time(time_key)) seconds; $(length(dfs)) files read in with files_memory_usage=$files_memory_usage on get_worker_idx()=$(get_worker_idx())")
         res = if isempty(dfs)
             # When we construct the location, we store an empty data frame with The
             # correct schema.
