@@ -42,3 +42,8 @@ function forget_times()
     global times
     empty!(times)
 end
+
+function display_times()
+    global times
+    display(times)
+end

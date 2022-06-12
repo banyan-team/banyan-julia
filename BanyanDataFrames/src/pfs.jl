@@ -199,6 +199,9 @@ function ReadBlockHelper(@nospecialize(format_value))
         time_key = loc_name == "Disk" ? (:reading_lustre) : (:reading_remote)
         files_memory_usage = []
 
+        # TODO: Use split_across to split up the list of files. Then, read in all the files and concatenate them.
+        # Finally, shuffle by sending to eahc
+
         # Iterate through files and identify which ones correspond to the range of
         # rows for the batch currently being processed by this worker
         nrows::Int64 = loc_params["nrows"]::Int64
@@ -827,6 +830,7 @@ function ReduceAndCopyToArrow(
     @nospecialize(finish_op::Function)
 ) where {T}
     # Get the # of rows of each group if this is a group-by-mean that is being reduced
+    et = @elapsed begin
     if loc_name == "Memory"
         part = start_op(part)
     end
@@ -864,6 +868,8 @@ function ReduceAndCopyToArrow(
             CopyToArrow(src, src, params, 1, 1, comm, loc_name, loc_params)
         end
     end
+    end
+    record_time(:reduction, et)
     
     src
 end
