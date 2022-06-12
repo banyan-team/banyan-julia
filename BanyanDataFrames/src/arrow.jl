@@ -41,7 +41,7 @@ function read_file(::Val{:arrow}, path, rowrange, readrange, filerowrange, dfs)
 end
 
 function read_file(::Val{:arrow}, path, dfs)
-    push!(dfs, Arrow.Table(path))
+    push!(dfs, DataFrames.DataFrame(Arrow.Table(path); copycols=false))
 end
 
 ReadBlockArrow = ReadBlockHelper(Val(:arrow))
