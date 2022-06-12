@@ -45,5 +45,7 @@ end
 
 function display_times()
     global times
-    display(times)
+    if !isempty(times)
+        display(times)
+    end
 end

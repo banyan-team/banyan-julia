@@ -923,6 +923,7 @@ function ReduceAndCopyToArrow(
 ) where {T}
     # Get the # of rows of each group if this is a group-by-mean that is being reduced
     et = @elapsed begin
+    @time "ReduceAndCopyToArrow" begin
     if loc_name == "Memory"
         part = start_op(part)
     end
@@ -959,6 +960,7 @@ function ReduceAndCopyToArrow(
             end
             CopyToArrow(src, src, params, 1, 1, comm, loc_name, loc_params)
         end
+    end
     end
     end
     record_time(:reduction, et)
