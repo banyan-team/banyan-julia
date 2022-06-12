@@ -40,6 +40,10 @@ function read_file(::Val{:arrow}, path, rowrange, readrange, filerowrange, dfs)
     end
 end
 
+function read_file(::Val{:arrow}, path, dfs)
+    push!(dfs, Arrow.File(path))
+end
+
 ReadBlockArrow = ReadBlockHelper(Val(:arrow))
 ReadGroupHelperArrow = ReadGroupHelper(ReadBlockArrow, ShuffleDataFrame)
 ReadGroupArrow = ReadGroup(ReadGroupHelperArrow)

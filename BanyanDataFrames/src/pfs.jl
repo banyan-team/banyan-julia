@@ -201,48 +201,120 @@ function ReadBlockHelper(@nospecialize(format_value))
 
         # TODO: Use split_across to split up the list of files. Then, read in all the files and concatenate them.
         # Finally, shuffle by sending to eahc
+        # TODO: use path and nrows
+        # Use first-fit-decreasing bin-packing [1] to assign files to workers
+        # [1] https://en.wikipedia.org/wiki/First-fit-decreasing_bin_packing
 
-        # Iterate through files and identify which ones correspond to the range of
-        # rows for the batch currently being processed by this worker
+        # Initialize
+        meta_nrows = meta.nrows
+        meta_path = meta.path
+        nworkers = get_nworkers(comm)
+        npartitions = nbatches * nworkers
         nrows::Int64 = loc_params["nrows"]::Int64
-        rowrange = Banyan.split_len(nrows, batch_idx, nbatches, comm)
-        dfs::Base.Vector{DataFrames.DataFrame} = DataFrames.DataFrame[]
-        rowsscanned = 0
-        for (file_path::String, file_nrows::Int64) in Tables.rows(meta)
-            newrowsscanned = rowsscanned + file_nrows
-            filerowrange = (rowsscanned+1):newrowsscanned
-            # Check if the file corresponds to the range of rows for the batch
-            # currently being processed by this worker
-            if Banyan.isoverlapping(filerowrange, rowrange)
-                # Deterine path to read from
-                path = file_path
+        rows_per_partition = cld(nrows, npartitions)
+        sorting_perm = sortperm(meta_nrows, rev=true)
+        files_by_partition = Base.Vector{Int64}[]
+        nrows_by_partition = Base.zeros(npartitions)
+        partition_idx = get_partition_idx(batch_idx, nbatches, comm)
+        for _ in 1:npartitions
+            push!(files_by_partition, Int64[])
+        end
 
-                # Read from location depending on data format
-                readrange =
-                    max(rowrange.start, filerowrange.start):min(
-                        rowrange.stop,
-                        filerowrange.stop,
-                    )
-                # TODO: Scale the memory usage appropriately when splitting with
-                # this and garbage collect if too much memory is used.
-                if Banyan.INVESTIGATING_LOSING_DATA
-                    println("In ReadBlock calling read_file with path=$path, filerowrange=$filerowrange, readrange=$readrange, rowrange=$rowrange")
+        # Try to fit as many files as possible into each partition and keep
+        # track of the files that are too big
+        too_large_files = Int64[]
+        for file_i in sorting_perm
+            too_large_file = true
+            for (i, (files, nrows)) in enumerate(zip(files_by_partition, nrows_by_partition))
+                file_nrows = meta_nrows[file_i]
+                if nrows + file_nrows <= rows_per_partition
+                    push!(files, file_i)
+                    nrows_by_partition[i] += file_nrows
+                    too_large_file = false # it actually fits!!
+                    break
                 end
-                @time begin
-                et = @elapsed begin
-                res = read_file(format_value, path, rowrange, readrange, filerowrange, dfs)
-                end
-                record_time(time_key, et)
-                push!(files_memory_usage, Banyan.format_bytes(Banyan.total_memory_usage(res)))
-                println("Time to read $(length(rowrange)) rows from file with $(length(filerowrange)) rows with Banyan.total_memory_usage(res)=$(files_memory_usage[end]) and filesize(path)=$(Banyan.format_bytes(filesize(path))) from path=$path on get_worker_idx(comm)=$(get_worker_idx(comm)) and batch_idx=$batch_idx = $et seconds for $(Banyan.format_bytes(round(Int64, filesize(path) / et))) per second on get_worker_idx()=$(get_worker_idx())")
-                end
-                res
             end
-            rowsscanned = newrowsscanned
+
+            if too_large_file
+                push!(too_large_files, file_i)
+            end
         end
-        if Banyan.INVESTIGATING_LOSING_DATA
-            println("In ReadBlock with rowrange=$rowrange, nrow.(dfs)=$(nrow.(dfs))")
+
+        # Fit in the files that are too large by first only using partitions
+        # that haven't yet been assigned any rows. Prioritize earlier batches.
+        for second_pass in [false, true]
+            for batch_i in 1:nbatches
+                for worker_i in nworkers:1
+                    curr_partition_idx = get_partition_idx(batch_i, nbatches, worker_i)
+                    if nrows_by_partition[curr_partition_idx] == 0 || second_pass
+                        push!(
+                            files_by_partition[curr_partition_idx],
+                            popfirst!(too_large_files)
+                        )
+                        if isempty(too_large_files)
+                            break
+                        end
+                    end
+                end
+            end
         end
+
+        # Read in data frames
+        dfs::Base.Vector{DataFrames.DataFrame} = DataFrames.DataFrame[]
+        for file_i in files_by_partition[partition_idx]
+            @time begin
+            et = @elapsed begin
+            res = read_file(format_value, meta_path[file_i], dfs)
+            end
+            record_time(time_key, et)
+            push!(files_memory_usage, Banyan.format_bytes(Banyan.total_memory_usage(res)))
+            println("Time to read $(length(rowrange)) rows from file with $(length(filerowrange)) rows with Banyan.total_memory_usage(res)=$(files_memory_usage[end]) and filesize(path)=$(Banyan.format_bytes(filesize(path))) from path=$path on get_worker_idx(comm)=$(get_worker_idx(comm)) and batch_idx=$batch_idx = $et seconds for $(Banyan.format_bytes(round(Int64, filesize(path) / et))) per second on get_worker_idx()=$(get_worker_idx())")
+            end
+        end
+
+        # Older implementation
+
+        # # Iterate through files and identify which ones correspond to the range of
+        # # rows for the batch currently being processed by this worker
+        # nrows::Int64 = loc_params["nrows"]::Int64
+        # rowrange = Banyan.split_len(nrows, batch_idx, nbatches, comm)
+        # dfs::Base.Vector{DataFrames.DataFrame} = DataFrames.DataFrame[]
+        # rowsscanned = 0
+        # for (file_path::String, file_nrows::Int64) in Tables.rows(meta)
+        #     newrowsscanned = rowsscanned + file_nrows
+        #     filerowrange = (rowsscanned+1):newrowsscanned
+        #     # Check if the file corresponds to the range of rows for the batch
+        #     # currently being processed by this worker
+        #     if Banyan.isoverlapping(filerowrange, rowrange)
+        #         # Deterine path to read from
+        #         path = file_path
+
+        #         # Read from location depending on data format
+        #         readrange =
+        #             max(rowrange.start, filerowrange.start):min(
+        #                 rowrange.stop,
+        #                 filerowrange.stop,
+        #             )
+        #         # TODO: Scale the memory usage appropriately when splitting with
+        #         # this and garbage collect if too much memory is used.
+        #         if Banyan.INVESTIGATING_LOSING_DATA
+        #             println("In ReadBlock calling read_file with path=$path, filerowrange=$filerowrange, readrange=$readrange, rowrange=$rowrange")
+        #         end
+        #         @time begin
+        #         et = @elapsed begin
+        #         res = read_file(format_value, path, rowrange, readrange, filerowrange, dfs)
+        #         end
+        #         record_time(time_key, et)
+        #         push!(files_memory_usage, Banyan.format_bytes(Banyan.total_memory_usage(res)))
+        #         println("Time to read $(length(rowrange)) rows from file with $(length(filerowrange)) rows with Banyan.total_memory_usage(res)=$(files_memory_usage[end]) and filesize(path)=$(Banyan.format_bytes(filesize(path))) from path=$path on get_worker_idx(comm)=$(get_worker_idx(comm)) and batch_idx=$batch_idx = $et seconds for $(Banyan.format_bytes(round(Int64, filesize(path) / et))) per second on get_worker_idx()=$(get_worker_idx())")
+        #         end
+        #         res
+        #     end
+        #     rowsscanned = newrowsscanned
+        # end
+        # if Banyan.INVESTIGATING_LOSING_DATA
+        #     println("In ReadBlock with rowrange=$rowrange, nrow.(dfs)=$(nrow.(dfs))")
+        # end
 
         # Concatenate and return
         # NOTE: If this partition is empty, it is possible that the result is
