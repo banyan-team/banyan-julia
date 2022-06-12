@@ -220,6 +220,11 @@ function ReadBlockHelper(@nospecialize(format_value))
             push!(files_by_partition, Int64[])
         end
 
+        if partition_idx == 1
+            @show meta_nrows
+            @show meta_path
+        end
+
         # Try to fit as many files as possible into each partition and keep
         # track of the files that are too big
         too_large_files = Int64[]
@@ -240,12 +245,15 @@ function ReadBlockHelper(@nospecialize(format_value))
             end
         end
 
-        @show files_by_partition
-        @show too_large_files
+        if partition_idx == 1
+            @show files_by_partition
+            @show too_large_files
+        end
 
         # Fit in the files that are too large by first only using partitions
         # that haven't yet been assigned any rows. Prioritize earlier batches.
-        for second_pass in [false, true]
+        second_pass = false
+        while !isempty(too_large_files)
             for batch_i in 1:nbatches
                 for worker_i in nworkers:1
                     curr_partition_idx = get_partition_idx(batch_i, nbatches, worker_i)
@@ -257,9 +265,12 @@ function ReadBlockHelper(@nospecialize(format_value))
                     end
                 end
             end
+            second_pass = true
         end
 
-        @show files_by_partition
+        if partition_idx == 1
+            @show files_by_partition
+        end
 
         # Read in data frames
         dfs::Base.Vector{DataFrames.DataFrame} = DataFrames.DataFrame[]
