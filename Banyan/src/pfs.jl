@@ -456,7 +456,10 @@ CopyToClient(
     loc_params,
 ) = begin
     if get_worker_idx(comm) == 1 && batch_idx == nbatches
+        et = @elapsed begin
         send_to_client(loc_params["value_id"], part)
+        end
+        record_time(:sending_to_client, et)
     end
 end
 
