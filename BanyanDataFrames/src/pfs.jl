@@ -264,9 +264,10 @@ function ReadBlockHelper(@nospecialize(format_value))
         # Read in data frames
         dfs::Base.Vector{DataFrames.DataFrame} = DataFrames.DataFrame[]
         for file_i in files_by_partition[partition_idx]
+            path = meta_path[file_i]
             @time begin
             et = @elapsed begin
-            res = read_file(format_value, meta_path[file_i], dfs)
+            res = read_file(format_value, path, dfs)
             end
             record_time(time_key, et)
             push!(files_memory_usage, Banyan.format_bytes(Banyan.total_memory_usage(res)))
