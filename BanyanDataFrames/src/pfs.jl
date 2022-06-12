@@ -240,24 +240,26 @@ function ReadBlockHelper(@nospecialize(format_value))
             end
         end
 
+        @show files_by_partition
+        @show too_large_files
+
         # Fit in the files that are too large by first only using partitions
         # that haven't yet been assigned any rows. Prioritize earlier batches.
         for second_pass in [false, true]
             for batch_i in 1:nbatches
                 for worker_i in nworkers:1
                     curr_partition_idx = get_partition_idx(batch_i, nbatches, worker_i)
-                    if nrows_by_partition[curr_partition_idx] == 0 || second_pass
+                    if (nrows_by_partition[curr_partition_idx] == 0 || second_pass) && !isempty(too_large_files)
                         push!(
                             files_by_partition[curr_partition_idx],
                             popfirst!(too_large_files)
                         )
-                        if isempty(too_large_files)
-                            break
-                        end
                     end
                 end
             end
         end
+
+        @show files_by_partition
 
         # Read in data frames
         dfs::Base.Vector{DataFrames.DataFrame} = DataFrames.DataFrame[]
@@ -268,7 +270,7 @@ function ReadBlockHelper(@nospecialize(format_value))
             end
             record_time(time_key, et)
             push!(files_memory_usage, Banyan.format_bytes(Banyan.total_memory_usage(res)))
-            println("Time to read all rows from file with $(length(filerowrange)) rows with Banyan.total_memory_usage(res)=$(files_memory_usage[end]) and filesize(path)=$(Banyan.format_bytes(filesize(path))) from path=$path on get_worker_idx(comm)=$(get_worker_idx(comm)) and batch_idx=$batch_idx = $et seconds for $(Banyan.format_bytes(round(Int64, filesize(path) / et))) per second on get_worker_idx()=$(get_worker_idx())")
+            println("Time to read all rows from file with Banyan.total_memory_usage(res)=$(files_memory_usage[end]) and filesize(path)=$(Banyan.format_bytes(filesize(path))) from path=$path on get_worker_idx(comm)=$(get_worker_idx(comm)) and batch_idx=$batch_idx = $et seconds for $(Banyan.format_bytes(round(Int64, filesize(path) / et))) per second on get_worker_idx()=$(get_worker_idx())")
             end
         end
 
