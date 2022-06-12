@@ -210,17 +210,19 @@ function ReadBlockHelper(@nospecialize(format_value))
         meta_path = meta.path
         nworkers = get_nworkers(comm)
         npartitions = nbatches * nworkers
+        partition_idx = get_partition_idx(batch_idx, nbatches, comm)
         nrows::Int64 = loc_params["nrows"]::Int64
         rows_per_partition = cld(nrows, npartitions)
         sorting_perm = sortperm(meta_nrows, rev=true)
         files_by_partition = Base.Vector{Int64}[]
         nrows_by_partition = Base.zeros(npartitions)
-        partition_idx = get_partition_idx(batch_idx, nbatches, comm)
         for _ in 1:npartitions
             push!(files_by_partition, Int64[])
         end
 
         if partition_idx == 1
+            @show nrows
+            @show rows_per_partition
             @show meta_nrows
             @show meta_path
         end
@@ -254,14 +256,18 @@ function ReadBlockHelper(@nospecialize(format_value))
         # that haven't yet been assigned any rows. Prioritize earlier batches.
         second_pass = false
         while !isempty(too_large_files)
+            # On the first pass, we try to fit into partitions not yet assigned any file
+            # On the second pass, we just assign stuff anywhere
             for batch_i in 1:nbatches
-                for worker_i in nworkers:1
+                for worker_i in 1:nworkers
                     curr_partition_idx = get_partition_idx(batch_i, nbatches, worker_i)
                     if (nrows_by_partition[curr_partition_idx] == 0 || second_pass) && !isempty(too_large_files)
+                        file_i = popfirst!(too_large_files)
                         push!(
                             files_by_partition[curr_partition_idx],
-                            popfirst!(too_large_files)
+                            file_i
                         )
+                        nrows_by_partition[curr_partition_idx] += meta_nrows[file_i]
                     end
                 end
             end
