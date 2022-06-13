@@ -40,19 +40,15 @@ function read_file(::Val{:parquet}, path, rowrange, readrange, filerowrange, dfs
         end
     )
 end
-function read_file(::Val{:parquet}, path, dfs)
-    push!(
-        dfs,
-        if isfile(path)
-            let f = Parquet.read_parquet(path)
-                DataFrames.DataFrame(f, copycols=false)
-            end
-        else
-            !startswith(path, "efs/s3/") || error("Path \"$path\" should not start with \"s3/\"")
-            DataFrames.DataFrame()
+read_file(::Val{:parquet}, path) =
+    if isfile(path)
+        let f = Parquet.read_parquet(path)
+            DataFrames.DataFrame(f, copycols=false)
         end
-    )
-end
+    else
+        !startswith(path, "efs/s3/") || error("Path \"$path\" should not start with \"s3/\"")
+        DataFrames.DataFrame()
+    end
 
 ReadBlockParquet = ReadBlockHelper(Val(:parquet))
 ReadGroupHelperParquet = ReadGroupHelper(ReadBlockParquet, ShuffleDataFrame)

@@ -876,7 +876,7 @@ end
                             ),
                             :PULocationID
                         ),
-                        :trip_distance => (a -> mean(a))
+                        :trip_distance => mean
                     )
                 )
             end

@@ -43,12 +43,7 @@ function read_file(::Val{:csv}, path, rowrange, readrange, filerowrange, dfs)
         )
     )
 end
-function read_file(::Val{:csv}, path, dfs)
-    push!(
-        dfs,
-        CSV.read(path, DataFrames.DataFrame)
-    )
-end
+read_file(::Val{:csv}, path) = CSV.read(path, DataFrames.DataFrame)
 
 ReadBlockCSV = ReadBlockHelper(Val(:csv))
 ReadGroupHelperCSV = ReadGroupHelper(ReadBlockCSV, ShuffleDataFrame)
