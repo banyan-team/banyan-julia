@@ -288,15 +288,12 @@ function ReadBlockHelper(@nospecialize(format_value))
         if !isempty(files_for_curr_partition)
             Threads.@threads for (i, file_i) in Base.collect(enumerate(files_for_curr_partition))
                 path = meta_path[file_i]
-                @time begin
                 et = @elapsed begin
                 res = read_file(format_value, path)
-                dfs[i] = res
                 end
+                dfs[i] = res
                 record_time(time_key, et)
                 push!(files_memory_usage, Banyan.format_bytes(Banyan.total_memory_usage(res)))
-                println("Time to read all rows from file with Banyan.total_memory_usage(res)=$(files_memory_usage[end]) and filesize(path)=$(Banyan.format_bytes(filesize(path))) from path=$path on get_worker_idx(comm)=$(get_worker_idx(comm)) and batch_idx=$batch_idx = $et seconds for $(Banyan.format_bytes(round(Int64, filesize(path) / et))) per second on get_worker_idx()=$(get_worker_idx())")
-                end
             end
         end
 
@@ -364,7 +361,6 @@ function ReadBlockHelper(@nospecialize(format_value))
         else
             vcat(dfs...)
         end
-        println("At end of ReadBlockHelper on batch_idx=$batch_idx and get_worker_idx()=$(get_worker_idx())")
         res
     end
     ReadBlock
