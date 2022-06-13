@@ -199,7 +199,6 @@ function ReadBlockHelper(@nospecialize(format_value))
         # Handle multi-file tabular datasets
 
         time_key = loc_name == "Disk" ? (:reading_lustre) : (:reading_remote)
-        files_memory_usage = []
 
         # TODO: Use split_across to split up the list of files. Then, read in all the files and concatenate them.
         # Finally, shuffle by sending to eahc
@@ -284,17 +283,25 @@ function ReadBlockHelper(@nospecialize(format_value))
 
         # Read in data frames
         files_for_curr_partition = files_by_partition[partition_idx]
-        dfs::Base.Vector{DataFrames.DataFrame} = Base.Vector{DataFrames.DataFrame}(undef, length(files_for_curr_partition))
-        if !isempty(files_for_curr_partition)
+        times = Base.Vector{Int64}(undef, length(files_for_curr_partition))
+        files_memory_usage = Base.Vector{String}(undef, length(files_for_curr_partition))
+        dfs = if !isempty(files_for_curr_partition)
+            dfs_res::Base.Vector{DataFrames.DataFrame} = Base.Vector{DataFrames.DataFrame}(undef, length(files_for_curr_partition))
             Threads.@threads for (i, file_i) in Base.collect(enumerate(files_for_curr_partition))
                 path = meta_path[file_i]
                 et = @elapsed begin
                 res = read_file(format_value, path)
                 end
-                dfs[i] = res
-                record_time(time_key, et)
-                push!(files_memory_usage, Banyan.format_bytes(Banyan.total_memory_usage(res)))
+                dfs_res[i] = res
+                times[i] = et
+                files_memory_usage[i] = Banyan.format_bytes(Banyan.total_memory_usage(res))
             end
+            for et in times
+                record_time(time_key, et)
+            end
+            dfs_res
+        else
+            DataFrames.DataFrame[]
         end
 
         # Older implementation
