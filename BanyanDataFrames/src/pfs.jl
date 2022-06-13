@@ -75,7 +75,9 @@ function ShuffleDataFrameHelper(
                 if gdf.ngroups > 0 && haskey(gdf, (banyan_shuffling_key = partition_idx,))
                     gdf[(banyan_shuffling_key = partition_idx,)]
                 else
-                    empty(part)
+                    empty_res = empty(part)
+                    empty_res.banyan_shuffling_key = Int64[]
+                    empty_res
                 end,
                 compress=:zstd
             )
