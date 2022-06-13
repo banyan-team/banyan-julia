@@ -940,8 +940,6 @@ function ReduceAndCopyToArrow(
         part = start_op(part)
     end
 
-    println("At start of ReduceAndCopyToArrow on batch_idx=$batch_idx and get_worker_idx()=$(get_worker_idx())")
-
     # Concatenate all data frames on this worker
     src = if nbatches > 1
         Merge(
@@ -983,10 +981,6 @@ function ReduceAndCopyToArrow(
     end
     end
     record_time(:reduction, et)
-
-    if loc_name != ""
-        println("At end of ReduceAndCopyToArrow on batch_idx=$batch_idx and get_worker_idx()=$(get_worker_idx())")
-    end
     
     src
 end
