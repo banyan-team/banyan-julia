@@ -280,6 +280,8 @@ function ReadBlockHelper(@nospecialize(format_value))
             @show files_by_partition
         end
 
+        @show files_by_partition
+
         # Read in data frames
         dfs::Base.Vector{DataFrames.DataFrame} = DataFrames.DataFrame[]
         for file_i in files_by_partition[partition_idx]
@@ -344,7 +346,12 @@ function ReadBlockHelper(@nospecialize(format_value))
         # guaranteed to have its ndims correct) and so if a split/merge/cast
         # function requires the schema (for example for grouping) then it must be
         # sure to take that account
-        println("Time to read $loc_name so far = $(get_time(time_key)) seconds; $(length(dfs)) files read in with files_memory_usage=$files_memory_usage on get_worker_idx()=$(get_worker_idx())")
+        if isempty(dfs)
+            println("No dfs to read in on get_worker_idx()=$(get_worker_idx())")
+            @show loc_params
+        else
+            println("Time to read $loc_name so far = $(get_time(time_key)) seconds; $(length(dfs)) files read in with files_memory_usage=$files_memory_usage on get_worker_idx()=$(get_worker_idx())")
+        end
         res = if isempty(dfs)
             # When we construct the location, we store an empty data frame with The
             # correct schema.

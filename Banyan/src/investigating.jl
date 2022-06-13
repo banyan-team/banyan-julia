@@ -35,7 +35,7 @@ end
 
 function get_time(key)
     global times
-    times[key]
+    get(times, key, 0)
 end
 
 function forget_times()
