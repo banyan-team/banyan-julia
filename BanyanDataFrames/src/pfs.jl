@@ -982,17 +982,35 @@ function ReduceAndCopyToArrow(
     loc_name::String,
     loc_params::Dict{String,Any},
 ) where {T}
-    ReduceAndCopyToArrow(
-        src isa Empty ? DataFrames.DataFrame() : src,
-        part,
-        params,
-        batch_idx,
-        nbatches,
-        comm,
-        loc_name,
-        loc_params,
-        params["starting_op"],
-        params["reducing_op"],
-        params["finishing_op"]
-    )
+    if loc_name == "Remote"
+        @time "ReduceAndCopyToArrow" begin
+        ReduceAndCopyToArrow(
+            src isa Empty ? DataFrames.DataFrame() : src,
+            part,
+            params,
+            batch_idx,
+            nbatches,
+            comm,
+            loc_name,
+            loc_params,
+            params["starting_op"],
+            params["reducing_op"],
+            params["finishing_op"]
+        )
+        end
+    else
+        ReduceAndCopyToArrow(
+            src isa Empty ? DataFrames.DataFrame() : src,
+            part,
+            params,
+            batch_idx,
+            nbatches,
+            comm,
+            loc_name,
+            loc_params,
+            params["starting_op"],
+            params["reducing_op"],
+            params["finishing_op"]
+        )
+    end
 end
