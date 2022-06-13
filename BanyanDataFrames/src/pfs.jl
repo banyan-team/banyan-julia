@@ -283,7 +283,7 @@ function ReadBlockHelper(@nospecialize(format_value))
 
         # Read in data frames
         files_for_curr_partition = files_by_partition[partition_idx]
-        times = Base.Vector{Int64}(undef, length(files_for_curr_partition))
+        times = Base.Vector{Float64}(undef, length(files_for_curr_partition))
         files_memory_usage = Base.Vector{String}(undef, length(files_for_curr_partition))
         dfs = if !isempty(files_for_curr_partition)
             dfs_res::Base.Vector{DataFrames.DataFrame} = Base.Vector{DataFrames.DataFrame}(undef, length(files_for_curr_partition))

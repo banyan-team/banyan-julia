@@ -455,7 +455,7 @@ CopyToClient(
     loc_name,
     loc_params,
 ) = begin
-    if get_worker_idx(comm) == 1 && batch_idx == nbatches
+    if get_worker_idx(comm) == 1 && batch_idx == 1
         et = @elapsed begin
         send_to_client(loc_params["value_id"], part)
         end
@@ -473,10 +473,10 @@ function CopyToJulia(
     loc_name,
     loc_params,
 )
-    if get_worker_idx(comm) == 1 && batch_idx == nbatches
+    if get_worker_idx(comm) == 1 && batch_idx == 1
         serialize(getpath(loc_params["path"]), part)
     end
-    if batch_idx == nbatches
+    if batch_idx == 1
         MPI.Barrier(comm)
     end
 end
@@ -529,7 +529,7 @@ function ReduceAndCopyToJulia(
         if loc_name != "Memory"
             # We use 1 here so that it is as if we are copying from the head
             # node
-            CopyToJulia(src, src, params, nbatches, nbatches, comm, loc_name, loc_params)
+            CopyToJulia(src, src, params, 1, 1, comm, loc_name, loc_params)
         end
     end
 
