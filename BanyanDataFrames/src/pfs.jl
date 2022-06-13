@@ -938,9 +938,9 @@ function ReduceAndCopyToArrow(
     et = @elapsed begin
     if loc_name == "Memory"
         part = start_op(part)
-    else
-        println("At start of ReduceAndCopyToArrow on batch_idx=$batch_idx and get_worker_idx()=$(get_worker_idx())")
     end
+
+    println("At start of ReduceAndCopyToArrow on batch_idx=$batch_idx and get_worker_idx()=$(get_worker_idx())")
 
     # Concatenate all data frames on this worker
     src = if nbatches > 1
@@ -984,7 +984,7 @@ function ReduceAndCopyToArrow(
     end
     record_time(:reduction, et)
 
-    if loc_name != "Memory"
+    if loc_name != ""
         println("At end of ReduceAndCopyToArrow on batch_idx=$batch_idx and get_worker_idx()=$(get_worker_idx())")
     end
     
