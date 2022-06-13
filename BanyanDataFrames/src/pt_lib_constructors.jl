@@ -85,8 +85,8 @@ function ReducingGroupBy(groupcols, groupkwargs, args, kwargs)::Base.Vector{Part
     # Create the functions
     reducing_op = (a, b) -> begin
         # @show a b
-        reducing_res = if isempty(a) && isempty(b)
-            ncol(a) > ncol(b) ? a : b
+        reducing_res = if isempty(a) && isempty(b) && ncol(a) == ncol(b) && ncol(a) == 0
+            a
         else
             gdf = DataFrames.groupby(vcat(a, b), groupcols; groupkwargs...)
             DataFrames.combine(gdf, reducing_args...; kwargs...)
