@@ -222,7 +222,7 @@ function ReadBlockHelper(@nospecialize(format_value))
             push!(files_by_partition, Int64[])
         end
 
-        if partition_idx == 1
+        if Banyan.INVESTIGATING_FILE_PARTITION_PACKING && partition_idx == 1
             @show nrows
             @show rows_per_partition
             @show meta_nrows
@@ -249,7 +249,7 @@ function ReadBlockHelper(@nospecialize(format_value))
             end
         end
 
-        if partition_idx == 1
+        if Banyan.INVESTIGATING_FILE_PARTITION_PACKING && partition_idx == 1
             @show files_by_partition
             @show too_large_files
         end
@@ -276,11 +276,11 @@ function ReadBlockHelper(@nospecialize(format_value))
             second_pass = true
         end
 
-        if partition_idx == 1
+        if Banyan.INVESTIGATING_FILE_PARTITION_PACKING && partition_idx == 1
             @show files_by_partition
         end
 
-        @show files_by_partition
+        # @show files_by_partition
 
         # Read in data frames
         dfs::Base.Vector{DataFrames.DataFrame} = DataFrames.DataFrame[]
@@ -348,7 +348,6 @@ function ReadBlockHelper(@nospecialize(format_value))
         # sure to take that account
         if isempty(dfs)
             println("No dfs to read in on get_worker_idx()=$(get_worker_idx())")
-            @show loc_params
         else
             println("Time to read $loc_name so far = $(get_time(time_key)) seconds; $(length(dfs)) files read in with files_memory_usage=$files_memory_usage on get_worker_idx()=$(get_worker_idx())")
         end
