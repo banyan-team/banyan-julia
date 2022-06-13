@@ -185,8 +185,14 @@ function _filter(df::Future, f::Future, res_nrows::Future, res::Future, kwargs::
     partitioned_with(pts_for_filter, Future[df, f, res_nrows, res, kwargs], scaled=[df, res], keep_same_keys=true, drifted=true, modules=["BanyanDataFrames.DataFrames"], keytype=String)
 
     @partitioned df res res_nrows f kwargs begin
+        if MPI.Initialized()
+            println("In filter at start on get_worker_idx()=$(get_worker_idx())")
+        end
         res = DataFrames.filter(f, df; kwargs...)
         res_nrows = DataFrames.nrow(res)
+        if MPI.Initialized()
+            println("In filter at end on get_worker_idx()=$(get_worker_idx())")
+        end
     end
 
     DataFrame(res, res_nrows)

@@ -56,8 +56,14 @@ end
 function partitioned_for_groupby(df::Future, gdf::Future, gdf_length::Future, cols::Future, kwargs::Future)
     partitioned_with(pts_for_groupby, Future[df, gdf, gdf_length, cols, kwargs], scaled=Future[df, gdf], modules=String["BanyanDataFrames.DataFrames"], keytype=String)
     @partitioned df gdf gdf_length cols kwargs begin
+        if MPI.Initialized()
+            println("In groupby at start on get_worker_idx()=$(get_worker_idx())")
+        end
         gdf = DataFrames.groupby(df, cols; kwargs...)
         gdf_length = DataFrames.length(gdf)
+        if MPI.Initialized()
+            println("In groupby at end on get_worker_idx()=$(get_worker_idx())")
+        end
     end
 end
 
@@ -189,18 +195,20 @@ end
 function partitioned_for_combine(gdf_parent::Future, gdf::Future, res_nrows::Future, res::Future, res_groupingkeys::Base.Vector{String}, groupcols::Future, groupkwargs::Future, args::Future, kwargs::Future)
     partitioned_with(pts_for_combine, Future[gdf_parent, gdf, res_nrows, res, groupcols, groupkwargs, args, kwargs], scaled=[gdf_parent, gdf], grouped=[gdf_parent, res], keys=res_groupingkeys, drifted=true, modules=["BanyanDataFrames.DataFrames"], keytype=String)
     @partitioned gdf gdf_parent groupcols groupkwargs args kwargs res res_nrows begin
-        if isempty(gdf_parent)
-            res = select(gdf_parent, groupcols)
-        else
-            if !(gdf isa DataFrames.GroupedDataFrame) || gdf.parent !== gdf_parent
-                gdf = DataFrames.groupby(gdf_parent, groupcols; groupkwargs...)
-            end
-            # TODO: Store pointer from res to gdf in global array
-            # TODO: Make there be a starting_function that 
-            res = DataFrames.combine(gdf, args...; kwargs...)
-            set_parent(res, gdf)
+        if MPI.Initialized()
+            println("In combine at start on get_worker_idx()=$(get_worker_idx())")
         end
+        if !(gdf isa DataFrames.GroupedDataFrame) || gdf.parent !== gdf_parent
+            gdf = DataFrames.groupby(gdf_parent, groupcols; groupkwargs...)
+        end
+        # TODO: Store pointer from res to gdf in global array
+        # TODO: Make there be a starting_function that 
+        res = DataFrames.combine(gdf, args...; kwargs...)
+        set_parent(res, gdf)
         res_nrows = DataFrames.nrow(res)
+        if MPI.Initialized()
+            println("In combine at end on get_worker_idx()=$(get_worker_idx())")
+        end
     end
 end
 
