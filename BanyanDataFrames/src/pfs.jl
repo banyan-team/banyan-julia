@@ -918,7 +918,7 @@ function ReduceDataFrame(
 )
     # res = reduce_and_sync_across(src_params["reducing_op"], part; comm=comm)
     res = ConsolidateDataFrame(part, Dict{String,Any}(), Dict{String,Any}(), comm)
-    res = src_params["reducing_op"](src, DataFrames.DataFrame()) 
+    res = src_params["reducing_op"](res, DataFrames.DataFrame()) 
     res_finished = src_params["finishing_op"](res)
     res_finished
 end
