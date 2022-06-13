@@ -923,7 +923,6 @@ function ReduceAndCopyToArrow(
 ) where {T}
     # Get the # of rows of each group if this is a group-by-mean that is being reduced
     et = @elapsed begin
-    @time "ReduceAndCopyToArrow" begin
     if loc_name == "Memory"
         part = start_op(part)
     end
@@ -946,10 +945,16 @@ function ReduceAndCopyToArrow(
 
     # Merge reductions across workers
     if batch_idx == nbatches
+        # TODO: Eliminate the redundant concatenation with empty data frames that the reduce_op
+        # performs for group-by aggregation
         src = reduce_op(src, DataFrames.DataFrame())
 
         if get_nworkers(comm) > 1
-            src = reduce_across(reduce_op, src, comm=comm)
+            src = ConsolidateDataFrame(src, Dict{String,Any}(), Dict{String,Any}(), comm)
+            src = reduce_op(src, DataFrames.DataFrame())
+            # NOTE: We use the above to eliminate the compilation overhead of creating
+            # custom MPI reductions
+            # src = reduce_across(reduce_op, src, comm=comm)
         end
 
         if loc_name != "Memory"
@@ -960,7 +965,6 @@ function ReduceAndCopyToArrow(
             end
             CopyToArrow(src, src, params, 1, 1, comm, loc_name, loc_params)
         end
-    end
     end
     end
     record_time(:reduction, et)
