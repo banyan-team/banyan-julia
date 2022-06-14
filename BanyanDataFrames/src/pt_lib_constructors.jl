@@ -70,7 +70,7 @@ function ReducingGroupBy(groupcols, groupkwargs, args, kwargs)::Base.Vector{Part
             push!(reducing_args, to => sum => to)
             if !summing_banyan_averaging_nrow
                 push!(reducing_args, :banyan_averaging_nrow => sum => :banyan_averaging_nrow)
-                summing_banyan_averaging_nrow
+                summing_banyan_averaging_nrow = true
             end
             push!(mean_cols, to)
         else

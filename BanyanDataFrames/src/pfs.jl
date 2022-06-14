@@ -674,6 +674,7 @@ function SplitGroupDataFrame(
     boundedupper::Bool,
     key::String,
     rev::Bool,
+    consolidate::Bool,
     splitting_divisions::IdDict{Any,Any}
 ) where {V}
 
@@ -702,12 +703,14 @@ function SplitGroupDataFrame(
     # among other batches
     filter_mask = Base.falses(nrow(src))
     for (i, row) in enumerate(eachrow(src))
-        filter_mask[i] = Banyan.get_partition_idx_from_divisions(
+        filter_mask[i] = let p_idx = Banyan.get_partition_idx_from_divisions(
             row[key],
             divisions_by_partition,
             boundedlower,
             boundedupper,
-        ) == partition_idx
+        )
+            consolidate ? (p_idx != -1) : (p_idx == partition_idx)
+        end
     end
     res = src[filter_mask, :]
 
@@ -731,6 +734,10 @@ function SplitGroupDataFrame(
 
     res
 end
+
+symbol_key = "key"
+symbol_rev = "rev"
+symbol_consolidate = "consolidate"
 
 function Banyan.SplitGroup(
     src::DataFrames.AbstractDataFrame,
@@ -759,8 +766,11 @@ function Banyan.SplitGroup(
         src_divisions,
         boundedlower,
         boundedupper,
-        params["key"]::String,
-        get(params, "rev", false)::Bool,
+        params[symbol_key]::String,
+        get(params, symbol_rev, false)::Bool,
+        # If true, SplitGroup should return all the data that matches any
+        # of the given splitting divisions.
+        get(params, symbol_consolidate, false)::Bool,
         splitting_divisions
     )
 end

@@ -447,6 +447,7 @@ function SplitGroupArray(
     boundedupper::Bool,
     key::Int64,
     rev::Bool,
+    consolidate::Bool,
     splitting_divisions,
 )
 
@@ -472,12 +473,14 @@ function SplitGroupArray(
 
     # Apply divisions to get only the elements relevant to this worker
     filterfunc = (
-        slice -> Banyan.get_partition_idx_from_divisions(
+        slice -> let p_idx = Banyan.get_partition_idx_from_divisions(
             slice,
             divisions_by_partition,
             boundedlower,
             boundedupper,
-        ) == partition_idx
+        )
+            consolidate ? (p_idx != -1) : (p_idx == partition_idx)
+        end
     )
     res = if ndims(src) > 1
         cat(
@@ -509,6 +512,10 @@ function SplitGroupArray(
     res
 end
 
+symbol_key = "key"
+symbol_rev = "rev"
+symbol_consolidate = "consolidate"
+
 function Banyan.SplitGroup(
     src::AbstractArray,
     params::Dict{String,Any},
@@ -536,8 +543,11 @@ function Banyan.SplitGroup(
         src_divisions,
         boundedlower,
         boundedupper,
-        params["key"]::Int64,
-        get(params, "rev", false)::Bool,
+        params[symbol_key]::Int64,
+        get(params, symbol_rev, false)::Bool,
+        # If true, SplitGroup should return all the data that matches any
+        # of the given splitting divisions.
+        get(params, symbol_consolidate, false)::Bool,
         splitting_divisions
     )
 end

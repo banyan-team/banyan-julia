@@ -149,7 +149,6 @@ ReadGroupHelper(ReadBlockFunc, ShuffleFunc) = begin
 
         # Read in each batch and shuffle it to get the data for this partition
         parts = []
-        # TODO: Just call ReadBlockFunc once and pass in something to filter each data frame as it is read in
         for i = 1:nbatches
             # Read in data for this batch
             part = ReadBlockFunc(src, params, i, nbatches, comm, loc_name, loc_params)

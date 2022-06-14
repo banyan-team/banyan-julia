@@ -810,7 +810,7 @@ end
     use_session_for_testing(scheduling_config_name = "default scheduling", sample_rate=1024) do
         # p = setup_nyc_taxi_stress_test(nbytes="128 MB")
         # p = setup_nyc_taxi_stress_test(nbytes="1 GB")
-        p = setup_nyc_taxi_stress_test(nrows = 1_000_000_000)
+        p = setup_nyc_taxi_stress_test(nrows = 2_000_000_000)
         # p = setup_nyc_taxi_stress_test(nrows = 250_000_000)
         for iter in 1:2
             @time begin
@@ -876,7 +876,9 @@ end
                             ),
                             :PULocationID
                         ),
-                        :trip_distance => (x -> mean)
+                        :total_amount => mean,
+                        :tip_amount => mean,
+                        :trip_distance => mean#(x -> mean)
                     )
                 )
             end
