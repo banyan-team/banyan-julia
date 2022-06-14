@@ -594,3 +594,9 @@ function empty_handler(op)
 end
 
 isnotempty(x) = !isempty(x)
+
+fsync_file(p) =
+    open(p) do f
+        # TODO: Maybe use MPI I/O method for fsync instead
+        ccall(:fsync, Cint, (Cint,), fd(f))
+    end

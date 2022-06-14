@@ -192,6 +192,8 @@ function ReadBlockHelper(@nospecialize(format_value))
         # is ready to be read in even if the cluster has changed but same S3 bucket
         # with cached location is used.
         existing_path = getpath(loc_params_path)
+        @show loc_params
+        @show meta_path
         meta_path = loc_name == "Disk" ? sync_across(is_main_worker(comm) ? get_meta_path(loc_params_path) : "", comm=comm) : loc_params["meta_path"]::String
         loc_params = loc_name == "Disk" ? (deserialize(get_location_path(loc_params_path))::Location).src_parameters : loc_params
         meta = Arrow.Table(meta_path)
@@ -632,7 +634,7 @@ function WriteHelper(@nospecialize(format_value))
             if is_main
                 Banyan.rmdir_on_nfs(path)
             end
-        elseif nbatches > 1
+        else
             MPI.Barrier(comm)
         end
         # src

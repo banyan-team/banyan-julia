@@ -182,7 +182,8 @@ export is_debug_on,
     EMPTY_DICT,
     set_parent,
     get_parent,
-    forget_parent
+    forget_parent,
+    fsync_file
 
 # Utilities for handling empty case
 export Empty, EMPTY, nonemptytype, disallowempty, empty_handler
