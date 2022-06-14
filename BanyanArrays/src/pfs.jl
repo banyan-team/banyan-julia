@@ -339,7 +339,8 @@ function WriteJuliaArrayHelper(
     end
     MPI.Barrier(comm)
     # TODO: Store the number of rows per file here with some MPI gathering
-    src
+    # src
+    nothing
     # TODO: Delete all other part* files for this value if others exist
 end
 
@@ -384,7 +385,7 @@ function CopyToJuliaArray(
 )
     if Banyan.get_partition_idx(batch_idx, nbatches, comm) == 1
         params["key"] = 1
-        res = WriteJuliaArray(src, part, params, 1, 1, MPI.COMM_SELF, loc_name, loc_params)
+        WriteJuliaArray(src, part, params, 1, 1, MPI.COMM_SELF, loc_name, loc_params)
     end
     if batch_idx == 1
         MPI.Barrier(comm)

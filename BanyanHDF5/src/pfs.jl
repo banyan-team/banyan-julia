@@ -539,6 +539,7 @@ function WriteHelperHDF5(
             MPI.Barrier(comm)
         end
     end
+    nothing
 end
 
 function WriteHDF5(

@@ -635,7 +635,8 @@ function WriteHelper(@nospecialize(format_value))
         elseif nbatches > 1
             MPI.Barrier(comm)
         end
-        src
+        # src
+        nothing
         # TODO: Delete all other part* files for this value if others exist
     end
     Write
