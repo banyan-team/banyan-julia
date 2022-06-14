@@ -19,7 +19,14 @@ function _remote_table_source(remotepath, shuffled, metadata_invalid, sample_inv
     # Get metadata if it is still valid
     curr_meta::Arrow.Table = if !curr_parameters_invalid
         @show curr_location.src_parameters
-        Arrow.Table(curr_location.src_parameters["meta_path"]::String)
+        try
+            Arrow.Table(curr_location.src_parameters["meta_path"]::String)
+        catch e
+            @show e
+            @show curr_location.src_parameters["meta_path"]::String
+            @show read(curr_location.src_parameters["meta_path"], String)
+            @show Arrow.Table(curr_location.src_parameters["meta_path"])
+        end
     else
         Arrow.Table()
     end
