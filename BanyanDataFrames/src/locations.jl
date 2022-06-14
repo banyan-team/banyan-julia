@@ -14,6 +14,8 @@ function _remote_table_source(remotepath, shuffled, metadata_invalid, sample_inv
     # 1. A `Location` serialized to a `location_path`
     # 2. Metadata stored in an Arrow file at `meta_path`
 
+    println("At start of _remote_table_source on get_worker_idx()=$(get_worker_idx())")
+
     # Get metadata if it is still valid
     curr_meta::Arrow.Table = if !curr_parameters_invalid
         @show curr_location.src_parameters
@@ -289,6 +291,8 @@ function _remote_table_source(remotepath, shuffled, metadata_invalid, sample_inv
         # Write `NamedTuple` with metadata to `meta_path` with `Arrow.write`
         Arrow.write(is_main ? meta_path : IOBuffer(), (path=localpaths, nrows=meta_nrows), compress=:zstd)
     end
+
+    println("At end of _remote_table_source on get_worker_idx()=$(get_worker_idx())")
 
     # Return LocationSource
     if is_main
