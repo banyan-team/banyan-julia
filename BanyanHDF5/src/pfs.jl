@@ -283,8 +283,8 @@ function WriteHelperHDF5(
         @show part isa Empty
         close(f)
         MPI.Barrier(comm)
-        # fsync_file(path)
-        # MPI.Barrier(comm)
+        fsync_file(path)
+        MPI.Barrier(comm)
         # Not needed since we barrier at the end of each iteration of a merging
         # stage with I/O
         # MPI.Barrier(comm)
