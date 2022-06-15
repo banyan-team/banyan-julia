@@ -225,8 +225,10 @@ function WriteHelperHDF5(
         f = h5open(
             path,
             "cw",
-            fapl_mpio = (comm, info),
-            dxpl_mpio = HDF5.H5FD_MPIO_COLLECTIVE,
+            comm,
+            info,
+            # fapl_mpio = (comm, info),
+            # dxpl_mpio = HDF5.H5FD_MPIO_COLLECTIVE,
         )
         close(f)
 
