@@ -74,6 +74,7 @@ function receive_next_message(
     error_for_main_stuck_time=nothing
 )::Tuple{Dict{String,Any},Union{Nothing,String}}
     content::String, error_for_main_stuck::Union{Nothing,String} = get_next_message(queue_name, p; error_for_main_stuck=error_for_main_stuck, error_for_main_stuck_time=error_for_main_stuck_time)
+    @show content error_for_main_stuck
     res::Dict{String,Any} = if startswith(content, "JOB_READY") || startswith(content, "SESSION_READY")
         Dict{String,Any}(
             "kind" => "SESSION_READY"
@@ -156,22 +157,24 @@ function send_to_client(value_id::ValueId, value, worker_memory_used = 0)
     i = 1
     while true
         is_last_message = length(message) <= MAX_MESSAGE_LENGTH
+        msg = Dict{String,Any}(
+            "kind" => (is_last_message ? "GATHER_END" : "GATHER"),
+            "value_id" => value_id,
+            "contents" => if is_last_message
+                message
+            else
+                msg = message[1:MAX_MESSAGE_LENGTH]
+                message = message[MAX_MESSAGE_LENGTH+1:end]
+                msg
+            end,
+            "worker_memory_used" => worker_memory_used,
+            "gather_page_idx" => i
+        )
+        @show msg
         send_message(
             get_gather_queue(),
             JSON.json(
-                Dict{String,Any}(
-                    "kind" => (is_last_message ? "GATHER_END" : "GATHER"),
-                    "value_id" => value_id,
-                    "contents" => if is_last_message
-                        message
-                    else
-                        msg = message[1:MAX_MESSAGE_LENGTH]
-                        message = message[MAX_MESSAGE_LENGTH+1:end]
-                        msg
-                    end,
-                    "worker_memory_used" => worker_memory_used,
-                    "gather_page_idx" => i
-                )
+                msg
             )
         )
         i += 1

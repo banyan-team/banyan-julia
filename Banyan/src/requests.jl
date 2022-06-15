@@ -23,6 +23,7 @@ function check_worker_stuck_error(
     error_for_main_stuck_time::Union{Nothing,DateTime}
 )::Tuple{Union{Nothing,String},Union{Nothing,DateTime}}
     value_id = message["value_id"]::ValueId
+    @show value_id
     if value_id == "-2" && isnothing(error_for_main_stuck_time)
         error_for_main_stuck_msg::String = from_jl_value_contents(message["contents"]::String)
         if contains(error_for_main_stuck_msg, "session $(get_session_id())")
@@ -37,7 +38,8 @@ function check_worker_stuck(
     error_for_main_stuck::Union{Nothing,String},
     error_for_main_stuck_time::Union{Nothing,DateTime}
 )::Union{Nothing,String}
-    if !isnothing(error_for_main_stuck) && !isnothing(error_for_main_stuck_time) && (Dates.now() - error_for_main_stuck_time) > Second(30)
+    @show error_for_main_stuck error_for_main_stuck_time
+    if !isnothing(error_for_main_stuck) && !isnothing(error_for_main_stuck_time) && (Dates.now() - error_for_main_stuck_time) > Second(10)
         println(error_for_main_stuck)
         @warn "The above error occurred on some workers but other workers are still running. Please interrupt and end the session unless you expect that a lot of logs are being returned."
         error_for_main_stuck = nothing
@@ -258,6 +260,7 @@ function _partitioned_computation_concrete(fut::Future, destination::Location, n
         # TODO: Use to_jl_value and from_jl_value to support Client
         message, error_for_main_stuck = receive_next_message(gather_queue, p, error_for_main_stuck, error_for_main_stuck_time)
         message_type::String = message["kind"]
+        @show message
         if message_type == "SCATTER_REQUEST"
             # Send scatter
             value_id = message["value_id"]::ValueId
