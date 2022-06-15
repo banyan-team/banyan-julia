@@ -95,7 +95,7 @@ function ReducingGroupBy(groupcols, groupkwargs, args, kwargs)::Base.Vector{Part
         reducing_res
     end
     starting_op = df -> begin
-        if ncols(df) > 0
+        if ncol(df) > 0
             if !isempty(mean_cols)
                 gdf = get_parent(df)
                 df.banyan_averaging_nrow = combine(gdf, nrow).nrow
