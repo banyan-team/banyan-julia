@@ -23,6 +23,7 @@ get_execution_queue()::Dict{Symbol,Any} =
 
 function sqs_receive_message_with_long_polling(queue)
     r = AWSSQS.sqs(queue, "ReceiveMessage", MaxNumberOfMessages = "1")
+    @show r
     r = r["messages"]
 
     if isnothing(r)
@@ -48,6 +49,9 @@ function get_next_message(
     error_for_main_stuck::Union{Nothing,String} = nothing,
     error_for_main_stuck_time::Union{Nothing,DateTime} = nothing
 )::Tuple{String,Union{Nothing,String}}
+    @show sqs_get_queue_attributes(queue)
+    sleep(60)
+    @show sqs_get_queue_attributes(queue)
     m = sqs_receive_message_with_long_polling(queue)
     i = 1
     j = 1
