@@ -68,11 +68,11 @@ function ReadBlockHelperHDF5(
                 # We first read in the first slice into memory. This is
                 # because HDF5.jl (unlike h5py) does not support just
                 # reading in an empty `1:0` slice.
-                dim_selector...
+                dim_selector_a...
             ][
                 # Then once that row is in memory we just remove it so
                 # that we have the appropriate empty slice.
-                dim_selector...
+                dim_selector_b...
             ]
         end
     else 

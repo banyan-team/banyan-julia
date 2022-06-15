@@ -1,6 +1,7 @@
 using ReTest
 using Banyan, BanyanArrays, BanyanHDF5
 using FilePathsBase, AWSS3, HDF5
+using Downloads
 
 global sessions_for_testing = Dict()
 

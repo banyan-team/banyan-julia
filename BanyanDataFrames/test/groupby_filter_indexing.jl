@@ -200,17 +200,17 @@ end
     [
     "default scheduling",
     "parallelism encouraged",
-    "parallelism and batches encouraged",
+    "pa##rallelism and batches encouraged",
 ]
     use_session_for_testing(scheduling_config_name = scheduling_config) do
         use_basic_data()
         bucket = get_cluster_s3_bucket_name()
         for path in [
             "s3://$(bucket)/iris_large.csv",
-            # "s3://$(bucket)/iris_large.parquet",
-            # "s3://$(bucket)/iris_large.arrow",
+            "s3://$(bucket)/iris_large.parquet",
+            "s3://$(bucket)/iris_large.arrow",
         ]
-            for func in [minimum]#[sum, minimum, maximum, mean, nrow, (x -> sum(x))]
+            for func in [sum, minimum, maximum, mean, nrow, (x -> sum(x))]
                 println("Testing fast groupby reduce with scheduling_config=$scheduling_config, path=$path, func=$func")
                 df = read_file(path)
                 gdf = groupby(df, :species)
@@ -239,7 +239,7 @@ end
                 "s3://$(bucket)/iris_large.parquet",
                 "s3://$(bucket)/iris_large.arrow",
             ]
-                for f in [mean, (x -> mean(x))]
+                for f in [(x -> mean(x))]#[mean, (x -> mean(x))]
                     df = read_file(path)
 
                     # Assert that exception gets thrown for parameters that aren't supported
@@ -339,12 +339,12 @@ end
                     # gdf_keepkeys_false_names = names(combine(gdf, nrow, keepkeys = false))
                     gdf_keepkeys_true_names = Set(names(combine(gdf, nrow, keepkeys = true)))
                     petal_length_mean =
-                        sort(compute(combine(gdf, :petal_length => f)), :petal_length_mean)[
+                        sort(compute(combine(gdf, :petal_length => f => :petal_length_mean)), :petal_length_mean)[
                             :,
                             :petal_length_mean,
                         ]
                     petal_length_mean = map(m -> round(m, digits = 2), petal_length_mean)
-                    temp = combine(gdf, :petal_length => f, renamecols = false)
+                    temp = combine(gdf, :petal_length => f => :petal_length, renamecols = false)
                     temp_names = Set(names(temp))
                     temp_petal_length = sort(compute(temp)[:, :petal_length])
                     temp_petal_length = map(l -> round(l, digits = 2), temp_petal_length)
