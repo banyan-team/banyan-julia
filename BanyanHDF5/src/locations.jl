@@ -47,6 +47,15 @@ function _remote_hdf5_source(path_and_subpath, shuffled, metadata_invalid, sampl
     p = getpath(remotepath)
     HDF5.ishdf5(p) || "Expected HDF5 file at $remotepath"
 
+    if is_main
+        f = h5open(p, "r")
+        @show p
+        @show keys(f)
+        @show haskey(f, datasetpath)
+        close(f)
+    end
+    sync_across()
+
     # Open HDF5 file
     dataset_to_read_from_exists = false
     f = h5open(p, "r")
