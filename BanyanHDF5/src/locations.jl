@@ -39,7 +39,9 @@ function _remote_hdf5_source(path_and_subpath, shuffled, metadata_invalid, sampl
     end
 
     # Download the path
+    @show path_and_subpath
     remotepath, datasetpath, isa_hdf5 = extract_dataset_path(path_and_subpath)
+    @show remotepath datasetpath
     isa_hdf5 || error("Expected HDF5 file for $remotepath")
     p = getpath(remotepath)
     HDF5.ishdf5(p) || "Expected HDF5 file at $remotepath"
