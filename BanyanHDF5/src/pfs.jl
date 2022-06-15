@@ -279,6 +279,7 @@ function WriteHelperHDF5(
             close(dset)
         end
         @show keys(f)
+        @show f.filename
         close(f)
         MPI.Barrier(comm)
         fsync_file(path)
