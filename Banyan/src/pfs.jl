@@ -170,7 +170,7 @@ ReadGroupHelper(ReadBlockFunc, ShuffleFunc) = begin
             if !(part isa Empty)
                 if isempty(parts)
                     parts = typeof(part)[part]
-                elseWe 
+                else 
                     push!(parts, part)
                 end
             end
