@@ -157,6 +157,7 @@ function WriteHelperHDF5(
             INVALID_LOCATION
         )
     end
+    @show path_and_subpath
     
     # Invalidate location if 
 
@@ -188,6 +189,7 @@ function WriteHelperHDF5(
     worker_idx = Banyan.get_worker_idx(comm)
     nworkers = Banyan.get_nworkers(comm)
     group::String = nbatches == 1 ? group_prefix : group_prefix * "_part$idx" * "_dim=$dim"
+    @show group group_prefix
 
     # TODO: Have an option in the location to set this to either "w" or
     # "cw". Both will create a new file if it's not already there but
