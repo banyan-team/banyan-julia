@@ -277,6 +277,7 @@ function WriteHelperHDF5(
             # Close file
             close(dset)
         end
+        @show keys(f)
         close(f)
         MPI.Barrier(comm)
         # Not needed since we barrier at the end of each iteration of a merging
@@ -535,6 +536,7 @@ function WriteHelperHDF5(
             # # continue.
             MPI.Barrier(comm)
         end
+        @show keys(f)
         close(f)
         f = nothing
         # TODO: Ensure that we are closing stuff everywhere before trying
