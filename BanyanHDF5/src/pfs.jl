@@ -277,7 +277,7 @@ function WriteHelperHDF5(
         end
         # Close file
         close(dset)
-        @show whole_size whole_type group
+        @show whole_size whole_eltype group
         @show keys(f)
         @show f.filename
         close(f)
