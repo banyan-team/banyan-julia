@@ -605,6 +605,7 @@ function WriteHelper(@nospecialize(format_value))
             actual_location_path = get_location_path(loc_params_path)
             if worker_idx == 1
                 cp(meta_path, actual_meta_path, force=true)
+                fsync_file(actual_meta_path)
                 cp(location_path, actual_location_path, force=true)
             end
 
