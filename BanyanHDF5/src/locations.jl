@@ -39,6 +39,7 @@ function _remote_hdf5_source(path_and_subpath, shuffled, metadata_invalid, sampl
     end
 
     # Download the path
+    @show curr_location
     @show path_and_subpath
     remotepath, datasetpath, isa_hdf5 = extract_dataset_path(path_and_subpath)
     @show remotepath datasetpath
