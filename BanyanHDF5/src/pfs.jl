@@ -552,8 +552,8 @@ function WriteHelperHDF5(
         fsync_file(path)
         MPI.Barrier(comm)
     end
-    if is_main
-        f = h5open("/home/ec2-user/s3/banyan-cluster-data-test-lustre-0ce21f27/fillval.h5", "r+")
+    if true#is_main
+        f = h5open("/home/ec2-user/s3/banyan-cluster-data-test-lustre-0ce21f27/fillval.h5", "r+", comm, info)
         @show f.filename
         @show keys(f)
         close(f)
