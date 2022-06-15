@@ -51,7 +51,14 @@ function _remote_hdf5_source(path_and_subpath, shuffled, metadata_invalid, sampl
     dataset_to_read_from_exists = true
 
     # Open the dataset
-    dset = HDF5_getindex_retry(f, datasetpath)
+    dset = try
+        HDF5_getindex_retry(f, datasetpath)
+    catch
+        close(f)
+        f = h5open(p, "r")
+        haskey(f, datasetpath) || "Expected HDF5 dataset named \"$datasetpath\" in $remotepath"
+        getindex(f, datasetpath)
+    end
     # TODO: Support mmap
     # ismapping = false
     # if HDF5.ismmappable(dset)
