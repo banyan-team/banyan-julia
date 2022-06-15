@@ -53,7 +53,7 @@ function _remote_hdf5_source(path_and_subpath, shuffled, metadata_invalid, sampl
     @show p
     @show keys(f)
     @show haskey(f, datasetpath)
-    haskey(f, datasetpath) || "Expected HDF5 dataset named \"$datasetpath\" in $remotepath"
+    haskey(f, datasetpath) || error("Expected HDF5 dataset named \"$datasetpath\" in $remotepath")
     dataset_to_read_from_exists = true
 
     # Open the dataset
@@ -62,7 +62,7 @@ function _remote_hdf5_source(path_and_subpath, shuffled, metadata_invalid, sampl
     catch
         close(f)
         f = h5open(p, "r")
-        haskey(f, datasetpath) || "Expected HDF5 dataset named \"$datasetpath\" in $remotepath"
+        haskey(f, datasetpath) || error("Expected HDF5 dataset named \"$datasetpath\" in $remotepath")
         getindex(f, datasetpath)
     end
     # TODO: Support mmap

@@ -86,6 +86,7 @@ end
                 # group in same file
                 copied_path = joinpath(path, "copies", "DS2")
                 write_hdf5(x, copied_path)
+                sleep(10)
                 x = read_hdf5(copied_path)
             elseif step == 3
                 # Test writing to different file and then reading from it
