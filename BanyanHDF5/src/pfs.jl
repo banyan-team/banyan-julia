@@ -274,10 +274,10 @@ function WriteHelperHDF5(
                 # d == dim ? Banyan.split_len(whole_size[dim], batch_idx, nbatches, comm) :
                 dim_selector...,
             )
-
-            # Close file
-            close(dset)
         end
+        # Close file
+        close(dset)
+        @show whole_size whole_type group
         @show keys(f)
         @show f.filename
         close(f)
@@ -553,6 +553,7 @@ function WriteHelperHDF5(
     end
     if is_main
         f = h5open("/home/ec2-user/s3/banyan-cluster-data-test-lustre-0ce21f27/fillval.h5", "r+")
+        @show f.filename
         @show keys(f)
         close(f)
     end
