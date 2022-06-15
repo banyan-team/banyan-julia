@@ -221,6 +221,7 @@ function WriteHelperHDF5(
 
         # Create file if not yet created
         # TODO: Figure out why sometimes a deleted file still `isfile`
+        @show offset
         f = h5open(
             path,
             "cw",
@@ -230,6 +231,7 @@ function WriteHelperHDF5(
         close(f)
 
         MPI.Barrier(comm)
+        @show some_size
 
         # Open file for writing data
         f = h5open(path, "r+", comm, info)

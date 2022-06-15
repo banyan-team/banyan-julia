@@ -70,7 +70,7 @@ end
         x = map(e -> e * 10, x)
 
         steps = if startswith(path, "s3://")
-            1:3
+            [1,3]
         else
             # It's fine to ignore steps 2 and 3 b/c there's no reason I
             # can think of for why reading from Internet and then writing
