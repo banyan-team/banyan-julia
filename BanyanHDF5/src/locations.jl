@@ -24,6 +24,8 @@ function extract_dataset_path(remotepath::String)::Tuple{String,String,Bool}
     remotepath, datasetpath, isa_hdf5
 end
 
+HDF5_getindex_retry = retry(HDF5.getindex; delays=Base.ExponentialBackOff(; n=5))
+
 function _remote_hdf5_source(path_and_subpath, shuffled, metadata_invalid, sample_invalid, invalidate_metadata, invalidate_sample, max_exact_sample_length)
     # Get session information
     session_sample_rate = get_session().sample_rate
@@ -49,7 +51,7 @@ function _remote_hdf5_source(path_and_subpath, shuffled, metadata_invalid, sampl
     dataset_to_read_from_exists = true
 
     # Open the dataset
-    dset = f[datasetpath]
+    dset = HDF5_getindex_retry(f, datasetpath)
     # TODO: Support mmap
     # ismapping = false
     # if HDF5.ismmappable(dset)
