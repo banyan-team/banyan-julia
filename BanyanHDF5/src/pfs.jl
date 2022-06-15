@@ -558,6 +558,7 @@ function WriteHelperHDF5(
         @show keys(f)
         close(f)
     end
+    @show HDF5.has_parallel()
     nothing
 end
 
