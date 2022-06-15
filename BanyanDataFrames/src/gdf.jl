@@ -56,8 +56,10 @@ end
 function partitioned_for_groupby(df::Future, gdf::Future, gdf_length::Future, cols::Future, kwargs::Future)
     partitioned_with(pts_for_groupby, Future[df, gdf, gdf_length, cols, kwargs], scaled=Future[df, gdf], modules=String["BanyanDataFrames.DataFrames"], keytype=String)
     @partitioned df gdf gdf_length cols kwargs begin
+        println("At start of groupby on get_worker_idx()=$(MPI.Initialized() ? get_worker_idx() : -1)")
         gdf = DataFrames.groupby(df, cols; kwargs...)
         gdf_length = DataFrames.length(gdf)
+        println("At end of groupby on get_worker_idx()=$(MPI.Initialized() ? get_worker_idx() : -1)")
     end
 end
 
@@ -189,6 +191,7 @@ end
 function partitioned_for_combine(gdf_parent::Future, gdf::Future, res_nrows::Future, res::Future, res_groupingkeys::Base.Vector{String}, groupcols::Future, groupkwargs::Future, args::Future, kwargs::Future)
     partitioned_with(pts_for_combine, Future[gdf_parent, gdf, res_nrows, res, groupcols, groupkwargs, args, kwargs], scaled=[gdf_parent, gdf], grouped=[gdf_parent, res], keys=res_groupingkeys, drifted=true, modules=["BanyanDataFrames.DataFrames"], keytype=String)
     @partitioned gdf gdf_parent groupcols groupkwargs args kwargs res res_nrows begin
+        println("At start of combine on get_worker_idx()=$(MPI.Initialized() ? get_worker_idx() : -1)")
         if !(gdf isa DataFrames.GroupedDataFrame) || gdf.parent !== gdf_parent
             gdf = DataFrames.groupby(gdf_parent, groupcols; groupkwargs...)
         end
@@ -197,6 +200,7 @@ function partitioned_for_combine(gdf_parent::Future, gdf::Future, res_nrows::Fut
         res = DataFrames.combine(gdf, args...; kwargs...)
         set_parent(res, gdf)
         res_nrows = DataFrames.nrow(res)
+        println("At end of combine on get_worker_idx()=$(MPI.Initialized() ? get_worker_idx() : -1)")
     end
 end
 
@@ -227,11 +231,13 @@ function partitioned_for_subset(gdf_parent::Future, gdf::Future, res_nrows::Futu
     # 3x the sampled.
     partitioned_with(pts_for_combine, Future[gdf_parent, gdf, res_nrows, res, groupcols, groupkwargs, args, kwargs], scaled=[gdf_parent, gdf, res], grouped=[gdf_parent, res], keys=res_groupingkeys, drifted=true, modules=["BanyanDataFrames.DataFrames"], keytype=String)
     @partitioned gdf gdf_parent groupcols groupkwargs args kwargs res res_nrows begin
+        
         if !(gdf isa DataFrames.GroupedDataFrame) || gdf.parent !== gdf_parent
             gdf = DataFrames.groupby(gdf_parent, groupcols; groupkwargs...)
         end
         res = DataFrames.subset(gdf, args...; kwargs...)
         res_nrows = DataFrames.nrow(res)
+        
     end
 end
 

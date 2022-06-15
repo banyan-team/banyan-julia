@@ -16,7 +16,7 @@ function _remote_table_source(remotepath, shuffled, metadata_invalid, sample_inv
     # 1. A `Location` serialized to a `location_path`
     # 2. Metadata stored in an Arrow file at `meta_path`
 
-    println("At start of _remote_table_source on get_worker_idx()=$(get_worker_idx())")
+    println("At start of _remote_table_source on get_worker_idx()=$(MPI.Initialized() ? get_worker_idx() : -1)")
 
     # Get metadata if it is still valid
     curr_meta::Arrow.Table = if !curr_parameters_invalid
@@ -294,7 +294,7 @@ function _remote_table_source(remotepath, shuffled, metadata_invalid, sample_inv
         Arrow.write(is_main ? meta_path : IOBuffer(), (path=localpaths, nrows=meta_nrows), compress=:zstd)
     end
 
-    println("At end of _remote_table_source on get_worker_idx()=$(get_worker_idx())")
+    println("At end of _remote_table_source on get_worker_idx()=$(MPI.Initialized() ? get_worker_idx() : -1)")
 
     # Return LocationSource
     if is_main

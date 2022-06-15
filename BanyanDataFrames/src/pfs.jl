@@ -340,7 +340,7 @@ function ReadBlockHelper(@nospecialize(format_value))
         #         end
         #         record_time(time_key, et)
         #         push!(files_memory_usage, Banyan.format_bytes(Banyan.total_memory_usage(res)))
-        #         println("Time to read $(length(rowrange)) rows from file with $(length(filerowrange)) rows with Banyan.total_memory_usage(res)=$(files_memory_usage[end]) and filesize(path)=$(Banyan.format_bytes(filesize(path))) from path=$path on get_worker_idx(comm)=$(get_worker_idx(comm)) and batch_idx=$batch_idx = $et seconds for $(Banyan.format_bytes(round(Int64, filesize(path) / et))) per second on get_worker_idx()=$(get_worker_idx())")
+        #         println("Time to read $(length(rowrange)) rows from file with $(length(filerowrange)) rows with Banyan.total_memory_usage(res)=$(files_memory_usage[end]) and filesize(path)=$(Banyan.format_bytes(filesize(path))) from path=$path on get_worker_idx(comm)=$(get_worker_idx(comm)) and batch_idx=$batch_idx = $et seconds for $(Banyan.format_bytes(round(Int64, filesize(path) / et))) per second on get_worker_idx()=$(MPI.Initialized() ? get_worker_idx() : -1)")
         #         end
         #         res
         #     end
@@ -357,9 +357,9 @@ function ReadBlockHelper(@nospecialize(format_value))
         # function requires the schema (for example for grouping) then it must be
         # sure to take that account
         if isempty(dfs)
-            println("No dfs to read in on get_worker_idx()=$(get_worker_idx())")
+            println("No dfs to read in on get_worker_idx()=$(MPI.Initialized() ? get_worker_idx() : -1)")
         else
-            println("Time to read $loc_name so far = $(get_time(time_key)) seconds; $(length(dfs)) files read in with files_memory_usage=$files_memory_usage on get_worker_idx()=$(get_worker_idx())")
+            println("Time to read $loc_name so far = $(get_time(time_key)) seconds; $(length(dfs)) files read in with files_memory_usage=$files_memory_usage on get_worker_idx()=$(MPI.Initialized() ? get_worker_idx() : -1)")
         end
         res = if isempty(dfs)
             # When we construct the location, we store an empty data frame with The
@@ -891,7 +891,9 @@ function ConsolidateDataFrame(part::DataFrames.DataFrame, src_params::Dict{Strin
     recvvbuf = Banyan.buftovbuf(sendbuf, comm)
     # TODO: Maybe sometimes use gatherv if all sendbuf's are known to be equally sized
 
+    println("In ConsolidateDataFrame before MPI.Allgatherv! on get_worker_idx()=$(get_worker_idx())")
     MPI.Allgatherv!(sendbuf, recvvbuf, comm)
+    println("In ConsolidateDataFrame after MPI.Allgatherv! on get_worker_idx()=$(get_worker_idx())")
     res = merge_on_executor(
         [
             de(view(
@@ -930,9 +932,11 @@ function ReduceDataFrame(
     comm::MPI.Comm
 )
     # res = reduce_and_sync_across(src_params["reducing_op"], part; comm=comm)
+    println("At start of ReduceDataFrame on get_worker_idx()=$(get_worker_idx())")
     res = ConsolidateDataFrame(part, Dict{String,Any}(), Dict{String,Any}(), comm)
     res = src_params["reducing_op"](res, DataFrames.DataFrame()) 
     res_finished = src_params["finishing_op"](res)
+    println("At end of ReduceDataFrame on get_worker_idx()=$(get_worker_idx())")
     res_finished
 end
 
