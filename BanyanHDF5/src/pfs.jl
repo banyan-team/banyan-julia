@@ -280,6 +280,7 @@ function WriteHelperHDF5(
         @show whole_size whole_eltype group
         @show keys(f)
         @show f.filename
+        @show part isa Empty
         close(f)
         MPI.Barrier(comm)
         fsync_file(path)
