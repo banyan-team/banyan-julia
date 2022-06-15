@@ -581,6 +581,7 @@ function WriteHelper(@nospecialize(format_value))
 
             # Determine paths for this batch and gather # of rows
             Arrow.write(meta_path, (path=curr_localpaths, nrows=curr_nrows), compress=:zstd)
+            fsync_file(meta_path)
 
             if !is_disk && batch_idx == nbatches && total_nrows <= get_max_exact_sample_length()
                 # If the total # of rows turns out to be inexact then we can simply mark it as
