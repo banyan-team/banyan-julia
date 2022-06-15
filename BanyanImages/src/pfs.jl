@@ -1,3 +1,6 @@
+Arrow_Table_retry = retry(Arrow.Table; delays=Base.ExponentialBackOff(; n=5))
+load_retry = retry(load; delays=Base.ExponentialBackOff(; n=5))
+
 function ReadBlockImageHelper(
     src,
     params::Dict{String,Any},
@@ -20,7 +23,7 @@ function ReadBlockImageHelper(
 
     # files is either a list of file paths or a serialized tuple containing
     # information to construct a generator
-    meta_table = Arrow.Table(meta_path)
+    meta_table = Arrow_Table_retry(meta_path)
 
     # Identify the range of indices of files for the batch currently
     # being processed by this worker
@@ -33,7 +36,7 @@ function ReadBlockImageHelper(
     # TODO: Make it so that the Arrow file only contains the paths and the local paths are computed here
     for (i, f) in enumerate(files_sub)
         filepath = Banyan.getpath(f)
-        image = load(filepath)
+        image = load_retry(filepath)
         if add_channelview
             image = ImageCore.channelview(image)
             images[i, :, :, :] = image

@@ -1,3 +1,5 @@
+# TODO: Use retry logic in pfs.jl and locations.jl for BanyanHDF5 if needed
+
 function ReadBlockHelperHDF5(
     src,
     params::Dict{String,Any},
@@ -274,6 +276,7 @@ function WriteHelperHDF5(
             close(dset)
         end
         close(f)
+        MPI.Barrier(comm)
         # Not needed since we barrier at the end of each iteration of a merging
         # stage with I/O
         # MPI.Barrier(comm)
@@ -535,9 +538,7 @@ function WriteHelperHDF5(
         # TODO: Ensure that we are closing stuff everywhere before trying
         # to write
 
-        if batch_idx < nbatches
-            MPI.Barrier(comm)
-        end
+        MPI.Barrier(comm)
     end
     nothing
 end

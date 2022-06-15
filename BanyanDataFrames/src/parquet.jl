@@ -1,14 +1,17 @@
 using .Parquet
 
+Parquet_read_parquet_retry = retry(Parquet.read_parquet; delays=Base.ExponentialBackOff(; n=5))
+Parquet_File_retry = retry(Parquet.File; delays=Base.ExponentialBackOff(; n=5))
+
 # locations.jl
 
 has_separate_metadata(::Val{:parquet}) = true
-get_metadata(::Val{:parquet}, p)::Int64 = isfile(p) ? nrows(Parquet.File(p)) : 0
+get_metadata(::Val{:parquet}, p)::Int64 = isfile(p) ? nrows(Parquet_File_retry(p)) : 0
 get_sample(::Val{:parquet}, p, sample_rate, len) = let rand_indices = sample_from_range(1:len, sample_rate)
     if (sample_rate != 1.0 && isempty(rand_indices)) || !isfile(p)
         DataFrames.DataFrame()
     else
-        get_sample_from_data(DataFrames.DataFrame(Parquet.read_parquet(p; rows=1:len), copycols=false), sample_rate, rand_indices)
+        get_sample_from_data(DataFrames.DataFrame(Parquet_read_parquet_retry(p; rows=1:len), copycols=false), sample_rate, rand_indices)
     end
 end
 get_sample_and_metadata(::Val{:parquet}, p, sample_rate) = if isfile(p)
@@ -28,7 +31,7 @@ function read_file(::Val{:parquet}, path, rowrange, readrange, filerowrange, dfs
     push!(
         dfs,
         if isfile(path)
-            let f = Parquet.read_parquet(
+            let f = Parquet_read_parquet_retry(
                 path;
                 rows = (readrange.start-filerowrange.start+1):(readrange.stop-filerowrange.start+1),
             )
@@ -42,7 +45,7 @@ function read_file(::Val{:parquet}, path, rowrange, readrange, filerowrange, dfs
 end
 read_file(::Val{:parquet}, path) =
     if isfile(path)
-        let f = Parquet.read_parquet(path)
+        let f = Parquet_read_parquet_retry(path)
             DataFrames.DataFrame(f, copycols=false)
         end
     else

@@ -1,5 +1,7 @@
 using .CSV
 
+CSV_read_retry = retry(CSV.read; delays=Base.ExponentialBackOff(; n=5))
+
 # locations.jl
 
 has_separate_metadata(::Val{:csv}) = false
@@ -11,17 +13,17 @@ function get_metadata(::Val{:csv}, p)::Int64
     # num_rows
     # This should never be called because has_separate_metadata = false and we don't
     # want to unnecessarily compile CSV.Rows
-    nrow(CSV.read(p, DataFrames.DataFrame; header=1, skipto=2, footerskip=0))
+    nrow(CSV_read_retry(p, DataFrames.DataFrame; header=1, skipto=2, footerskip=0))
 end
 get_sample(::Val{:csv}, p, sample_rate, len) = let rand_indices = sample_from_range(1:len, sample_rate)
     if sample_rate != 1.0 && isempty(rand_indices)
         DataFrames.DataFrame()
     else
-        get_sample_from_data(CSV.read(p, DataFrames.DataFrame; header=1, skipto=2, footerskip=0), sample_rate, rand_indices)
+        get_sample_from_data(CSV_read_retry(p, DataFrames.DataFrame; header=1, skipto=2, footerskip=0), sample_rate, rand_indices)
     end
 end
 get_sample_and_metadata(::Val{:csv}, p, sample_rate) =
-    let sample_df = CSV.read(p, DataFrames.DataFrame; header=1, skipto=2, footerskip=0)
+    let sample_df = CSV_read_retry(p, DataFrames.DataFrame; header=1, skipto=2, footerskip=0)
         num_rows = nrow(sample_df)
         get_sample_from_data(sample_df, sample_rate, num_rows), num_rows
     end
@@ -33,7 +35,7 @@ file_ending(::Val{:csv}) = "csv"
 function read_file(::Val{:csv}, path, rowrange, readrange, filerowrange, dfs)
     push!(
         dfs,
-        CSV.read(
+        CSV_read_retry(
             path,
             DataFrames.DataFrame;
             header = 1,
@@ -43,7 +45,7 @@ function read_file(::Val{:csv}, path, rowrange, readrange, filerowrange, dfs)
         )
     )
 end
-read_file(::Val{:csv}, path) = CSV.read(path, DataFrames.DataFrame)
+read_file(::Val{:csv}, path) = CSV_read_retry(path, DataFrames.DataFrame)
 
 ReadBlockCSV = ReadBlockHelper(Val(:csv))
 ReadGroupHelperCSV = ReadGroupHelper(ReadBlockCSV, ShuffleDataFrame)

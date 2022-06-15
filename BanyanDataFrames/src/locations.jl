@@ -1,5 +1,7 @@
 get_file_ending(remotepath::String)::String = splitext(remotepath)[2][2:end]
 
+Arrow_Table_retry = retry(Arrow.Table; delays=Base.ExponentialBackOff(; n=5))
+
 function _remote_table_source(remotepath, shuffled, metadata_invalid, sample_invalid, invalidate_metadata, invalidate_sample, max_exact_sample_length)::Location
     session_sample_rate = get_session().sample_rate
     is_main = is_main_worker()
@@ -19,14 +21,7 @@ function _remote_table_source(remotepath, shuffled, metadata_invalid, sample_inv
     # Get metadata if it is still valid
     curr_meta::Arrow.Table = if !curr_parameters_invalid
         @show curr_location.src_parameters
-        try
-            Arrow.Table(curr_location.src_parameters["meta_path"]::String)
-        catch e
-            @show e
-            @show curr_location.src_parameters["meta_path"]::String
-            @show read(curr_location.src_parameters["meta_path"], String)
-            @show Arrow.Table(curr_location.src_parameters["meta_path"])
-        end
+        Arrow_Table_retry(curr_location.src_parameters["meta_path"]::String)
     else
         Arrow.Table()
     end

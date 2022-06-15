@@ -258,8 +258,9 @@ function getpaths(remotepath::Tuple)::Base.Vector{String}
     files
 end
 
-_load_image(path_on_worker::String) = load(path_on_worker)
-_load_image_and_add_channelview(path_on_worker::String) = load(path_on_worker) |> ImageCore.channelview
+load_retry = retry(load; delays=Base.ExponentialBackOff(; n=5))
+_load_image(path_on_worker::String) = load_retry(path_on_worker)
+_load_image_and_add_channelview(path_on_worker::String) = load_retry(path_on_worker) |> ImageCore.channelview
 
 # function _get_image_metadata(image)
 #     nbytes = length(image) * sizeof(eltype(image))
@@ -324,7 +325,7 @@ function _remote_image_source(
         # has definitely been created now
         get_meta_path((remotepath, add_channelview))
     end
-    meta_table = Arrow.Table(meta_path)
+    meta_table = Arrow_Table_retry(meta_path)
     nimages = Tables.rowcount(meta_table)
     
     # Read in images on each worker. We need to read in at least one image

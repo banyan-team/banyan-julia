@@ -196,7 +196,7 @@ function ReadBlockHelper(@nospecialize(format_value))
         meta_path = loc_name == "Disk" ? sync_across(is_main_worker(comm) ? get_meta_path(loc_params_path) : "", comm=comm) : loc_params["meta_path"]::String
         @show meta_path
         loc_params = loc_name == "Disk" ? (deserialize(get_location_path(loc_params_path))::Location).src_parameters : loc_params
-        meta = Arrow.Table(meta_path)
+        meta = Arrow_Table_retry(meta_path)
 
         # Handle multi-file tabular datasets
 
@@ -501,7 +501,7 @@ function WriteHelper(@nospecialize(format_value))
 
         # Read in meta path if it's there
         curr_localpaths, curr_nrows = if nbatches > 1 && batch_idx > 1
-            let curr_meta = Arrow.Table(meta_path)
+            let curr_meta = Arrow_Table_retry(meta_path)
                 (convert(Base.Vector{String}, curr_meta[:path]), convert(Base.Vector{Int64}, curr_meta[:nrows]))
             end
         else
@@ -581,7 +581,6 @@ function WriteHelper(@nospecialize(format_value))
 
             # Determine paths for this batch and gather # of rows
             Arrow.write(meta_path, (path=curr_localpaths, nrows=curr_nrows), compress=:zstd)
-            fsync_file(meta_path)
 
             if !is_disk && batch_idx == nbatches && total_nrows <= get_max_exact_sample_length()
                 # If the total # of rows turns out to be inexact then we can simply mark it as
@@ -605,7 +604,6 @@ function WriteHelper(@nospecialize(format_value))
             actual_location_path = get_location_path(loc_params_path)
             if worker_idx == 1
                 cp(meta_path, actual_meta_path, force=true)
-                fsync_file(actual_meta_path)
                 cp(location_path, actual_location_path, force=true)
             end
 
