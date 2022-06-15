@@ -50,6 +50,7 @@ function _remote_hdf5_source(path_and_subpath, shuffled, metadata_invalid, sampl
     # Open HDF5 file
     dataset_to_read_from_exists = false
     f = h5open(p, "r")
+    @show p
     @show keys(f)
     haskey(f, datasetpath) || "Expected HDF5 dataset named \"$datasetpath\" in $remotepath"
     dataset_to_read_from_exists = true

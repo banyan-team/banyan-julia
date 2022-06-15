@@ -233,6 +233,7 @@ function WriteHelperHDF5(
 
         # Open file for writing data
         f = h5open(path, "r+", comm, info)
+        @show path
 
         # Overwrite existing dataset if found
         # TODO: Return error on client side if we don't want to allow this
@@ -310,6 +311,7 @@ function WriteHelperHDF5(
         # TODO: Maybe pass in values for fapl_mpi and
         # dxpl_mpio = HDF5.H5FD_MPIO_COLLECTIVE,
         f = h5open(path, "r+", comm, info)
+        @show path
         # Allocate all datasets needed by gathering all sizes to the head
         # node and making calls from there
         part_sizes = MPI.Allgather(

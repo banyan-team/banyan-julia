@@ -239,7 +239,7 @@ end
                 "s3://$(bucket)/iris_large.parquet",
                 "s3://$(bucket)/iris_large.arrow",
             ]
-                for f in [(x -> mean(x))]#[mean, (x -> mean(x))]
+                for f in [mean]#[mean, (x -> mean(x))]
                     df = read_file(path)
 
                     # Assert that exception gets thrown for parameters that aren't supported
