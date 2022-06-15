@@ -147,6 +147,9 @@ ReadGroupHelper(ReadBlockFunc, ShuffleFunc) = begin
             end
         end
 
+        # TODO: Call ReadBlockFunc with nbatches=1 and pass in a function that will
+        # be applied to each data frame read in to filter it.
+
         # Read in each batch and shuffle it to get the data for this partition
         parts = []
         for i = 1:nbatches
@@ -167,7 +170,7 @@ ReadGroupHelper(ReadBlockFunc, ShuffleFunc) = begin
             if !(part isa Empty)
                 if isempty(parts)
                     parts = typeof(part)[part]
-                else
+                elseWe 
                     push!(parts, part)
                 end
             end
@@ -429,7 +432,7 @@ CopyFromJulia(
     loc_params,
 ) = begin
     path = getpath(loc_params["path"]::String)
-    isfile(path) ? deserialize(path) : nothing
+    isfile(path) ? deserialize_retry(path) : nothing
 end
 
 function CopyTo(

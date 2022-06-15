@@ -312,7 +312,7 @@ end
 _invalidate_metadata(remotepath) =
     let p = get_location_path(remotepath)
         if isfile(p)
-            loc = deserialize(p)
+            loc = deserialize_retry(p)
             loc.parameters_invalid = true
             serialize(p, loc)
         end
@@ -320,7 +320,7 @@ _invalidate_metadata(remotepath) =
 _invalidate_sample(remotepath) =
     let p = get_location_path(remotepath)
         if isfile(p)
-            loc = deserialize(p)
+            loc = deserialize_retry(p)
             loc.sample_invalid = true
             serialize(p, loc)
         end
@@ -359,7 +359,7 @@ function get_cached_location(remotepath, metadata_invalid, sample_invalid)
     session_s3_bucket_name = get_cluster_s3_bucket_name()
     location_path = "s3/$session_s3_bucket_name/banyan_locations/$remotepath_id"
 
-    curr_location::Location = isfile(location_path) ? deserialize(location_path) : INVALID_LOCATION
+    curr_location::Location = isfile(location_path) ? deserialize_retry(location_path) : INVALID_LOCATION
     curr_location.sample_invalid = curr_location.sample_invalid || sample_invalid
     curr_location.parameters_invalid = curr_location.parameters_invalid || metadata_invalid
     curr_sample_invalid = curr_location.sample_invalid
@@ -396,7 +396,7 @@ function sample_from_range(r, sample_rate)
 end
 
 has_separate_metadata(::Val{:jl}) = false
-get_metadata(::Val{:jl}, p) = size(deserialize(p), 1)
+get_metadata(::Val{:jl}, p) = size(deserialize_retry(p), 1)
 get_sample_from_data(data, sample_rate, len::Int64) =
     get_sample_from_data(data, sample_rate, sample_from_range(1:len, sample_rate))
 function get_sample_from_data(data, sample_rate, rand_indices::Vector{Int64})
@@ -409,10 +409,10 @@ function get_sample_from_data(data, sample_rate, rand_indices::Vector{Int64})
     data[data_selector...]
 end
 function get_sample(::Val{:jl}, p, sample_rate, len)
-    data = deserialize(p)
+    data = deserialize_retry(p)
     get_sample_from_data(data, sample_rate, len)
 end
 function get_sample_and_metadata(::Val{:jl}, p, sample_rate)
-    data = deserialize(p)
+    data = deserialize_retry(p)
     get_sample_from_data(data, sample_rate, size(data, 1)), size(data, 1)
 end

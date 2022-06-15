@@ -1,5 +1,5 @@
 function read_julia_array_file(path::String, readrange::UnitRange{Int64}, filerowrange::UnitRange{Int64}, dim::Int64)
-    let arr = deserialize(path)
+    let arr = Banyan.deserialize_retry(path)
         dim_selector::Base.Vector{Union{UnitRange{Int64},Colon}} = Union{UnitRange{Int64},Colon}[]
         for i in 1:ndims(arr)
             if i == dim
@@ -71,7 +71,7 @@ function ReadBlockHelperJuliaArray(
     nrows::Int64 = if partitioned_on_dim
         nrows
     else
-        metadata = deserialize(
+        metadata = Banyan.deserialize_retry(
             joinpath(name_path, "_metadata")
         )
         metadata["sample_size"][dim_partitioning]
@@ -121,7 +121,7 @@ function ReadBlockHelperJuliaArray(
     # sure to take that account
     res = if isempty(dfs)
         if isnothing(metadata)
-            metadata = deserialize(
+            metadata = Banyan.deserialize_retry(
                 joinpath(name_path, "_metadata")
             )
         end

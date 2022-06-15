@@ -600,3 +600,5 @@ fsync_file(p) =
         # TODO: Maybe use MPI I/O method for fsync instead
         ccall(:fsync, Cint, (Cint,), fd(f))
     end
+
+deserialize_retry = retry(deserialize; delays=Base.ExponentialBackOff(; n=3))

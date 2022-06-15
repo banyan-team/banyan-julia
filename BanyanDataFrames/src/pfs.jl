@@ -195,7 +195,7 @@ function ReadBlockHelper(@nospecialize(format_value))
         @show loc_params
         meta_path = loc_name == "Disk" ? sync_across(is_main_worker(comm) ? get_meta_path(loc_params_path) : "", comm=comm) : loc_params["meta_path"]::String
         @show meta_path
-        loc_params = loc_name == "Disk" ? (deserialize(get_location_path(loc_params_path))::Location).src_parameters : loc_params
+        loc_params = loc_name == "Disk" ? (Banyan.deserialize_retry(get_location_path(loc_params_path))::Location).src_parameters : loc_params
         meta = Arrow_Table_retry(meta_path)
 
         # Handle multi-file tabular datasets
@@ -511,7 +511,7 @@ function WriteHelper(@nospecialize(format_value))
         # Read in the current location if it's there
         empty_df = DataFrames.DataFrame()
         curr_location::Location = if nbatches > 1 && batch_idx > 1
-            deserialize(location_path)
+            Banyan.deserialize_retry(location_path)
         else
             LocationSource(
                 "Remote",
