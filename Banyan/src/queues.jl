@@ -23,7 +23,6 @@ get_execution_queue()::Dict{Symbol,Any} =
 
 function sqs_receive_message_with_long_polling(queue)
     r = AWSSQS.sqs(queue, "ReceiveMessage", MaxNumberOfMessages = "1")
-    @show r
     r = r["messages"]
 
     if isnothing(r)
@@ -49,9 +48,7 @@ function get_next_message(
     error_for_main_stuck::Union{Nothing,String} = nothing,
     error_for_main_stuck_time::Union{Nothing,DateTime} = nothing
 )::Tuple{String,Union{Nothing,String}}
-    @show sqs_get_queue_attributes(queue)
-    sleep(60)
-    @show sqs_get_queue_attributes(queue)
+error_for_main_stuck = check_worker_stuck(error_for_main_stuck, error_for_main_stuck_time)
     m = sqs_receive_message_with_long_polling(queue)
     i = 1
     j = 1
@@ -78,7 +75,6 @@ function receive_next_message(
     error_for_main_stuck_time=nothing
 )::Tuple{Dict{String,Any},Union{Nothing,String}}
     content::String, error_for_main_stuck::Union{Nothing,String} = get_next_message(queue_name, p; error_for_main_stuck=error_for_main_stuck, error_for_main_stuck_time=error_for_main_stuck_time)
-    @show content error_for_main_stuck
     res::Dict{String,Any} = if startswith(content, "JOB_READY") || startswith(content, "SESSION_READY")
         Dict{String,Any}(
             "kind" => "SESSION_READY"
@@ -174,7 +170,6 @@ function send_to_client(value_id::ValueId, value, worker_memory_used = 0)
             "worker_memory_used" => worker_memory_used,
             "gather_page_idx" => i
         )
-        @show msg
         send_message(
             get_gather_queue(),
             JSON.json(

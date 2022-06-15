@@ -191,20 +191,19 @@ end
 function partitioned_for_combine(gdf_parent::Future, gdf::Future, res_nrows::Future, res::Future, res_groupingkeys::Base.Vector{String}, groupcols::Future, groupkwargs::Future, args::Future, kwargs::Future)
     partitioned_with(pts_for_combine, Future[gdf_parent, gdf, res_nrows, res, groupcols, groupkwargs, args, kwargs], scaled=[gdf_parent, gdf], grouped=[gdf_parent, res], keys=res_groupingkeys, drifted=true, modules=["BanyanDataFrames.DataFrames"], keytype=String)
     @partitioned gdf gdf_parent groupcols groupkwargs args kwargs res res_nrows begin
-        println("At start of combine on get_worker_idx()=$(MPI.Initialized() ? get_worker_idx() : -1)")
-        if MPI.Initialized() && get_worker_idx() == 30
-            error("hello")
+        if isempty(gdf_parent)
+            # This is needed because `combine` will fail for empty data with
+            # no groups when you have reducing operations like `minimum` that
+            # don't have an `init` specified.
+            res = DataFrames.DataFrame()
+        else
+            if !(gdf isa DataFrames.GroupedDataFrame) || gdf.parent !== gdf_parent
+                gdf = DataFrames.groupby(gdf_parent, groupcols; groupkwargs...)
+            end
+            res = DataFrames.combine(gdf, args...; kwargs...)
+            set_parent(res, gdf)
         end
-        if !(gdf isa DataFrames.GroupedDataFrame) || gdf.parent !== gdf_parent
-            gdf = DataFrames.groupby(gdf_parent, groupcols; groupkwargs...)
-        end
-        @show gdf_parent gdf args kwargs
-        # TODO: Store pointer from res to gdf in global array
-        # TODO: Make there be a starting_function that 
-        res = DataFrames.combine(gdf, args...; kwargs...)
-        set_parent(res, gdf)
         res_nrows = DataFrames.nrow(res)
-        println("At end of combine on get_worker_idx()=$(MPI.Initialized() ? get_worker_idx() : -1) with res=$res")
     end
 end
 

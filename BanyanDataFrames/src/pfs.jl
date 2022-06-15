@@ -959,7 +959,6 @@ function ReduceAndCopyToArrow(
     # Get the # of rows of each group if this is a group-by-mean that is being reduced
     et = @elapsed begin
     if loc_name == "Memory"
-        @show part
         part = start_op(part)
     end
 
@@ -986,7 +985,6 @@ function ReduceAndCopyToArrow(
         src = reduce_op(src, DataFrames.DataFrame())
 
         if get_nworkers(comm) > 1
-            @show src
             src = ConsolidateDataFrame(src, Dict{String,Any}(), Dict{String,Any}(), comm)
             src = reduce_op(src, DataFrames.DataFrame())
             # NOTE: We use the above to eliminate the compilation overhead of creating
@@ -1005,8 +1003,6 @@ function ReduceAndCopyToArrow(
     end
     end
     record_time(:reduction, et)
-
-    @show src
     
     src
 end
