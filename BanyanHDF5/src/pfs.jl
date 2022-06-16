@@ -266,7 +266,14 @@ function WriteHelperHDF5(
         @show some_size
 
         # Open file for writing data
-        f = h5open(path, "r+", comm, info)
+        f = h5open(
+            path,
+            "r+",
+            # comm,
+            # info,
+            fapl_mpio = (comm, info),
+            dxpl_mpio = HDF5.H5FD_MPIO_COLLECTIVE,
+        )
         @show path
         
         # whole_eltype = MPI.bcast(whole_eltype, nworkers - 1, comm)
