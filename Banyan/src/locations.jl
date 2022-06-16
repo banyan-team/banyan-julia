@@ -338,23 +338,26 @@ invalidate_sample(p) = offloaded(_invalidate_sample, p)
 get_remotepath_id(remotepath::String) =
     (get_julia_version(), (remotepath |> splitpath |> joinpath)) |> hash
 get_remotepath_id(remotepath) = (get_julia_version(), remotepath) |> hash
-function get_location_path(remotepath)
+function get_location_path(remotepath, remotepath_id)
     session_s3_bucket_name = get_cluster_s3_bucket_name()
     if !isdir("s3/$session_s3_bucket_name/banyan_locations/")
         mkdir("s3/$session_s3_bucket_name/banyan_locations/")
     end
-    "s3/$session_s3_bucket_name/banyan_locations/$(get_remotepath_id(remotepath))"
+    "s3/$session_s3_bucket_name/banyan_locations/$(remotepath_id)"
 end
-function get_meta_path(remotepath)
+function get_meta_path(remotepath, remotepath_id)
     session_s3_bucket_name = get_cluster_s3_bucket_name()
     if !isdir("s3/$session_s3_bucket_name/banyan_meta/")
         mkdir("s3/$session_s3_bucket_name/banyan_meta/")
     end
-    "s3/$session_s3_bucket_name/banyan_meta/$(get_remotepath_id(remotepath))"
+    "s3/$session_s3_bucket_name/banyan_meta/$remotepath_id"
 end
+get_location_path(remotepath) =
+    get_location_path(remotepath, get_remotepath_id(remotepath))
+get_meta_path(remotepath) =
+    get_meta_path(remotepath, get_remotepath_id(remotepath))
 
-function get_cached_location(remotepath, metadata_invalid, sample_invalid)
-    remotepath_id = get_remotepath_id(remotepath)
+function get_cached_location(remotepath, remotepath_id, metadata_invalid, sample_invalid)
     Random.seed!(hash((get_session_id(), remotepath_id)))
     println("On get_worker_idx()=$(get_worker_idx()) in get_cached_location with (get_session_id(), remotepath_id)=$((get_session_id(), remotepath_id))")
     session_s3_bucket_name = get_cluster_s3_bucket_name()
@@ -372,13 +375,18 @@ function get_cached_location(remotepath, metadata_invalid, sample_invalid)
     curr_location, curr_sample_invalid, curr_parameters_invalid
 end
 
-function cache_location(remotepath, location_res::Location, invalidate_sample, invalidate_metadata)
-    location_path = get_location_path(remotepath)
+get_cached_location(remotepath, metadata_invalid, sample_invalid) =
+    get_cached_location(remotepath, get_remotepath_id(remotepath), metadata_invalid, sample_invalid)
+
+function cache_location(remotepath, remotepath_id, location_res::Location, invalidate_sample, invalidate_metadata)
+    location_path = get_location_path(remotepath, remotepath_id)
     location_to_write = deepcopy(location_res)
     location_to_write.sample_invalid = location_to_write.sample_invalid || invalidate_sample
     location_to_write.parameters_invalid = location_to_write.parameters_invalid || invalidate_metadata
     serialize(location_path, location_to_write)
 end
+cache_location(remotepath, location_res::Location, invalidate_sample, invalidate_metadata) =
+    cache_location(remotepath, get_remotepath_id(remotepath), location_res, invalidate_sample, invalidate_metadata)
 
 # Functions to be extended for different data formats
 

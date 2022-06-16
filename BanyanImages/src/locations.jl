@@ -274,6 +274,7 @@ _reshape_image(image) = reshape(image, (1, size(image)...))
 
 function _remote_image_source(
     remotepath,
+    remotepath_id,
     metadata_invalid,
     sample_invalid,
     invalidate_metadata,
@@ -287,7 +288,7 @@ function _remote_image_source(
 
     # Get current location
     println("Before get_cached_location on get_worker_idx()=$(get_worker_idx()) with remotepath=$remotepath")
-    curr_location, curr_sample_invalid, curr_parameters_invalid = get_cached_location((remotepath, add_channelview), metadata_invalid, sample_invalid)
+    curr_location, curr_sample_invalid, curr_parameters_invalid = get_cached_location((remotepath, add_channelview), remotepath_id, metadata_invalid, sample_invalid)
     @show curr_location curr_sample_invalid curr_parameters_invalid
     if !curr_parameters_invalid && !curr_sample_invalid
         return curr_location
@@ -306,7 +307,7 @@ function _remote_image_source(
     meta_path = if !curr_parameters_invalid
         curr_location.src_parameters["meta_path"]::String
     else
-        is_main ? get_meta_path((remotepath, add_channelview)) : ""
+        is_main ? get_meta_path((remotepath, add_channelview), remotepath_id) : ""
     end
     println("After getting meta_path=$meta_path on get_worker_idx()=$(get_worker_idx())")
     if is_main && curr_parameters_invalid
@@ -386,7 +387,7 @@ function _remote_image_source(
             nbytes_res,
             remote_sample,
         )
-        cache_location(remotepath, location_res, invalidate_sample, invalidate_metadata)
+        cache_location(remotepath, remotepath_id, location_res, invalidate_sample, invalidate_metadata)
         location_res
     else
         INVALID_LOCATION
@@ -397,6 +398,7 @@ function RemoteImageSource(remotepath; metadata_invalid = false, sample_invalid 
     offloaded(
         _remote_image_source,
         remotepath,
+        Banyan.get_remotepath_id(remotepath),
         metadata_invalid,
         sample_invalid,
         invalidate_metadata,
