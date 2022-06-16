@@ -313,15 +313,10 @@ function _remote_image_source(
         localpaths::Base.Vector{String} = getpaths(remotepath)
         Arrow.write(meta_path, (path=localpaths,))
     end
-    sync_across()
+    meta_path, remotepath = sync_across((meta_path, remotepath))
     println("After sync_across with meta_path=$meta_path on get_worker_idx()=$(get_worker_idx())")
 
     # Load in the metadata and get the # of images
-    if curr_parameters_invalid
-        # Now the banyan_metadata directory has surely been created so we can
-        # get_meta_path on all workers.
-        meta_path = get_meta_path((remotepath, add_channelview))
-    end
     println("Before loading $meta_path given remotepath=$remotepath and add_channelview=$add_channelview on get_worker_idx()=$(get_worker_idx())")
     meta_table = Arrow_Table_retry(meta_path)
     println("Loaded table on get_worker_idx()=$(get_worker_idx())")
