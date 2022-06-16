@@ -219,38 +219,7 @@ function WriteHelperHDF5(
         offset = MPI.Exscan(part isa Empty ? 0 : size(part, dim), +, comm)
         offset = worker_idx == 1 ? 0 : offset
 
-        # Create file if not yet created
-        # TODO: Figure out why sometimes a deleted file still `isfile`
-        @show offset
-        # path_isfile = sync_across(isfile(path); comm=comm)
-        if is_main && !isfile(path)
-            println("Before writing file")
-            f = h5open(
-                path,
-                "w"
-                # fapl_mpio = (comm, info),
-                # dxpl_mpio = HDF5.H5FD_MPIO_COLLECTIVE,
-            )
-            println("Wrote file")
-            close(f)
-            println("Closed file")
-        end
-
-        MPI.Barrier(comm)
-        @show some_size
-
-        # Open file for writing data
-        f = h5open(path, "r+", comm, info)
-        @show path
-
-        # Overwrite existing dataset if found
-        # TODO: Return error on client side if we don't want to allow this
-        if force_overwrite && haskey(f, group)
-            delete_object(f[group])
-        end
-
         # Get size of total dataset
-
         whole_size = if worker_idx == nworkers
             Banyan.indexapply(
                 offset + (part isa Empty ? 0 : size(part, dim)),
@@ -261,10 +230,46 @@ function WriteHelperHDF5(
             (0,)
         end
         whole_size = MPI.bcast(whole_size, nworkers - 1, comm) # Broadcast dataset size to all workers
+
+        # Create file if not yet created
+        # TODO: Figure out why sometimes a deleted file still `isfile`
+        @show offset
+        # path_isfile = sync_across(isfile(path); comm=comm)
+        if is_main
+            f = if isfile(path)
+                println("Before writing file")
+                h5open(
+                    path,
+                    "w"
+                    # fapl_mpio = (comm, info),
+                    # dxpl_mpio = HDF5.H5FD_MPIO_COLLECTIVE,
+                )
+            elseif force_overwrite
+                # Overwrite existing dataset if found
+                # TODO: Return error on client side if we don't want to allow this
+                f_res = h5open(path, "r+")
+                if haskey(f_res, group)
+                    delete_object(f_res[group])
+                end
+                f_res
+            end
+
+            dset = create_dataset(f, group, whole_eltype, (whole_size, whole_size))
+
+            close(f)
+        end
+
+        MPI.Barrier(comm)
+        @show some_size
+
+        # Open file for writing data
+        f = h5open(path, "r+", comm, info)
+        @show path
+        
         # whole_eltype = MPI.bcast(whole_eltype, nworkers - 1, comm)
 
         # Create dataset
-        dset = create_dataset(f, group, whole_eltype, (whole_size, whole_size))
+        dset = f[group]
 
         # Write out each partition
         if !(part isa Empty)
