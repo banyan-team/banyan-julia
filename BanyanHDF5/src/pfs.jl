@@ -217,7 +217,7 @@ function WriteHelperHDF5(
 
     # Write out to an HDF5 dataset differently depending on whether there
     # are multiple batches per worker or just one per worker
-    dim_selector::Base.Vector{Union{UnitRange{Int64},Colon}} = Union{UnitRange{Int64},Colon}[]
+    dim_selector::Base.Vector{Union{UnitRange{Int64},Colon,Int64}} = Union{UnitRange{Int64},Colon,Int64}[]
     if nbatches == 1
         # Get some size and some eltype
         size_and_eltype = part isa Empty ? ((0,), Any) : (size(part), eltype(part))
