@@ -283,8 +283,8 @@ function WriteHelperHDF5(
             h5open(
                 path,
                 "w",
-                comm,
-                info,
+                MPI.COMM_WORLD,
+                MPI.Info(),
                 # fapl_mpio = (comm, info),
                 # dxpl_mpio = HDF5.H5FD_MPIO_COLLECTIVE,
             )
