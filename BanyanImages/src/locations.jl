@@ -314,7 +314,7 @@ function _remote_image_source(
         localpaths::Base.Vector{String} = getpaths(remotepath)
         Arrow.write(meta_path, (path=localpaths,))
     end
-    meta_path, remotepath = sync_across((meta_path, remotepath))
+    meta_path = sync_across(meta_path)
     println("After sync_across with meta_path=$meta_path on get_worker_idx()=$(get_worker_idx())")
 
     # Load in the metadata and get the # of images

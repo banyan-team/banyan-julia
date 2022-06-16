@@ -143,7 +143,6 @@ end
 
 function send_message(queue_name, message)
     generated_message_id = generate_message_id()
-    @show message
     sqs_send_message(
         queue_name,
         message,
