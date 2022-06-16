@@ -248,56 +248,81 @@ function WriteHelperHDF5(
         # TODO: Figure out why sometimes a deleted file still `isfile`
         @show offset
         # path_isfile = sync_across(isfile(path); comm=comm)
-        if is_main
-            @show HDF5.ishdf5(path)
-            @show isfile(path)
-            @show path
-            f = if !isfile(path) || !HDF5.ishdf5(path)
-                println("Before writing file")
-                h5open(
-                    path,
-                    "w"
-                    # fapl_mpio = (comm, info),
-                    # dxpl_mpio = HDF5.H5FD_MPIO_COLLECTIVE,
-                )
-            elseif force_overwrite
-                # Overwrite existing dataset if found
-                # TODO: Return error on client side if we don't want to allow this
-                f_res = h5open(path, "r+")
-                if haskey(f_res, group)
-                    delete_object(f_res[group])
-                end
-                f_res
+        # if is_main
+        #     @show HDF5.ishdf5(path)
+        #     @show isfile(path)
+        #     @show path
+        #     f = if !isfile(path) || !HDF5.ishdf5(path)
+        #         println("Before writing file")
+        #         h5open(
+        #             path,
+        #             "w"
+        #             # fapl_mpio = (comm, info),
+        #             # dxpl_mpio = HDF5.H5FD_MPIO_COLLECTIVE,
+        #         )
+        #     elseif force_overwrite
+        #         # Overwrite existing dataset if found
+        #         # TODO: Return error on client side if we don't want to allow this
+        #         f_res = h5open(path, "r+")
+        #         if haskey(f_res, group)
+        #             delete_object(f_res[group])
+        #         end
+        #         f_res
+        #     end
+
+        #     dset = create_dataset(f, group, whole_eltype, (whole_size, whole_size))
+
+        #     close(f)
+        # end
+
+        f = if !isfile(path) || !HDF5.ishdf5(path)
+            h5open(
+                path,
+                "w",
+                comm,
+                info,
+                # fapl_mpio = (comm, info),
+                # dxpl_mpio = HDF5.H5FD_MPIO_COLLECTIVE,
+            )
+        elseif force_overwrite
+            # Overwrite existing dataset if found
+            # TODO: Return error on client side if we don't want to allow this
+            f_res = h5open(path, "r+", comm, info)
+            if haskey(f_res, group)
+                delete_object(f_res[group])
             end
-
-            dset = create_dataset(f, group, whole_eltype, (whole_size, whole_size))
-
-            close(f)
+            f_res
         end
+
+        dset = create_dataset(f, group, whole_eltype, (whole_size, whole_size))
 
         MPI.Barrier(comm)
         @show some_size
 
+        @show HDF5.Drivers.DRIVERS
+        @show info
+
         # Open file for writing data
         driver = HDF5.Drivers.MPIO(comm, info)
-        f = h5open(
-            path,
-            "r+",
-            comm,
-            info,
-            # driver.comm,
-            # driver.info,
-            # fapl_mpio = (comm, info),
-            # dxpl_mpio = :collective # HDF5.H5FD_MPIO_COLLECTIVE,
-            fclose_degree = :strong
-        )
+        @show 
+        # f = h5open(
+        #     path,
+        #     "r+",
+        #     comm,
+        #     info,
+        #     # driver.comm,
+        #     # driver.info,
+        #     # fapl_mpio = (comm, info),
+        #     # dxpl_mpio = :collective # HDF5.H5FD_MPIO_COLLECTIVE,
+        #     fclose_degree = :strong
+        # )
         @show path
         @show isopen(f)
         
         # whole_eltype = MPI.bcast(whole_eltype, nworkers - 1, comm)
 
-        # Create dataset
-        dset = f[group]
+        # # Create dataset
+        # dset = f[group]
 
         # Write out each partition
         if !(part isa Empty)
