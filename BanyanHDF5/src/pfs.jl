@@ -300,7 +300,7 @@ function WriteHelperHDF5(
 
         # Write out each partition
         if !(part isa Empty)
-            dim_selector = []
+            dim_selector = Union{Colon, UnitRange{Int64}, Int64}[]
             dim_selector_isempty = false
             for d = 1:ndims(dset)
                 if d == dim
