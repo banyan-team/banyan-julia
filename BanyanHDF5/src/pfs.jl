@@ -29,7 +29,7 @@ function ReadBlockHelperHDF5(
     end
        
     info = MPI.Info()
-    f = h5open(path, "r", comm, info)
+    f = h5open(path, "r")
     if Banyan.INVESTIGATING_PARALLEL_HDF5
         println("In ReadBlockHDF5 after h5open")
     end

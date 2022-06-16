@@ -58,7 +58,7 @@ function _remote_hdf5_source(path_and_subpath, shuffled, metadata_invalid, sampl
 
     # Open HDF5 file
     dataset_to_read_from_exists = false
-    f = h5open(p, "r", MPI.COMM_WORLD, MPI.Info())
+    f = h5open(p, "r")
     @show p
     @show keys(f)
     @show haskey(f, datasetpath)
