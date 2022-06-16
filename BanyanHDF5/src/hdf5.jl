@@ -8,7 +8,7 @@ function read_hdf5(path; kwargs...)
     BanyanArrays.Array{A_loc_eltype,A_loc_ndims}(A, Future(A_loc_size))
 end
 
-write_hdf5(A::BanyanArrays.Array, path::String) =
+Banyan.write_hdf5(A::BanyanArrays.Array, path::String) =
     partitioned_computation(
         BanyanArrays.pts_for_blocked_and_replicated,
         A,

@@ -8,7 +8,7 @@ using Banyan,
     Serialization
 
 # The main functions
-export read_hdf5, write_hdf5
+export read_hdf5
 
 # Partitioning functions for splitting from and merging into HDF5 datasets
 export ReadBlockHDF5,

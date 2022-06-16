@@ -70,7 +70,8 @@ end
         x = map(e -> e * 10, x)
 
         steps = if startswith(path, "s3://")
-            [1,3]
+            # We don't currently support writing
+            1:1
         else
             # It's fine to ignore steps 2 and 3 b/c there's no reason I
             # can think of for why reading from Internet and then writing
@@ -85,12 +86,12 @@ end
                 # Test writing to and reading from dataset in group in
                 # group in same file
                 copied_path = joinpath(path, "copies", "DS2")
-                write_hdf5(x, copied_path)
+                Banyan.write_hdf5(x, copied_path)
                 x = read_hdf5(copied_path)
             elseif step == 3
                 # Test writing to different file and then reading from it
                 copied_path = path[1:end-3] * "_copy.h5/DS1"
-                write_hdf5(x, copied_path)
+                Banyan.write_hdf5(x, copied_path)
                 x = read_hdf5(copied_path)
             end
 
@@ -142,12 +143,12 @@ end
         #                 # Test writing to and reading from dataset in group in
         #                 # group in same file
         #                 copied_path = joinpath(path, "copies", "DS2")
-        #                 write_hdf5(x, copied_path)
+        #                 Banyan.write_hdf5(x, copied_path)
         #                 x = read_hdf5(copied_path)
         #             elseif step == 3
         #                 # Test writing to different file and then reading from it
         #                 copied_path = path[1:end-3] * "_copy.h5/DS1"
-        #                 write_hdf5(x, copied_path)
+        #                 Banyan.write_hdf5(x, copied_path)
         #                 x = read_hdf5(copied_path)
         #             end
 
