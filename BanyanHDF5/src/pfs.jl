@@ -316,6 +316,7 @@ function WriteHelperHDF5(
         end
         # Close file
         close(dset)
+        @show sum(f[group][:,:])
         @show whole_size whole_eltype group
         @show keys(f)
         @show f.filename
