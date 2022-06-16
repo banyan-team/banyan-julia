@@ -202,16 +202,18 @@ function WriteHelperHDF5(
 
     info = MPI.Info()
 
-    let fileprop = HDF5.FileAccessProperties()
-        fileprop.driver = HDF5.Drivers.MPIO(comm, info)
-        driver = fileprop.driver
-        h5comm = driver.comm
-        h5info = driver.info
-        @show fileprop
-        @show driver
-        @show h5comm
-        @show h5info
-    end
+    # let fileprop = HDF5.FileAccessProperties()
+    #     fileprop.driver = HDF5.Drivers.MPIO(comm, info)
+    #     driver = fileprop.driver
+    #     h5comm = driver.comm
+    #     h5info = driver.info
+    #     @show fileprop
+    #     @show driver
+    #     @show h5comm
+    #     @show h5info
+    # end
+
+    @show HDF5.Drivers.DRIVERS
 
     # Write out to an HDF5 dataset differently depending on whether there
     # are multiple batches per worker or just one per worker
@@ -283,7 +285,7 @@ function WriteHelperHDF5(
             # comm,
             # info,
             fapl_mpio = (comm, info),
-            dxpl_mpio = HDF5.H5FD_MPIO_COLLECTIVE,
+            dxpl_mpio = :collective # HDF5.H5FD_MPIO_COLLECTIVE,
         )
         @show path
         
