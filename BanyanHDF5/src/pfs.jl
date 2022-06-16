@@ -279,11 +279,12 @@ function WriteHelperHDF5(
         @show some_size
 
         # Open file for writing data
+        driver = HDF5.Drivers.MPIO(comm, info)
         f = h5open(
             path,
             "r+",
-            comm,
-            info,
+            driver.comm,
+            driver.info,
             # fapl_mpio = (comm, info),
             # dxpl_mpio = :collective # HDF5.H5FD_MPIO_COLLECTIVE,
         )
@@ -324,6 +325,8 @@ function WriteHelperHDF5(
         close(f)
         MPI.Barrier(comm)
         fsync_file(path)
+        MPI.Barrier(comm)
+        HDF5.API.h5_close()
         MPI.Barrier(comm)
         f = h5open(
             path,
