@@ -279,6 +279,7 @@ function WriteHelperHDF5(
         @show path group
         @show HDF5.Drivers.DRIVERS
         @show info
+        @show get_worker_idx()
         f = if !isfile(path) || !HDF5.ishdf5(path)
             h5open(
                 path,
