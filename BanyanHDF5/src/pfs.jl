@@ -283,12 +283,15 @@ function WriteHelperHDF5(
         f = h5open(
             path,
             "r+",
-            driver.comm,
-            driver.info,
+            comm,
+            info,
+            # driver.comm,
+            # driver.info,
             # fapl_mpio = (comm, info),
             # dxpl_mpio = :collective # HDF5.H5FD_MPIO_COLLECTIVE,
         )
         @show path
+        @show isopen(f)
         
         # whole_eltype = MPI.bcast(whole_eltype, nworkers - 1, comm)
 
@@ -335,6 +338,7 @@ function WriteHelperHDF5(
             info,
         )
         @show sum(f[group][:,:])
+        @show h5read(f, group, (:, :), driver=HDF5.Drivers.MPIO(comm, info), dxpl_mpio=:collective)
         close(f)
         MPI.Barrier(comm)
         # Not needed since we barrier at the end of each iteration of a merging
