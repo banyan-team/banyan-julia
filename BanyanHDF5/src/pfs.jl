@@ -305,9 +305,12 @@ function WriteHelperHDF5(
             for d = 1:ndims(dset)
                 if d == dim
                     r = (offset+1):(offset+size(part, dim))
+                    @show r
                     push!(dim_selector, (length(r) == 1) ? r.start : r)
                     if isempty(r)
                         dim_selector_isempty = true
+                    else
+                        error()
                     end
                 else
                     push!(dim_selector, Colon())
