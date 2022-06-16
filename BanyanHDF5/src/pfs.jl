@@ -331,6 +331,7 @@ function WriteHelperHDF5(
         # MPI.Barrier(MPI.COMM_WORLD)
         HDF5.API.h5_close()
         MPI.Barrier(MPI.COMM_WORLD)
+        sleep(30)
         f = h5open(
             path,
             "r+",
