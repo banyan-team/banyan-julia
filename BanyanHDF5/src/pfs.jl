@@ -282,10 +282,10 @@ function WriteHelperHDF5(
         f = h5open(
             path,
             "r+",
-            # comm,
-            # info,
-            fapl_mpio = (comm, info),
-            dxpl_mpio = :collective # HDF5.H5FD_MPIO_COLLECTIVE,
+            comm,
+            info,
+            # fapl_mpio = (comm, info),
+            # dxpl_mpio = :collective # HDF5.H5FD_MPIO_COLLECTIVE,
         )
         @show path
         
