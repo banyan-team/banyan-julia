@@ -319,19 +319,21 @@ function WriteHelperHDF5(
             )
         end
         # Close file
-        # close(dset)
+        close(dset)
         # @show sum(f[group][:,:])
         # @show whole_size whole_eltype group
         # @show keys(f)
         # @show f.filename
         # @show part isa Empty
-        # close(f)
-        # MPI.Barrier(MPI.COMM_WORLD)
+        MPI.Barrier(MPI.COMM_WORLD)
+        close(f)
+        MPI.Barrier(MPI.COMM_WORLD)
         # fsync_file(path)
         # MPI.Barrier(MPI.COMM_WORLD)
         HDF5.API.h5_close()
         MPI.Barrier(MPI.COMM_WORLD)
         sleep(30)
+        MPI.Barrier(MPI.COMM_WORLD)
         f = h5open(
             path,
             "r+",
