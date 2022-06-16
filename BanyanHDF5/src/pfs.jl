@@ -313,8 +313,9 @@ function WriteHelperHDF5(
                 end
             end
             @show dim_selector
-            @show size(part)
-            @show sum(part)
+            # @show size(part)
+            # @show sum(part)
+            @show part
             if !dim_selector_isempty
                 setindex!(
                     dset,
