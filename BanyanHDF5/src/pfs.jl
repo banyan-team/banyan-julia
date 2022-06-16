@@ -301,9 +301,14 @@ function WriteHelperHDF5(
         # Write out each partition
         if !(part isa Empty)
             dim_selector = []
+            dim_selector_isempty = true
             for d = 1:ndims(dset)
                 if d == dim
-                    push!(dim_selector, (offset+1):(offset+size(part, dim)))
+                    r = (offset+1):(offset+size(part, dim))
+                    push!(dim_selector, (length(r) == 1) ? r.start : r)
+                    if isempty(r)
+                        dim_selector_isempty = true
+                    end
                 else
                     push!(dim_selector, Colon())
                 end
@@ -311,12 +316,14 @@ function WriteHelperHDF5(
             @show dim_selector
             @show size(part)
             @show sum(part)
-            setindex!(
-                dset,
-                part,
-                # d == dim ? Banyan.split_len(whole_size[dim], batch_idx, nbatches, comm) :
-                dim_selector...,
-            )
+            if !dim_selector_isempty
+                setindex!(
+                    dset,
+                    part,
+                    # d == dim ? Banyan.split_len(whole_size[dim], batch_idx, nbatches, comm) :
+                    dim_selector...,
+                )
+            end
         end
         # Close file
         close(dset)
