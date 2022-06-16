@@ -286,6 +286,7 @@ function _remote_image_source(
     is_main = worker_idx == 1
 
     # Get current location
+    println("Before get_cached_location on get_worker_idx()=$(get_worker_idx()) with remotepath=$remotepath")
     curr_location, curr_sample_invalid, curr_parameters_invalid = get_cached_location((remotepath, add_channelview), metadata_invalid, sample_invalid)
     if !curr_parameters_invalid && !curr_sample_invalid
         return curr_location
@@ -325,8 +326,11 @@ function _remote_image_source(
         # has definitely been created now
         get_meta_path((remotepath, add_channelview))
     end
+    println("Before loading $meta_path on get_worker_idx()=$(get_worker_idx())")
     meta_table = Arrow_Table_retry(meta_path)
+    println("Loaded table on get_worker_idx()=$(get_worker_idx())")
     nimages = Tables.rowcount(meta_table)
+    println("Loaded rowcount on get_worker_idx()=$(get_worker_idx())")
     
     # Read in images on each worker. We need to read in at least one image
     # regardless of whether we want to get the sample or the metadata
