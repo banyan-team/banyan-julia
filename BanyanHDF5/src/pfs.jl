@@ -202,16 +202,16 @@ function WriteHelperHDF5(
 
     info = MPI.Info()
 
-    # let fileprop = HDF5.FileAccessProperties()
-    #     fileprop.driver = HDF5.Drivers.MPIO(comm, info)
-    #     driver = fileprop.driver
-    #     h5comm = driver.comm
-    #     h5info = driver.info
-    #     @show fileprop
-    #     @show driver
-    #     @show h5comm
-    #     @show h5info
-    # end
+    let fileprop = HDF5.FileAccessProperties()
+        fileprop.driver = HDF5.Drivers.MPIO(comm, info)
+        driver = fileprop.driver
+        h5comm = driver.comm
+        h5info = driver.info
+        @show fileprop
+        @show driver
+        @show h5comm
+        @show h5info
+    end
 
     @show propertynames(HDF5)
 
