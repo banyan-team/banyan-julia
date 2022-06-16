@@ -326,11 +326,11 @@ function WriteHelperHDF5(
         @show f.filename
         @show part isa Empty
         close(f)
-        MPI.Barrier(comm)
+        MPI.Barrier(MPI.COMM_WORLD)
         fsync_file(path)
-        MPI.Barrier(comm)
+        MPI.Barrier(MPI.COMM_WORLD)
         HDF5.API.h5_close()
-        MPI.Barrier(comm)
+        MPI.Barrier(MPI.COMM_WORLD)
         f = h5open(
             path,
             "r+",
@@ -338,9 +338,9 @@ function WriteHelperHDF5(
             info,
         )
         @show sum(f[group][:,:])
-        @show h5read(f, group, (:, :), driver=HDF5.Drivers.MPIO(comm, info), dxpl_mpio=:collective)
+        # @show h5read(f, group, (:, :), driver=HDF5.Drivers.MPIO(comm, info), dxpl_mpio=:collective)
         close(f)
-        MPI.Barrier(comm)
+        MPI.Barrier(MPI.COMM_WORLD)
         # Not needed since we barrier at the end of each iteration of a merging
         # stage with I/O
         # MPI.Barrier(comm)
