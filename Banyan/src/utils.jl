@@ -601,4 +601,4 @@ fsync_file(p) =
         ccall(:fsync, Cint, (Cint,), fd(f))
     end
 
-deserialize_retry = retry(deserialize; delays=Base.ExponentialBackOff(; n=3))
+deserialize_retry = retry(deserialize; delays=Base.ExponentialBackOff(; n=5))

@@ -359,7 +359,11 @@ function get_cached_location(remotepath, metadata_invalid, sample_invalid)
     session_s3_bucket_name = get_cluster_s3_bucket_name()
     location_path = "s3/$session_s3_bucket_name/banyan_locations/$remotepath_id"
 
-    curr_location::Location = isfile(location_path) ? deserialize_retry(location_path) : INVALID_LOCATION
+    curr_location::Location = try
+        deserialize_retry(location_path)
+    catch
+        INVALID_LOCATION
+    end
     curr_location.sample_invalid = curr_location.sample_invalid || sample_invalid
     curr_location.parameters_invalid = curr_location.parameters_invalid || metadata_invalid
     curr_sample_invalid = curr_location.sample_invalid
