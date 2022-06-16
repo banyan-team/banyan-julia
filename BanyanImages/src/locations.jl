@@ -288,6 +288,7 @@ function _remote_image_source(
     # Get current location
     println("Before get_cached_location on get_worker_idx()=$(get_worker_idx()) with remotepath=$remotepath")
     curr_location, curr_sample_invalid, curr_parameters_invalid = get_cached_location((remotepath, add_channelview), metadata_invalid, sample_invalid)
+    @show curr_location curr_sample_invalid curr_parameters_invalid
     if !curr_parameters_invalid && !curr_sample_invalid
         return curr_location
     end
@@ -307,24 +308,19 @@ function _remote_image_source(
     else
         is_main ? get_meta_path((remotepath, add_channelview)) : ""
     end
+    println("After getting meta_path=$meta_path on get_worker_idx()=$(get_worker_idx())")
     if is_main && curr_parameters_invalid
         localpaths::Base.Vector{String} = getpaths(remotepath)
         Arrow.write(meta_path, (path=localpaths,))
     end
-    if !curr_parameters_invalid
+    sync_across()
+    println("After sync_across with meta_path=$meta_path on get_worker_idx()=$(get_worker_idx())")
+
+    # Load in the metadata and get the # of images
+    if curr_parameters_invalid
         # Now the banyan_metadata directory has surely been created so we can
         # get_meta_path on all workers.
         meta_path = get_meta_path((remotepath, add_channelview))
-    end
-    sync_across()
-
-    # Load in the metadata and get the # of images
-    meta_path = if !curr_parameters_invalid
-        curr_location.src_parameters["meta_path"]::String
-    else
-        # Now it is safe to call this on all workers because the meta directory
-        # has definitely been created now
-        get_meta_path((remotepath, add_channelview))
     end
     println("Before loading $meta_path on get_worker_idx()=$(get_worker_idx())")
     meta_table = Arrow_Table_retry(meta_path)
