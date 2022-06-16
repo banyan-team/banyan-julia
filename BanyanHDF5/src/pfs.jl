@@ -291,6 +291,8 @@ function WriteHelperHDF5(
                     push!(dim_selector, Colon())
                 end
             end
+            @show dim_selector
+            @show size(part)
             setindex!(
                 dset,
                 part,
