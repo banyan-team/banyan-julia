@@ -213,7 +213,7 @@ function WriteHelperHDF5(
     #     @show h5info
     # end
 
-    @show HDF5.Drivers.DRIVERS
+    @show propertynames(HDF5)
 
     # Write out to an HDF5 dataset differently depending on whether there
     # are multiple batches per worker or just one per worker
