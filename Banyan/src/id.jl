@@ -29,6 +29,7 @@ function generate_message_id()
         v = v * "_worker_$(get_worker_idx())"
     end
     push!(generated_message_ids, v)
+    @show v
     return v
 end
 
