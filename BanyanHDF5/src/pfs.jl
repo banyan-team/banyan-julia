@@ -274,7 +274,10 @@ function WriteHelperHDF5(
 
         #     close(f)
         # end
-
+        @show isfile(path) HDF5.ishdf5(path)
+        @show path group
+        @show HDF5.Drivers.DRIVERS
+        @show info
         f = if !isfile(path) || !HDF5.ishdf5(path)
             h5open(
                 path,
@@ -294,13 +297,16 @@ function WriteHelperHDF5(
             f_res
         end
 
+        println("Prepared file")
+
         dset = create_dataset(f, group, whole_eltype, (whole_size, whole_size))
+
+        println("Created dataset")
 
         MPI.Barrier(comm)
         @show some_size
 
-        @show HDF5.Drivers.DRIVERS
-        @show info
+        
 
         # Open file for writing data
         driver = HDF5.Drivers.MPIO(comm, info)
