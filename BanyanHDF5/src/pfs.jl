@@ -306,6 +306,7 @@ function WriteHelperHDF5(
             end
             @show dim_selector
             @show size(part)
+            @show sum(part)
             setindex!(
                 dset,
                 part,
