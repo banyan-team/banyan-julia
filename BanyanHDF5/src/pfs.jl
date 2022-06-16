@@ -301,7 +301,7 @@ function WriteHelperHDF5(
         # Write out each partition
         if !(part isa Empty)
             dim_selector = []
-            dim_selector_isempty = true
+            dim_selector_isempty = false
             for d = 1:ndims(dset)
                 if d == dim
                     r = (offset+1):(offset+size(part, dim))
