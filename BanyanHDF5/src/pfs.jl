@@ -305,7 +305,6 @@ function WriteHelperHDF5(
             for d = 1:ndims(dset)
                 if d == dim
                     r = (offset+1):(offset+size(part, dim))
-                    @show r
                     push!(dim_selector, r)
                     dim_selector_isempty = isempty(r)
                 else
@@ -315,7 +314,7 @@ function WriteHelperHDF5(
             @show dim_selector
             # @show size(part)
             # @show sum(part)
-            @show part
+            @show (r, part)
             if !dim_selector_isempty
                 setindex!(
                     dset,
