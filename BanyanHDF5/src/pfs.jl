@@ -349,6 +349,19 @@ function WriteHelperHDF5(
         )
         @show sum(f[group][:,:])
         # @show h5read(f, group, (:, :), driver=HDF5.Drivers.MPIO(comm, info), dxpl_mpio=:collective)
+        dset = create_dataset(f, "DS0", whole_eltype, (whole_size, whole_size))
+        r = split_across(1:size(dset, 1))
+        if !isempty(r)
+            dset[r, :] = rand(1, size(dset, 2))
+        end
+        close(f)
+        f = h5open(
+            path,
+            "r+",
+            comm,
+            info,
+        )
+        @show sum(f["DS0"][:,:])
         close(f)
         MPI.Barrier(MPI.COMM_WORLD)
         # Not needed since we barrier at the end of each iteration of a merging
