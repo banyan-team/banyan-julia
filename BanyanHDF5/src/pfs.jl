@@ -222,15 +222,19 @@ function WriteHelperHDF5(
         # Create file if not yet created
         # TODO: Figure out why sometimes a deleted file still `isfile`
         @show offset
-        f = h5open(
-            path,
-            "cw",
-            comm,
-            info,
-            # fapl_mpio = (comm, info),
-            # dxpl_mpio = HDF5.H5FD_MPIO_COLLECTIVE,
-        )
-        close(f)
+        # path_isfile = sync_across(isfile(path); comm=comm)
+        if is_main && !isfile(path)
+            println("Before writing file")
+            f = h5open(
+                path,
+                "w"
+                # fapl_mpio = (comm, info),
+                # dxpl_mpio = HDF5.H5FD_MPIO_COLLECTIVE,
+            )
+            println("Wrote file")
+            close(f)
+            println("Closed file")
+        end
 
         MPI.Barrier(comm)
         @show some_size
