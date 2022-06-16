@@ -236,7 +236,10 @@ function WriteHelperHDF5(
         @show offset
         # path_isfile = sync_across(isfile(path); comm=comm)
         if is_main
-            f = if HDF5.ishdf5(path)
+            @show HDF5.ishdf5(path)
+            @show isfile(path)
+            @show path
+            f = if !isfile(path) || !HDF5.ishdf5(path)
                 println("Before writing file")
                 h5open(
                     path,
