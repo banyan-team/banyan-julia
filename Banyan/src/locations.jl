@@ -356,6 +356,7 @@ end
 function get_cached_location(remotepath, metadata_invalid, sample_invalid)
     remotepath_id = get_remotepath_id(remotepath)
     Random.seed!(hash((get_session_id(), remotepath_id)))
+    println("On get_worker_idx()=$(get_worker_idx()) in get_cached_location with (get_session_id(), remotepath_id)=$((get_session_id(), remotepath_id))")
     session_s3_bucket_name = get_cluster_s3_bucket_name()
     location_path = "s3/$session_s3_bucket_name/banyan_locations/$remotepath_id"
 

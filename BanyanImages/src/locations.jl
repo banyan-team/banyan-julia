@@ -322,7 +322,7 @@ function _remote_image_source(
         # get_meta_path on all workers.
         meta_path = get_meta_path((remotepath, add_channelview))
     end
-    println("Before loading $meta_path on get_worker_idx()=$(get_worker_idx())")
+    println("Before loading $meta_path given remotepath=$remotepath and add_channelview=$add_channelview on get_worker_idx()=$(get_worker_idx())")
     meta_table = Arrow_Table_retry(meta_path)
     println("Loaded table on get_worker_idx()=$(get_worker_idx())")
     nimages = Tables.rowcount(meta_table)
