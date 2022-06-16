@@ -289,7 +289,6 @@ function _remote_image_source(
     # Get current location
     println("Before get_cached_location on get_worker_idx()=$(get_worker_idx()) with remotepath=$remotepath")
     curr_location, curr_sample_invalid, curr_parameters_invalid = get_cached_location((remotepath, add_channelview), remotepath_id, metadata_invalid, sample_invalid)
-    @show curr_location curr_sample_invalid curr_parameters_invalid
     if !curr_parameters_invalid && !curr_sample_invalid
         return curr_location
     end
