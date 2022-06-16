@@ -289,6 +289,7 @@ function WriteHelperHDF5(
             # driver.info,
             # fapl_mpio = (comm, info),
             # dxpl_mpio = :collective # HDF5.H5FD_MPIO_COLLECTIVE,
+            fclose_degree = :strong
         )
         @show path
         @show isopen(f)
