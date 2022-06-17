@@ -797,11 +797,11 @@ end
 
             if headertype == "header"
                 @test filtered_size == (0, 2)
-                @test filtered_grouped_nrow == (0, 3)
+                @test filtered_grouped_nrow == (0, 0)
                 @test filtered_grouped_length == 0
             elseif headertype == "no header"
                 @test filtered_size == (0, 0)
-                @test filtered_grouped_nrow == (0, 1)
+                @test filtered_grouped_nrow == (0, 0)
                 @test filtered_grouped_length == 0
             end
         end

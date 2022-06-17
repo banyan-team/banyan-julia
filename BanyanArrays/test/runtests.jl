@@ -89,9 +89,9 @@ function use_session_for_testing(
     end
 end
 
-include("sample_computation.jl")
+# include("sample_computation.jl")
 include("mapreduce.jl")
-include("black_scholes.jl")
+# include("black_scholes.jl")
 
 try
     runtests(Regex.(ARGS)...)

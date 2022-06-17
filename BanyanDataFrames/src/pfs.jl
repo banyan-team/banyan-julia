@@ -370,6 +370,7 @@ function ReadBlockHelper(@nospecialize(format_value))
         else
             vcat(dfs...)
         end
+        @show ncol(res)
         res
     end
     ReadBlock

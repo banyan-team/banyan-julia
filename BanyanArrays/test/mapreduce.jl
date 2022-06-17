@@ -310,7 +310,9 @@ end
             0
         end
         compute_inplace(res)
-        part1_str = read(S3Path("s3://$(get_cluster_s3_bucket_name())/test_getindex_and_collect/part1.txt", config=Banyan.get_aws_config()), String)
+        part1_str = offloaded() do
+            read("s3/$(get_cluster_s3_bucket_name())/test_getindex_and_collect/part1.txt", String)
+        end
         offloaded() do 
             bucket = readdir("s3")[1]
             rm("s3/$bucket/test_getindex_and_collect/", recursive=true)
