@@ -529,7 +529,7 @@ function ReduceAndCopyToJulia(
 ) where {T}
     # Merge reductions from batches
     # TODO: Ensure that we handle reductions that can produce nothing
-    println("In ReduceAndCopyToJulia at start with part=$part and loc_name=$loc_name")
+    println("In ReduceAndCopyToJulia at start with part=$part and loc_name=$loc_name and params=$params")
     src = reduce_in_memory(src, part, op)
 
     # Merge reductions across workers

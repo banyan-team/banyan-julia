@@ -336,6 +336,7 @@ function _getindex(df_sample::DataFrames.DataFrame, df::Future, df_nrows::Future
         end
         res_length::Int64
         res_size = return_vector ? tuple(res_length) : res_length
+        println("At end of getindex with res_size=$res_size return_vector=$return_vector cols=$cols and res_length=$res_length")
     end
 
     if return_vector
