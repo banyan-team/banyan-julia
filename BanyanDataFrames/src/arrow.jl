@@ -1,5 +1,7 @@
 # locations.jl
 
+DataFrames_DataFrame_retry = retry(DataFrames.DataFrame; delays=Banyan.exponential_backoff_1s)
+
 has_separate_metadata(::Val{:arrow}) = true
 Tables_rowcount_retry = retry(Tables.rowcount; delays=Base.ExponentialBackOff(; n=5))
 get_metadata(::Val{:arrow}, p)::Int64 = Tables_rowcount_retry(Arrow_Table_retry(p))
@@ -7,11 +9,11 @@ get_sample(::Val{:arrow}, p, sample_rate, len) = let rand_indices = sample_from_
     if sample_rate != 1.0 && isempty(rand_indices)
         DataFrames.DataFrame()
     else
-        get_sample_from_data(DataFrames.DataFrame(Arrow_Table_retry(p); copycols=false), sample_rate, rand_indices)
+        get_sample_from_data(DataFrames_DataFrame_retry(Arrow_Table_retry(p); copycols=false), sample_rate, rand_indices)
     end
 end
 get_sample_and_metadata(::Val{:arrow}, p, sample_rate) =
-    let sample_df = DataFrames.DataFrame(Arrow_Table_retry(p); copycols=false)
+    let sample_df = DataFrames_DataFrame_retry(Arrow_Table_retry(p); copycols=false)
         num_rows = nrow(sample_df)
         get_sample_from_data(sample_df, sample_rate, num_rows), num_rows
     end
@@ -42,7 +44,7 @@ file_ending(::Val{:arrow}) = "arrow"
 # end
 
 read_file(::Val{:arrow}, path) =
-    DataFrames.DataFrame(Arrow_Table_retry(path); copycols=false)
+    DataFrames_DataFrame_retry(Arrow_Table_retry(path); copycols=false)
 
 ReadBlockArrow = ReadBlockHelper(Val(:arrow))
 ReadGroupHelperArrow = ReadGroupHelper(ReadBlockArrow, ShuffleDataFrame)

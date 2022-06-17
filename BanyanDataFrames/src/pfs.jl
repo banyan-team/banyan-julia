@@ -347,7 +347,8 @@ function ReadBlockHelper(@nospecialize(format_value))
         #     rowsscanned = newrowsscanned
         # end
         if Banyan.INVESTIGATING_LOSING_DATA
-            println("In ReadBlock with rowrange=$rowrange, nrow.(dfs)=$(nrow.(dfs))")
+            # println("In ReadBlock with rowrange=$rowrange, nrow.(dfs)=$(nrow.(dfs))")
+            println("In ReadBlock with nrow.(dfs)=$(nrow.(dfs))")
         end
 
         # Concatenate and return
