@@ -176,7 +176,7 @@ function write_metadata_for_julia_array(actualpath, part_size_and_eltype)
     part_size, part_eltype = part_size_and_eltype
     # Only create the metadata file if it does not already exist or it does
     # but now we have a proper size
-    if !isfile(p) || !(part_size isa Empty)
+    if !(part_size isa Empty)
         serialize(
             p,
             Dict(

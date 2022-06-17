@@ -311,18 +311,22 @@ _invalidate_all_locations() = begin
 end
 _invalidate_metadata(remotepath) =
     let p = get_location_path(remotepath)
-        if isfile(p)
+        try
             loc = deserialize_retry(p)
             loc.parameters_invalid = true
             serialize(p, loc)
+        catch
+            # File does not exist
         end
     end
 _invalidate_sample(remotepath) =
     let p = get_location_path(remotepath)
-        if isfile(p)
+        try
             loc = deserialize_retry(p)
             loc.sample_invalid = true
             serialize(p, loc)
+        catch
+            # File does not exist
         end
     end
 invalidate_all_locations() = offloaded(_invalidate_all_locations)

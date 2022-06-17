@@ -346,9 +346,9 @@ function ReadBlockHelper(@nospecialize(format_value))
         #     end
         #     rowsscanned = newrowsscanned
         # end
-        # if Banyan.INVESTIGATING_LOSING_DATA
-        #     println("In ReadBlock with rowrange=$rowrange, nrow.(dfs)=$(nrow.(dfs))")
-        # end
+        if Banyan.INVESTIGATING_LOSING_DATA
+            println("In ReadBlock with rowrange=$rowrange, nrow.(dfs)=$(nrow.(dfs))")
+        end
 
         # Concatenate and return
         # NOTE: If this partition is empty, it is possible that the result is

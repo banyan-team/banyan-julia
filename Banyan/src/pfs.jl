@@ -432,7 +432,12 @@ CopyFromJulia(
     loc_params,
 ) = begin
     path = getpath(loc_params["path"]::String)
-    isfile(path) ? deserialize_retry(path) : nothing
+    try
+        deserialize_retry(path)
+    catch
+        # File does not exist
+        nothing
+    end
 end
 
 function CopyTo(

@@ -1,7 +1,8 @@
 # locations.jl
 
 has_separate_metadata(::Val{:arrow}) = true
-get_metadata(::Val{:arrow}, p)::Int64 = Tables.rowcount(Arrow_Table_retry(p))
+Tables_rowcount_retry = retry(Tables.rowcount; delays=Base.ExponentialBackOff(; n=5))
+get_metadata(::Val{:arrow}, p)::Int64 = Tables_rowcount_retry(Arrow_Table_retry(p))
 get_sample(::Val{:arrow}, p, sample_rate, len) = let rand_indices = sample_from_range(1:len, sample_rate)
     if sample_rate != 1.0 && isempty(rand_indices)
         DataFrames.DataFrame()

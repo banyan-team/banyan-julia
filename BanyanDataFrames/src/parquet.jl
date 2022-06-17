@@ -6,22 +6,34 @@ Parquet_File_retry = retry(Parquet.File; delays=Base.ExponentialBackOff(; n=5))
 # locations.jl
 
 has_separate_metadata(::Val{:parquet}) = true
-get_metadata(::Val{:parquet}, p)::Int64 = isfile(p) ? nrows(Parquet_File_retry(p)) : 0
+get_metadata(::Val{:parquet}, p)::Int64 =
+    try
+        nrows(Parquet_File_retry(p))
+    catch
+        # File does not exist
+        0
+    end
 get_sample(::Val{:parquet}, p, sample_rate, len) = let rand_indices = sample_from_range(1:len, sample_rate)
-    if (sample_rate != 1.0 && isempty(rand_indices)) || !isfile(p)
+    if (sample_rate != 1.0 && isempty(rand_indices))
         DataFrames.DataFrame()
     else
-        get_sample_from_data(DataFrames.DataFrame(Parquet_read_parquet_retry(p; rows=1:len), copycols=false), sample_rate, rand_indices)
+        try
+            get_sample_from_data(DataFrames.DataFrame(Parquet_read_parquet_retry(p; rows=1:len), copycols=false), sample_rate, rand_indices)
+        catch
+            # File does not exist
+            DataFrames.DataFrame()
+        end
     end
 end
-get_sample_and_metadata(::Val{:parquet}, p, sample_rate) = if isfile(p)
-    let sample_df = DataFrames.DataFrame(Parquet.File(p), copycols=false)
-        num_rows = nrow(sample_df)
-        get_sample_from_data(sample_df, sample_rate, num_rows), num_rows
+get_sample_and_metadata(::Val{:parquet}, p, sample_rate) =
+    try
+        let sample_df = DataFrames.DataFrame(Parquet.File(p), copycols=false)
+            num_rows = nrow(sample_df)
+            get_sample_from_data(sample_df, sample_rate, num_rows), num_rows
+        end
+    catch
+        DataFrames.DataFrame(), 0
     end
-else
-    DataFrames.DataFrame(), 0
-end
 
 # pfs.jl
 
@@ -30,25 +42,25 @@ file_ending(::Val{:parquet}) = "parquet"
 function read_file(::Val{:parquet}, path, rowrange, readrange, filerowrange, dfs)
     push!(
         dfs,
-        if isfile(path)
+        try
             let f = Parquet_read_parquet_retry(
                 path;
                 rows = (readrange.start-filerowrange.start+1):(readrange.stop-filerowrange.start+1),
             )
                 DataFrames.DataFrame(f, copycols=false)
             end
-        else
+        catch
             !startswith(path, "efs/s3/") || error("Path \"$path\" should not start with \"s3/\"")
             DataFrames.DataFrame()
         end
     )
 end
 read_file(::Val{:parquet}, path) =
-    if isfile(path)
+    try
         let f = Parquet_read_parquet_retry(path)
             DataFrames.DataFrame(f, copycols=false)
         end
-    else
+    catch
         !startswith(path, "efs/s3/") || error("Path \"$path\" should not start with \"s3/\"")
         DataFrames.DataFrame()
     end

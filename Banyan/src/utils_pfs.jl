@@ -484,6 +484,8 @@ end
 #     end
 # end
 
+Downloads_download_retry = retry(Downloads.download; delays=Base.ExponentialBackOff(; n=5))
+
 function getpath(path::String)::String
     if startswith(path, "http://") || startswith(path, "https://")
         # TODO: First check for size of file and only download to
@@ -494,25 +496,15 @@ function getpath(path::String)::String
         joined_path = "efs/job_$(Banyan.get_session().resource_id)_dataset_$(hashed_path)_$(MPI.Comm_rank(MPI.COMM_WORLD))"
         # @info "Downloading $path to $joined_path"
         # if MPI.Comm_rank(comm) == 0
-        if !isfile(joined_path)
         # NOTE: Even though we are storing in /tmp, this is
         # effectively caching the download. If this is undesirable
         # to a user, a short-term solution is to use a different
         # URL each time (e.g., add a dummy query to the end of the
         # URL)
-            for i = 1:3
-                try
-                    Downloads.download(path, joined_path)
-                    break
-                catch e
-                    if i == 3
-                        throw(e)
-                    else
-                        continue
-                    end
-                end
-            end
-        end
+        # TODO: Download to node-local storage and only re-download if the
+        # file does not exist (we are scared of checking if files exist because
+        # of NFS/S3FS consistency issues)
+        Downloads_download_retry(path, joined_path)
         # end
         # MPI.Barrier(comm)
         joined_path
