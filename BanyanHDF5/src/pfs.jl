@@ -27,6 +27,7 @@ function ReadBlockHelperHDF5(
     if Banyan.INVESTIGATING_PARALLEL_HDF5
         println("In ReadBlockHDF5 with HDF5.ishdf5(path)=$(HDF5.ishdf5(path))")
     end
+    filtering_op = get(params, "filtering_op", identity)
        
     info = MPI.Info()
     f = h5open(path, "r")
@@ -87,7 +88,7 @@ function ReadBlockHelperHDF5(
                 push!(dim_selector, Colon())
             end 
         end
-        dset[dim_selector...]
+        filtering_op(dset[dim_selector...])
     end
     close(f)
     if Banyan.INVESTIGATING_PARALLEL_HDF5

@@ -170,6 +170,9 @@ function ShuffleDataFrame(
     )
 end
 
+symbol_Disk = "Disk"
+symbol_filtering_op = "filtering_op"
+
 function ReadBlockHelper(@nospecialize(format_value))
     function ReadBlock(
         src,
@@ -193,14 +196,15 @@ function ReadBlockHelper(@nospecialize(format_value))
         # with cached location is used.
         existing_path = getpath(loc_params_path)
         @show loc_params
-        meta_path = loc_name == "Disk" ? sync_across(is_main_worker(comm) ? get_meta_path(loc_params_path) : "", comm=comm) : loc_params["meta_path"]::String
+        meta_path = loc_name == symbol_Disk ? sync_across(is_main_worker(comm) ? get_meta_path(loc_params_path) : "", comm=comm) : loc_params["meta_path"]::String
         @show meta_path
-        loc_params = loc_name == "Disk" ? (Banyan.deserialize_retry(get_location_path(loc_params_path))::Location).src_parameters : loc_params
+        loc_params = loc_name == symbol_Disk ? (Banyan.deserialize_retry(get_location_path(loc_params_path))::Location).src_parameters : loc_params
         meta = Arrow_Table_retry(meta_path)
+        filtering_op = get(params, symbol_filtering_op, identity)
 
         # Handle multi-file tabular datasets
 
-        time_key = loc_name == "Disk" ? (:reading_lustre) : (:reading_remote)
+        time_key = loc_name == symbol_Disk ? (:reading_lustre) : (:reading_remote)
 
         # TODO: Use split_across to split up the list of files. Then, read in all the files and concatenate them.
         # Finally, shuffle by sending to eahc
@@ -292,7 +296,7 @@ function ReadBlockHelper(@nospecialize(format_value))
             Threads.@threads for (i, file_i) in Base.collect(enumerate(files_for_curr_partition))
                 path = meta_path[file_i]
                 et = @elapsed begin
-                res = read_file(format_value, path)
+                res = filtering_op(read_file(format_value, path))
                 end
                 dfs_res[i] = res
                 times[i] = et

@@ -147,8 +147,9 @@ ReadGroupHelper(ReadBlockFunc, ShuffleFunc) = begin
             end
         end
 
-        # TODO: Call ReadBlockFunc with nbatches=1 and pass in a function that will
-        # be applied to each data frame read in to filter it.
+        # TODO: Call ReadBlockFunc with nbatches=1 and pass in a function as
+        # filtering_op in the params
+        # TODO: Pass in function calling SplitGroup with 
 
         # Read in each batch and shuffle it to get the data for this partition
         parts = []
@@ -528,6 +529,7 @@ function ReduceAndCopyToJulia(
 ) where {T}
     # Merge reductions from batches
     # TODO: Ensure that we handle reductions that can produce nothing
+    println("In ReduceAndCopyToJulia at start with part=$part and loc_name=$loc_name")
     src = reduce_in_memory(src, part, op)
 
     # Merge reductions across workers
@@ -549,6 +551,7 @@ function ReduceAndCopyToJulia(
     # partial merges in a global `IdDict` and then only mutate `src` once we
     # are finished with the last batch and we know we won't be splitting
     # from the value again.
+    println("In ReduceAndCopyToJulia at end with part=$part and loc_name=$loc_name")
     src
 end
 

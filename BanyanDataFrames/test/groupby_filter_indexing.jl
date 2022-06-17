@@ -222,6 +222,22 @@ end
     end
 end
 
+@testset "ReadGroupJuliaArray" begin
+    use_session_for_testing(scheduling_config_name = "parallelism and batches encouraged") do
+        use_basic_data()
+        bucket = get_cluster_s3_bucket_name()
+        df = read_file("s3://$(bucket)/iris_large.arrow")
+        df_subset = subset(groupby(df, :species), :petal_length => pl -> pl .>= mean(pl))
+        compute(BanyanArrays.reduce(+, df_subset[:, :petal_length]))
+        nrow(df)
+        df_subset = subset(groupby(df, :species), :petal_length => pl -> pl .>= mean(pl))
+        db_subset_col = df_subset[:, :petal_length]
+        compute(BanyanArrays.reduce(+, db_subset_col))
+        df_subset = subset(groupby(df, :species), :petal_length => pl -> pl .>= mean(pl))
+        compute(BanyanArrays.reduce(+, map(+, db_subset_col, df_subset[:, :petal_length])))
+    end
+end
+
 @testset "Groupby basic for initial functionality with $scheduling_config" for scheduling_config in
                                                                                [
     "default scheduling",

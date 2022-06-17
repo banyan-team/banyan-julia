@@ -41,6 +41,7 @@ function ReadBlockHelperJuliaArray(
     name_path = path
     # TODO: isdir might not work for S3FS
     isdir(name_path) || error("Expected $path to be a directory containing files of Julia-serialized arrays")
+    filtering_op = get(params, "filtering_op", identity)
 
     files = []
     nrows = 0
@@ -77,40 +78,54 @@ function ReadBlockHelperJuliaArray(
         metadata["sample_size"][dim_partitioning]
     end
     rowrange = Banyan.split_len(nrows, batch_idx, nbatches, comm)
-    dfs = Base.Array[]
-    rowsscanned = 0
-    for file in sort(files, by = filedict -> filedict[2])
+    files_to_read = sort(files, by = filedict -> filedict[2])
+    ndfs = 0
+    dfs_idx = Int64[]
+    for file in files_to_read
         newrowsscanned = rowsscanned + file[1]
         filerowrange = (rowsscanned+1):newrowsscanned
-        # Check if the file corresponds to the range of rows for the batch
-        # currently being processed by this worker
-        if !partitioned_on_dim || Banyan.isoverlapping(filerowrange, rowrange)
-            # Deterine path to read from
-            file_path = file[2]
-            path = Banyan.getpath(file_path)
+        push!(
+            dfs_idx,
+            if !partitioned_on_dim || Banyan.isoverlapping(filerowrange, rowrange)
+                ndfs += 1
+                ndfs
+            else
+                -1
+            end
+        )
+    end
+    dfs = Base.Vector{Any}(undef, ndfs)
+    rowsscanned = 0
+    if !isempty(dfs)
+        Threads.@threads for (i, file) in Base.collect(enumerate(files_to_read))
+            newrowsscanned = rowsscanned + file[1]
+            filerowrange = (rowsscanned+1):newrowsscanned
+            # Check if the file corresponds to the range of rows for the batch
+            # currently being processed by this worker
+            dfs_i = dfs_idx[i]
+            if dfs_i != -1
+                # Deterine path to read from
+                file_path = file[2]
+                path = Banyan.getpath(file_path)
 
-            # Read from location depending on data format
-            readrange = if partitioned_on_dim
-                max(rowrange.start, filerowrange.start):min(
-                    rowrange.stop,
-                    filerowrange.stop,
-                )
-            else
-                rowrange
+                # Read from location depending on data format
+                readrange = if partitioned_on_dim
+                    max(rowrange.start, filerowrange.start):min(
+                        rowrange.stop,
+                        filerowrange.stop,
+                    )
+                else
+                    rowrange
+                end
+                # TODO: Scale the memory usage appropriately when splitting with
+                # this and garbage collect if too much memory is used.
+                dfs[dfs_i] = filtering_op(read_julia_array_file(path, readrange, filerowrange, dim_partitioning))
+                if Banyan.INVESTIGATING_LOSING_DATA
+                    println("In ReadBlockJuliaArray with path=$path with rowrange=$rowrange, readrange=$readrange, filerowrange=$filerowrange, dim=$dim")
+                end
             end
-            # TODO: Scale the memory usage appropriately when splitting with
-            # this and garbage collect if too much memory is used.
-            arr = read_julia_array_file(path, readrange, filerowrange, dim_partitioning)
-            if isempty(dfs)
-                dfs = typeof(arr)[arr]
-            else
-                push!(dfs, arr)
-            end
-            if Banyan.INVESTIGATING_LOSING_DATA
-                println("In ReadBlockJuliaArray with path=$path with rowrange=$rowrange, readrange=$readrange, filerowrange=$filerowrange, dim=$dim")
-            end
+            rowsscanned = newrowsscanned
         end
-        rowsscanned = newrowsscanned
     end
 
     # Concatenate and return

@@ -240,7 +240,7 @@ function partitioned_for_subset(gdf_parent::Future, gdf::Future, res_nrows::Futu
         end
         res = DataFrames.subset(gdf, args...; kwargs...)
         res_nrows = DataFrames.nrow(res)
-        
+        println("At end of subset with res=$res and res_nrows=$res_nrows")
     end
 end
 
