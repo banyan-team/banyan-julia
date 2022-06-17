@@ -606,14 +606,14 @@ deserialize_retry = retry(deserialize; delays=Base.ExponentialBackOff(; n=5))
 exponential_backoff_1s =
     Base.ExponentialBackOff(; n=5, first_delay=0.1, factor=1.5)
 
-```
-julia> for f in Base.ExponentialBackOff(; n=5, first_delay=0.1, factor=1.5)
-       println(f)
-       sleep(f)
-       end
-0.1
-0.13579474148420326
-0.20068919503553564
-0.29422854986603664
-0.4414150248213825
-```
+# ```
+# julia> for f in Base.ExponentialBackOff(; n=5, first_delay=0.1, factor=1.5)
+#        println(f)
+#        sleep(f)
+#        end
+# 0.1
+# 0.13579474148420326
+# 0.20068919503553564
+# 0.29422854986603664
+# 0.4414150248213825
+# ```
