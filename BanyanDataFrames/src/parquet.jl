@@ -34,6 +34,7 @@ get_sample_and_metadata(::Val{:parquet}, p, sample_rate) =
             get_sample_from_data(sample_df, sample_rate, num_rows), num_rows
         end
     catch
+        # File does not exist
         DataFrames.DataFrame(), 0
     end
 
@@ -52,6 +53,7 @@ function read_file(::Val{:parquet}, path, rowrange, readrange, filerowrange, dfs
                 DataFrames_DataFrame_retry(f, copycols=false)
             end
         catch
+            # File does not exist
             !startswith(path, "efs/s3/") || error("Path \"$path\" should not start with \"s3/\"")
             DataFrames.DataFrame()
         end
