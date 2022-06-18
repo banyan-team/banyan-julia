@@ -153,39 +153,37 @@ ReadGroupHelper(ReadBlockFunc, ShuffleFunc) = begin
 
         # Read in each batch and shuffle it to get the data for this partition
         read_block_params = deepcopy(params)
+        # We need the divisions by worker for both SplitGroup and Shuffle
+        params["divisions_by_partition"] = curr_partition_divisions
+        params["consolidate"] = true
         # We can read with balanced = false because it's going to be shuffled and
         # balanced later
         read_block_params["balanced"] = false
-        # We need the divisions by worker for both SplitGroup and Shuffle
-        params["divisions_by_worker"] = curr_partition_divisions            
-
-        parts = []
-        for i = 1:nbatches
-            # Read in data for this batch
-            part = ReadBlockFunc(src, read_block_params, i, nbatches, comm, loc_name, loc_params)
-
-            # Shuffle the batch and add it to the set of data for this partition
-            part = ShuffleFunc(
-                part,
-                EMPTY_DICT,
-                params,
-                comm,
-                !hasdivision || batch_idx != firstbatchidx,
-                !hasdivision || batch_idx != lastbatchidx,
-                false
-            )
-            if !(part isa Empty)
-                if isempty(parts)
-                    parts = typeof(part)[part]
-                else 
-                    push!(parts, part)
-                end
-            end
-            delete!(params, "divisions_by_worker")
+        read_block_params["filtering_op"] = unfiltered_df -> begin
+            # We just pass in 2 and 3 and COMM_WORLD because these parameters
+            # don't really matter. We just want to consolidate and get all the data
+            # from the partition that actually applies to one of the divisions for this
+            # batch.
+            SplitGroup(unfiltered_df, params, 1, 3, comm, "Memory", Dict{String,Any})
         end
 
+        # Read in data for this batch
+        part = ReadBlockFunc(src, read_block_params, 1, 1, comm, loc_name, loc_params)
+
+        # Shuffle the batch and add it to the set of data for this partition
+        part = ShuffleFunc(
+            part,
+            EMPTY_DICT,
+            params,
+            comm,
+            !hasdivision || batch_idx != firstbatchidx,
+            !hasdivision || batch_idx != lastbatchidx,
+            false
+        )
+        delete!(params, "divisions_by_worker")
+
         # Concatenate together the data for this partition
-        res = isempty(parts) ? EMPTY : merge_on_executor(parts, key)
+        res = part
 
         # If there are no divisions for any of the partitions, then they are all
         # bounded. For a partition to be unbounded on one side, there must be a
