@@ -112,6 +112,7 @@ function ReadBlockHelperJuliaArray(
             if dfs_i != -1
                 filerowrange = filerowranges[dfs_i]
                 # Deterine path to read from
+                @show file
                 file_path = file[2]
                 path = Banyan.getpath(file_path)
 
