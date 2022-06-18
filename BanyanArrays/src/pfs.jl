@@ -99,6 +99,8 @@ function ReadBlockHelperJuliaArray(
         rowsscanned = newrowsscanned
     end
     dfs = Base.Vector{Any}(undef, ndfs)
+    @show files_to_read
+    @show filerowranges
     
     if !isempty(dfs)
         Threads.@threads for (i, (file, filerowrange)) in Base.collect(enumerate(files_to_read))
