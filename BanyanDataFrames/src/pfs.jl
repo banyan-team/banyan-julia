@@ -682,6 +682,8 @@ function Banyan.SplitBlock(
     )
 end
 
+global gdf_cache = IdDict{Any,DataFrames.GroupedDataFrame}
+
 function SplitGroupDataFrame(
     src::DataFrames.AbstractDataFrame,
     params::Dict{String,Any},
@@ -712,30 +714,68 @@ function SplitGroupDataFrame(
         return src
     end
 
-    # Get divisions stored with src
-    # TODO: Maybe cache this
-    divisions_by_partition = Banyan.get_divisions(src_divisions, npartitions)
+    global gdf_cache
 
-    # Get the divisions to apply
-    if rev
-        reverse!(divisions_by_partition)
-    end
+    # Compute the grouped data frame
+    gdf, divisions_by_partition = if batch_idx == 1
+        divisions_by_partition = Banyan.get_divisions(src_divisions, npartitions)
 
-    # Apply divisions to get only the elements relevant to this worker
-    # TODO: Do the groupby and filter on batch_idx == 1 and then share
-    # among other batches
-    filter_mask = Base.falses(nrow(src))
-    for (i, row) in enumerate(eachrow(src))
-        filter_mask[i] = let p_idx = Banyan.get_partition_idx_from_divisions(
-            row[key],
+        # Get the divisions to apply
+        if rev
+            reverse!(divisions_by_partition)
+        end
+
+        partition_idx_getter(val) = Banyan.get_partition_idx_from_divisions(
+            val,
             divisions_by_partition,
             boundedlower,
             boundedupper,
         )
-            consolidate ? (p_idx != -1) : (p_idx == partition_idx)
+
+        # Compute the partition to send each row of the dataframe to
+        DataFrames.transform!(src, key => ByRow(partition_idx_getter) => :banyan_shuffling_key)
+
+        # Group the dataframe's rows by what partition to send to
+        DataFrames.groupby(src, :banyan_shuffling_key, sort = true), divisions_by_partition
+    elseif store_splitting_divisions
+        gdf_cache[src], Banyan.get_divisions(src_divisions, npartitions)
+    else
+        gdf_cache[src], nothing
+    end
+
+    # Store the grouped data frame
+    if nbatches > 1
+        if batch_idx == 1
+            gdf_cache[src] = gdf
+        elseif batch_idx == nbatches
+            delete!(gdf_cache, src)
         end
     end
-    res = src[filter_mask, :]
+
+    # # Apply divisions to get only the elements relevant to this worker
+    # # TODO: Do the groupby and filter on batch_idx == 1 and then share
+    # # among other batches
+    # filter_mask = Base.falses(nrow(src))
+    # for (i, row) in enumerate(eachrow(src))
+    #     filter_mask[i] = let p_idx = Banyan.get_partition_idx_from_divisions(
+    #         row[key],
+    #         divisions_by_partition,
+    #         boundedlower,
+    #         boundedupper,
+    #     )
+    #         consolidate ? (p_idx != -1) : (p_idx == partition_idx)
+    #     end
+    # end
+    # res = src[filter_mask, :]
+
+    gdf_key = (banyan_shuffling_key = partition_idx,)
+    res = if gdf.ngroups > 0 && haskey(gdf, gdf_key)
+        gdf_part = gdf[gdf_key]
+        DataFrames.select!(gdf_part, Not(:banyan_shuffling_key))
+        gdf_part
+    else
+        empty(part)
+    end
 
     if store_splitting_divisions
         # The first and last partitions (used if this lacks a lower or upper bound)

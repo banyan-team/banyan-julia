@@ -155,7 +155,7 @@ ReadGroupHelper(ReadBlockFunc, ShuffleFunc) = begin
         read_block_params = deepcopy(params)
         # We can read with balanced = false because it's going to be shuffled and
         # balanced later
-        # read_block_params["balanced"] = false
+        read_block_params["balanced"] = false
         parts = []
         for i = 1:nbatches
             # Read in data for this batch
