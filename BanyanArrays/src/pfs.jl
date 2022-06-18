@@ -103,7 +103,7 @@ function ReadBlockHelperJuliaArray(
     @show filerowranges
     
     if !isempty(dfs)
-        Threads.@threads for (i, (file, filerowrange)) in Base.collect(enumerate(files_to_read))
+        Threads.@threads for (i, file) in Base.collect(enumerate(files_to_read))
             # newrowsscanned = rowsscanned + file[1]
             # filerowrange = (rowsscanned+1):newrowsscanned
             # Check if the file corresponds to the range of rows for the batch
