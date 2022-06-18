@@ -61,7 +61,6 @@ CopyFromCSV(
     loc_name::String,
     loc_params::Dict{String,Any},
 )::DataFrames.DataFrame = begin
-    params["key"] = 1
     part::DataFrames.DataFrame = if is_main_worker(comm)
         part = ReadBlockCSV(src, params, 1, 1, MPI.COMM_SELF, loc_name, loc_params)
         part

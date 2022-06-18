@@ -456,6 +456,8 @@ function Banyan.SplitBlock(
     )
 end
 
+symbol_divisions_by_partition = "divisions_by_partition"
+
 function SplitGroupArray(
     src::AbstractArray,
     params::Dict{String,Any},
@@ -487,7 +489,11 @@ function SplitGroupArray(
     end
 
     # Get divisions stored with src
-    divisions_by_partition = Banyan.get_divisions(src_divisions, npartitions)
+    divisions_by_partition = get(
+        params,
+        symbol_divisions_by_partition,
+        Banyan.get_divisions(src_divisions, npartitions)
+    )
 
     # Get the divisions to apply
     if rev

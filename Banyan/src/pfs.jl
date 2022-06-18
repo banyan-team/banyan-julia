@@ -156,13 +156,15 @@ ReadGroupHelper(ReadBlockFunc, ShuffleFunc) = begin
         # We can read with balanced = false because it's going to be shuffled and
         # balanced later
         read_block_params["balanced"] = false
+        # We need the divisions by worker for both SplitGroup and Shuffle
+        params["divisions_by_worker"] = curr_partition_divisions            
+
         parts = []
         for i = 1:nbatches
             # Read in data for this batch
             part = ReadBlockFunc(src, read_block_params, i, nbatches, comm, loc_name, loc_params)
 
             # Shuffle the batch and add it to the set of data for this partition
-            params["divisions_by_worker"] = curr_partition_divisions
             part = ShuffleFunc(
                 part,
                 EMPTY_DICT,

@@ -319,8 +319,8 @@ function pts_for_getindex(futures::Base.Vector{Future})
                     # TODO: Make res be GroupedBy(1) if the first(columns) is the key of dpt.
                     # But only do this when we make arrays be groupable.
                     pt(res, BlockedAlong(1, false) & ScaledBySame(df), match=df, on=["id"])
-                else
-                    error("Distributed PT constructor must return PTs with distribution either blocked or grouped")
+                # else
+                #     error("Unexpected distribution $dpt_dist returned by Distributed PT constructor; expected either blocked or grouped")
                 end
             else
                 pt(res, ScaledBySame(df), match=df)
