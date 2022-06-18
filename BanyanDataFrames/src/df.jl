@@ -314,7 +314,12 @@ function pts_for_getindex(futures::Base.Vector{Future})
                 pt(res, ScaledBySame(df), match=df)
             end
         end
-        pt(res_size, PartitionType(), match=df_nrows)
+        if return_vector
+            # TODO: We should still be able to match but some how convert from a number to a tuple
+            pt(res_size, Reducing(add_sizes))
+        else
+            pt(res_size, PartitionType(), match=df_nrows)
+        end
     end
     
     pt(df, res, res_size, rows, cols, Replicated())

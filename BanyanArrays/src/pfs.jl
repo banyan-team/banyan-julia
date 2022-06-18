@@ -81,9 +81,12 @@ function ReadBlockHelperJuliaArray(
     files_to_read = sort(files, by = filedict -> filedict[2])
     ndfs = 0
     dfs_idx = Int64[]
+    rowsscanned = 0
+    filerowranges = []
     for file in files_to_read
         newrowsscanned = rowsscanned + file[1]
         filerowrange = (rowsscanned+1):newrowsscanned
+        push!(filerowranges, filerowrange)
         push!(
             dfs_idx,
             if !partitioned_on_dim || Banyan.isoverlapping(filerowrange, rowrange)
@@ -93,13 +96,15 @@ function ReadBlockHelperJuliaArray(
                 -1
             end
         )
+        rowsscanned = newrowsscanned
     end
     dfs = Base.Vector{Any}(undef, ndfs)
-    rowsscanned = 0
+    
     if !isempty(dfs)
-        Threads.@threads for (i, file) in Base.collect(enumerate(files_to_read))
-            newrowsscanned = rowsscanned + file[1]
-            filerowrange = (rowsscanned+1):newrowsscanned
+        Threads.@threads for (i, (file, filerowrange)) in Base.collect(enumerate(files_to_read))
+            # newrowsscanned = rowsscanned + file[1]
+            # filerowrange = (rowsscanned+1):newrowsscanned
+            filerowrange = filerowranges[i]
             # Check if the file corresponds to the range of rows for the batch
             # currently being processed by this worker
             dfs_i = dfs_idx[i]
@@ -124,7 +129,7 @@ function ReadBlockHelperJuliaArray(
                     println("In ReadBlockJuliaArray with path=$path with rowrange=$rowrange, readrange=$readrange, filerowrange=$filerowrange, dim=$dim")
                 end
             end
-            rowsscanned = newrowsscanned
+            
         end
     end
 
