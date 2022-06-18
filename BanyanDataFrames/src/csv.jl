@@ -32,7 +32,7 @@ get_sample_and_metadata(::Val{:csv}, p, sample_rate) =
 
 file_ending(::Val{:csv}) = "csv"
 
-function read_file(::Val{:csv}, path, rowrange, readrange, filerowrange, dfs)
+function read_file(::Val{:csv}, path, rowrange, readrange, filerowrange)
     CSV_read_retry(
         path,
         DataFrames.DataFrame;

@@ -321,7 +321,7 @@ function ReadBlockHelper(@nospecialize(format_value))
             ndfs = 0
             rowsscanned = 0
             files_to_read = []
-            for file in Table.rows(meta)
+            for file in Tables.rows(meta)
                 path = file[1]
                 path_nrows = file[2]
                 newrowsscanned = rowsscanned + path_nrows

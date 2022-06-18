@@ -43,7 +43,7 @@ function read_file(::Val{:arrow}, path, rowrange, readrange, filerowrange)
     #     end
     # end
     # !isempty(dfs) ? vcat(dfs) : DataFrames.DataFrame()
-    let unfiltered = DataFrames.DataFrame(tbl; copycols=false)
+    let unfiltered = DataFrames_DataFrame_retry(Arrow_Table_retry(path); copycols=false)
         starti = (readrange.start-filerowrange.start+1)
         endi = (readrange.stop-filerowrange.start+1)
         read_whole_file = starti == 0 && endi == filerowrange.stop
