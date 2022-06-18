@@ -345,7 +345,6 @@ function ReadBlockHelper(@nospecialize(format_value))
             # Iterate through files and identify which ones correspond to the range of
             # rows for the batch currently being processed by this worker
             rowrange = Banyan.split_len(nrows, batch_idx, nbatches, comm)
-            dfs::Base.Vector{DataFrames.DataFrame} = DataFrames.DataFrame[]
             rowsscanned = 0
             Threads.@threads for (i, path::String, readrange, filerowrange) in files_to_read
                 # TODO: Scale the memory usage appropriately when splitting with
