@@ -42,22 +42,19 @@ get_sample_and_metadata(::Val{:parquet}, p, sample_rate) =
 
 file_ending(::Val{:parquet}) = "parquet"
 
-function read_file(::Val{:parquet}, path, rowrange, readrange, filerowrange, dfs)
-    push!(
-        dfs,
-        try
-            let f = Parquet_read_parquet_retry(
-                path;
-                rows = (readrange.start-filerowrange.start+1):(readrange.stop-filerowrange.start+1),
-            )
-                DataFrames_DataFrame_retry(f, copycols=false)
-            end
-        catch
-            # File does not exist
-            !startswith(path, "efs/s3/") || error("Path \"$path\" should not start with \"s3/\"")
-            DataFrames.DataFrame()
+function read_file(::Val{:parquet}, path, rowrange, readrange, filerowrange)
+    try
+        let f = Parquet_read_parquet_retry(
+            path;
+            rows = (readrange.start-filerowrange.start+1):(readrange.stop-filerowrange.start+1),
+        )
+            DataFrames_DataFrame_retry(f, copycols=false)
         end
-    )
+    catch
+        # File does not exist
+        !startswith(path, "efs/s3/") || error("Path \"$path\" should not start with \"s3/\"")
+        DataFrames.DataFrame()
+    end
 end
 read_file(::Val{:parquet}, path) =
     try

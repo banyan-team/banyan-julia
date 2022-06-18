@@ -172,6 +172,9 @@ end
 
 symbol_Disk = "Disk"
 symbol_filtering_op = "filtering_op"
+symbol_path = "path"
+symbol_balanced = "balanced"
+symbol_nrows = "nrows"
 
 function ReadBlockHelper(@nospecialize(format_value))
     function ReadBlock(
@@ -190,7 +193,8 @@ function ReadBlockHelper(@nospecialize(format_value))
             println("In ReadBlock with loc_params=$loc_params params=$params")
         end
         
-        loc_params_path = loc_params["path"]::String
+        loc_params_path = loc_params[symbol_path]::String
+        balanced = params[symbol_balanced]
         # By calling getpath we ensure that this data exists on each node and
         # is ready to be read in even if the cluster has changed but same S3 bucket
         # with cached location is used.
@@ -218,7 +222,7 @@ function ReadBlockHelper(@nospecialize(format_value))
         nworkers = get_nworkers(comm)
         npartitions = nbatches * nworkers
         partition_idx = get_partition_idx(batch_idx, nbatches, comm)
-        nrows::Int64 = loc_params["nrows"]::Int64
+        nrows::Int64 = loc_params[symbol_nrows]::Int64
         rows_per_partition = cld(nrows, npartitions)
         sorting_perm = sortperm(meta_nrows, rev=true)
         files_by_partition = Base.Vector{Int64}[]
@@ -288,68 +292,79 @@ function ReadBlockHelper(@nospecialize(format_value))
         # @show files_by_partition
 
         # Read in data frames
-        files_for_curr_partition = files_by_partition[partition_idx]
-        times = Base.Vector{Float64}(undef, length(files_for_curr_partition))
-        files_memory_usage = Base.Vector{String}(undef, length(files_for_curr_partition))
-        dfs = if !isempty(files_for_curr_partition)
-            dfs_res::Base.Vector{DataFrames.DataFrame} = Base.Vector{DataFrames.DataFrame}(undef, length(files_for_curr_partition))
-            Threads.@threads for (i, file_i) in Base.collect(enumerate(files_for_curr_partition))
-                path = meta_path[file_i]
-                et = @elapsed begin
-                res = filtering_op(read_file(format_value, path))
+        if !balanced
+            files_for_curr_partition = files_by_partition[partition_idx]
+            times = Base.Vector{Float64}(undef, length(files_for_curr_partition))
+            files_memory_usage = Base.Vector{String}(undef, length(files_for_curr_partition))
+            dfs = if !isempty(files_for_curr_partition)
+                dfs_res::Base.Vector{DataFrames.DataFrame} = Base.Vector{DataFrames.DataFrame}(undef, length(files_for_curr_partition))
+                Threads.@threads for (i, file_i) in Base.collect(enumerate(files_for_curr_partition))
+                    path = meta_path[file_i]
+                    et = @elapsed begin
+                    res = filtering_op(read_file(format_value, path))
+                    end
+                    dfs_res[i] = res
+                    times[i] = et
+                    files_memory_usage[i] = Banyan.format_bytes(Banyan.total_memory_usage(res))
                 end
-                dfs_res[i] = res
-                times[i] = et
-                files_memory_usage[i] = Banyan.format_bytes(Banyan.total_memory_usage(res))
+                for et in times
+                    record_time(time_key, et)
+                end
+                dfs_res
+            else
+                DataFrames.DataFrame[]
             end
-            for et in times
-                record_time(time_key, et)
-            end
-            dfs_res
         else
-            DataFrames.DataFrame[]
+            # Determine the range of rows to read in from each file so that the result
+            # is perfectly balanced across all partitions
+            rowrange = Banyan.split_len(nrows, batch_idx, nbatches, comm)
+            ndfs = 0
+            rowsscanned = 0
+            files_to_read = []
+            for file in Table.rows(meta)
+                path = file[1]
+                path_nrows = file[2]
+                newrowsscanned = rowsscanned + path_nrows
+                filerowrange = (rowsscanned+1):newrowsscanned
+
+                # Check if the file corresponds to the range of rows for the batch
+                # currently being processed by this worker
+                if Banyan.isoverlapping(filerowrange, rowrange)
+                    ndfs += 1
+                    readrange =
+                        max(rowrange.start, filerowrange.start):min(
+                            rowrange.stop,
+                            filerowrange.stop,
+                        )
+                    push!(files_to_read, (ndfs, path, readrange, filerowrange))
+                end
+                rowsscanned = newrowsscanned
+            end
+            dfs = Base.Vector{Any}(undef, ndfs)
+
+            # Iterate through files and identify which ones correspond to the range of
+            # rows for the batch currently being processed by this worker
+            rowrange = Banyan.split_len(nrows, batch_idx, nbatches, comm)
+            dfs::Base.Vector{DataFrames.DataFrame} = DataFrames.DataFrame[]
+            rowsscanned = 0
+            Threads.@threads for (i, path::String, readrange, filerowrange) in files_to_read
+                # TODO: Scale the memory usage appropriately when splitting with
+                # this and garbage collect if too much memory is used.
+                if Banyan.INVESTIGATING_LOSING_DATA
+                    println("In ReadBlock calling read_file with path=$path, filerowrange=$filerowrange, readrange=$readrange, rowrange=$rowrange")
+                end
+                @time begin
+                et = @elapsed begin
+                res = read_file(format_value, path, rowrange, readrange, filerowrange)
+                dfs[i] = res
+                end
+                record_time(time_key, et)
+                # push!(files_memory_usage, Banyan.format_bytes(Banyan.total_memory_usage(res)))
+                println("Time to read $(length(readrange)) rows from file with $(length(filerowrange)) rows with Banyan.total_memory_usage(res)=$(Banyan.total_memory_usage(res)) and filesize(path)=$(Banyan.format_bytes(filesize(path))) from path=$path on get_worker_idx(comm)=$(get_worker_idx(comm)) and batch_idx=$batch_idx = $et seconds for $(Banyan.format_bytes(round(Int64, filesize(path) / et))) per second on get_worker_idx()=$(MPI.Initialized() ? get_worker_idx() : -1)")
+                end
+            end
         end
 
-        # Older implementation
-
-        # # Iterate through files and identify which ones correspond to the range of
-        # # rows for the batch currently being processed by this worker
-        # nrows::Int64 = loc_params["nrows"]::Int64
-        # rowrange = Banyan.split_len(nrows, batch_idx, nbatches, comm)
-        # dfs::Base.Vector{DataFrames.DataFrame} = DataFrames.DataFrame[]
-        # rowsscanned = 0
-        # for (file_path::String, file_nrows::Int64) in Tables.rows(meta)
-        #     newrowsscanned = rowsscanned + file_nrows
-        #     filerowrange = (rowsscanned+1):newrowsscanned
-        #     # Check if the file corresponds to the range of rows for the batch
-        #     # currently being processed by this worker
-        #     if Banyan.isoverlapping(filerowrange, rowrange)
-        #         # Deterine path to read from
-        #         path = file_path
-
-        #         # Read from location depending on data format
-        #         readrange =
-        #             max(rowrange.start, filerowrange.start):min(
-        #                 rowrange.stop,
-        #                 filerowrange.stop,
-        #             )
-        #         # TODO: Scale the memory usage appropriately when splitting with
-        #         # this and garbage collect if too much memory is used.
-        #         if Banyan.INVESTIGATING_LOSING_DATA
-        #             println("In ReadBlock calling read_file with path=$path, filerowrange=$filerowrange, readrange=$readrange, rowrange=$rowrange")
-        #         end
-        #         @time begin
-        #         et = @elapsed begin
-        #         res = read_file(format_value, path, rowrange, readrange, filerowrange, dfs)
-        #         end
-        #         record_time(time_key, et)
-        #         push!(files_memory_usage, Banyan.format_bytes(Banyan.total_memory_usage(res)))
-        #         println("Time to read $(length(rowrange)) rows from file with $(length(filerowrange)) rows with Banyan.total_memory_usage(res)=$(files_memory_usage[end]) and filesize(path)=$(Banyan.format_bytes(filesize(path))) from path=$path on get_worker_idx(comm)=$(get_worker_idx(comm)) and batch_idx=$batch_idx = $et seconds for $(Banyan.format_bytes(round(Int64, filesize(path) / et))) per second on get_worker_idx()=$(MPI.Initialized() ? get_worker_idx() : -1)")
-        #         end
-        #         res
-        #     end
-        #     rowsscanned = newrowsscanned
-        # end
         if Banyan.INVESTIGATING_LOSING_DATA
             # println("In ReadBlock with rowrange=$rowrange, nrow.(dfs)=$(nrow.(dfs))")
             println("In ReadBlock with nrow.(dfs)=$(nrow.(dfs))")
@@ -364,7 +379,7 @@ function ReadBlockHelper(@nospecialize(format_value))
         if isempty(dfs)
             println("No dfs to read in on get_worker_idx()=$(MPI.Initialized() ? get_worker_idx() : -1)")
         else
-            println("Time to read $loc_name so far = $(get_time(time_key)) seconds; $(length(dfs)) files read in with files_memory_usage=$files_memory_usage on get_worker_idx()=$(MPI.Initialized() ? get_worker_idx() : -1)")
+            println("Time to read $loc_name so far = $(get_time(time_key)) seconds; $(length(dfs)) files read in on get_worker_idx()=$(MPI.Initialized() ? get_worker_idx() : -1)")
         end
         res = if isempty(dfs)
             # When we construct the location, we store an empty data frame with The
@@ -699,6 +714,7 @@ function SplitGroupDataFrame(
     end
 
     # Get divisions stored with src
+    # TODO: Maybe cache this
     divisions_by_partition = Banyan.get_divisions(src_divisions, npartitions)
 
     # Get the divisions to apply

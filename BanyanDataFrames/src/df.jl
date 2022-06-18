@@ -87,9 +87,10 @@ function _pts_for_filtering(init::Future, final::Future, initpts_unbalanced::Bas
         initpt_balanced::PartitionType = initpts_balanced[i]
         finalpt_balanced::PartitionType = finalpts_balanced[i]
 
-        # unbalanced -> balanced
-        pt(init, initpt_unbalanced, match=final, on="divisions")
-        pt(final, finalpt_balanced & Drifted())
+        # You can't actually expect the result of this to be exactly balanced
+        # # unbalanced -> balanced
+        # pt(init, initpt_unbalanced, match=final, on="divisions")
+        # pt(final, finalpt_balanced & Drifted())
 
         # unbalanced -> unbalanced
         pt(init, initpt_unbalanced, match=final, on=["distribution", "key", "divisions", "rev"])
@@ -286,11 +287,13 @@ function pts_for_getindex(futures::Base.Vector{Future})
         )
         # TODO: Ensure Grouped can take dataframe and array
             # Return Blocked if return_vector or select_columns and grouping by non-selected
-            return_blocked = return_vector || (dfpt_balanced.parameters["distribution"]::String == "grouped" && !(dfpt_balanced.parameters["key"] in columns))
+            dfpt_dist = dfpt_balanced.parameters["distribution"]::String
+            return_blocked = return_vector || (dfpt_dist == "grouped" && !(dfpt_balanced.parameters["key"] in columns))
 
-            # unbalanced -> balanced
-            pt(df, dfpt_unbalanced, match=(return_blocked ? nothing : res), on=["distribution", "key", "divisions", "rev"])
-            pt(res, (return_blocked ? BlockedAlong(1) : respt_balanced) & Balanced() & Drifted())
+            # You can't actually expect the result to be balanced
+            # # unbalanced -> balanced\
+            # pt(df, dfpt_unbalanced, match=(return_blocked ? nothing : res), on=["distribution", "key", "divisions", "rev"])
+            # pt(res, (return_blocked ? BlockedAlong(1, false) : respt_balanced) & Balanced() & Drifted())
     
             # unbalanced -> unbalanced
             pt(df, dfpt_unbalanced, match=(return_blocked ? nothing : res), on=["distribution", "key", "divisions", "rev"])
@@ -308,8 +311,17 @@ function pts_for_getindex(futures::Base.Vector{Future})
     else
         for dpt in Distributed(df_sample_for_grouping, scaled_by_same_as=res)
             pt(df, dpt)
+            dpt_dist = dpt.parameters["distribution"]::String
             if return_vector || (dpt.parameters["distribution"]::String == "grouped" && !(dpt.parameters["key"]::String in columns))
-                pt(res, BlockedAlong(1) & ScaledBySame(df), match=df, on=["balanced", "id"])
+                if dpt_dist == "blocked"
+                    pt(res, BlockedAlong(1) & ScaledBySame(df), match=df, on=["balanced", "id"])
+                elseif dpt_dist == "grouped"
+                    # TODO: Make res be GroupedBy(1) if the first(columns) is the key of dpt.
+                    # But only do this when we make arrays be groupable.
+                    pt(res, BlockedAlong(1, false) & ScaledBySame(df), match=df, on=["id"])
+                else
+                    error("Distributed PT constructor must return PTs with distribution either blocked or grouped")
+                end
             else
                 pt(res, ScaledBySame(df), match=df)
             end
@@ -528,18 +540,20 @@ function pts_for_innerjoin(futures::Base.Vector{Future})
     dfs = futures[1:end-4]
     res_nrows, res, on, kwargs = futures[end-3:end]
     groupingkeys = _get_groupingkeys(sample(on))
-    # unbalanced, ...., unbalanced -> balanced - "partial sort-merge join"
-    dfs_with_groupingkeys = Dict{Future,String}(df => groupingkey for (df, groupingkey) in zip(dfs, groupingkeys))
-    dfs_with_groupingkeys::Base.Vector{DFSampleForGrouping} = DFSampleForGrouping[]
-    for (df, groupingkey) in zip(dfs, groupingkeys)
-        df_sample_for_grouping::DFSampleForGrouping = sample_for_grouping(df, groupingkey)
-        push!(dfs_with_groupingkeys, df_sample_for_grouping)
-    end
-    res_sample_for_groupingkeys::DFSampleForGrouping = sample_for_groupingkeys(res, first(groupingkeys))
-    for df_with_groupingkey in dfs_with_groupingkeys
-        pt(df, Grouped(df_with_groupingkey, balanced=false, filtered_relative_to=res_sample_for_groupingkeys, filtered_from=false), match=res, on=["divisions", "rev"])
-    end
-    pt(res, Grouped(res_sample_for_groupingkeys, balanced=true, filtered_relative_to=dfs_with_groupingkeys, filtered_from=true) & Drifted())
+
+    # You can't actually expect the result to be exactly balanced
+    # # unbalanced, ...., unbalanced -> balanced - "partial sort-merge join"
+    # dfs_with_groupingkeys = Dict{Future,String}(df => groupingkey for (df, groupingkey) in zip(dfs, groupingkeys))
+    # dfs_with_groupingkeys::Base.Vector{DFSampleForGrouping} = DFSampleForGrouping[]
+    # for (df, groupingkey) in zip(dfs, groupingkeys)
+    #     df_sample_for_grouping::DFSampleForGrouping = sample_for_grouping(df, groupingkey)
+    #     push!(dfs_with_groupingkeys, df_sample_for_grouping)
+    # end
+    # res_sample_for_groupingkeys::DFSampleForGrouping = sample_for_groupingkeys(res, first(groupingkeys))
+    # for df_with_groupingkey in dfs_with_groupingkeys
+    #     pt(df, Grouped(df_with_groupingkey, balanced=false, filtered_relative_to=res_sample_for_groupingkeys, filtered_from=false), match=res, on=["divisions", "rev"])
+    # end
+    # pt(res, Grouped(res_sample_for_groupingkeys, balanced=true, filtered_relative_to=dfs_with_groupingkeys, filtered_from=true) & Drifted())
 
     # balanced, unbalanced, ..., unbalanced -> unbalanced
     for i in 1:length(dfs)

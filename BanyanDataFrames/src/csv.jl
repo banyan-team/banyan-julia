@@ -33,16 +33,13 @@ get_sample_and_metadata(::Val{:csv}, p, sample_rate) =
 file_ending(::Val{:csv}) = "csv"
 
 function read_file(::Val{:csv}, path, rowrange, readrange, filerowrange, dfs)
-    push!(
-        dfs,
-        CSV_read_retry(
-            path,
-            DataFrames.DataFrame;
-            header = 1,
-            # TODO: Ensure this is okay
-            skipto = 1 + readrange.start - filerowrange.start + 1,
-            footerskip = filerowrange.stop - readrange.stop,
-        )
+    CSV_read_retry(
+        path,
+        DataFrames.DataFrame;
+        header = 1,
+        # TODO: Ensure this is okay
+        skipto = 1 + readrange.start - filerowrange.start + 1,
+        footerskip = filerowrange.stop - readrange.stop,
     )
 end
 read_file(::Val{:csv}, path) = CSV_read_retry(path, DataFrames.DataFrame)

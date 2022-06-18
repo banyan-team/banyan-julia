@@ -235,6 +235,9 @@ end
         compute(BanyanArrays.reduce(+, db_subset_col))
         df_subset = subset(groupby(df, :species), :petal_length => pl -> pl .>= mean(pl))
         compute(BanyanArrays.reduce(+, map(+, db_subset_col, df_subset[:, :petal_length])))
+        # NOTE: Unfortunately we can't really test ReadGroupJuliaArray unless we use
+        # offloaded. But we don't really need to test it until we
+        # implement functions like sortslices and make arrays groupable.
     end
 end
 

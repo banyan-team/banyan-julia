@@ -33,7 +33,7 @@ partition_memory_usage = "none"
 # be causing unnecessary batched I/O.
 
 [splits.ReadBlockCSV]
-expected = [ "key" ]
+expected = [ "key", "balanced" ]
 partition_memory_usage = "part"
 scale_by = 4
 views = false
@@ -41,7 +41,7 @@ required = { name = "Distributing", distribution = "blocked", id = "!" }
 locations = [ { name = "Remote", format = "csv" } ]
 
 [splits.ReadBlockParquet]
-expected = [ "key" ]
+expected = [ "key", "balanced" ]
 partition_memory_usage = "part"
 scale_by = 4
 views = false
@@ -49,7 +49,7 @@ required = { name = "Distributing", distribution = "blocked", id = "!" }
 locations = [ { name = "Remote", format = "parquet" } ]
 
 [splits.ReadBlockArrow]
-expected = [ "key" ]
+expected = [ "key", "balanced" ]
 partition_memory_usage = "part"
 scale_by = 4
 views = false

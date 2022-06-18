@@ -22,26 +22,34 @@ get_sample_and_metadata(::Val{:arrow}, p, sample_rate) =
 
 file_ending(::Val{:arrow}) = "arrow"
 
-# function read_file(::Val{:arrow}, path, rowrange, readrange, filerowrange, dfs)
-#     rbrowrange = filerowrange.start:(filerowrange.start-1)
-#     for tbl in Arrow.Stream(path)
-#         rbrowrange = (rbrowrange.stop+1):(rbrowrange.stop+Tables.rowcount(tbl))
-#         if Banyan.isoverlapping(rbrowrange, rowrange)
-#             readrange =
-#                 max(rowrange.start, rbrowrange.start):min(
-#                     rowrange.stop,
-#                     rbrowrange.stop,
-#                 )
-#             df = let unfiltered = DataFrames.DataFrame(tbl; copycols=false)
-#                 unfiltered[
-#                     (readrange.start-rbrowrange.start+1):(readrange.stop-rbrowrange.start+1),
-#                     :,
-#                 ]
-#             end
-#             push!(dfs, df)
-#         end
-#     end
-# end
+function read_file(::Val{:arrow}, path, rowrange, readrange, filerowrange)
+    # rbrowrange = filerowrange.start:(filerowrange.start-1)
+    # dfs = DataFrames.DataFrame[]
+    # for tbl in Arrow.Stream(path)
+    #     rbrowrange = (rbrowrange.stop+1):(rbrowrange.stop+Tables.rowcount(tbl))
+    #     if Banyan.isoverlapping(rbrowrange, rowrange)
+    #         readrange =
+    #             max(rowrange.start, rbrowrange.start):min(
+    #                 rowrange.stop,
+    #                 rbrowrange.stop,
+    #             )
+    #         df = let unfiltered = DataFrames.DataFrame(tbl; copycols=false)
+    #             unfiltered[
+    #                 (readrange.start-rbrowrange.start+1):(readrange.stop-rbrowrange.start+1),
+    #                 :,
+    #             ]
+    #         end
+    #         push!(dfs, df)
+    #     end
+    # end
+    # !isempty(dfs) ? vcat(dfs) : DataFrames.DataFrame()
+    let unfiltered = DataFrames.DataFrame(tbl; copycols=false)
+        starti = (readrange.start-filerowrange.start+1)
+        endi = (readrange.stop-filerowrange.start+1)
+        read_whole_file = starti == 0 && endi == filerowrange.stop
+        read_whole_file ? unfiltered : unfiltered[starti:endi,:,]
+    end
+end
 
 read_file(::Val{:arrow}, path) =
     DataFrames_DataFrame_retry(Arrow_Table_retry(path); copycols=false)
