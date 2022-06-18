@@ -104,11 +104,11 @@ function ReadBlockHelperJuliaArray(
         Threads.@threads for (i, (file, filerowrange)) in Base.collect(enumerate(files_to_read))
             # newrowsscanned = rowsscanned + file[1]
             # filerowrange = (rowsscanned+1):newrowsscanned
-            filerowrange = filerowranges[i]
             # Check if the file corresponds to the range of rows for the batch
             # currently being processed by this worker
             dfs_i = dfs_idx[i]
             if dfs_i != -1
+                filerowrange = filerowranges[dfs_i]
                 # Deterine path to read from
                 file_path = file[2]
                 path = Banyan.getpath(file_path)
