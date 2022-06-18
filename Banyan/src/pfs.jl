@@ -164,7 +164,7 @@ ReadGroupHelper(ReadBlockFunc, ShuffleFunc) = begin
             # don't really matter. We just want to consolidate and get all the data
             # from the partition that actually applies to one of the divisions for this
             # batch.
-            SplitGroup(unfiltered_df, params, 1, 3, comm, "Memory", Dict{String,Any})
+            SplitGroup(unfiltered_df, params, 1, 3, comm, "Memory", Dict{String,Any}())
         end
 
         # Read in data for this batch
