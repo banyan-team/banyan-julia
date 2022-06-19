@@ -758,7 +758,11 @@ function SplitGroupDataFrame(
         @show propertynames(src)
 
         # Group the dataframe's rows by what partition to send to
-        DataFrames.groupby(src, :banyan_shuffling_key, sort = true)
+        gdf_res = DataFrames.groupby(src, :banyan_shuffling_key, sort = true)
+
+        @show combine(gdf_res, nrow)
+
+        gdf_res
     else
         gdf_cache[src]
     end
@@ -807,6 +811,8 @@ function SplitGroupDataFrame(
             !hasdivision || boundedupper || partition_idx != lastdivisionidx,
         )
     end
+
+    record_time(:SplitGroupDataFrame_res_nrow, DataFrames.nrow(res))
 
     res
 end

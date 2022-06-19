@@ -204,6 +204,8 @@ ReadGroupHelper(ReadBlockFunc, ShuffleFunc) = begin
 
         println("At end of ReadGroupHelper on get_worker_idx()=$(get_worker_idx()) and batch_idx=$batch_idx with nrow(res)=$(size(res))")
 
+        record_time(:ReadGroupHelper_res_nrow, size(res, 1))
+
         res
     end
     ReadGroupHelperFunc
