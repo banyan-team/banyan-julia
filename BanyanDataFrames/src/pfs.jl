@@ -789,7 +789,7 @@ function SplitGroupDataFrame(
         DataFrames.select(gdf_part, Not(:banyan_shuffling_key), copycols=false)
         gdf_part
     else
-        empty(part)
+        empty(src)
     end
 
     if store_splitting_divisions
