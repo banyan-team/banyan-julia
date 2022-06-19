@@ -28,6 +28,18 @@ split_len(src_len::Int64, idx::Int64, npartitions::Int64)::UnitRange{Int64} =
         1:src_len
     end
 
+# This should only be used if src_len > npartitions
+split_len_with_fld(src_len::Int64, idx::Int64, npartitions::Int64)::UnitRange{Int64} =
+    if npartitions > 1
+        # dst_len = Int64(cld(src_len, npartitions))
+        dst_len = fld(src_len, npartitions)
+        dst_start = min((idx - 1) * dst_len + 1, src_len + 1)
+        dst_end = idx == npartitions ? src_len : min(idx * dst_len, src_len)
+        dst_start:dst_end
+    else
+        1:src_len
+    end
+
 split_len(src_len::Int64, batch_idx::Int64, nbatches::Int64, comm::MPI.Comm)::UnitRange{Int64} = split_len(
     src_len,
     get_partition_idx(batch_idx, nbatches, comm),
@@ -272,7 +284,10 @@ function get_divisions(divisions::Base.Vector{Division{V}}, npartitions::Int64):
         for (division_idx::Int64, division::Division{V}) in enumerate(divisions)
             # Determine the range (from `firstpartitioni` to `lastpartitioni`) of
             # partitions that own this division
-            partitionsrange = split_len(npartitions, division_idx, ndivisions)
+            # We have to use fld instead of the cld used by split_len because otherwise
+            # some divisions might have no partitions! :O
+            # partitionsrange = split_len(npartitions, division_idx, ndivisions)
+            partitionsrange = split_len_with_fld(npartitions, division_idx, ndivisions)
 
             # We need to split the division among all the partitions in
             # its range
