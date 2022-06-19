@@ -479,15 +479,6 @@ function SplitGroupArray(
     partition_idx = Banyan.get_partition_idx(batch_idx, nbatches, comm)
     npartitions = get_npartitions(nbatches, comm)
 
-    # Ensure that this partition has a schema that is suitable for usage
-    # here. We have to do this for `Shuffle` and `SplitGroup` (which is
-    # used by `DistributeAndShuffle`)
-    if isempty(src) || npartitions == 1
-        # TODO: Ensure we can return here like this and don't need the above
-        # (which is copied from `Shuffle`)
-        return src
-    end
-
     # Get divisions stored with src
     divisions_by_partition = get(
         params,
@@ -555,6 +546,17 @@ function Banyan.SplitGroup(
     loc_params::Dict{String,Any};
     store_splitting_divisions::Bool = false
 )
+    npartitions = get_npartitions(nbatches, comm)
+
+    # Ensure that this partition has a schema that is suitable for usage
+    # here. We have to do this for `Shuffle` and `SplitGroup` (which is
+    # used by `DistributeAndShuffle`)
+    if isempty(src) || npartitions == 1
+        # TODO: Ensure we can return here like this and don't need the above
+        # (which is copied from `Shuffle`)
+        return src
+    end
+
     splitting_divisions = Banyan.get_splitting_divisions()
     src_divisions, boundedlower, boundedupper = get!(splitting_divisions, src) do
         # This case lets us use `SplitGroup` in `DistributeAndShuffle`

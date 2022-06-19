@@ -707,15 +707,6 @@ function SplitGroupDataFrame(
     partition_idx = Banyan.get_partition_idx(batch_idx, nbatches, comm)
     npartitions = get_npartitions(nbatches, comm)
 
-    # Ensure that this partition has a schema that is suitable for usage
-    # here. We have to do this for `Shuffle` and `SplitGroup` (which is
-    # used by `DistributeAndShuffle`)
-    if isempty(src) || npartitions == 1
-        # TODO: Ensure we can return here like this and don't need the above
-        # (which is copied from `Shuffle`)
-        return src
-    end
-
     @show store_splitting_divisions
 
     # Get divisions_by_partition and partition_idx_getter if needed
@@ -741,7 +732,7 @@ function SplitGroupDataFrame(
 
 
     # Return using a single filter operation if possible
-    if consolidate || npartitions == 1
+    if consolidate || npartitions == 1 || true
         divisions_by_partition = get(
             params,
             symbol_divisions_by_partition,
@@ -836,6 +827,17 @@ function Banyan.SplitGroup(
     loc_params::Dict{String,Any};
     store_splitting_divisions::Bool = false
 )
+    npartitions = get_npartitions(nbatches, comm)
+
+    # Ensure that this partition has a schema that is suitable for usage
+    # here. We have to do this for `Shuffle` and `SplitGroup` (which is
+    # used by `DistributeAndShuffle`)
+    if isempty(src) || npartitions == 1
+        # TODO: Ensure we can return here like this and don't need the above
+        # (which is copied from `Shuffle`)
+        return src
+    end
+
     splitting_divisions = Banyan.get_splitting_divisions()
     src_divisions, boundedlower, boundedupper = get!(splitting_divisions, src) do
         # This case lets us use `SplitGroup` in `DistributeAndShuffle`
