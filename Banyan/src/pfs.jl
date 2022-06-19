@@ -147,6 +147,8 @@ ReadGroupHelper(ReadBlockFunc, ShuffleFunc) = begin
             end
         end
 
+        println("In ReadGroup on get_worker_idx()=$(get_worker_idx()) and batch_idx=$batch_idx with partition_divisions=$partition_divisions and curr_partition_divisions=$curr_partition_divisions")
+
         # TODO: Call ReadBlockFunc with nbatches=1 and pass in a function as
         # filtering_op in the params
         # TODO: Pass in function calling SplitGroup with 

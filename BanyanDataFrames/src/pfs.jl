@@ -717,7 +717,7 @@ function SplitGroupDataFrame(
         )
 
         if batch_idx == 1
-            @show divisions_by_partition
+            println("In SplitGroup on batch_idx=1 with divisions_by_partition=$divisions_by_partition for npartitions=$npartitions with boundedlower=$boundedlower and boundedupper=$boundedupper")
         end
 
         # Get the divisions to apply
@@ -738,12 +738,6 @@ function SplitGroupDataFrame(
 
     # Return using a single filter operation if possible
     if consolidate || npartitions == 1 || true
-        divisions_by_partition = get(
-            params,
-            symbol_divisions_by_partition,
-            Banyan.get_divisions(src_divisions, npartitions)
-        )
-
         # Apply divisions to get only the elements relevant to this worker
         filter_mask = Base.falses(nrow(src))
         for (i, row) in enumerate(eachrow(src))
