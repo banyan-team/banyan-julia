@@ -472,7 +472,7 @@ function configure_scheduling(;kwargs...)
     if get(kwargs, :exaggurate_size, false)::Bool || kwargs_name == "size exaggurated"
         exaggurate_size = true
     end
-    if get(kwargs, :encourage_batched_inner_loop, false)::Bool # || kwargs_name == "parallelism and batches encouraged"
+    if get(kwargs, :encourage_batched_inner_loop, false)::Bool || kwargs_name == "parallelism and batches encouraged"
         encourage_batched_inner_loop = true
     end
     if kwargs_name == "default scheduling"

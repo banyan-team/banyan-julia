@@ -202,7 +202,11 @@ ReadGroupHelper(ReadBlockFunc, ShuffleFunc) = begin
             splitting_divisions = get_splitting_divisions()
             partition_idx = get_partition_idx(batch_idx, nbatches, comm)
             splitting_divisions[res] =
-                (partition_divisions[partition_idx], !hasdivision || partition_idx != firstdivisionidx, !hasdivision || partition_idx != lastdivisionidx)
+                (
+                    partition_divisions[partition_idx],
+                    !hasdivision || partition_idx != firstdivisionidx,
+                    !hasdivision || partition_idx != lastdivisionidx
+                )
         end
 
         println("At end of ReadGroupHelper on get_worker_idx()=$(get_worker_idx()) and batch_idx=$batch_idx with nrow(res)=$(size(res))")

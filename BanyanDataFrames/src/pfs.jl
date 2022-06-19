@@ -716,6 +716,10 @@ function SplitGroupDataFrame(
             Banyan.get_divisions(src_divisions, npartitions)
         )
 
+        if batch_idx == 1
+            @show divisions_by_partition
+        end
+
         # Get the divisions to apply
         if rev
             reverse!(divisions_by_partition)
