@@ -261,6 +261,8 @@ end
                 for f in [x->mean(x)]#[mean, (x -> mean(x))]
                     df = read_file(path)
 
+                    println("nrow(df)=$(nrow(df))")
+
                     # Assert that exception gets thrown for parameters that aren't supported
                     @test_throws ErrorException groupby(df, :species; sort = false)
 
