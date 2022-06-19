@@ -195,7 +195,7 @@ ReadGroupHelper(ReadBlockFunc, ShuffleFunc) = begin
         # division(s) for that partition.
 
         # Store divisions
-        if !(res isa Empty) || isempty(res)
+        if !(res isa Empty) && !(isempty(res))
             splitting_divisions = get_splitting_divisions()
             partition_idx = get_partition_idx(batch_idx, nbatches, comm)
             splitting_divisions[res] =

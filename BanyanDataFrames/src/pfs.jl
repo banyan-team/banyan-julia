@@ -741,7 +741,11 @@ function SplitGroupDataFrame(
         filter_mask = Base.falses(nrow(src))
         for (i, row) in enumerate(eachrow(src))
             p_idx = partition_idx_getter(row[key])
-            filter_mask[i] = p_idx != (consolidate ? -1 : partition_idx)
+            if consolidate
+                filter_mask[i] = p_idx !=  -1
+            else
+                filter_mask[i] = p_idx == partition_idx
+            end
         end
         return src[filter_mask, :]
     end
@@ -843,6 +847,7 @@ function Banyan.SplitGroup(
     end
 
     splitting_divisions = Banyan.get_splitting_divisions()
+    println("In SplitGroup with haskey(splitting_divisions, src)=$(haskey(splitting_divisions, src)) and params=$params")
     src_divisions, boundedlower, boundedupper = get!(splitting_divisions, src) do
         # This case lets us use `SplitGroup` in `DistributeAndShuffle`
         (params["divisions"], false, false)
