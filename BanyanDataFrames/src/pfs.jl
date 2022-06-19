@@ -110,7 +110,7 @@ function ShuffleDataFrameHelper(
             )
         end
         if :banyan_shuffling_key in propertynames(res)
-            DataFrames.select!(res, Not(:banyan_shuffling_key), copycols=false)
+            DataFrames.select(res, Not(:banyan_shuffling_key), copycols=false)
         end
 
         res
@@ -792,7 +792,7 @@ function SplitGroupDataFrame(
     end
 
     if :banyan_shuffling_key in propertynames(res)
-        res = DataFrames.select!(res, Not(:banyan_shuffling_key), copycols=false)
+        res = DataFrames.select(res, Not(:banyan_shuffling_key), copycols=false)
     end
 
     if store_splitting_divisions
