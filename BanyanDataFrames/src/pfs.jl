@@ -707,10 +707,8 @@ function SplitGroupDataFrame(
     partition_idx = Banyan.get_partition_idx(batch_idx, nbatches, comm)
     npartitions = get_npartitions(nbatches, comm)
 
-    @show store_splitting_divisions
-
     # Get divisions_by_partition and partition_idx_getter if needed
-    if consolidate || npartitions == 1 || batch_idx == 1 || store_splitting_divisions
+    if consolidate || npartitions == 1 || batch_idx == 1 || store_splitting_divisions || true
         divisions_by_partition = get(
             params,
             symbol_divisions_by_partition,
