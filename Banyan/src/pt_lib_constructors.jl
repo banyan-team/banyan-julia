@@ -129,7 +129,7 @@ function Distributed(
     filtered_from::Bool = false,
     scaled_by_same_as::Union{Future,Nothing} = nothing,
 )::Vector{PartitionType} where {T,TF,K,KF}
-    balanced_res::Vector{Bool} = isnothing(balanced) ? Bool[true, false] : Bool[balanced]
+    balanced_res::Vector{Bool} = isnothing(balanced) ? Bool[false, true] : Bool[balanced]
     filtered_relative_to_res::Vector{SampleForGrouping{TF,KF}} = filtered_relative_to isa Vector ? filtered_relative_to : SampleForGrouping{TF,KF}[filtered_relative_to]
     filtered_from_res::Vector{Future} = (filtered_from && !isempty(filtered_relative_to_res)) ? Future[filtered_relative_to_res[1].future] : Future[]
     filtered_to_res::Vector{Future} = (!filtered_from && !isempty(filtered_relative_to_res)) ? Future[filtered_relative_to_res[1].future] : Future[]
@@ -250,7 +250,7 @@ function Blocked(
     # while keys returns keys for DataFrame and axes for Array
     # TODO: Maybe assert that along isa Vector{String} or Vector{Symbol}
 
-    balanced_res::Vector{Bool} = isnothing(balanced) ? Bool[true, false] : Bool[balanced]
+    balanced_res::Vector{Bool} = isnothing(balanced) ? Bool[false, true] : Bool[balanced]
 
     filtered_from_res::Vector{Future} =
         isnothing(filtered_from) ? Future[] : Future[filtered_from] # Future[convert(Future, filtered_from)]
@@ -494,7 +494,7 @@ function Grouped(
 )::Vector{PartitionType} where {K,T,KF,TF}
     make_grouped_pts(
         samples_for_grouping,
-        isnothing(balanced) ? Bool[true, false] : Bool[balanced],
+        isnothing(balanced) ? Bool[false, true] : Bool[balanced],
         isnothing(rev) ? false : rev,
         isnothing(rev),
         filtered_relative_to isa Base.Vector ? filtered_relative_to : SampleForGrouping{TF,KF}[filtered_relative_to],
