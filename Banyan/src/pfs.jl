@@ -156,6 +156,8 @@ ReadGroupHelper(ReadBlockFunc, ShuffleFunc) = begin
         # We need the divisions by worker for both SplitGroup and Shuffle
         params["divisions_by_partition"] = curr_partition_divisions # for SplitGroup
         params["consolidate"] = true # for SplitGroup
+        params["boundedlower"] = !hasdivision || batch_idx != firstbatchidx
+        params["boundedupper"] = !hasdivision || batch_idx != lastbatchidx
         # We can read with balanced = false because it's going to be shuffled and
         # balanced later
         read_block_params["balanced"] = false # for ReadBlock
@@ -164,7 +166,8 @@ ReadGroupHelper(ReadBlockFunc, ShuffleFunc) = begin
             # don't really matter. We just want to consolidate and get all the data
             # from the partition that actually applies to one of the divisions for this
             # batch.
-            SplitGroup(unfiltered_df, params, 1, 3, comm, "Memory", Dict{String,Any}())
+            # TODO: Pass boundedlower and boundedupper to this
+            SplitGroup(unfiltered_df, params, 2, 3, comm, "Memory", Dict{String,Any}())
         end # for ReadBlock
 
         # Read in data for this batch

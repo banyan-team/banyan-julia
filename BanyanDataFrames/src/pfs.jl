@@ -855,7 +855,7 @@ function Banyan.SplitGroup(
     println("In SplitGroup with haskey(splitting_divisions, src)=$(haskey(splitting_divisions, src)) and params=$params and get_worker_idx()=$(get_worker_idx())")
     src_divisions, boundedlower, boundedupper = get!(splitting_divisions, src) do
         # This case lets us use `SplitGroup` in `DistributeAndShuffle`
-        (params["divisions"], false, false)
+        (params["divisions"], get(params, "boundedlower", false), get(params, "boundedupper", false))
     end
     SplitGroupDataFrame(
         src,
