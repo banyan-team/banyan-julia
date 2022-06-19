@@ -248,6 +248,7 @@ function get_divisions(divisions::Base.Vector{Division{V}}, npartitions::Int64):
     # multiple divisions.
 
     ndivisions::Int64 = length(divisions)
+    println("In get_divisions with divisons=$divisions, npartitions=$npartitions, ndivisions=$ndivisions")
     if ndivisions == 0
         # If there are no divisions (maybe this dataset or this partition of a
         # dataset is empty), we simply return empty set.
@@ -341,6 +342,8 @@ function get_divisions(divisions::Base.Vector{Division{V}}, npartitions::Int64):
                 end
             end
         end
+
+        @show length(allsplitdivisions)
 
         allsplitdivisions
     end
