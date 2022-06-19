@@ -748,7 +748,11 @@ function SplitGroupDataFrame(
                 filter_mask[i] = p_idx == partition_idx
             end
         end
-        return src[filter_mask, :]
+        res = src[filter_mask, :]
+
+        record_time(:SplitGroupDataFrame_res_nrow, DataFrames.nrow(res))
+
+        res
     end
 
     # Otherwise, use a grouped data frame and cache it to reuse it across batches
@@ -816,8 +820,6 @@ function SplitGroupDataFrame(
             !hasdivision || boundedupper || partition_idx != lastdivisionidx,
         )
     end
-
-    record_time(:SplitGroupDataFrame_res_nrow, DataFrames.nrow(res))
 
     res
 end
