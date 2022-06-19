@@ -729,6 +729,8 @@ function SplitGroupDataFrame(
         )
     end
 
+    println("In SplitGroupDataFrame on get_worker_idx()=$(get_worker_idx())")
+
 
     # Return using a single filter operation if possible
     if consolidate || npartitions == 1 || true
@@ -850,7 +852,7 @@ function Banyan.SplitGroup(
     end
 
     splitting_divisions = Banyan.get_splitting_divisions()
-    println("In SplitGroup with haskey(splitting_divisions, src)=$(haskey(splitting_divisions, src)) and params=$params")
+    println("In SplitGroup with haskey(splitting_divisions, src)=$(haskey(splitting_divisions, src)) and params=$params and get_worker_idx()=$(get_worker_idx())")
     src_divisions, boundedlower, boundedupper = get!(splitting_divisions, src) do
         # This case lets us use `SplitGroup` in `DistributeAndShuffle`
         (params["divisions"], false, false)
