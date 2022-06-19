@@ -716,6 +716,8 @@ function SplitGroupDataFrame(
         return src
     end
 
+    @show store_splitting_divisions
+
     # Get divisions_by_partition and partition_idx_getter if needed
     if consolidate || npartitions == 1 || batch_idx == 1 || store_splitting_divisions
         divisions_by_partition = get(
@@ -774,6 +776,7 @@ function SplitGroupDataFrame(
 
     gdf_key = (banyan_shuffling_key = partition_idx,)
     @show gdf.cols
+    @show gdf.ngroups
     res = if gdf.ngroups > 0 && haskey(gdf, gdf_key)
         gdf_part = gdf[gdf_key]
         @show propertynames(gdf_part)
