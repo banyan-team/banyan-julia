@@ -716,33 +716,13 @@ function SplitGroupDataFrame(
         return src
     end
 
-    if consolidate
+    # Get divisions_by_partition and partition_idx_getter if needed
+    if consolidate || npartitions == 1 || batch_idx == 1 || store_splitting_divisions
         divisions_by_partition = get(
             params,
             symbol_divisions_by_partition,
             Banyan.get_divisions(src_divisions, npartitions)
         )
-
-        # Apply divisions to get only the elements relevant to this worker
-        filter_mask = Base.falses(nrow(src))
-        for (i, row) in enumerate(eachrow(src))
-            filter_mask[i] = let p_idx = Banyan.get_partition_idx_from_divisions(
-                row[key],
-                divisions_by_partition,
-                boundedlower,
-                boundedupper,
-            )
-                p_idx != -1
-            end
-        end
-        return src[filter_mask, :]
-    end
-
-    global gdf_cache
-
-    # Compute the grouped data frame
-    gdf, divisions_by_partition = if batch_idx == 1
-        divisions_by_partition = Banyan.get_divisions(src_divisions, npartitions)
 
         # Get the divisions to apply
         if rev
@@ -755,16 +735,39 @@ function SplitGroupDataFrame(
             boundedlower,
             boundedupper,
         )
+    end
 
+
+    # Return using a single filter operation if possible
+    if consolidate || npartitions == 1
+        divisions_by_partition = get(
+            params,
+            symbol_divisions_by_partition,
+            Banyan.get_divisions(src_divisions, npartitions)
+        )
+
+        # Apply divisions to get only the elements relevant to this worker
+        filter_mask = Base.falses(nrow(src))
+        for (i, row) in enumerate(eachrow(src))
+            p_idx = partition_idx_getter(row[key])
+            filter_mask[i] = p_idx != (consolidate ? -1 : partition_idx)
+        end
+        return src[filter_mask, :]
+    end
+
+    # Otherwise, use a grouped data frame and cache it to reuse it across batches
+
+    global gdf_cache
+
+    # Compute the grouped data frame
+    gdf = if batch_idx == 1
         # Compute the partition to send each row of the dataframe to
         DataFrames.transform!(src, key => ByRow(partition_idx_getter) => :banyan_shuffling_key)
 
         # Group the dataframe's rows by what partition to send to
         DataFrames.groupby(src, :banyan_shuffling_key, sort = true), divisions_by_partition
-    elseif store_splitting_divisions
-        gdf_cache[src], Banyan.get_divisions(src_divisions, npartitions)
     else
-        gdf_cache[src], nothing
+        gdf_cache[src]
     end
 
     # Store the grouped data frame
