@@ -754,7 +754,7 @@ function SplitGroupDataFrame(
 
         record_time(:SplitGroupDataFrame_res_nrow, DataFrames.nrow(res))
 
-        res
+        return res
     end
 
     # Otherwise, use a grouped data frame and cache it to reuse it across batches
