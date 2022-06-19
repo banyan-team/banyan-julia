@@ -112,6 +112,7 @@ function pts_for_filtering(init::Future, final::Future)
     # unbalanced
     initpts_unbalanced = Distributed(init_sample; balanced=false, filtered_relative_to=final_sample, filtered_from=false)
     finalpts_unbalanced = Distributed(final_sample; balanced=false, filtered_relative_to=init_sample, filtered_from=true)
+
     # balanced
     initpts_balanced = Distributed(init_sample; balanced=true, filtered_relative_to=final_sample, filtered_from=false)
     finalpts_balanced = Distributed(final_sample; balanced=true, filtered_relative_to=init_sample, filtered_from=true)
@@ -541,6 +542,12 @@ function pts_for_innerjoin(futures::Base.Vector{Future})
     res_nrows, res, on, kwargs = futures[end-3:end]
     groupingkeys = _get_groupingkeys(sample(on))
 
+    # unbalanced, unbalanced, ... -> unbalanced - "partial sort-merge join"
+    for df_with_groupingkey in dfs_with_groupingkeys
+        pt(df, Grouped(df_with_groupingkey, balanced=false, filtered_relative_to=res_sample_for_groupingkeys, filtered_from=false), match=res, on=["divisions", "rev"])
+    end
+    pt(res, Grouped(res_sample_for_groupingkeys, balanced=false, filtered_relative_to=dfs_with_groupingkeys, filtered_from=true) & Drifted())
+
     # You can't actually expect the result to be exactly balanced
     # # unbalanced, ...., unbalanced -> balanced - "partial sort-merge join"
     # dfs_with_groupingkeys = Dict{Future,String}(df => groupingkey for (df, groupingkey) in zip(dfs, groupingkeys))
@@ -584,12 +591,6 @@ function pts_for_innerjoin(futures::Base.Vector{Future})
     # for dpts in IterTools.product([Distributed(dpt, )]...)
     # pt(dfs..., Distributing(), cross=dfs)
     # pg(res, Blocked() & Unbalanced() & Drifted())
-
-    # unbalanced, unbalanced, ... -> unbalanced - "partial sort-merge join"
-    for df_with_groupingkey in dfs_with_groupingkeys
-        pt(df, Grouped(df_with_groupingkey, balanced=false, filtered_relative_to=res_sample_for_groupingkeys, filtered_from=false), match=res, on=["divisions", "rev"])
-    end
-    pt(res, Grouped(res_sample_for_groupingkeys, balanced=false, filtered_relative_to=dfs_with_groupingkeys, filtered_from=true) & Drifted())
     
     # "replicated join"
     pt(res_nrows, Reducing(+))

@@ -682,7 +682,7 @@ function Banyan.SplitBlock(
     )
 end
 
-global gdf_cache = IdDict{Any,DataFrames.GroupedDataFrame}
+global gdf_cache = IdDict{Any,DataFrames.GroupedDataFrame}()
 
 symbol_divisions_by_partition = "divisions_by_partition"
 
