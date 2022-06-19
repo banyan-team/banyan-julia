@@ -109,8 +109,8 @@ function ShuffleDataFrameHelper(
                 )...
             )
         end
-        if :banyan_shuffling_key in propertynames(res)
-            DataFrames.select(res, Not(:banyan_shuffling_key), copycols=false)
+        if hasproperty(res, :banyan_shuffling_key)
+            DataFrames.select!(res, Not(:banyan_shuffling_key))
         end
 
         res
@@ -772,15 +772,6 @@ function SplitGroupDataFrame(
         gdf_cache[src]
     end
 
-    # Store the grouped data frame
-    if nbatches > 1
-        if batch_idx == 1
-            gdf_cache[src] = gdf
-        elseif batch_idx == nbatches
-            delete!(gdf_cache, src)
-        end
-    end
-
     gdf_key = (banyan_shuffling_key = partition_idx,)
     @show gdf.cols
     res = if gdf.ngroups > 0 && haskey(gdf, gdf_key)
@@ -791,7 +782,19 @@ function SplitGroupDataFrame(
         empty(src)
     end
 
-    if :banyan_shuffling_key in propertynames(res)
+    # Store the grouped data frame
+    if nbatches > 1
+        if batch_idx == 1
+            gdf_cache[src] = gdf
+        elseif batch_idx == nbatches
+            delete!(gdf_cache, src)
+            if hasproperty(src, :banyan_shuffling_key)
+                DataFrames.select!(src, Not(:banyan_shuffling_key))
+            end
+        end
+    end
+
+    if hasproperty(res, :banyan_shuffling_key)
         res = DataFrames.select(res, Not(:banyan_shuffling_key), copycols=false)
     end
 

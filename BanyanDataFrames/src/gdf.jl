@@ -59,7 +59,7 @@ function partitioned_for_groupby(df::Future, gdf::Future, gdf_length::Future, co
         println("At start of groupby on get_worker_idx()=$(MPI.Initialized() ? get_worker_idx() : -1)")
         gdf = DataFrames.groupby(df, cols; kwargs...)
         gdf_length = DataFrames.length(gdf)
-        println("At end of groupby on get_worker_idx()=$(MPI.Initialized() ? get_worker_idx() : -1)")
+        println("At end of groupby on get_worker_idx()=$(MPI.Initialized() ? get_worker_idx() : -1) and gdf_length=$gdf_length")
     end
 end
 

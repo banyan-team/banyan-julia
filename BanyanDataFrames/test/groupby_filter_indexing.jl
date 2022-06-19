@@ -252,7 +252,7 @@ end
 
         bucket = get_cluster_s3_bucket_name()
 
-        for i = 1:2
+        for i = 1:1#2
             for path in [
                 # "s3://$(bucket)/iris_large.csv",
                 # "s3://$(bucket)/iris_large.parquet",
@@ -264,13 +264,13 @@ end
                     # Assert that exception gets thrown for parameters that aren't supported
                     @test_throws ErrorException groupby(df, :species; sort = false)
 
-                    # Groupby all columns
-                    gdf = groupby(df, :)
-                    @test length(gdf) == 882
+                    # # Groupby all columns
+                    # gdf = groupby(df, :)
+                    # @test length(gdf) == 882
 
-                    # Groupby first four columns
-                    gdf = groupby(df, Cols(Between(1, 4)))
-                    @test length(gdf) == 147
+                    # # Groupby first four columns
+                    # gdf = groupby(df, Cols(Between(1, 4)))
+                    # @test length(gdf) == 147
 
                     # Groupby multiple columns selected using regex
                     gdf = groupby(df, r".*width")
