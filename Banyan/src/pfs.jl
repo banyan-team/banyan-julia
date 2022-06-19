@@ -169,7 +169,7 @@ ReadGroupHelper(ReadBlockFunc, ShuffleFunc) = begin
 
         # Read in data for this batch
         part = ReadBlockFunc(src, read_block_params, 1, 1, comm, loc_name, loc_params)
-        println("After ReadBlock in ReadGroupHelper on get_worker_idx()=$(get_worker_idx()) and batch_idx=$batch_idx with nrow(part)=$(DataFrames.nrow(part))")
+        println("After ReadBlock in ReadGroupHelper on get_worker_idx()=$(get_worker_idx()) and batch_idx=$batch_idx with nrow(part)=$(size(part))")
 
         delete!(params, "divisions_by_partition")
         params["divisions_by_worker"] = curr_partition_divisions # for Shuffle
@@ -184,7 +184,7 @@ ReadGroupHelper(ReadBlockFunc, ShuffleFunc) = begin
             !hasdivision || batch_idx != lastbatchidx,
             false
         )
-        println("After Shuffle in ReadGroupHelper on get_worker_idx()=$(get_worker_idx()) and batch_idx=$batch_idx with nrow(part)=$(DataFrames.nrow(part))")
+        println("After Shuffle in ReadGroupHelper on get_worker_idx()=$(get_worker_idx()) and batch_idx=$batch_idx with nrow(part)=$(size(part))")
         delete!(params, "divisions_by_worker")
 
         # Concatenate together the data for this partition
@@ -202,7 +202,7 @@ ReadGroupHelper(ReadBlockFunc, ShuffleFunc) = begin
                 (partition_divisions[partition_idx], !hasdivision || partition_idx != firstdivisionidx, !hasdivision || partition_idx != lastdivisionidx)
         end
 
-        println("At end of ReadGroupHelper on get_worker_idx()=$(get_worker_idx()) and batch_idx=$batch_idx with nrow(res)=$(DataFrames.nrow(res))")
+        println("At end of ReadGroupHelper on get_worker_idx()=$(get_worker_idx()) and batch_idx=$batch_idx with nrow(res)=$(size(res))")
 
         res
     end
