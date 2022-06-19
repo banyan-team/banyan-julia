@@ -67,6 +67,7 @@ read_file(::Val{:parquet}, path) =
     end
 
 ReadBlockParquet = ReadBlockHelper(Val(:parquet))
+ReadBlockBalancedParquet = ReadBlockParquet
 ReadGroupHelperParquet = ReadGroupHelper(ReadBlockParquet, ShuffleDataFrame)
 ReadGroupParquet = ReadGroup(ReadGroupHelperParquet)
 

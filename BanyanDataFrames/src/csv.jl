@@ -45,6 +45,7 @@ end
 read_file(::Val{:csv}, path) = CSV_read_retry(path, DataFrames.DataFrame)
 
 ReadBlockCSV = ReadBlockHelper(Val(:csv))
+ReadBlockBalancedCSV = ReadBlockCSV
 ReadGroupHelperCSV = ReadGroupHelper(ReadBlockCSV, ShuffleDataFrame)
 ReadGroupCSV = ReadGroup(ReadGroupHelperCSV)
 

@@ -55,6 +55,7 @@ read_file(::Val{:arrow}, path) =
     DataFrames_DataFrame_retry(Arrow_Table_retry(path); copycols=false)
 
 ReadBlockArrow = ReadBlockHelper(Val(:arrow))
+ReadBlockBalancedArrow = ReadBlockArrow
 ReadGroupHelperArrow = ReadGroupHelper(ReadBlockArrow, ShuffleDataFrame)
 ReadGroupArrow = ReadGroup(ReadGroupHelperArrow)
 

@@ -154,21 +154,24 @@ ReadGroupHelper(ReadBlockFunc, ShuffleFunc) = begin
         # Read in each batch and shuffle it to get the data for this partition
         read_block_params = deepcopy(params)
         # We need the divisions by worker for both SplitGroup and Shuffle
-        params["divisions_by_partition"] = curr_partition_divisions
-        params["consolidate"] = true
+        params["divisions_by_partition"] = curr_partition_divisions # for SplitGroup
+        params["consolidate"] = true # for SplitGroup
         # We can read with balanced = false because it's going to be shuffled and
         # balanced later
-        read_block_params["balanced"] = false
+        read_block_params["balanced"] = false # for ReadBlock
         read_block_params["filtering_op"] = unfiltered_df -> begin
             # We just pass in 2 and 3 and COMM_WORLD because these parameters
             # don't really matter. We just want to consolidate and get all the data
             # from the partition that actually applies to one of the divisions for this
             # batch.
             SplitGroup(unfiltered_df, params, 1, 3, comm, "Memory", Dict{String,Any}())
-        end
+        end # for ReadBlock
 
         # Read in data for this batch
         part = ReadBlockFunc(src, read_block_params, 1, 1, comm, loc_name, loc_params)
+
+        delete!(params, "divisions_by_partition")
+        params["divisions_by_worker"] = curr_partition_divisions # for Shuffle
 
         # Shuffle the batch and add it to the set of data for this partition
         part = ShuffleFunc(

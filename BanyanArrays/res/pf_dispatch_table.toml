@@ -1,7 +1,7 @@
 [splits.ReadBlockJuliaArray]
 expected = [ "key" ]
 partition_memory_usage = "part"
-scale_by = 2
+scale_by = 3
 views = false
 required = { name = "Distributing", distribution = "blocked", id = "!" }
 locations = [ { name = "Disk", datatype = "Array" } ]
