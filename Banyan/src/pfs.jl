@@ -552,6 +552,7 @@ function ReduceAndCopyToJulia(
             # node
             CopyToJulia(src, src, params, 1, 1, comm, loc_name, loc_params)
         end
+        println("In ReduceAndCopyToJulia at end on last batch with loc_name=$loc_name and src=$src")
     end
 
     # TODO: Ensure we don't have issues where with batched execution we are
