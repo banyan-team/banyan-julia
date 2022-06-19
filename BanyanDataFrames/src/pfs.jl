@@ -786,7 +786,7 @@ function SplitGroupDataFrame(
     res = if gdf.ngroups > 0 && haskey(gdf, gdf_key)
         gdf_part = gdf[gdf_key]
         @show propertynames(gdf_part)
-        DataFrames.select!(gdf_part, Not(:banyan_shuffling_key))
+        DataFrames.select(gdf_part, Not(:banyan_shuffling_key), copycols=false)
         gdf_part
     else
         empty(part)
