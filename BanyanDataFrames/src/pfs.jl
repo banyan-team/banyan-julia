@@ -764,6 +764,8 @@ function SplitGroupDataFrame(
         # Compute the partition to send each row of the dataframe to
         DataFrames.transform!(src, key => ByRow(partition_idx_getter) => :banyan_shuffling_key)
 
+        @show propertynames(src)
+
         # Group the dataframe's rows by what partition to send to
         DataFrames.groupby(src, :banyan_shuffling_key, sort = true)
     else
@@ -780,8 +782,10 @@ function SplitGroupDataFrame(
     end
 
     gdf_key = (banyan_shuffling_key = partition_idx,)
+    @show gdf.cols
     res = if gdf.ngroups > 0 && haskey(gdf, gdf_key)
         gdf_part = gdf[gdf_key]
+        @show propertynames(gdf_part)
         DataFrames.select!(gdf_part, Not(:banyan_shuffling_key))
         gdf_part
     else
