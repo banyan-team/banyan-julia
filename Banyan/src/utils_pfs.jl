@@ -251,6 +251,9 @@ orderinghash(A::AA) where AA<:AbstractArray = orderinghash(first(A))
 
 const Division{V} = Tuple{V,V} where {V <: AbstractVector}
 
+divide_division(diff::Union{UInt8,Int64}, ndivisionsplits::Int64) = cld(diff, ndivisionsplits)
+divide_division(diff::Float64, ndivisionsplits::Int64) = diff / ndivisionsplits
+
 function get_divisions(divisions::Base.Vector{Division{V}}, npartitions::Int64)::Base.Vector{Base.Vector{Division{V}}} where V
     # This function accepts a list of divisions where each division is a tuple
     # of ordering hashes (values returned by `orderinghash` which are either
@@ -325,7 +328,7 @@ function get_divisions(divisions::Base.Vector{Division{V}}, npartitions::Int64):
                         @show splitdivisions
                         splitdivisions[j][1][i] = j == 1 ? dbegin : copy(start)
                         @show (start, dbegin, dend, splitdivisions)
-                        start += cld(dend - dbegin, ndivisionsplits)
+                        start += divide_division(dend - dbegin, ndivisionsplits)
                         @show (start, dbegin, dend, splitdivisions)
                         start = min(start, dend)
                         @show (start, dbegin, dend, splitdivisions)
