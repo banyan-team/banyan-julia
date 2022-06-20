@@ -259,6 +259,8 @@ function get_divisions(divisions::Base.Vector{Division{V}}, npartitions::Int64):
     # containing lists of divisions for each partition. A partition may contain
     # multiple divisions.
 
+    divisions = deepcopy(divisions)
+
     ndivisions::Int64 = length(divisions)
     if ndivisions == 0
         # If there are no divisions (maybe this dataset or this partition of a

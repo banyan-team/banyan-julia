@@ -843,7 +843,7 @@ function Banyan.SplitGroup(
         splitting_divisions = Banyan.get_splitting_divisions()
         src_divisions, boundedlower, boundedupper = get(splitting_divisions, src) do
             # This case lets us use `SplitGroup` in `DistributeAndShuffle`
-            (deepcopy(params["divisions"]), get(params, "boundedlower", false), get(params, "boundedupper", false))
+            (params["divisions"], get(params, "boundedlower", false), get(params, "boundedupper", false))
         end
         divisions_by_partition = if haskey(params, symbol_divisions_by_partition)
             params[symbol_divisions_by_partition]
@@ -866,7 +866,7 @@ function Banyan.SplitGroup(
     println("In SplitGroup with haskey(splitting_divisions, src)=$(haskey(splitting_divisions, src)) and params=$params and get_worker_idx()=$(get_worker_idx())")
     src_divisions, boundedlower, boundedupper = get(splitting_divisions, src) do
         # This case lets us use `SplitGroup` in `DistributeAndShuffle`
-        (deepcopy(params["divisions"]), get(params, "boundedlower", false), get(params, "boundedupper", false))
+        (params["divisions"], get(params, "boundedlower", false), get(params, "boundedupper", false))
     end
     SplitGroupDataFrame(
         src,
