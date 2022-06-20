@@ -480,11 +480,11 @@ function SplitGroupArray(
     npartitions = get_npartitions(nbatches, comm)
 
     # Get divisions stored with src
-    divisions_by_partition = get(
-        params,
-        symbol_divisions_by_partition,
+    divisions_by_partition = if haskey(params, symbol_divisions_by_partition)
+        params[symbol_divisions_by_partition]
+    else
         Banyan.get_divisions(src_divisions, npartitions)
-    )
+    end
 
     # Get the divisions to apply
     if rev
@@ -504,7 +504,10 @@ function SplitGroupArray(
     )
     res = if ndims(src) > 1
         cat(
-            Iterators.filter(filterfunc)...;
+            Iterators.filter(
+                filterfunc,
+                eachslice(src, dims=key)
+            )...;
             dims = key,
         )
     else
