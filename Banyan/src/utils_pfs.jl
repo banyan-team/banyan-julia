@@ -301,6 +301,8 @@ function get_divisions(divisions::Base.Vector{Division{V}}, npartitions::Int64):
             divisionend::V = division[2]
             T = eltype(divisionbegin)
 
+            @show (divisionbegin, divisionend)
+
             # Initialize divisions for each split
             # V_nonstatic = Base.Vector{T}
             splitdivisions::Base.Vector{Division{Base.Vector{T}}} =
@@ -314,6 +316,7 @@ function get_divisions(divisions::Base.Vector{Division{V}}, npartitions::Int64):
             for (i::Int64, (dbegin::T, dend::T)) in enumerate(zip(divisionbegin, divisionend))
                 # Find the first index in the `Base.Vector{Number}` where
                 # there is a difference that we can interpolate between
+                @show (i, dbegin, dend)
                 if dbegin != dend
                     # Iterate through each split
                     start::T = copy(dbegin)
@@ -324,6 +327,8 @@ function get_divisions(divisions::Base.Vector{Division{V}}, npartitions::Int64):
                         start += cld(dend - dbegin, ndivisionsplits)
                         start = min(start, dend)
                         splitdivisions[j][2][i] = j == ndivisionsplits ? dend : copy(start)
+
+                        @show (j, ndivisionsplits, start)
 
                         # Ensure that the remaining indices are matching between the start and end.
                         if j < ndivisionsplits
