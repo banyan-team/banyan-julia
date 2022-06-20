@@ -295,14 +295,10 @@ function get_divisions(divisions::Base.Vector{Division{V}}, npartitions::Int64):
             # its range
             ndivisionsplits = length(partitionsrange)
 
-            @show (division_idx, division, partitionsrange, ndivisionsplits)
-
             # Get the `Base.Vector{Number}`s to interpolate between
             divisionbegin::V = division[1]
             divisionend::V = division[2]
             T = eltype(divisionbegin)
-
-            @show (divisionbegin, divisionend)
 
             # Initialize divisions for each split
             # V_nonstatic = Base.Vector{T}
@@ -317,31 +313,21 @@ function get_divisions(divisions::Base.Vector{Division{V}}, npartitions::Int64):
             for (i::Int64, (dbegin::T, dend::T)) in enumerate(zip(divisionbegin, divisionend))
                 # Find the first index in the `Base.Vector{Number}` where
                 # there is a difference that we can interpolate between
-                @show (i, dbegin, dend)
                 if dbegin != dend
                     # Iterate through each split
                     start::T = copy(dbegin)
                     for j::Int64 = 1:ndivisionsplits
                         # Update the start and end of the division
                         # islastsplit = j == ndivisionsplits
-                        @show j
-                        @show splitdivisions
                         splitdivisions[j][1][i] = j == 1 ? dbegin : copy(start)
-                        @show (start, dbegin, dend, splitdivisions)
                         start += divide_division(dend - dbegin, ndivisionsplits)
-                        @show (start, dbegin, dend, splitdivisions)
                         start = min(start, dend)
-                        @show (start, dbegin, dend, splitdivisions)
                         splitdivisions[j][2][i] = j == ndivisionsplits ? dend : copy(start)
-
-                        @show (j, ndivisionsplits, start, splitdivisions)
 
                         # Ensure that the remaining indices are matching between the start and end.
                         if j < ndivisionsplits
                             splitdivisions[j][2][i+1:end] = splitdivisions[j][1][i+1:end]
                         end
-
-                        @show splitdivisions
                     end
 
                     # Stop if we have found a difference we can
@@ -371,9 +357,6 @@ function get_divisions(divisions::Base.Vector{Division{V}}, npartitions::Int64):
                 end
             end
         end
-
-        
-        println("In get_divisions with divisons=$divisions, npartitions=$npartitions, ndivisions=$ndivisions and the resulting allsplitdivisions=$allsplitdivisions")
 
         allsplitdivisions
     end

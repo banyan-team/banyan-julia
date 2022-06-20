@@ -92,7 +92,6 @@ ReadGroupHelper(ReadBlockFunc, ShuffleFunc) = begin
         # Get information needed to read in the appropriate group
         nworkers = get_nworkers(comm)
         npartitions = nworkers * nbatches
-        println("Calling get_divisions in ReadGroupHelper with npartitions=$npartitions")
         partition_divisions = get_divisions(divisions, npartitions)
 
         # TODO: Do some reversing here instead of only doing it later in Shuffle
@@ -148,8 +147,6 @@ ReadGroupHelper(ReadBlockFunc, ShuffleFunc) = begin
             end
         end
 
-        println("In ReadGroup on get_worker_idx()=$(get_worker_idx()) and batch_idx=$batch_idx with partition_divisions=$partition_divisions from divisions=$divisions and npartitions=$npartitions and curr_partition_divisions=$curr_partition_divisions and npartitions=$npartitions with nworkers=$nworkers and nbatches=$nbatches")
-
         # TODO: Call ReadBlockFunc with nbatches=1 and pass in a function as
         # filtering_op in the params
         # TODO: Pass in function calling SplitGroup with 
@@ -175,7 +172,6 @@ ReadGroupHelper(ReadBlockFunc, ShuffleFunc) = begin
 
         # Read in data for this batch
         part = ReadBlockFunc(src, read_block_params, 1, 1, comm, loc_name, loc_params)
-        println("After ReadBlock in ReadGroupHelper on get_worker_idx()=$(get_worker_idx()) and batch_idx=$batch_idx with nrow(part)=$(size(part))")
 
         delete!(params, "divisions_by_partition")
         params["divisions_by_worker"] = curr_partition_divisions # for Shuffle
@@ -190,7 +186,6 @@ ReadGroupHelper(ReadBlockFunc, ShuffleFunc) = begin
             !hasdivision || batch_idx != lastbatchidx,
             false
         )
-        println("After Shuffle in ReadGroupHelper on get_worker_idx()=$(get_worker_idx()) and batch_idx=$batch_idx with nrow(part)=$(size(part))")
         delete!(params, "divisions_by_worker")
 
         # Concatenate together the data for this partition
@@ -211,8 +206,6 @@ ReadGroupHelper(ReadBlockFunc, ShuffleFunc) = begin
                     !hasdivision || partition_idx != lastdivisionidx
                 )
         end
-
-        println("At end of ReadGroupHelper on get_worker_idx()=$(get_worker_idx()) and batch_idx=$batch_idx with nrow(res)=$(size(res)) and partition_divisions[partition_idx]=$(partition_divisions[get_partition_idx(batch_idx, nbatches, comm)]) from partition_divisions=$partition_divisions")
 
         record_time(:ReadGroupHelper_res_nrow, size(res, 1))
 
@@ -552,7 +545,6 @@ function ReduceAndCopyToJulia(
 ) where {T}
     # Merge reductions from batches
     # TODO: Ensure that we handle reductions that can produce nothing
-    println("In ReduceAndCopyToJulia at start with loc_name=$loc_name and part=$part and params=$params")
     src = reduce_in_memory(src, part, op)
 
     # Merge reductions across workers
@@ -564,7 +556,6 @@ function ReduceAndCopyToJulia(
             # node
             CopyToJulia(src, src, params, 1, 1, comm, loc_name, loc_params)
         end
-        println("In ReduceAndCopyToJulia at end on last batch with loc_name=$loc_name and src=$src")
     end
 
     # TODO: Ensure we don't have issues where with batched execution we are
@@ -575,7 +566,6 @@ function ReduceAndCopyToJulia(
     # partial merges in a global `IdDict` and then only mutate `src` once we
     # are finished with the last batch and we know we won't be splitting
     # from the value again.
-    println("In ReduceAndCopyToJulia at end with loc_name=$loc_name and part=$part")
     src
 end
 

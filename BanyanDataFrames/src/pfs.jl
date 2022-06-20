@@ -710,9 +710,7 @@ function SplitGroupDataFrame(
     npartitions = get_npartitions(nbatches, comm)
 
     # Get divisions_by_partition and partition_idx_getter if needed
-    if consolidate || npartitions == 1 || batch_idx == 1 || store_splitting_divisions # || true
-        @show haskey(params, symbol_divisions_by_partition)
-        println("Calling get_divisions in SplitGroup with npartitions=$npartitions")
+    if consolidate || npartitions == 1 || batch_idx == 1 || store_splitting_divisions
         divisions_by_partition = if haskey(params, symbol_divisions_by_partition)
             params[symbol_divisions_by_partition]
         else
@@ -732,11 +730,9 @@ function SplitGroupDataFrame(
         )
     end
 
-    println("In SplitGroupDataFrame on get_worker_idx()=$(get_worker_idx())")
-
 
     # Return using a single filter operation if possible
-    if consolidate || npartitions == 1 # || true
+    if consolidate || npartitions == 1
         # Apply divisions to get only the elements relevant to this worker
         filter_mask = Base.falses(nrow(src))
         for (i, row) in enumerate(eachrow(src))
@@ -763,12 +759,8 @@ function SplitGroupDataFrame(
         # Compute the partition to send each row of the dataframe to
         DataFrames.transform!(src, key => ByRow(partition_idx_getter) => :banyan_shuffling_key)
 
-        @show propertynames(src)
-
         # Group the dataframe's rows by what partition to send to
         gdf_res = DataFrames.groupby(src, :banyan_shuffling_key, sort = true)
-
-        @show combine(gdf_res, nrow)
 
         gdf_res
     else
@@ -776,11 +768,8 @@ function SplitGroupDataFrame(
     end
 
     gdf_key = (banyan_shuffling_key = partition_idx,)
-    @show gdf.cols
-    @show gdf.ngroups
     res = if gdf.ngroups > 0 && haskey(gdf, gdf_key)
         gdf_part = gdf[gdf_key]
-        @show propertynames(gdf_part)
         gdf_part
     else
         empty(src)
@@ -864,7 +853,6 @@ function Banyan.SplitGroup(
     end
 
     splitting_divisions = Banyan.get_splitting_divisions()
-    println("In SplitGroup with haskey(splitting_divisions, src)=$(haskey(splitting_divisions, src)) and params=$params and get_worker_idx()=$(get_worker_idx())")
     src_divisions, boundedlower, boundedupper = get(splitting_divisions, src) do
         # This case lets us use `SplitGroup` in `DistributeAndShuffle`
         (params["divisions"], get(params, "boundedlower", false), get(params, "boundedupper", false))
@@ -1004,9 +992,9 @@ function ConsolidateDataFrame(part::DataFrames.DataFrame, src_params::Dict{Strin
     recvvbuf = Banyan.buftovbuf(sendbuf, comm)
     # TODO: Maybe sometimes use gatherv if all sendbuf's are known to be equally sized
 
-    println("In ConsolidateDataFrame before MPI.Allgatherv! on get_worker_idx()=$(get_worker_idx())")
+    # println("In ConsolidateDataFrame before MPI.Allgatherv! on get_worker_idx()=$(get_worker_idx())")
     MPI.Allgatherv!(sendbuf, recvvbuf, comm)
-    println("In ConsolidateDataFrame after MPI.Allgatherv! on get_worker_idx()=$(get_worker_idx())")
+    # println("In ConsolidateDataFrame after MPI.Allgatherv! on get_worker_idx()=$(get_worker_idx())")
     res = merge_on_executor(
         [
             de(view(
@@ -1036,6 +1024,7 @@ function combine_in_memory(a, b, groupcols, groupkwargs, combinecols, combinearg
     concatenated = vcat(a, b)
     grouped = groupby(concatenated, groupcols; groupkwargs...)
     combined = combine(grouped, combineargs...; combinekwargs...)
+    combined
 end
 
 function ReduceDataFrame(
@@ -1045,11 +1034,11 @@ function ReduceDataFrame(
     comm::MPI.Comm
 )
     # res = reduce_and_sync_across(src_params["reducing_op"], part; comm=comm)
-    println("At start of ReduceDataFrame on get_worker_idx()=$(get_worker_idx())")
+    # println("At start of ReduceDataFrame on get_worker_idx()=$(get_worker_idx())")
     res = ConsolidateDataFrame(part, Dict{String,Any}(), Dict{String,Any}(), comm)
     res = src_params["reducing_op"](res, DataFrames.DataFrame()) 
     res_finished = src_params["finishing_op"](res)
-    println("At end of ReduceDataFrame on get_worker_idx()=$(get_worker_idx())")
+    # println("At end of ReduceDataFrame on get_worker_idx()=$(get_worker_idx())")
     res_finished
 end
 

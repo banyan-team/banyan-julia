@@ -13,7 +13,7 @@
             for path in [
                 "s3://$(bucket)/iris_large.csv",
                 "s3://$(bucket)/iris_large.parquet",
-                # "s3://$(bucket)/iris_large.arrow",
+                "s3://$(bucket)/iris_large.arrow",
                 "s3://$(bucket)/iris_large_dir.csv",
             ]
                 df = read_file(path)
