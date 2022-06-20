@@ -324,8 +324,11 @@ function get_divisions(divisions::Base.Vector{Division{V}}, npartitions::Int64):
                         # Update the start and end of the division
                         # islastsplit = j == ndivisionsplits
                         splitdivisions[j][1][i] = j == 1 ? dbegin : copy(start)
+                        @show (start, dbegin, dend, splitdivisions)
                         start += cld(dend - dbegin, ndivisionsplits)
+                        @show (start, dbegin, dend, splitdivisions)
                         start = min(start, dend)
+                        @show (start, dbegin, dend, splitdivisions)
                         splitdivisions[j][2][i] = j == ndivisionsplits ? dend : copy(start)
 
                         @show (j, ndivisionsplits, start, splitdivisions)
@@ -334,6 +337,8 @@ function get_divisions(divisions::Base.Vector{Division{V}}, npartitions::Int64):
                         if j < ndivisionsplits
                             splitdivisions[j][2][i+1:end] = splitdivisions[j][1][i+1:end]
                         end
+
+                        @show splitdivisions
                     end
 
                     # Stop if we have found a difference we can
