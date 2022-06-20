@@ -297,7 +297,7 @@ function ReadBlockHelper(@nospecialize(format_value))
             # files_memory_usage = Base.Vector{String}(undef, length(files_for_curr_partition))
             dfs = if !isempty(files_for_curr_partition)
                 dfs_res::Base.Vector{DataFrames.DataFrame} = Base.Vector{DataFrames.DataFrame}(undef, length(files_for_curr_partition))
-                et = @time begin
+                et = @elapsed begin
                 Threads.@threads for (i, file_i) in Base.collect(enumerate(files_for_curr_partition))
                     path = meta_path[file_i]
                     res = filtering_op(read_file(format_value, path))
