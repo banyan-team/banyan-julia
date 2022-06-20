@@ -92,6 +92,7 @@ ReadGroupHelper(ReadBlockFunc, ShuffleFunc) = begin
         # Get information needed to read in the appropriate group
         nworkers = get_nworkers(comm)
         npartitions = nworkers * nbatches
+        println("Calling get_divisions in ReadGroupHelper with npartitions=$npartitions")
         partition_divisions = get_divisions(divisions, npartitions)
 
         # TODO: Do some reversing here instead of only doing it later in Shuffle

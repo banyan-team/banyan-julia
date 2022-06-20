@@ -710,6 +710,7 @@ function SplitGroupDataFrame(
     # Get divisions_by_partition and partition_idx_getter if needed
     if consolidate || npartitions == 1 || batch_idx == 1 || store_splitting_divisions || true
         @show haskey(params, symbol_divisions_by_partition)
+        println("Calling get_divisions in SplitGroup with npartitions=$npartitions")
         divisions_by_partition = get(
             params,
             symbol_divisions_by_partition,
