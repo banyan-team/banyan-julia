@@ -35,7 +35,7 @@ partition_memory_usage = "none"
 [splits.ReadBlockBalancedCSV]
 expected = [ "key" ]
 partition_memory_usage = "part"
-scale_by = 4
+scale_by = 3
 views = false
 required = { name = "Distributing", distribution = "blocked", id = "!", balanced = true }
 locations = [ { name = "Remote", format = "csv" } ]
@@ -43,7 +43,7 @@ locations = [ { name = "Remote", format = "csv" } ]
 [splits.ReadBlockBalancedParquet]
 expected = [ "key" ]
 partition_memory_usage = "part"
-scale_by = 4
+scale_by = 3
 views = false
 required = { name = "Distributing", distribution = "blocked", id = "!", balanced = true }
 locations = [ { name = "Remote", format = "parquet" } ]
@@ -51,7 +51,7 @@ locations = [ { name = "Remote", format = "parquet" } ]
 [splits.ReadBlockBalancedArrow]
 expected = [ "key" ]
 partition_memory_usage = "part"
-scale_by = 4
+scale_by = 3
 views = false
 required = { name = "Distributing", distribution = "blocked", id = "!", balanced = true }
 locations = [ { name = "Remote", format = "arrow" }, { name = "Disk", datatype = "DataFrame" } ]
@@ -59,7 +59,7 @@ locations = [ { name = "Remote", format = "arrow" }, { name = "Disk", datatype =
 [splits.ReadBlockCSV]
 expected = [ "key" ]
 partition_memory_usage = "part"
-scale_by = 5
+scale_by = 4
 views = false
 required = { name = "Distributing", distribution = "blocked", id = "!", balanced = false }
 locations = [ { name = "Remote", format = "csv" } ]
@@ -67,7 +67,7 @@ locations = [ { name = "Remote", format = "csv" } ]
 [splits.ReadBlockParquet]
 expected = [ "key" ]
 partition_memory_usage = "part"
-scale_by = 5
+scale_by = 4
 views = false
 required = { name = "Distributing", distribution = "blocked", id = "!", balanced = false }
 locations = [ { name = "Remote", format = "parquet" } ]
@@ -75,7 +75,7 @@ locations = [ { name = "Remote", format = "parquet" } ]
 [splits.ReadBlockArrow]
 expected = [ "key" ]
 partition_memory_usage = "part"
-scale_by = 5
+scale_by = 4
 views = false
 required = { name = "Distributing", distribution = "blocked", id = "!", balanced = false }
 locations = [ { name = "Remote", format = "arrow" }, { name = "Disk", datatype = "DataFrame" } ]
