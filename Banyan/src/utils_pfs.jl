@@ -328,7 +328,7 @@ function get_divisions(divisions::Base.Vector{Division{V}}, npartitions::Int64):
                         start = min(start, dend)
                         splitdivisions[j][2][i] = j == ndivisionsplits ? dend : copy(start)
 
-                        @show (j, ndivisionsplits, start)
+                        @show (j, ndivisionsplits, start, splitdivisions)
 
                         # Ensure that the remaining indices are matching between the start and end.
                         if j < ndivisionsplits
