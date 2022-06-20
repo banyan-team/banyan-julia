@@ -113,6 +113,8 @@ function ShuffleDataFrameHelper(
             DataFrames.select!(res, Not(:banyan_shuffling_key))
         end
 
+        println("In ShuffleDataFrame on get_worker_idx()=$(get_worker_idx()) with nrow(res)=$(DataFrames.nrow(res)) and divisions_by_worker=$divisions_by_worker with boundedlower=$boundedlower and boundedupper=$boundedupper")
+
         res
     end
 
