@@ -212,7 +212,7 @@ ReadGroupHelper(ReadBlockFunc, ShuffleFunc) = begin
                 )
         end
 
-        println("At end of ReadGroupHelper on get_worker_idx()=$(get_worker_idx()) and batch_idx=$batch_idx with nrow(res)=$(size(res))")
+        println("At end of ReadGroupHelper on get_worker_idx()=$(get_worker_idx()) and batch_idx=$batch_idx with nrow(res)=$(size(res)) and partition_divisions[partition_idx]=$(partition_divisions[partition_idx]) from partition_divisions=$partition_divisions")
 
         record_time(:ReadGroupHelper_res_nrow, size(res, 1))
 
