@@ -711,11 +711,11 @@ function SplitGroupDataFrame(
     if consolidate || npartitions == 1 || batch_idx == 1 || store_splitting_divisions || true
         @show haskey(params, symbol_divisions_by_partition)
         println("Calling get_divisions in SplitGroup with npartitions=$npartitions")
-        divisions_by_partition = get(
-            params,
-            symbol_divisions_by_partition,
+        divisions_by_partition = if haskey(params, symbol_divisions_by_partition)
+            params[symbol_divisions_by_partition]
+        else
             Banyan.get_divisions(src_divisions, npartitions)
-        )
+        end
 
         if batch_idx == 1
             println("In SplitGroup on batch_idx=1 with divisions_by_partition=$divisions_by_partition for npartitions=$npartitions with boundedlower=$boundedlower and boundedupper=$boundedupper")
