@@ -201,7 +201,7 @@ ReadGroupHelper(ReadBlockFunc, ShuffleFunc) = begin
         # division(s) for that partition.
 
         # Store divisions
-        if !(res isa Empty) && !(isempty(res))
+        if !(res isa Empty) # && !(isempty(res))
             splitting_divisions = get_splitting_divisions()
             partition_idx = get_partition_idx(batch_idx, nbatches, comm)
             splitting_divisions[res] =
@@ -212,7 +212,7 @@ ReadGroupHelper(ReadBlockFunc, ShuffleFunc) = begin
                 )
         end
 
-        println("At end of ReadGroupHelper on get_worker_idx()=$(get_worker_idx()) and batch_idx=$batch_idx with nrow(res)=$(size(res)) and partition_divisions[partition_idx]=$(partition_divisions[partition_idx]) from partition_divisions=$partition_divisions")
+        println("At end of ReadGroupHelper on get_worker_idx()=$(get_worker_idx()) and batch_idx=$batch_idx with nrow(res)=$(size(res)) and partition_divisions[partition_idx]=$(partition_divisions[get_partition_idx(batch_idx, nbatches, comm)]) from partition_divisions=$partition_divisions")
 
         record_time(:ReadGroupHelper_res_nrow, size(res, 1))
 
@@ -231,7 +231,7 @@ ReadGroup(ReadGroupHelperFunc) = begin
         loc_name::String,
         loc_params::Dict{String,Any},
     )
-        divisions = deepcopy(params["divisions"])
+        divisions = params["divisions"]
         key = params["key"]
         rev::Bool = get(params, "rev", false) # Passed in ReadBlock
         ReadGroupHelperFunc(
