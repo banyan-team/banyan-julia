@@ -833,8 +833,8 @@ end
     use_session_for_testing(scheduling_config_name = "default scheduling", sample_rate=1024) do
         # p = setup_nyc_taxi_stress_test(nbytes="128 MB")
         # p = setup_nyc_taxi_stress_test(nbytes="1 GB")
-        p = setup_nyc_taxi_stress_test(nrows = 2_000_000_000)
-        # p = setup_nyc_taxi_stress_test(nrows = 250_000_000)
+        # p = setup_nyc_taxi_stress_test(nrows = 2_000_000_000)
+        p = setup_nyc_taxi_stress_test(nrows = 250_000_000)
         for iter in 1:2
             @time begin
                 # # for i in 1:100
@@ -890,8 +890,8 @@ end
                 # println("Total time after starting session on run #$iter")
                 # @debug Banyan.format_available_memory()
 
-                mean_func = mean
-                # mean_func = x -> mean(x)
+                # mean_func = mean
+                mean_func = x -> mean(x)
 
                 trip_means = compute(
                     combine(
@@ -907,6 +907,21 @@ end
                         :trip_distance => mean_func
                     )
                 )
+
+                # trip_means = @time "compute" compute(
+                #     @time "combine" combine(
+                #         (@time "groupby" groupby(
+                #             (@time "filter" filter(
+                #                 row -> row.trip_distance < 1.0,
+                #                 @time "read_csv" read_csv(p)
+                #             ),
+                #             :PULocationID)...
+                #         ),
+                #         :total_amount => mean_func,
+                #         :tip_amount => mean_func,
+                #         :trip_distance => mean_func)...
+                #     )
+                # )
             end
         end
     end
