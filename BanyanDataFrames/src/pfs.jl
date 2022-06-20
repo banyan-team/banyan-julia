@@ -201,9 +201,7 @@ function ReadBlockHelper(@nospecialize(format_value))
         # is ready to be read in even if the cluster has changed but same S3 bucket
         # with cached location is used.
         existing_path = getpath(loc_params_path)
-        @show loc_params
         meta_path = loc_name == symbol_Disk ? sync_across(is_main_worker(comm) ? get_meta_path(loc_params_path) : "", comm=comm) : loc_params["meta_path"]::String
-        @show meta_path
         loc_params = loc_name == symbol_Disk ? (Banyan.deserialize_retry(get_location_path(loc_params_path))::Location).src_parameters : loc_params
         meta = Arrow_Table_retry(meta_path)
         filtering_op = get(params, symbol_filtering_op, identity)
@@ -296,22 +294,18 @@ function ReadBlockHelper(@nospecialize(format_value))
         # Read in data frames
         if !balanced
             files_for_curr_partition = files_by_partition[partition_idx]
-            times = Base.Vector{Float64}(undef, length(files_for_curr_partition))
-            files_memory_usage = Base.Vector{String}(undef, length(files_for_curr_partition))
+            # files_memory_usage = Base.Vector{String}(undef, length(files_for_curr_partition))
             dfs = if !isempty(files_for_curr_partition)
                 dfs_res::Base.Vector{DataFrames.DataFrame} = Base.Vector{DataFrames.DataFrame}(undef, length(files_for_curr_partition))
+                et = @time begin
                 Threads.@threads for (i, file_i) in Base.collect(enumerate(files_for_curr_partition))
                     path = meta_path[file_i]
-                    et = @elapsed begin
                     res = filtering_op(read_file(format_value, path))
-                    end
                     dfs_res[i] = res
-                    times[i] = et
-                    files_memory_usage[i] = Banyan.format_bytes(Banyan.total_memory_usage(res))
+                    # files_memory_usage[i] = Banyan.format_bytes(Banyan.total_memory_usage(res))
                 end
-                for et in times
-                    record_time(time_key, et)
                 end
+                record_time(time_key, et)
                 dfs_res
             else
                 DataFrames.DataFrame[]
@@ -348,22 +342,18 @@ function ReadBlockHelper(@nospecialize(format_value))
             # rows for the batch currently being processed by this worker
             rowrange = Banyan.split_len(nrows, batch_idx, nbatches, comm)
             rowsscanned = 0
+            et = @elapsed begin
             Threads.@threads for (i, path::String, readrange, filerowrange) in files_to_read
                 # TODO: Scale the memory usage appropriately when splitting with
                 # this and garbage collect if too much memory is used.
                 if Banyan.INVESTIGATING_LOSING_DATA
                     println("In ReadBlock calling read_file with path=$path, filerowrange=$filerowrange, readrange=$readrange, rowrange=$rowrange")
                 end
-                @time begin
-                et = @elapsed begin
                 res = read_file(format_value, path, rowrange, readrange, filerowrange)
                 dfs[i] = res
-                end
-                record_time(time_key, et)
-                # push!(files_memory_usage, Banyan.format_bytes(Banyan.total_memory_usage(res)))
-                println("Time to read $(length(readrange)) rows from file with $(length(filerowrange)) rows with Banyan.total_memory_usage(res)=$(Banyan.total_memory_usage(res)) and filesize(path)=$(Banyan.format_bytes(filesize(path))) from path=$path on get_worker_idx(comm)=$(get_worker_idx(comm)) and batch_idx=$batch_idx = $et seconds for $(Banyan.format_bytes(round(Int64, filesize(path) / et))) per second on get_worker_idx()=$(MPI.Initialized() ? get_worker_idx() : -1)")
-                end
             end
+            end
+            record_time(time_key, et)
         end
 
         if Banyan.INVESTIGATING_LOSING_DATA
@@ -377,11 +367,11 @@ function ReadBlockHelper(@nospecialize(format_value))
         # guaranteed to have its ndims correct) and so if a split/merge/cast
         # function requires the schema (for example for grouping) then it must be
         # sure to take that account
-        if isempty(dfs)
-            println("No dfs to read in on get_worker_idx()=$(MPI.Initialized() ? get_worker_idx() : -1)")
-        else
-            println("Time to read $loc_name so far = $(get_time(time_key)) seconds; $(length(dfs)) files read in on get_worker_idx()=$(MPI.Initialized() ? get_worker_idx() : -1)")
-        end
+        # if isempty(dfs)
+        #     println("No dfs to read in on get_worker_idx()=$(MPI.Initialized() ? get_worker_idx() : -1)")
+        # else
+        #     println("Time to read $loc_name so far = $(get_time(time_key)) seconds; $(length(dfs)) files read in on get_worker_idx()=$(MPI.Initialized() ? get_worker_idx() : -1)")
+        # end
         res = if isempty(dfs)
             # When we construct the location, we store an empty data frame with The
             # correct schema.
@@ -391,7 +381,6 @@ function ReadBlockHelper(@nospecialize(format_value))
         else
             vcat(dfs...)
         end
-        @show ncol(res)
         res
     end
     ReadBlock
