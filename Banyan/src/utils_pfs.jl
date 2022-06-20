@@ -259,8 +259,6 @@ function get_divisions(divisions::Base.Vector{Division{V}}, npartitions::Int64):
     # containing lists of divisions for each partition. A partition may contain
     # multiple divisions.
 
-    divisions = deepcopy(divisions)
-
     ndivisions::Int64 = length(divisions)
     if ndivisions == 0
         # If there are no divisions (maybe this dataset or this partition of a
@@ -306,7 +304,7 @@ function get_divisions(divisions::Base.Vector{Division{V}}, npartitions::Int64):
             # Initialize divisions for each split
             # V_nonstatic = Base.Vector{T}
             splitdivisions::Base.Vector{Division{Base.Vector{T}}} =
-                map(_ -> (convert(Base.Vector{T}, divisionbegin), convert(Base.Vector{T}, divisionend)), 1:ndivisionsplits)
+                map(_ -> (convert(Base.Vector{T}, deepcopy(divisionbegin)), convert(Base.Vector{T}, deepcopy(divisionend))), 1:ndivisionsplits)
 
             # Adjust the divisions for each split to interpolate. The result
             # of an `orderinghash` call can be an array (in the case of
