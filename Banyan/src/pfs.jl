@@ -231,7 +231,7 @@ ReadGroup(ReadGroupHelperFunc) = begin
         loc_name::String,
         loc_params::Dict{String,Any},
     )
-        divisions = params["divisions"]
+        divisions = deepcopy(params["divisions"])
         key = params["key"]
         rev::Bool = get(params, "rev", false) # Passed in ReadBlock
         ReadGroupHelperFunc(
