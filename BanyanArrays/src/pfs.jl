@@ -560,7 +560,7 @@ function Banyan.SplitGroup(
     splitting_divisions = Banyan.get_splitting_divisions()
     src_divisions, boundedlower, boundedupper = get!(splitting_divisions, src) do
         # This case lets us use `SplitGroup` in `DistributeAndShuffle`
-        (params["divisions"], false, false)
+        (params["divisions"], get(params, "boundedlower", false), get(params, "boundedupper", false))
     end
     SplitGroupArray(
         src,

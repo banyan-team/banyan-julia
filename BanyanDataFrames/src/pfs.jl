@@ -719,10 +719,6 @@ function SplitGroupDataFrame(
             Banyan.get_divisions(src_divisions, npartitions)
         end
 
-        if batch_idx == 1
-            println("In SplitGroup on batch_idx=1 with divisions_by_partition=$divisions_by_partition for npartitions=$npartitions with boundedlower=$boundedlower and boundedupper=$boundedupper")
-        end
-
         # Get the divisions to apply
         if rev
             reverse!(divisions_by_partition)
@@ -843,6 +839,19 @@ function Banyan.SplitGroup(
 )
     npartitions = get_npartitions(nbatches, comm)
 
+    if batch_idx == 1
+        src_divisions, boundedlower, boundedupper = get(splitting_divisions, src) do
+            # This case lets us use `SplitGroup` in `DistributeAndShuffle`
+            (params["divisions"], get(params, "boundedlower", false), get(params, "boundedupper", false))
+        end
+        divisions_by_partition = if haskey(params, symbol_divisions_by_partition)
+            params[symbol_divisions_by_partition]
+        else
+            Banyan.get_divisions(src_divisions, npartitions)
+        end
+        println("In SplitGroup on get_worker_idx()=$(get_worker_idx()) batch_idx=1 with divisions_by_partition=$divisions_by_partition for npartitions=$npartitions with boundedlower=$boundedlower and boundedupper=$boundedupper")
+    end
+
     # Ensure that this partition has a schema that is suitable for usage
     # here. We have to do this for `Shuffle` and `SplitGroup` (which is
     # used by `DistributeAndShuffle`)
@@ -854,7 +863,7 @@ function Banyan.SplitGroup(
 
     splitting_divisions = Banyan.get_splitting_divisions()
     println("In SplitGroup with haskey(splitting_divisions, src)=$(haskey(splitting_divisions, src)) and params=$params and get_worker_idx()=$(get_worker_idx())")
-    src_divisions, boundedlower, boundedupper = get!(splitting_divisions, src) do
+    src_divisions, boundedlower, boundedupper = get(splitting_divisions, src) do
         # This case lets us use `SplitGroup` in `DistributeAndShuffle`
         (params["divisions"], get(params, "boundedlower", false), get(params, "boundedupper", false))
     end
