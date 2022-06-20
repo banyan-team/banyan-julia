@@ -850,7 +850,7 @@ function Banyan.SplitGroup(
         else
             Banyan.get_divisions(src_divisions, npartitions)
         end
-        println("In SplitGroup on get_worker_idx()=$(get_worker_idx()) batch_idx=1 with src_divisions=$src_divisions and divisions_by_partition=$divisions_by_partition for npartitions=$npartitions with boundedlower=$boundedlower and boundedupper=$boundedupper")
+        println("In SplitGroup on get_worker_idx()=$(get_worker_idx()) batch_idx=1 with src_divisions=$src_divisions and divisions_by_partition=$divisions_by_partition for npartitions=$npartitions with boundedlower=$boundedlower and boundedupper=$boundedupper and having haskey(splitting_divisions, src)=$(haskey(splitting_divisions, src)) and haskey(params, symbol_divisions_by_partition)=$(haskey(params, symbol_divisions_by_partition))")
     end
 
     # Ensure that this partition has a schema that is suitable for usage
