@@ -45,18 +45,18 @@ function Banyan.sync_across(df::DataFrames.DataFrame; comm=MPI.COMM_WORLD)
     count = Ref{Cint}()
     if is_main
         io = IOBuffer()
-        Arrow.write(io, df, compress=:zstd)
-        buf = MPI.Buffer(view(io.data, 1:io.size))
+        @time "Arrow.write" Arrow.write(io, df, compress=:zstd)
+        @time "MPI.Buffer creation" buf = MPI.Buffer(view(io.data, 1:io.size))
         count[] = length(buf.data)
     end
-    MPI.Bcast!(count, 0, comm)
+    @time "first MPI.Bcast!" MPI.Bcast!(count, 0, comm)
     println("In sync_across on get_worker_idx(comm)=$(get_worker_idx(comm)), get_worker_idx()=$(get_worker_idx()) with count=$count")
     if !is_main
         buf = MPI.Buffer(Base.Vector{UInt8}(undef, count[]))
     end
     @time "second MPI.Bcast!" MPI.Bcast!(buf, 0, comm)
     println("In sync_across on get_worker_idx(comm)=$(get_worker_idx(comm)), get_worker_idx()=$(get_worker_idx()) with after second Bcast!")
-    res = DataFrames.DataFrame(Arrow.Table(IOBuffer(view(buf.data, 1:buf.count))), copycols=false)
+    @time "deserialization in sync_across" res = DataFrames.DataFrame(Arrow.Table(IOBuffer(view(buf.data, 1:buf.count))), copycols=false)
     println("In sync_across on get_worker_idx(comm)=$(get_worker_idx(comm)), get_worker_idx()=$(get_worker_idx()) at end")
     res
 end
