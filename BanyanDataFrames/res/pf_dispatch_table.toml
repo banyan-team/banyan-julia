@@ -88,7 +88,7 @@ locations = [ { name = "Remote", format = "arrow" }, { name = "Disk", datatype =
 [splits.ReadGroupCSV]
 expected = [ "key", "divisions" ]
 partition_memory_usage = "part"
-scale_by = 5
+scale_by = 6
 views = false
 required = { name = "Distributing", distribution = "grouped", id = "!" }
 default = { rev = false }
@@ -97,7 +97,7 @@ locations = [ { name = "Remote", format = "csv" } ]
 [splits.ReadGroupParquet]
 expected = [ "key", "divisions" ]
 scale_by_num_partitions = false
-scale_by = 5
+scale_by = 6
 views = false
 required = { name = "Distributing", distribution = "grouped", id = "!" }
 default = { rev = false }
@@ -107,7 +107,7 @@ partition_memory_usage = "part"
 [splits.ReadGroupArrow]
 expected = [ "key", "divisions" ]
 scale_by_num_partitions = false
-scale_by = 5
+scale_by = 6
 views = false
 required = { name = "Distributing", distribution = "grouped", id = "!" }
 default = { rev = false }
