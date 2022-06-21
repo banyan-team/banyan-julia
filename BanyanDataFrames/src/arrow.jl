@@ -75,11 +75,16 @@ CopyFromArrow(
 )::DataFrames.DataFrame = begin
     part::DataFrames.DataFrame = if is_main_worker(comm)
         println("At start of CopyFromArrow")
-        ReadBlockArrow(src, params, 1, 1, MPI.COMM_SELF, loc_name, loc_params)
+        part_res = ReadBlockArrow(src, params, 1, 1, MPI.COMM_SELF, loc_name, loc_params)
+        println("After ReadBlockArrow in CopyFromArrow with $(DataFrames.nrow(part_res)) rows")
+        part_res
     else
         DataFrames.DataFrame()
     end
-    sync_across(part, comm=comm)
+    part_synced = sync_across(part, comm=comm)
+    println("After sync_across in CopyFromArrow on get_worker_idx(comm)=$(get_worker_idx(comm)) and get_worker_idx()=$(get_worker_idx())")
+    part_synced
+    
 end
 
 function CopyToArrow(

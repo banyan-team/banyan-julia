@@ -481,6 +481,7 @@ CopyToClient(
     loc_params,
 ) = begin
     if get_worker_idx(comm) == 1 && batch_idx == 1
+        println("At start of CopyToClient")
         et = @elapsed begin
         send_to_client(loc_params["value_id"], part)
         end

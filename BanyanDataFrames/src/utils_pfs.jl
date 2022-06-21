@@ -54,7 +54,7 @@ function Banyan.sync_across(df::DataFrames.DataFrame; comm=MPI.COMM_WORLD)
         buf = MPI.Buffer(Base.Vector{UInt8}(undef, count[]))
     end
     MPI.Bcast!(buf, 0, comm)
-    DataFrames.DataFrame(Arrow.Table(IOBuffer(view(buf.data, 1:buf.count))))
+    DataFrames.DataFrame(Arrow.Table(IOBuffer(view(buf.data, 1:buf.count))), copycols=false)
 end
 
 function get_variable_sized_blob(whole_blob::Base.Vector{UInt8})

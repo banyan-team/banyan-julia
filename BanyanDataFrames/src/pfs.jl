@@ -25,7 +25,7 @@ end
 ReturnNullGroupingConsolidated(part, src_params::Dict{String,Any}, dst_params::Dict{String,Any}, comm::MPI.Comm) = nothing
 ReturnNullGroupingRebalanced(part, src_params::Dict{String,Any}, dst_params::Dict{String,Any}, comm::MPI.Comm) = nothing
 
-de(x) = DataFrames.DataFrame(Arrow.Table(IOBuffer(x)))
+de(x) = DataFrames.DataFrame(Arrow.Table(IOBuffer(x)), copycols=false)
 
 function ShuffleDataFrameHelper(
     part::DataFrames.DataFrame,
