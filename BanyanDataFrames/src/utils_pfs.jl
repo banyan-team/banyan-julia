@@ -43,6 +43,7 @@ function Banyan.sync_across(df::DataFrames.DataFrame; comm=MPI.COMM_WORLD)
     # An optimized version of sync_across that syncs data frames across workers
     is_main = is_main_worker(comm)
     count = Ref{Cint}()
+    @time "MPI.Barrier before" MPI.Barrier(comm)
     if is_main
         io = IOBuffer()
         @time "Arrow.write" Arrow.write(io, df, compress=:zstd)
