@@ -835,7 +835,7 @@ end
         p = setup_nyc_taxi_stress_test(nbytes="1 GB")
         # p = setup_nyc_taxi_stress_test(nrows = 1_000_000_000)
         # p = setup_nyc_taxi_stress_test(nrows = 250_000_000)
-        for iter in 1:2
+        for iter in 1:1#2
             @time begin
                 # # for i in 1:100
                 # #     println("Attempting the #$i offloaded call")
@@ -919,7 +919,7 @@ end
                         :trip_distance => mean_func
                     )
                 trip_means = compute(combined, destroy=[data, filtered, grouped])
-                compute(filtered)
+                # compute(filtered)
 
                 
 
