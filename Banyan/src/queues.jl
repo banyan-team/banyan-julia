@@ -49,12 +49,12 @@ function get_next_message(
     error_for_main_stuck_time::Union{Nothing,DateTime} = nothing
 )::Tuple{String,Union{Nothing,String}}
 error_for_main_stuck = check_worker_stuck(error_for_main_stuck, error_for_main_stuck_time)
-    m = sqs_receive_message_with_long_polling(queue)
+    @time "initial sqs_receive_message_with_long_polling" m = sqs_receive_message_with_long_polling(queue)
     i = 1
     j = 1
     while (isnothing(m))
         error_for_main_stuck = check_worker_stuck(error_for_main_stuck, error_for_main_stuck_time)
-        m = sqs_receive_message_with_long_polling(queue)
+        @time "sqs_receive_message_with_long_polling" m = sqs_receive_message_with_long_polling(queue)
         i += 1
         if !isnothing(p)
             p::ProgressMeter.ProgressUnknown

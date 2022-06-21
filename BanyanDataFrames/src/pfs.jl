@@ -1000,16 +1000,30 @@ RebalanceDataFrame(
 function ConsolidateDataFrame(part::DataFrames.DataFrame, src_params::Dict{String,Any}, dst_params::Dict{String,Any}, comm::MPI.Comm)
     io = IOBuffer()
     @time "MPI.Barrier in ConsolidateDataFrame" MPI.Barrier(comm)
-    @time "Arrow.write in ConsolidateDataFrame" Arrow.write(io, part, compress=:zstd)
+    @time "Arrow.write in ConsolidateDataFrame" Arrow.write(io, part, compress=:lz4)
+    @time "MPI.Barrier in ConsolidateDataFrame after Arrow.write" MPI.Barrier(comm)
     @time "MPI.Buffer in ConsolidateDataFrame" sendbuf = MPI.Buffer(view(io.data, 1:io.size))
-    @time "Banyan.buftovbuf in ConsolidateDataFrame" recvvbuf = Banyan.buftovbuf(sendbuf, comm)
+    recvvbuf = Banyan.buftovbuf(sendbuf, comm)
     # TODO: Maybe sometimes use gatherv if all sendbuf's are known to be equally sized
 
     # println("In ConsolidateDataFrame before MPI.Allgatherv! on get_worker_idx()=$(get_worker_idx())")
     # distribute = get(src_params, "distribute", false)
+    @time "MPI.Gatherv! in ConsolidateDataFrame" begin
     MPI.Gatherv!(sendbuf, recvvbuf, 0, comm)
+    end
+    @time "MPI.Barrier in ConsolidateDataFrame after Gatherv!" MPI.Barrier(comm)
     # println("In ConsolidateDataFrame after MPI.Allgatherv! on get_worker_idx()=$(get_worker_idx())")
     res = if is_main_worker(comm)
+        @time "deserialization in ConsolidateDataFrame" begin
+            [
+                de(view(
+                    recvvbuf.data,
+                    (recvvbuf.displs[i]+1):(recvvbuf.displs[i]+recvvbuf.counts[i])
+                ))
+                for i in 1:Banyan.get_nworkers(comm)
+            ]
+        end
+        @time "deserialization and merging in ConsolidateDataFrame" begin
         merge_on_executor(
             [
                 de(view(
@@ -1020,9 +1034,12 @@ function ConsolidateDataFrame(part::DataFrames.DataFrame, src_params::Dict{Strin
             ],
             1
         )
+        end
     else
         empty(part)
     end
+    @time "MPI.Barrier in ConsolidateDataFrame after serialization and concatenation" MPI.Barrier(comm)
+    # println("Result of ConsolidateDataFrame on get_worker_idx()=$(get_worker_idx()) is $(Banyan.format_bytes(Banyan.total_memory_usage(res)))")
     res
 end
 

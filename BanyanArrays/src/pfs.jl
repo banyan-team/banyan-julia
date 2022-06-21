@@ -8,6 +8,7 @@ function read_julia_array_file(path::String, readrange::UnitRange{Int64}, filero
                 push!(dim_selector, Colon())
             end
         end
+        println("Read in Julia array file with size(arr)=$(size(arr)) and dim_selector=$dim_selector")
         convert(Base.Array, arr[dim_selector...])
     end
 end
@@ -129,7 +130,7 @@ function ReadBlockHelperJuliaArray(
                 # this and garbage collect if too much memory is used.
                 dfs[dfs_i] = filtering_op(read_julia_array_file(path, readrange, filerowrange, dim_partitioning))
                 if Banyan.INVESTIGATING_LOSING_DATA
-                    println("In ReadBlockJuliaArray with path=$path with rowrange=$rowrange, readrange=$readrange, filerowrange=$filerowrange, dim=$dim")
+                    println("In ReadBlockJuliaArray on get_worker_idx()=$(get_worker_idx()) with path=$path with partitioned_on_dim=$partitioned_on_dim, rowrange=$rowrange, readrange=$readrange, filerowrange=$filerowrange, dim=$dim and filtering_op=$filtering_op and size(dfs[dfs_i])=$(size(dfs[dfs_i]))")
                 end
             end
             
@@ -142,6 +143,7 @@ function ReadBlockHelperJuliaArray(
     # guaranteed to have its ndims correct) and so if a split/merge/cast
     # function requires the schema (for example for grouping) then it must be
     # sure to take that account
+    println("At end of ReadBlockJuliaArray with size.(dfs)=$(size.(dfs))")
     res = if isempty(dfs)
         if isnothing(metadata)
             metadata = Banyan.deserialize_retry(

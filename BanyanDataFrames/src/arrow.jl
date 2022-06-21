@@ -75,7 +75,7 @@ CopyFromArrow(
 )::DataFrames.DataFrame = begin
     @time "MPI.Barrier before sync_across" MPI.Barrier(comm)
     et = @elapsed begin
-    @time "Time to get part::DataFrames.DataFrame" begin
+    @time "Time to get part::DataFrames.DataFrame on get_worker_idx()=$(get_worker_idx())" begin
     # part::DataFrames.DataFrame = if is_main_worker(comm)
     #     println("At start of CopyFromArrow")
     #     # part_res = @time "CopyFromArray calling ReadBlockArray" ReadBlockArrow(src, params, 1, 1, MPI.COMM_SELF, loc_name, loc_params)
@@ -87,9 +87,11 @@ CopyFromArrow(
     #     DataFrames.DataFrame()
     # end
     part = begin
-        @time "ReadBlockArrow" part_res1 = ReadBlockArrow(src, params, 1, 1, comm, loc_name, loc_params)
-        @time "ConsolidateDataFrame" part_res = ConsolidateDataFrame(part_res1, EMPTY_DICT, EMPTY_DICT, comm)
-        println("After ReadBlockArrow in CopyFromArrow with $(DataFrames.nrow(part_res)) rows and $(Banyan.format_bytes(Banyan.total_memory_usage(part_res)))")
+        @time "Time to get part_res on get_worker_idx()=$(get_worker_idx())" begin
+        @time "ReadBlockArrow on get_worker_idx()=$(get_worker_idx())" part_res1 = ReadBlockArrow(src, params, 1, 1, comm, loc_name, loc_params)
+        @time "ConsolidateDataFrame on get_worker_idx()=$(get_worker_idx())" part_res = ConsolidateDataFrame(part_res1, EMPTY_DICT, EMPTY_DICT, comm)
+        # @time "println before returning part_res on get_worker_idx()=$(get_worker_idx())" println("After ReadBlockArrow in CopyFromArrow with $(DataFrames.nrow(part_res)) rows and $(Banyan.format_bytes(Banyan.total_memory_usage(part_res)))")
+        end
         part_res
     end
     end
@@ -101,11 +103,12 @@ CopyFromArrow(
     #     part_res
     # end
     # end
-    @time "Time to get part::DataFrames.DataFrame third time" begin
-    begin
-        @time "ReadBlockArrow" part_res1 = ReadBlockArrow(src, params, 1, 1, comm, loc_name, loc_params)
-    end
-    end
+    @time "MPI.Barrier before the redundant ReadBlock" MPI.Barrier(comm)
+    # @time "Time to get part::DataFrames.DataFrame third time" begin
+    # begin
+    #     @time "ReadBlockArrow" part_res1 = ReadBlockArrow(src, params, 1, 1, comm, loc_name, loc_params)
+    # end
+    # end
     # @time "sync_across" part_synced = sync_across(empty(part), comm=comm)
     # println("After sync_across in CopyFromArrow on get_worker_idx(comm)=$(get_worker_idx(comm)) and get_worker_idx()=$(get_worker_idx())")
     end

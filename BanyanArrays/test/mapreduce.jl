@@ -170,14 +170,14 @@ end
         a = nothing
         x_sum_collect = compute(sum(x))
         @test x_sum_collect == 2048 * 10.0 * 3
-        y = nothing
-        z = x + x
-        z_sum_collect = compute(sum(z))
-        @test z_sum_collect == 2048 * 10.0 * 6
-        x_sum = sum(x)
-        x = nothing
-        x_sum_collect = compute(x_sum)
-        @test x_sum_collect == 2048 * 10.0 * 3
+        # y = nothing
+        # z = x + x
+        # z_sum_collect = compute(sum(z))
+        # @test z_sum_collect == 2048 * 10.0 * 6
+        # x_sum = sum(x)
+        # x = nothing
+        # x_sum_collect = compute(x_sum)
+        # @test x_sum_collect == 2048 * 10.0 * 3
     end
 end
 
@@ -321,16 +321,16 @@ end
     end
 end
 
-@testset "Main worker stuck" begin
-    use_session_for_testing(scheduling_config_name = "default scheduling") do
-        offloaded(distributed=true) do
-            if get_worker_idx() > 1
-                error("Failure right here")
-            end
-            sync_across()
-        end
-    end
-end
+# @testset "Main worker stuck" begin
+#     use_session_for_testing(scheduling_config_name = "default scheduling") do
+#         offloaded(distributed=true) do
+#             if get_worker_idx() > 1
+#                 error("Failure right here")
+#             end
+#             sync_across()
+#         end
+#     end
+# end
 
 # TODO: Re-enable this test once we ensure that we can write out small
 # enough datasets without unnecessary batching
