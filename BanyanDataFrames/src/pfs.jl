@@ -189,6 +189,7 @@ function ReadBlockHelper(@nospecialize(format_value))
         loc_name::String,
         loc_params::Dict{String,Any},
     )::DataFrames.DataFrame
+        @time "Inside ReadBlock" begin
         # TODO: Implement a Read for balanced=false where we can avoid duplicate
         # reading of the same range in different reads
 
@@ -196,6 +197,7 @@ function ReadBlockHelper(@nospecialize(format_value))
             println("In ReadBlock with loc_params=$loc_params params=$params")
         end
         
+        @time "Loading in stuff inside ReadBlock" begin
         loc_params_path = loc_params[symbol_path]::String
         balanced = params[symbol_balanced]
         # By calling getpath we ensure that this data exists on each node and
@@ -231,6 +233,7 @@ function ReadBlockHelper(@nospecialize(format_value))
         for _ in 1:npartitions
             push!(files_by_partition, Int64[])
         end
+        end
 
         if Banyan.INVESTIGATING_FILE_PARTITION_PACKING && partition_idx == 1
             @show nrows
@@ -241,6 +244,7 @@ function ReadBlockHelper(@nospecialize(format_value))
 
         # Try to fit as many files as possible into each partition and keep
         # track of the files that are too big
+        @time begin "for loop in ReadBlock" begin
         too_large_files = Int64[]
         for file_i in sorting_perm
             too_large_file = true
@@ -258,6 +262,7 @@ function ReadBlockHelper(@nospecialize(format_value))
                 push!(too_large_files, file_i)
             end
         end
+        end
 
         if Banyan.INVESTIGATING_FILE_PARTITION_PACKING && partition_idx == 1
             @show files_by_partition
@@ -267,6 +272,7 @@ function ReadBlockHelper(@nospecialize(format_value))
         # Fit in the files that are too large by first only using partitions
         # that haven't yet been assigned any rows. Prioritize earlier batches.
         second_pass = false
+        @time "while loop in ReadBlock" begin
         while !isempty(too_large_files)
             # On the first pass, we try to fit into partitions not yet assigned any file
             # On the second pass, we just assign stuff anywhere
@@ -285,6 +291,7 @@ function ReadBlockHelper(@nospecialize(format_value))
             end
             second_pass = true
         end
+        end
 
         if Banyan.INVESTIGATING_FILE_PARTITION_PACKING && partition_idx == 1
             @show files_by_partition
@@ -293,6 +300,7 @@ function ReadBlockHelper(@nospecialize(format_value))
         # @show files_by_partition
 
         # Read in data frames
+        @time "Reading in ReadBlock" begin
         if !balanced
             files_for_curr_partition = files_by_partition[partition_idx]
             # files_memory_usage = Base.Vector{String}(undef, length(files_for_curr_partition))
@@ -356,6 +364,7 @@ function ReadBlockHelper(@nospecialize(format_value))
             end
             record_time(time_key, et)
         end
+        end
 
         if Banyan.INVESTIGATING_LOSING_DATA
             # println("In ReadBlock with rowrange=$rowrange, nrow.(dfs)=$(nrow.(dfs))")
@@ -373,6 +382,7 @@ function ReadBlockHelper(@nospecialize(format_value))
         # else
         #     println("Time to read $loc_name so far = $(get_time(time_key)) seconds; $(length(dfs)) files read in on get_worker_idx()=$(MPI.Initialized() ? get_worker_idx() : -1)")
         # end
+        @time "Concatenation in ReadBlock" begin
         res = if isempty(dfs)
             # When we construct the location, we store an empty data frame with The
             # correct schema.
@@ -381,6 +391,8 @@ function ReadBlockHelper(@nospecialize(format_value))
             dfs[1]
         else
             vcat(dfs...)
+        end
+        end
         end
         res
     end
