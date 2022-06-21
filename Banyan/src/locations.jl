@@ -112,7 +112,7 @@ function destined(fut::Future, loc::Location)
             Location(
                 "None",
                 loc.dst_name,
-                Dict{String,Any},
+                EMPTY_DICT,
                 loc.dst_parameters,
                 fut_location.total_memory_usage,
                 Sample(),

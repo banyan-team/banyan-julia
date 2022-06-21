@@ -918,7 +918,7 @@ end
                         :tip_amount => mean_func,
                         :trip_distance => mean_func
                     )
-                trip_means = compute(combined, delete=[data, filtered, grouped])
+                trip_means = compute(combined, destroy=[data, filtered, grouped])
                 compute(filtered)
 
                 
