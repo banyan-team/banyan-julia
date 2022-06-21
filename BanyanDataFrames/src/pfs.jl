@@ -805,6 +805,9 @@ end
 symbol_key = "key"
 symbol_rev = "rev"
 symbol_consolidate = "consolidate"
+symbol_divisions = "divisions"
+symbol_boundedlower = "boundedlower"
+symbol_boundedupper = "boundedupper"
 
 function Banyan.SplitGroup(
     src::DataFrames.AbstractDataFrame,
@@ -843,9 +846,11 @@ function Banyan.SplitGroup(
     end
 
     splitting_divisions = Banyan.get_splitting_divisions()
-    src_divisions, boundedlower, boundedupper = get(splitting_divisions, src) do
+    src_divisions, boundedlower, boundedupper = if haskey(splitting_divisions, src)
+        pop!(splitting_divisions, src)
+    else
         # This case lets us use `SplitGroup` in `DistributeAndShuffle`
-        (params["divisions"], get(params, "boundedlower", false), get(params, "boundedupper", false))
+        (params[symbol_divisions], get(params, symbol_boundedlower, false), get(params, symbol_boundedupper, false))
     end
     SplitGroupDataFrame(
         src,

@@ -32,30 +32,6 @@ partition_memory_usage = "none"
 # These were previously scaled_by = 3 but reduced to 2 because it seemed to
 # be causing unnecessary batched I/O.
 
-[splits.ReadBlockBalancedCSV]
-expected = [ "key" ]
-partition_memory_usage = "part"
-scale_by = 4
-views = false
-required = { name = "Distributing", distribution = "blocked", id = "!", balanced = true }
-locations = [ { name = "Remote", format = "csv" } ]
-
-[splits.ReadBlockBalancedParquet]
-expected = [ "key" ]
-partition_memory_usage = "part"
-scale_by = 4
-views = false
-required = { name = "Distributing", distribution = "blocked", id = "!", balanced = true }
-locations = [ { name = "Remote", format = "parquet" } ]
-
-[splits.ReadBlockBalancedArrow]
-expected = [ "key" ]
-partition_memory_usage = "part"
-scale_by = 4
-views = false
-required = { name = "Distributing", distribution = "blocked", id = "!", balanced = true }
-locations = [ { name = "Remote", format = "arrow" }, { name = "Disk", datatype = "DataFrame" } ]
-
 [splits.ReadBlockCSV]
 expected = [ "key" ]
 partition_memory_usage = "part"
@@ -78,6 +54,30 @@ partition_memory_usage = "part"
 scale_by = 3
 views = false
 required = { name = "Distributing", distribution = "blocked", id = "!", balanced = false }
+locations = [ { name = "Remote", format = "arrow" }, { name = "Disk", datatype = "DataFrame" } ]
+
+[splits.ReadBlockBalancedCSV]
+expected = [ "key" ]
+partition_memory_usage = "part"
+scale_by = 4
+views = false
+required = { name = "Distributing", distribution = "blocked", id = "!", balanced = true }
+locations = [ { name = "Remote", format = "csv" } ]
+
+[splits.ReadBlockBalancedParquet]
+expected = [ "key" ]
+partition_memory_usage = "part"
+scale_by = 4
+views = false
+required = { name = "Distributing", distribution = "blocked", id = "!", balanced = true }
+locations = [ { name = "Remote", format = "parquet" } ]
+
+[splits.ReadBlockBalancedArrow]
+expected = [ "key" ]
+partition_memory_usage = "part"
+scale_by = 4
+views = false
+required = { name = "Distributing", distribution = "blocked", id = "!", balanced = true }
 locations = [ { name = "Remote", format = "arrow" }, { name = "Disk", datatype = "DataFrame" } ]
 
 # ReadGroup
