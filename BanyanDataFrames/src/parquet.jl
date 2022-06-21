@@ -92,7 +92,7 @@ CopyFromParquet(
     else
         DataFrames.DataFrame()
     end
-    sync_across(part, comm=comm)
+    sync_across(empty(part), comm=comm)
 end
 
 function CopyToParquet(

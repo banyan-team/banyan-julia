@@ -708,6 +708,8 @@ end
 
 CopyFromHDF5(src, params::Dict{String,Any}, batch_idx::Int64, nbatches::Int64, comm::MPI.Comm, loc_name::String, loc_params::Dict{String,Any}) = begin
     params["key"] = 1
+    # TODO: Only read in the full data on the main worker, on other workers read in an empty
+    # array split on an axis specified by PT from client side annotation
     ReadBlockHDF5(src, params, 1, 1, MPI.COMM_SELF, loc_name, loc_params)
 end
 

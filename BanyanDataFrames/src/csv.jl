@@ -68,7 +68,7 @@ CopyFromCSV(
     else
         DataFrames.DataFrame()
     end
-    res = sync_across(part, comm=comm)
+    res = sync_across(empty(part), comm=comm)
     res
 end
 

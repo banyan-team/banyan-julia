@@ -167,7 +167,7 @@ ReadGroupHelper(ReadBlockFunc, ShuffleFunc) = begin
             # from the partition that actually applies to one of the divisions for this
             # batch.
             # TODO: Pass boundedlower and boundedupper to this
-            SplitGroup(unfiltered_df, params, 2, 3, comm, "Memory", Dict{String,Any}())
+            SplitGroup(unfiltered_df, params, 2, 3, comm, "Memory", EMPTY_DICT)
         end # for ReadBlock
 
         # Read in data for this batch
@@ -367,6 +367,11 @@ function Merge(
     loc_name::String,
     loc_params::Dict{String,Any},
 ) where {T}
+    if get_npartitions(nbatches, comm) == 1
+        src = part
+        return src
+    end
+
     if batch_idx == 1
         P = typeof(part)
         src = PartiallyMerged{P}(Vector{Union{Empty,P}}(undef, nbatches))
