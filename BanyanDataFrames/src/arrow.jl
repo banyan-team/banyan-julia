@@ -73,6 +73,7 @@ CopyFromArrow(
     loc_name::String,
     loc_params::Dict{String,Any},
 )::DataFrames.DataFrame = begin
+    et = @elapsed begin
     part::DataFrames.DataFrame = if is_main_worker(comm)
         println("At start of CopyFromArrow")
         part_res = ReadBlockArrow(src, params, 1, 1, MPI.COMM_SELF, loc_name, loc_params)
@@ -83,6 +84,8 @@ CopyFromArrow(
     end
     part_synced = sync_across(empty(part), comm=comm)
     println("After sync_across in CopyFromArrow on get_worker_idx(comm)=$(get_worker_idx(comm)) and get_worker_idx()=$(get_worker_idx())")
+    end
+    record_time(loc_name == "Disk" ? :CopyFromArrowOnDisk : :CopyFromArrowRemote, et)
     part_synced
     
 end
