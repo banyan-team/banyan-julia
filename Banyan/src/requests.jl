@@ -428,7 +428,7 @@ encourage_parallelism = false
 encourage_parallelism_with_batches = false
 exaggurate_size = false
 encourage_batched_inner_loop = false
-optimize_cpu_cache = true
+optimize_cpu_cache = false
 
 function get_report_schedule()::Bool
     global report_schedule
@@ -490,7 +490,7 @@ function configure_scheduling(;kwargs...)
         encourage_parallelism_with_batches = false
         exaggurate_size = false
         encourage_batched_inner_loop = false
-        optimize_cpu_cache = true
+        optimize_cpu_cache = false
     end
 end
 

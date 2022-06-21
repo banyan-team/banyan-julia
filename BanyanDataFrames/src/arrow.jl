@@ -74,6 +74,7 @@ CopyFromArrow(
     loc_params::Dict{String,Any},
 )::DataFrames.DataFrame = begin
     part::DataFrames.DataFrame = if is_main_worker(comm)
+        println("At start of CopyFromArrow")
         ReadBlockArrow(src, params, 1, 1, MPI.COMM_SELF, loc_name, loc_params)
     else
         DataFrames.DataFrame()

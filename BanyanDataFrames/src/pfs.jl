@@ -497,6 +497,8 @@ function WriteHelper(@nospecialize(format_value))
             println("Time to write so far = $(get_time(:writing)) seconds")
             println("Time to write with Banyan.total_memory_usage(part_res)=$(Banyan.format_bytes(Banyan.total_memory_usage(part_res))) and filesize(dst)=$(Banyan.format_bytes(filesize(dst))) to dst=$dst on worker_idx=$worker_idx and batch_idx=$batch_idx = $et seconds for $(Banyan.format_bytes(round(Int64, filesize(dst) / et))) per second")
             end
+        else
+            println("No data to write on worker_idx=$worker_idx and batch_idx=$batch_idx")
         end 
         # We don't need this barrier anymore because we do a broadcast right after
         # MPI.Barrier(comm)
@@ -649,6 +651,9 @@ function WriteHelper(@nospecialize(format_value))
         else
             MPI.Barrier(comm)
         end
+
+        println("At end of WriteArrow on get_worker_idx()=$(get_worker_idx())")
+
         # src
         nothing
         # TODO: Delete all other part* files for this value if others exist
