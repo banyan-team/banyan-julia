@@ -45,7 +45,14 @@ function check_worker_stuck(
     error_for_main_stuck
 end
 
-function _partitioned_computation_concrete(fut::Future, destination::Location, new_source::Location, sessions::Dict{SessionId,Session}, session_id::SessionId, session::Session, resource_id::ResourceId)
+destroyed_value_ids = ValueId[]
+
+function get_destroyed_value_ids()
+    global destroyed_value_ids
+    destroyed_value_ids
+end
+
+function _partitioned_computation_concrete(fut::Future, destination::Location, new_source::Location, sessions::Dict{SessionId,Session}, session_id::SessionId, session::Session, resource_id::ResourceId, destroyed_value_ids::Base.Vector{ValueId})
     @partitioned fut begin end
 
     # Get all tasks to be recorded in this call to `compute`
@@ -187,6 +194,7 @@ function _partitioned_computation_concrete(fut::Future, destination::Location, n
         # because of a `mutated(old, new)`
         if req isa DestroyRequest
             req_value_id::ValueId = req.value_id
+            push!(destroyed_value_ids, req_value_id)
             if Banyan.INVESTIGATING_DESTROYING_FUTURES
                 @show req_value_id
             end
@@ -357,6 +365,12 @@ function partitioned_computation_concrete(
     session = get_session()
     resource_id = session.resource_id
 
+
+    destroyed_value_ids = get_destroyed_value_ids()
+    if fut.value_id in destroyed_value_ids
+        throw(ArgumentError("Cannot compute a destroyed future"))
+    end
+
     destination_dst_name::String = destination.dst_name
     if fut.mutated || (destination_dst_name == "Client" && fut.stale) || destination_dst_name == "Remote"
         # TODO: Check to ensure that `fut` is annotated
@@ -366,7 +380,7 @@ function partitioned_computation_concrete(
         mutated(fut)
         partitioned_with(handler, [fut], scaled=[fut])
         
-        use_new_source_func = _partitioned_computation_concrete(fut, destination, new_source, sessions, session_id, session, resource_id)
+        use_new_source_func = _partitioned_computation_concrete(fut, destination, new_source, sessions, session_id, session, resource_id, destroyed_value_ids)
         # TODO: If not still merged to disk, we need to lazily set the location source to something else
         if use_new_source_func
             if new_source_func !== identity
@@ -411,7 +425,7 @@ function partitioned_computation(
     new_source::Union{Location,Function}=NOTHING_LOCATION
 )
     if isview(fut)
-        error("Computing a view (such as a GroupedDataFrame) is not currently supported")
+        throw(ArgumentError("Computing a view (such as a GroupedDataFrame) is not currently supported"))
     end
     if new_source isa Function
         new_source_func = new_source
@@ -572,8 +586,11 @@ compute(fut::AbstractFuture; destroy=Future[]) = compute(convert(Future, fut)::F
 function compute(f::Future; destroy=Future[])
     # NOTE: We might be in the middle of an annotation when this is called so
     # we need to avoid partitioned computation (which will reset the task)
-    for f in destroy
-        destroy_future(f)
+    for f_to_destroy in destroy
+        if f_to_destroy.value_id == f.value_id
+            throw(ArgumentError("Cannot destroy the future being computed"))
+        end
+        destroy_future(f_to_destroy)
     end
 
     # Fast case for where the future has not been mutated and isn't stale
