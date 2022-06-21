@@ -394,6 +394,7 @@ function ReadBlockHelper(@nospecialize(format_value))
         end
         end
         end
+    end
         res
     end
     ReadBlock
