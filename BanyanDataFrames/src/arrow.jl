@@ -82,7 +82,7 @@ CopyFromArrow(
     else
         DataFrames.DataFrame()
     end
-    part_synced = sync_across(empty(part), comm=comm)
+    @time "sync_across" part_synced = sync_across(empty(part), comm=comm)
     println("After sync_across in CopyFromArrow on get_worker_idx(comm)=$(get_worker_idx(comm)) and get_worker_idx()=$(get_worker_idx())")
     end
     record_time(loc_name == "Disk" ? :CopyFromArrowOnDisk : :CopyFromArrowRemote, et)
