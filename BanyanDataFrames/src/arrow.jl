@@ -101,11 +101,11 @@ CopyFromArrow(
     #     part_res
     # end
     # end
-    # @time "Time to get part::DataFrames.DataFrame third time" begin
-    # begin
-    #     @time "ReadBlockArrow" part_res1 = ReadBlockArrow(src, params, 1, 1, comm, loc_name, loc_params)
-    # end
-    # end
+    @time "Time to get part::DataFrames.DataFrame third time" begin
+    begin
+        @time "ReadBlockArrow" part_res1 = ReadBlockArrow(src, params, 1, 1, comm, loc_name, loc_params)
+    end
+    end
     # @time "sync_across" part_synced = sync_across(empty(part), comm=comm)
     # println("After sync_across in CopyFromArrow on get_worker_idx(comm)=$(get_worker_idx(comm)) and get_worker_idx()=$(get_worker_idx())")
     end
