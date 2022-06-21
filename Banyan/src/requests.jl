@@ -428,6 +428,7 @@ encourage_parallelism = false
 encourage_parallelism_with_batches = false
 exaggurate_size = false
 encourage_batched_inner_loop = false
+optimize_cpu_cache = true
 
 function get_report_schedule()::Bool
     global report_schedule
@@ -454,12 +455,18 @@ function get_encourage_batched_inner_loop()::Bool
     encourage_batched_inner_loop
 end
 
+function get_optimize_cpu_cache()::Bool
+    global optimize_cpu_cache
+    optimize_cpu_cache
+end
+
 function configure_scheduling(;kwargs...)
     global report_schedule
     global encourage_parallelism
     global encourage_parallelism_with_batches
     global exaggurate_size
     global encourage_batched_inner_loop
+    global optimize_cpu_cache
     kwargs_name::String = get(kwargs, :name, "")
     report_schedule = get(kwargs, :report_schedule, false)::Bool || haskey(kwargs, :name)
     if get(kwargs, :encourage_parallelism, false)::Bool || kwargs_name == "parallelism encouraged"
@@ -475,11 +482,15 @@ function configure_scheduling(;kwargs...)
     if get(kwargs, :encourage_batched_inner_loop, false)::Bool || kwargs_name == "parallelism and batches encouraged"
         encourage_batched_inner_loop = true
     end
+    if haskey(kwargs, :optimize_cpu_cache)
+        optimize_cpu_cache = kwargs[:optimize_cpu_cache]
+    end
     if kwargs_name == "default scheduling"
         encourage_parallelism = false
         encourage_parallelism_with_batches = false
         exaggurate_size = false
         encourage_batched_inner_loop = false
+        optimize_cpu_cache = true
     end
 end
 
@@ -492,6 +503,7 @@ function send_evaluation(value_id::ValueId, session_id::SessionId)
     encourage_parallelism_with_batches = get_encourage_parallelism_with_batches()
     exaggurate_size = get_exaggurate_size()
     encourage_batched_inner_loop = get_encourage_batched_inner_loop()
+    optimize_cpu_cache = get_optimize_cpu_cache()
 
     # Note that we do not need to check if the session is running here, because
     # `evaluate` will check if the session has failed. If the session is still creating,
@@ -528,7 +540,8 @@ function send_evaluation(value_id::ValueId, session_id::SessionId)
                 "encourage_parallelism" => encourage_parallelism,
                 "encourage_parallelism_with_batches" => encourage_parallelism_with_batches,
                 "exaggurate_size" => exaggurate_size,
-                "encourage_batched_inner_loop" => encourage_batched_inner_loop
+                "encourage_batched_inner_loop" => encourage_batched_inner_loop,
+                "optimize_cpu_cache" => optimize_cpu_cache
             ),
             "num_bang_values_issued" => get_num_bang_values_issued(),
             "main_modules" => main_modules,

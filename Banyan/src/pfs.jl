@@ -206,6 +206,9 @@ ReadGroupHelper(ReadBlockFunc, ShuffleFunc) = begin
 
         record_time(:ReadGroupHelper_res_nrow, size(res, 1))
 
+        res_size = Banyan.format_bytes(Banyan.total_memory_usage(res))
+        println("In ReadGroupHelper on worker_idx=$(get_worker_idx(comm)) and batch_idx=$batch_idx with res_size=$res_size")
+
         res
     end
     ReadGroupHelperFunc
