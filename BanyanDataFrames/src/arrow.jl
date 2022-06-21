@@ -81,7 +81,7 @@ CopyFromArrow(
     else
         DataFrames.DataFrame()
     end
-    part_synced = sync_across(part, comm=comm)
+    part_synced = sync_across(empty(part), comm=comm)
     println("After sync_across in CopyFromArrow on get_worker_idx(comm)=$(get_worker_idx(comm)) and get_worker_idx()=$(get_worker_idx())")
     part_synced
     
