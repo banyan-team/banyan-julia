@@ -76,7 +76,7 @@ CopyFromArrow(
     part::DataFrames.DataFrame = if is_main_worker(comm)
         println("At start of CopyFromArrow")
         part_res = ReadBlockArrow(src, params, 1, 1, MPI.COMM_SELF, loc_name, loc_params)
-        println("After ReadBlockArrow in CopyFromArrow with $(DataFrames.nrow(part_res)) rows")
+        println("After ReadBlockArrow in CopyFromArrow with $(DataFrames.nrow(part_res)) rows and $(Banyan.format_bytes(Banyan.total_memory_usage(part_res)))")
         part_res
     else
         DataFrames.DataFrame()

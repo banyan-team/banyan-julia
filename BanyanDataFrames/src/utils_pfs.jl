@@ -50,10 +50,12 @@ function Banyan.sync_across(df::DataFrames.DataFrame; comm=MPI.COMM_WORLD)
         count[] = length(buf.data)
     end
     MPI.Bcast!(count, 0, comm)
+    println("In sync_across on get_worker_idx(comm)=$(get_worker_idx(comm)), get_worker_idx()=$(get_worker_idx()) with count=$count")
     if !is_main
         buf = MPI.Buffer(Base.Vector{UInt8}(undef, count[]))
     end
     MPI.Bcast!(buf, 0, comm)
+    println("In sync_across on get_worker_idx(comm)=$(get_worker_idx(comm)), get_worker_idx()=$(get_worker_idx()) with after second Bcast!")
     DataFrames.DataFrame(Arrow.Table(IOBuffer(view(buf.data, 1:buf.count))), copycols=false)
 end
 
