@@ -204,7 +204,7 @@ function ReadBlockHelper(@nospecialize(format_value))
         existing_path = getpath(loc_params_path)
         meta_path = loc_name == symbol_Disk ? sync_across(is_main_worker(comm) ? get_meta_path(loc_params_path) : "", comm=comm) : loc_params["meta_path"]::String
         loc_params = loc_name == symbol_Disk ? (Banyan.deserialize_retry(get_location_path(loc_params_path))::Location).src_parameters : loc_params
-        meta = Arrow_Table_retry(meta_path)
+        meta = @time "Arrow_Table_retry" Arrow_Table_retry(meta_path)
         filtering_op = get(params, symbol_filtering_op, identity)
 
         # Handle multi-file tabular datasets

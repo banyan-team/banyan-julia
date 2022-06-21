@@ -75,6 +75,7 @@ CopyFromArrow(
 )::DataFrames.DataFrame = begin
     @time "MPI.Barrier before sync_across" MPI.Barrier(comm)
     et = @elapsed begin
+    @time "Time to get part::DataFrames.DataFrame" begin
     part::DataFrames.DataFrame = if is_main_worker(comm)
         println("At start of CopyFromArrow")
         part_res = @time "CopyFromArray calling ReadBlockArray" ReadBlockArrow(src, params, 1, 1, MPI.COMM_SELF, loc_name, loc_params)
@@ -82,6 +83,7 @@ CopyFromArrow(
         part_res
     else
         DataFrames.DataFrame()
+    end
     end
     @time "sync_across" part_synced = sync_across(empty(part), comm=comm)
     println("After sync_across in CopyFromArrow on get_worker_idx(comm)=$(get_worker_idx(comm)) and get_worker_idx()=$(get_worker_idx())")
