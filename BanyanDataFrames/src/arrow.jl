@@ -78,7 +78,9 @@ CopyFromArrow(
     @time "Time to get part::DataFrames.DataFrame" begin
     part::DataFrames.DataFrame = if is_main_worker(comm)
         println("At start of CopyFromArrow")
-        part_res = @time "CopyFromArray calling ReadBlockArray" ReadBlockArrow(src, params, 1, 1, MPI.COMM_SELF, loc_name, loc_params)
+        # part_res = @time "CopyFromArray calling ReadBlockArray" ReadBlockArrow(src, params, 1, 1, MPI.COMM_SELF, loc_name, loc_params)
+        @time "ReadBlockArrow" part_res1 = ReadBlockArrow(src, params, 1, 1, comm, loc_name, loc_params)
+        @time "ConsolidateDataFrame" part_res = ConsolidateDataFrame(part_res1, EMPTY_DICT, EMPTY_DICT, comm)
         println("After ReadBlockArrow in CopyFromArrow with $(DataFrames.nrow(part_res)) rows and $(Banyan.format_bytes(Banyan.total_memory_usage(part_res)))")
         part_res
     else
