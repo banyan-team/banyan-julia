@@ -92,12 +92,12 @@ function _pts_for_filtering(init::Future, final::Future, initpts_unbalanced::Bas
         # pt(init, initpt_unbalanced, match=final, on="divisions")
         # pt(final, finalpt_balanced & Drifted())
 
-        # unbalanced -> unbalanced
-        pt(init, initpt_unbalanced, match=final, on=["distribution", "key", "divisions", "rev"])
-        pt(final, finalpt_unbalanced & Drifted())
-
         # balanced -> unbalanced
         pt(init, initpt_balanced, match=final, on="divisions")
+        pt(final, finalpt_unbalanced & Drifted())
+
+        # unbalanced -> unbalanced
+        pt(init, initpt_unbalanced, match=final, on=["distribution", "key", "divisions", "rev"])
         pt(final, finalpt_unbalanced & Drifted())
     end
 end

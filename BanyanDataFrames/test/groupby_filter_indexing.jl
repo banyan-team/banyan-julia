@@ -254,8 +254,8 @@ end
 
         for i = 1:2
             for path in [
-                "s3://$(bucket)/iris_large.csv",
-                "s3://$(bucket)/iris_large.parquet",
+                # "s3://$(bucket)/iris_large.csv",
+                # "s3://$(bucket)/iris_large.parquet",
                 "s3://$(bucket)/iris_large.arrow",
             ]
                 for f in [mean, (x -> mean(x))]
@@ -833,7 +833,7 @@ end
     use_session_for_testing(scheduling_config_name = "default scheduling", sample_rate=1024) do
         # p = setup_nyc_taxi_stress_test(nbytes="128 MB")
         # p = setup_nyc_taxi_stress_test(nbytes="1 GB")
-        # p = setup_nyc_taxi_stress_test(nrows = 2_000_000_000)
+        # p = setup_nyc_taxi_stress_test(nrows = 1_000_000_000)
         p = setup_nyc_taxi_stress_test(nrows = 250_000_000)
         for iter in 1:2
             @time begin
@@ -890,8 +890,8 @@ end
                 # println("Total time after starting session on run #$iter")
                 # @debug Banyan.format_available_memory()
 
-                # mean_func = mean
-                mean_func = x -> mean(x)
+                mean_func = mean
+                # mean_func = x -> mean(x)
 
                 trip_means = compute(
                     combine(

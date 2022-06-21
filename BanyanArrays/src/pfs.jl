@@ -898,7 +898,7 @@ function ShuffleArray(
     store_splitting_divisions::Bool = true
 )
     divisions = dst_params["divisions"]
-    has_divisions_by_worker = haskey(dst_params, "divisions_by_worker")
+    has_divisions_by_worker = haskey(dst_params, "divisions_by_partition")
     V = if !isempty(divisions)
         typeof(divisions[1][1])
     elseif has_divisions_by_worker
@@ -917,7 +917,7 @@ function ShuffleArray(
         src_params["key"]::Int64,
         dst_params["key"]::Int64,
         get(dst_params, "rev", false)::Bool,
-        has_divisions_by_worker ? dst_params["divisions_by_worker"]::Base.Vector{Base.Vector{Division{V}}} : Banyan.get_divisions(divisions, get_nworkers(comm)),
+        has_divisions_by_worker ? dst_params["divisions_by_partition"]::Base.Vector{Base.Vector{Division{V}}} : Banyan.get_divisions(divisions, get_nworkers(comm)),
         divisions
     )
 end

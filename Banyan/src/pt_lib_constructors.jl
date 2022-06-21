@@ -219,8 +219,11 @@ function make_blocked_pts(
         # Handle combinations of `balanced` and `filtered_from`/`filtered_to`
         for b in balanced
             # Append new PT to PT union being produced
-            if b
-                new_pt = BlockedAlong(axis, true)
+            # If the future is the result of reading from some remote location, even
+            # if it's unbalanced, it is probably actually balanced because most reading
+            # PFs will read in data in a balanced manner.
+            if b || get_location(f).src_name == "Remote"
+                new_pt = BlockedAlong(axis, b)
                 push!(new_pt.constraints.constraints, noscale(f))
                 push!(pts,new_pt)
             else

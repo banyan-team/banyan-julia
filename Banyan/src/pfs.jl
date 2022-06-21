@@ -173,9 +173,6 @@ ReadGroupHelper(ReadBlockFunc, ShuffleFunc) = begin
         # Read in data for this batch
         part = ReadBlockFunc(src, read_block_params, 1, 1, comm, loc_name, loc_params)
 
-        delete!(params, "divisions_by_partition")
-        params["divisions_by_worker"] = curr_partition_divisions # for Shuffle
-
         # Shuffle the batch and add it to the set of data for this partition
         part = ShuffleFunc(
             part,
@@ -186,7 +183,7 @@ ReadGroupHelper(ReadBlockFunc, ShuffleFunc) = begin
             !hasdivision || batch_idx != lastbatchidx,
             false
         )
-        delete!(params, "divisions_by_worker")
+        delete!(params, "divisions_by_partition")
 
         # Concatenate together the data for this partition
         res = part

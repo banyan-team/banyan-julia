@@ -70,10 +70,11 @@ function ShuffleDataFrameHelper(
         nbyteswritten::Int64 = 0
         df_counts::Base.Vector{Int64} = Int64[]
         for partition_idx = 1:nworkers
+            gdf_key = (banyan_shuffling_key = partition_idx,)
             Arrow.write(
                 io,
-                if gdf.ngroups > 0 && haskey(gdf, (banyan_shuffling_key = partition_idx,))
-                    gdf[(banyan_shuffling_key = partition_idx,)]
+                if gdf.ngroups > 0 && haskey(gdf, gdf_key)
+                    gdf[gdf_key]
                 else
                     empty_res = empty(part)
                     empty_res.banyan_shuffling_key = Int64[]
@@ -147,7 +148,7 @@ function ShuffleDataFrame(
     store_splitting_divisions::Bool = true
 )
     divisions = deepcopy(dst_params["divisions"])
-    has_divisions_by_worker = haskey(dst_params, "divisions_by_worker")
+    has_divisions_by_worker = haskey(dst_params, "divisions_by_partition")
     V = if !isempty(divisions)
         typeof(divisions[1][1])
     elseif has_divisions_by_worker
@@ -166,7 +167,7 @@ function ShuffleDataFrame(
         dst_params["key"],
         get(dst_params, "rev", false),
         # Base.Vector{Division{V}}[]
-        has_divisions_by_worker ? dst_params["divisions_by_worker"] : Banyan.get_divisions(divisions, get_nworkers(comm)),
+        has_divisions_by_worker ? dst_params["divisions_by_partition"] : Banyan.get_divisions(divisions, get_nworkers(comm)),
         divisions,
         Banyan.get_splitting_divisions()
     )
