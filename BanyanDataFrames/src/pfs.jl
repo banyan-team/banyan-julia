@@ -987,24 +987,30 @@ RebalanceDataFrame(
 
 function ConsolidateDataFrame(part::DataFrames.DataFrame, src_params::Dict{String,Any}, dst_params::Dict{String,Any}, comm::MPI.Comm)
     io = IOBuffer()
-    Arrow.write(io, part, compress=:zstd)
-    sendbuf = MPI.Buffer(view(io.data, 1:io.size))
-    recvvbuf = Banyan.buftovbuf(sendbuf, comm)
+    @time "MPI.Barrier in ConsolidateDataFrame" MPI.Barrier(comm)
+    @time "Arrow.write in ConsolidateDataFrame" Arrow.write(io, part, compress=:zstd)
+    @time "MPI.Buffer in ConsolidateDataFrame" sendbuf = MPI.Buffer(view(io.data, 1:io.size))
+    @time "Banyan.buftovbuf in ConsolidateDataFrame" recvvbuf = Banyan.buftovbuf(sendbuf, comm)
     # TODO: Maybe sometimes use gatherv if all sendbuf's are known to be equally sized
 
     # println("In ConsolidateDataFrame before MPI.Allgatherv! on get_worker_idx()=$(get_worker_idx())")
-    MPI.Allgatherv!(sendbuf, recvvbuf, comm)
+    # distribute = get(src_params, "distribute", false)
+    MPI.Gatherv!(sendbuf, recvvbuf, 0, comm)
     # println("In ConsolidateDataFrame after MPI.Allgatherv! on get_worker_idx()=$(get_worker_idx())")
-    res = merge_on_executor(
-        [
-            de(view(
-                recvvbuf.data,
-                (recvvbuf.displs[i]+1):(recvvbuf.displs[i]+recvvbuf.counts[i])
-            ))
-            for i in 1:Banyan.get_nworkers(comm)
-        ],
-        1
-    )
+    res = if is_main_worker(comm)
+        merge_on_executor(
+            [
+                de(view(
+                    recvvbuf.data,
+                    (recvvbuf.displs[i]+1):(recvvbuf.displs[i]+recvvbuf.counts[i])
+                ))
+                for i in 1:Banyan.get_nworkers(comm)
+            ],
+            1
+        )
+    else
+        empty(part)
+    end
     res
 end
 
