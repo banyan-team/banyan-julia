@@ -203,10 +203,10 @@ function ReadBlockHelper(@nospecialize(format_value))
         # By calling getpath we ensure that this data exists on each node and
         # is ready to be read in even if the cluster has changed but same S3 bucket
         # with cached location is used.
-        existing_path = getpath(loc_params_path)
-        meta_path = loc_name == symbol_Disk ? sync_across(is_main_worker(comm) ? get_meta_path(loc_params_path) : "", comm=comm) : loc_params["meta_path"]::String
-        loc_params = loc_name == symbol_Disk ? (Banyan.deserialize_retry(get_location_path(loc_params_path))::Location).src_parameters : loc_params
-        meta = @time "Arrow_Table_retry" Arrow_Table_retry(meta_path)
+        @time "getpath for loc_params_path=$loc_params_path in ReadBlock" existing_path = getpath(loc_params_path)
+        @time "sync_across in ReadBlock" meta_path = loc_name == symbol_Disk ? sync_across(is_main_worker(comm) ? get_meta_path(loc_params_path) : "", comm=comm) : loc_params["meta_path"]::String
+        @time "deserialize_retry in ReadBlock" loc_params = loc_name == symbol_Disk ? (Banyan.deserialize_retry(get_location_path(loc_params_path))::Location).src_parameters : loc_params
+        meta = @time "Arrow_Table_retry in ReadBlock" Arrow_Table_retry(meta_path)
         filtering_op = get(params, symbol_filtering_op, identity)
 
         # Handle multi-file tabular datasets

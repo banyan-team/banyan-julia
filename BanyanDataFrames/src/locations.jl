@@ -7,7 +7,7 @@ function _remote_table_source(remotepath, shuffled, metadata_invalid, sample_inv
     is_main = is_main_worker()
     
     # Get cached Location and if it has valid parameters and sample, return
-    curr_location, curr_sample_invalid, curr_parameters_invalid = get_cached_location(remotepath, metadata_invalid, sample_invalid)
+    @time "get_cached_location" curr_location, curr_sample_invalid, curr_parameters_invalid = get_cached_location(remotepath, metadata_invalid, sample_invalid)
     if !curr_parameters_invalid && !curr_sample_invalid
         return curr_location
     end
