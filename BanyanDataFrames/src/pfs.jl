@@ -244,7 +244,7 @@ function ReadBlockHelper(@nospecialize(format_value))
 
         # Try to fit as many files as possible into each partition and keep
         # track of the files that are too big
-        @time begin "for loop in ReadBlock" begin
+        @time "for loop in ReadBlock" begin
         too_large_files = Int64[]
         for file_i in sorting_perm
             too_large_file = true
@@ -394,7 +394,6 @@ function ReadBlockHelper(@nospecialize(format_value))
         end
         end
         end
-    end
         res
     end
     ReadBlock
