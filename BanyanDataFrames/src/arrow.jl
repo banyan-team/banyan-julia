@@ -73,6 +73,7 @@ CopyFromArrow(
     loc_name::String,
     loc_params::Dict{String,Any},
 )::DataFrames.DataFrame = begin
+    @time "MPI.Barrier before sync_across" MPI.Barrier(comm)
     et = @elapsed begin
     part::DataFrames.DataFrame = if is_main_worker(comm)
         println("At start of CopyFromArrow")
