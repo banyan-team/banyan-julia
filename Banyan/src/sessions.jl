@@ -491,6 +491,16 @@ function download_session_logs(session_id::SessionId, cluster_name::String, file
     return filename
 end
 
+function print_session_logs(session_id, cluster_name, delete_file=true)
+    s3_bucket_name = get_cluster_s3_bucket_name(cluster_name; kwargs...)
+    log_file_name = "banyan-log-for-session-$(session_id)"
+    logs = s3_get(get_aws_config(), s3_bucket_name, log_file_name)
+    println(logs)
+    if delete_file
+        s3_delete(get_aws_config(), s3_bucket_name, log_file_name)
+    end
+end
+
 function end_all_sessions(cluster_name::String; release_resources_now = false, release_resources_after = nothing, kwargs...)
     @info "Ending all running sessions for cluster named $cluster_name"
     configure(; kwargs...)
@@ -628,32 +638,14 @@ function run_session(;
     email_when_ready::Union{Bool,Nothing}=nothing,
     kwargs...,)::SessionId
 
-    # cluster_name::Union{String,Nothing} = nothing,
-    # nworkers::Union{Integer,Nothing} = 16,
-    # release_resources_after::Union{Integer,Nothing} = 20,
-    # print_logs::Union{Bool,Nothing} = false,
-    # store_logs_in_s3::Union{Bool,Nothing} = true,
-    # store_logs_on_cluster::Union{Bool,Nothing} = false,
-    # sample_rate::Union{Integer,Nothing} = nworkers,
-    # session_name::Union{String,Nothing} = nothing,
-    # files::Union{Vector,Nothing} = [],
-    # code_files::Union{Vector,Nothing} = [],
-    # force_update_files::Union{Bool,Nothing} = false,
-    # pf_dispatch_table::Union{String,Nothing} = nothing,
-    # using_modules::Union{Vector,Nothing} = [],
-    # url::Union{String,Nothing} = nothing,
-    # branch::Union{String,Nothing} = nothing,
-    # directory::Union{String,Nothing} = nothing,
-    # dev_paths::Union{Vector,Nothing} = [],
-    # force_sync::Union{Bool,Nothing} = false,
-    # force_pull::Union{Bool,Nothing} = false,
-    # force_install::Union{Bool,Nothing} = false,
-    # estimate_available_memory::Union{Bool,Nothing} = true,
-    # nowait::Bool=false,
-    # email_when_ready::Union{Bool,Nothing}=nothing,
-    # for_running=false, # NEW
     force_update_files = true
+    store_logs_in_s3_orig = store_logs_in_s3
     try
+        if print_logs
+            # If logs need to be printed, ensure that we save logs in S3. If
+            # store_logs_in_s3==False, then delete logs in S3 later
+            store_logs_in_s3 = true
+        end
         start_session(;cluster_name = cluster_name, nworkers = nworkers, release_resources_after = release_resources_after, 
                     print_logs = print_logs, store_logs_in_s3 = store_logs_in_s3, store_logs_on_cluster = store_logs_on_cluster, 
                     sample_rate = sample_rate, session_name = session_name, files = files, code_files = code_files, force_update_files = force_update_files,
@@ -668,6 +660,9 @@ function run_session(;
         end
         if !isnothing(session_id)
             end_session(session_id, failed=true)
+            if print_logs
+                print_session_logs(session_id, cluster_name, delete_file=!store_logs_in_s3_orig)
+            end
         end
         rethrow()
     finally
@@ -676,8 +671,11 @@ function run_session(;
         catch
             nothing
         end
+        end_session(session_id, failed=false)
         if !isnothing(session_id)
-            end_session(session_id, failed=false)
+            if print_logs
+                print_session_logs(session_id, cluster_name, delete_file=!store_logs_in_s3_orig)
+            end
         end    
     end
 end
