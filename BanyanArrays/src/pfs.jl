@@ -111,7 +111,7 @@ function ReadBlockHelperJuliaArray(
             # currently being processed by this worker
             dfs_i = dfs_idx[i]
             if dfs_i != -1
-                filerowrange = filerowranges[dfs_i]
+                filerowrange = filerowranges[i]
                 # Deterine path to read from
                 @show file
                 file_path = file[2]
