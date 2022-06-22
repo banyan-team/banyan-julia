@@ -86,12 +86,12 @@ end
                 # Test writing to and reading from dataset in group in
                 # group in same file
                 copied_path = joinpath(path, "copies", "DS2")
-                Banyan.write_hdf5(x, copied_path)
+                write_hdf5(x, copied_path)
                 x = read_hdf5(copied_path)
             elseif step == 3
                 # Test writing to different file and then reading from it
                 copied_path = path[1:end-3] * "_copy.h5/DS1"
-                Banyan.write_hdf5(x, copied_path)
+                write_hdf5(x, copied_path)
                 x = read_hdf5(copied_path)
             end
 
@@ -143,12 +143,12 @@ end
         #                 # Test writing to and reading from dataset in group in
         #                 # group in same file
         #                 copied_path = joinpath(path, "copies", "DS2")
-        #                 Banyan.write_hdf5(x, copied_path)
+        #                 write_hdf5(x, copied_path)
         #                 x = read_hdf5(copied_path)
         #             elseif step == 3
         #                 # Test writing to different file and then reading from it
         #                 copied_path = path[1:end-3] * "_copy.h5/DS1"
-        #                 Banyan.write_hdf5(x, copied_path)
+        #                 write_hdf5(x, copied_path)
         #                 x = read_hdf5(copied_path)
         #             end
 

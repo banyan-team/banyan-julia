@@ -39,19 +39,13 @@ function _remote_hdf5_source(path_and_subpath, shuffled, metadata_invalid, sampl
     end
 
     # Download the path
-    @show curr_location
-    @show path_and_subpath
     remotepath, datasetpath, isa_hdf5 = extract_dataset_path(path_and_subpath)
-    @show remotepath datasetpath
     isa_hdf5 || error("Expected HDF5 file for $remotepath")
     p = getpath(remotepath)
     HDF5.ishdf5(p) || "Expected HDF5 file at $remotepath"
 
     if is_main
         f = h5open(p, "r")
-        @show p
-        @show keys(f)
-        @show haskey(f, datasetpath)
         close(f)
     end
     sync_across()
@@ -59,9 +53,6 @@ function _remote_hdf5_source(path_and_subpath, shuffled, metadata_invalid, sampl
     # Open HDF5 file
     dataset_to_read_from_exists = false
     f = h5open(p, "r")
-    @show p
-    @show keys(f)
-    @show haskey(f, datasetpath)
     haskey(f, datasetpath) || error("Expected HDF5 dataset named \"$datasetpath\" in $remotepath")
     dataset_to_read_from_exists = true
 

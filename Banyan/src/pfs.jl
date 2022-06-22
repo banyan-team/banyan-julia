@@ -204,11 +204,6 @@ ReadGroupHelper(ReadBlockFunc, ShuffleFunc) = begin
                 )
         end
 
-        record_time(:ReadGroupHelper_res_nrow, size(res, 1))
-
-        res_size = Banyan.format_bytes(Banyan.total_memory_usage(res))
-        println("In ReadGroupHelper on worker_idx=$(get_worker_idx(comm)) and batch_idx=$batch_idx with res_size=$res_size")
-
         res
     end
     ReadGroupHelperFunc
@@ -486,11 +481,7 @@ CopyToClient(
     loc_params,
 ) = begin
     if get_worker_idx(comm) == 1 && batch_idx == 1
-        println("At start of CopyToClient")
-        et = @elapsed begin
         send_to_client(loc_params["value_id"], part)
-        end
-        record_time(:sending_to_client, et)
     end
 end
 

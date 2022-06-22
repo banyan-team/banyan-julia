@@ -320,7 +320,6 @@ function Base.map(f, c::Array{<:Any,N}...; force_parallelism=false) where {T,N}
 
     @partitioned f c res begin
         res = Base.map(f, c...)
-        println("At end of map with res=$res")
     end
 
     make_map_res(sample(res), res, res_size)
@@ -523,7 +522,6 @@ function _reduce(op::Future, A::Future, res_size::Future, res::Future, dims::Fut
                 res_size = EMPTY
             end
         end
-        println("At end of reduce with res=$res and res_size=$res_size")
     end
 
     res_sample = sample(res)

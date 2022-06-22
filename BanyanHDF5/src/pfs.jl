@@ -159,7 +159,6 @@ function WriteHelperHDF5(
             INVALID_LOCATION
         )
     end
-    @show path_and_subpath
     
     # Invalidate location if 
 
@@ -191,7 +190,6 @@ function WriteHelperHDF5(
     worker_idx = Banyan.get_worker_idx(comm)
     nworkers = Banyan.get_nworkers(comm)
     group::String = nbatches == 1 ? group_prefix : group_prefix * "_part$idx" * "_dim=$dim"
-    @show group group_prefix
 
     # TODO: Have an option in the location to set this to either "w" or
     # "cw". Both will create a new file if it's not already there but
@@ -214,8 +212,6 @@ function WriteHelperHDF5(
     #     @show h5comm
     #     @show h5info
     # end
-
-    @show propertynames(HDF5)
 
     # Write out to an HDF5 dataset differently depending on whether there
     # are multiple batches per worker or just one per worker
@@ -248,7 +244,6 @@ function WriteHelperHDF5(
 
         # Create file if not yet created
         # TODO: Figure out why sometimes a deleted file still `isfile`
-        @show offset
         # path_isfile = sync_across(isfile(path); comm=comm)
         # if is_main
         #     @show HDF5.ishdf5(path)
@@ -276,11 +271,6 @@ function WriteHelperHDF5(
 
         #     close(f)
         # end
-        @show isfile(path) HDF5.ishdf5(path)
-        @show path group
-        @show HDF5.Drivers.DRIVERS
-        @show info
-        @show get_worker_idx()
         f = if !isfile(path) || !HDF5.ishdf5(path)
             h5open(
                 path,
@@ -300,20 +290,12 @@ function WriteHelperHDF5(
             f_res
         end
 
-        println("Prepared file")
-
         dset = create_dataset(f, group, whole_eltype, (whole_size, whole_size))
 
-        println("Created dataset")
-
         MPI.Barrier(comm)
-        @show some_size
-
-        
 
         # Open file for writing data
-        driver = HDF5.Drivers.MPIO(comm, info)
-        @show 
+        # driver = HDF5.Drivers.MPIO(comm, info)
         # f = h5open(
         #     path,
         #     "r+",
@@ -325,8 +307,6 @@ function WriteHelperHDF5(
         #     # dxpl_mpio = :collective # HDF5.H5FD_MPIO_COLLECTIVE,
         #     fclose_degree = :strong
         # )
-        @show path
-        @show isopen(f)
         
         # whole_eltype = MPI.bcast(whole_eltype, nworkers - 1, comm)
 
@@ -342,14 +322,10 @@ function WriteHelperHDF5(
                     r = (offset+1):(offset+size(part, dim))
                     push!(dim_selector, r)
                     dim_selector_isempty = isempty(r)
-            @show (r, part)
                 else
                     push!(dim_selector, Colon())
                 end
             end
-            @show dim_selector
-            # @show size(part)
-            # @show sum(part)
             if !dim_selector_isempty
                 setindex!(
                     dset,
@@ -361,46 +337,9 @@ function WriteHelperHDF5(
         end
         # Close file
         close(dset)
-        # @show sum(f[group][:,:])
-        # @show whole_size whole_eltype group
-        # @show keys(f)
-        # @show f.filename
-        # @show part isa Empty
         MPI.Barrier(MPI.COMM_WORLD)
         close(f)
         MPI.Barrier(MPI.COMM_WORLD)
-        # fsync_file(path)
-        # MPI.Barrier(MPI.COMM_WORLD)
-        HDF5.API.h5_close()
-        MPI.Barrier(MPI.COMM_WORLD)
-        sleep(30)
-        MPI.Barrier(MPI.COMM_WORLD)
-        f = h5open(
-            path,
-            "r+",
-            comm,
-            info,
-        )
-        @show sum(f[group][:,:])
-        # @show h5read(f, group, (:, :), driver=HDF5.Drivers.MPIO(comm, info), dxpl_mpio=:collective)
-        # dset = create_dataset(f, "DS0", whole_eltype, (whole_size, whole_size))
-        # r = split_across(1:size(dset, 1))
-        # if !isempty(r)
-        #     dset[r, :] = rand(1, size(dset, 2))
-        # end
-        # close(f)
-        # f = h5open(
-        #     path,
-        #     "r+",
-        #     comm,
-        #     info,
-        # )
-        # @show sum(f["DS0"][:,:])
-        close(f)
-        MPI.Barrier(MPI.COMM_WORLD)
-        # Not needed since we barrier at the end of each iteration of a merging
-        # stage with I/O
-        # MPI.Barrier(comm)
     else
         # TODO: See if we have missing `close`s or missing `fsync`s or extra `MPI.Barrier`s
         # fsync_file(p) =
@@ -428,7 +367,6 @@ function WriteHelperHDF5(
         # TODO: Maybe pass in values for fapl_mpi and
         # dxpl_mpio = HDF5.H5FD_MPIO_COLLECTIVE,
         f = h5open(path, "r+", comm, info)
-        @show path
         # Allocate all datasets needed by gathering all sizes to the head
         # node and making calls from there
         part_sizes = MPI.Allgather(
@@ -655,7 +593,6 @@ function WriteHelperHDF5(
             # # continue.
             MPI.Barrier(comm)
         end
-        @show keys(f)
         close(f)
         f = nothing
         # TODO: Ensure that we are closing stuff everywhere before trying
@@ -667,11 +604,8 @@ function WriteHelperHDF5(
     end
     if true#is_main
         f = h5open("/home/ec2-user/s3/banyan-cluster-data-test-lustre-0ce21f27/fillval.h5", "r+", comm, info)
-        @show f.filename
-        @show keys(f)
         close(f)
     end
-    @show HDF5.has_parallel()
     nothing
 end
 

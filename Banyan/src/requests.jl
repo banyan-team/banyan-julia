@@ -686,7 +686,7 @@ function offloaded(given_function::Function, args...; distributed::Bool = false)
     error_for_main_stuck, error_for_main_stuck_time = nothing, nothing
     partial_gathers = Dict{ValueId,String}()
     while true
-        @time "receive_next_message for offloaded" message, error_for_main_stuck = receive_next_message(gather_queue, p, error_for_main_stuck, error_for_main_stuck_time)
+        message, error_for_main_stuck = receive_next_message(gather_queue, p, error_for_main_stuck, error_for_main_stuck_time)
         message_type = message["kind"]::String
         if message_type == "GATHER"
             # Receive gather
@@ -697,7 +697,6 @@ function offloaded(given_function::Function, args...; distributed::Bool = false)
             else
                 partial_gathers[value_id] *= contents
             end
-            println("Received gather")
         elseif message_type == "GATHER_END"
             value_id = message["value_id"]::ValueId
             contents = get(partial_gathers, value_id, "") * message["contents"]::String
@@ -714,7 +713,6 @@ function offloaded(given_function::Function, args...; distributed::Bool = false)
                 get_session().worker_memory_used = get_session().worker_memory_used + memory_used
                 stored_message = from_jl_value_contents(contents)
             end
-            println("Received gather end")
             error_for_main_stuck, error_for_main_stuck_time = check_worker_stuck_error(message, error_for_main_stuck, error_for_main_stuck_time) 
         elseif (message_type == "EVALUATION_END")
             if message["end"]::Bool == true

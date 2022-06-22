@@ -7,7 +7,7 @@ function _remote_table_source(remotepath, shuffled, metadata_invalid, sample_inv
     is_main = is_main_worker()
     
     # Get cached Location and if it has valid parameters and sample, return
-    @time "get_cached_location" curr_location, curr_sample_invalid, curr_parameters_invalid = get_cached_location(remotepath, metadata_invalid, sample_invalid)
+    curr_location, curr_sample_invalid, curr_parameters_invalid = get_cached_location(remotepath, metadata_invalid, sample_invalid)
     if !curr_parameters_invalid && !curr_sample_invalid
         return curr_location
     end
@@ -16,11 +16,8 @@ function _remote_table_source(remotepath, shuffled, metadata_invalid, sample_inv
     # 1. A `Location` serialized to a `location_path`
     # 2. Metadata stored in an Arrow file at `meta_path`
 
-    println("At start of _remote_table_source on get_worker_idx()=$(MPI.Initialized() ? get_worker_idx() : -1)")
-
     # Get metadata if it is still valid
     curr_meta::Arrow.Table = if !curr_parameters_invalid
-        @show curr_location.src_parameters
         Arrow_Table_retry(curr_location.src_parameters["meta_path"]::String)
     else
         Arrow.Table()

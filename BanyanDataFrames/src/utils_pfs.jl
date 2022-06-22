@@ -43,22 +43,18 @@ function Banyan.sync_across(df::DataFrames.DataFrame; comm=MPI.COMM_WORLD)
     # An optimized version of sync_across that syncs data frames across workers
     is_main = is_main_worker(comm)
     count = Ref{Cint}()
-    @time "MPI.Barrier before" MPI.Barrier(comm)
     if is_main
         io = IOBuffer()
-        @time "Arrow.write" Arrow.write(io, df, compress=:zstd)
-        @time "MPI.Buffer creation" buf = MPI.Buffer(view(io.data, 1:io.size))
+        Arrow.write(io, df, compress=:zstd)
+        buf = MPI.Buffer(view(io.data, 1:io.size))
         count[] = length(buf.data)
     end
-    @time "first MPI.Bcast!" MPI.Bcast!(count, 0, comm)
-    println("In sync_across on get_worker_idx(comm)=$(get_worker_idx(comm)), get_worker_idx()=$(get_worker_idx()) with count=$count")
+    MPI.Bcast!(count, 0, comm)
     if !is_main
         buf = MPI.Buffer(Base.Vector{UInt8}(undef, count[]))
     end
-    @time "second MPI.Bcast!" MPI.Bcast!(buf, 0, comm)
-    println("In sync_across on get_worker_idx(comm)=$(get_worker_idx(comm)), get_worker_idx()=$(get_worker_idx()) with after second Bcast!")
-    @time "deserialization in sync_across" res = DataFrames.DataFrame(Arrow.Table(IOBuffer(view(buf.data, 1:buf.count))), copycols=false)
-    println("In sync_across on get_worker_idx(comm)=$(get_worker_idx(comm)), get_worker_idx()=$(get_worker_idx()) at end")
+    MPI.Bcast!(buf, 0, comm)
+    res = DataFrames.DataFrame(Arrow.Table(IOBuffer(view(buf.data, 1:buf.count))), copycols=false)
     res
 end
 
@@ -81,9 +77,6 @@ function make_reducev_op(op)
         end
         res_io.data[1:8] = res_blob_length_blob
         res = Tuple(res_io.data[1:length(a)])
-        # @show length(res)
-        # @show length(res_io.data)
-        # @show res_io.size
         res
     end
 end

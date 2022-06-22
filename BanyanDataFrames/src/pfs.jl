@@ -114,8 +114,6 @@ function ShuffleDataFrameHelper(
             DataFrames.select!(res, Not(:banyan_shuffling_key))
         end
 
-        println("In ShuffleDataFrame on get_worker_idx()=$(get_worker_idx()) with nrow(res)=$(DataFrames.nrow(res)) and divisions_by_worker=$divisions_by_worker with boundedlower=$boundedlower and boundedupper=$boundedupper")
-
         res
     end
 
@@ -189,7 +187,6 @@ function ReadBlockHelper(@nospecialize(format_value))
         loc_name::String,
         loc_params::Dict{String,Any},
     )::DataFrames.DataFrame
-        @time "Inside ReadBlock" begin
         # TODO: Implement a Read for balanced=false where we can avoid duplicate
         # reading of the same range in different reads
 
@@ -197,16 +194,15 @@ function ReadBlockHelper(@nospecialize(format_value))
             println("In ReadBlock with loc_params=$loc_params params=$params")
         end
         
-        @time "Loading in stuff inside ReadBlock" begin
         loc_params_path = loc_params[symbol_path]::String
         balanced = params[symbol_balanced]
         # By calling getpath we ensure that this data exists on each node and
         # is ready to be read in even if the cluster has changed but same S3 bucket
         # with cached location is used.
-        @time "getpath for loc_params_path=$loc_params_path in ReadBlock" existing_path = getpath(loc_params_path)
-        @time "sync_across in ReadBlock" meta_path = loc_name == symbol_Disk ? sync_across(is_main_worker(comm) ? get_meta_path(loc_params_path) : "", comm=comm) : loc_params["meta_path"]::String
-        @time "deserialize_retry in ReadBlock" loc_params = loc_name == symbol_Disk ? (Banyan.deserialize_retry(get_location_path(loc_params_path))::Location).src_parameters : loc_params
-        meta = @time "Arrow_Table_retry in ReadBlock" Arrow_Table_retry(meta_path)
+        existing_path = getpath(loc_params_path)
+        meta_path = loc_name == symbol_Disk ? sync_across(is_main_worker(comm) ? get_meta_path(loc_params_path) : "", comm=comm) : loc_params["meta_path"]::String
+        loc_params = loc_name == symbol_Disk ? (Banyan.deserialize_retry(get_location_path(loc_params_path))::Location).src_parameters : loc_params
+        meta = Arrow_Table_retry(meta_path)
         filtering_op = get(params, symbol_filtering_op, identity)
 
         # Handle multi-file tabular datasets
@@ -233,7 +229,6 @@ function ReadBlockHelper(@nospecialize(format_value))
         for _ in 1:npartitions
             push!(files_by_partition, Int64[])
         end
-        end
 
         if Banyan.INVESTIGATING_FILE_PARTITION_PACKING && partition_idx == 1
             @show nrows
@@ -244,7 +239,6 @@ function ReadBlockHelper(@nospecialize(format_value))
 
         # Try to fit as many files as possible into each partition and keep
         # track of the files that are too big
-        @time "for loop in ReadBlock" begin
         too_large_files = Int64[]
         for file_i in sorting_perm
             too_large_file = true
@@ -262,7 +256,6 @@ function ReadBlockHelper(@nospecialize(format_value))
                 push!(too_large_files, file_i)
             end
         end
-        end
 
         if Banyan.INVESTIGATING_FILE_PARTITION_PACKING && partition_idx == 1
             @show files_by_partition
@@ -272,7 +265,6 @@ function ReadBlockHelper(@nospecialize(format_value))
         # Fit in the files that are too large by first only using partitions
         # that haven't yet been assigned any rows. Prioritize earlier batches.
         second_pass = false
-        @time "while loop in ReadBlock" begin
         while !isempty(too_large_files)
             # On the first pass, we try to fit into partitions not yet assigned any file
             # On the second pass, we just assign stuff anywhere
@@ -291,30 +283,20 @@ function ReadBlockHelper(@nospecialize(format_value))
             end
             second_pass = true
         end
-        end
 
         if Banyan.INVESTIGATING_FILE_PARTITION_PACKING && partition_idx == 1
             @show files_by_partition
         end
 
-        # @show files_by_partition
-
         # Read in data frames
-        @time "Reading in ReadBlock" begin
         if !balanced
             files_for_curr_partition = files_by_partition[partition_idx]
-            # files_memory_usage = Base.Vector{String}(undef, length(files_for_curr_partition))
             dfs = if !isempty(files_for_curr_partition)
                 dfs_res::Base.Vector{DataFrames.DataFrame} = Base.Vector{DataFrames.DataFrame}(undef, length(files_for_curr_partition))
-                et = @elapsed begin
                 Threads.@threads for (i, file_i) in Base.collect(enumerate(files_for_curr_partition))
                     path = meta_path[file_i]
-                    res = filtering_op(read_file(format_value, path))
-                    dfs_res[i] = res
-                    # files_memory_usage[i] = Banyan.format_bytes(Banyan.total_memory_usage(res))
+                    dfs_res[i] = filtering_op(read_file(format_value, path))
                 end
-                end
-                record_time(time_key, et)
                 dfs_res
             else
                 DataFrames.DataFrame[]
@@ -351,19 +333,9 @@ function ReadBlockHelper(@nospecialize(format_value))
             # rows for the batch currently being processed by this worker
             rowrange = Banyan.split_len(nrows, batch_idx, nbatches, comm)
             rowsscanned = 0
-            et = @elapsed begin
             Threads.@threads for (i, path::String, readrange, filerowrange) in files_to_read
-                # TODO: Scale the memory usage appropriately when splitting with
-                # this and garbage collect if too much memory is used.
-                if Banyan.INVESTIGATING_LOSING_DATA
-                    println("In ReadBlock calling read_file with path=$path, filerowrange=$filerowrange, readrange=$readrange, rowrange=$rowrange")
-                end
-                res = read_file(format_value, path, rowrange, readrange, filerowrange)
-                dfs[i] = res
+                dfs[i] = read_file(format_value, path, rowrange, readrange, filerowrange)
             end
-            end
-            record_time(time_key, et)
-        end
         end
 
         if Banyan.INVESTIGATING_LOSING_DATA
@@ -377,12 +349,6 @@ function ReadBlockHelper(@nospecialize(format_value))
         # guaranteed to have its ndims correct) and so if a split/merge/cast
         # function requires the schema (for example for grouping) then it must be
         # sure to take that account
-        # if isempty(dfs)
-        #     println("No dfs to read in on get_worker_idx()=$(MPI.Initialized() ? get_worker_idx() : -1)")
-        # else
-        #     println("Time to read $loc_name so far = $(get_time(time_key)) seconds; $(length(dfs)) files read in on get_worker_idx()=$(MPI.Initialized() ? get_worker_idx() : -1)")
-        # end
-        @time "Concatenation in ReadBlock" begin
         res = if isempty(dfs)
             # When we construct the location, we store an empty data frame with The
             # correct schema.
@@ -391,8 +357,6 @@ function ReadBlockHelper(@nospecialize(format_value))
             dfs[1]
         else
             vcat(dfs...)
-        end
-        end
         end
         res
     end
@@ -495,8 +459,6 @@ function WriteHelper(@nospecialize(format_value))
         sortableidx = Banyan.sortablestring(idx, npartitions)
         part_res = part isa Empty ? part : convert(DataFrames.DataFrame, part)
         if !(part isa Empty)
-            @time begin
-            et = @elapsed begin
             dst = joinpath(path, "part_$sortableidx" * ".$format_string")
             write_file(
                 format_value,
@@ -504,13 +466,6 @@ function WriteHelper(@nospecialize(format_value))
                 dst,
                 nrows
             )
-            end
-            record_time(:writing, et)
-            println("Time to write so far = $(get_time(:writing)) seconds")
-            println("Time to write with Banyan.total_memory_usage(part_res)=$(Banyan.format_bytes(Banyan.total_memory_usage(part_res))) and filesize(dst)=$(Banyan.format_bytes(filesize(dst))) to dst=$dst on worker_idx=$worker_idx and batch_idx=$batch_idx = $et seconds for $(Banyan.format_bytes(round(Int64, filesize(dst) / et))) per second")
-            end
-        else
-            println("No data to write on worker_idx=$worker_idx and batch_idx=$batch_idx")
         end 
         # We don't need this barrier anymore because we do a broadcast right after
         # MPI.Barrier(comm)
@@ -664,9 +619,6 @@ function WriteHelper(@nospecialize(format_value))
             MPI.Barrier(comm)
         end
 
-        println("At end of WriteArrow on get_worker_idx()=$(get_worker_idx())")
-
-        # src
         nothing
         # TODO: Delete all other part* files for this value if others exist
     end
@@ -752,8 +704,6 @@ function SplitGroupDataFrame(
         end
         res = src[filter_mask, :]
 
-        record_time(:SplitGroupDataFrame_res_nrow, DataFrames.nrow(res))
-
         return res
     end
 
@@ -837,21 +787,6 @@ function Banyan.SplitGroup(
     store_splitting_divisions::Bool = false
 )
     npartitions = get_npartitions(nbatches, comm)
-
-    # if batch_idx == 1
-    #     splitting_divisions = Banyan.get_splitting_divisions()
-    #     src_divisions, boundedlower, boundedupper = get(splitting_divisions, src) do
-    #         # This case lets us use `SplitGroup` in `DistributeAndShuffle`
-    #         (params["divisions"], get(params, "boundedlower", false), get(params, "boundedupper", false))
-    #     end
-    #     divisions_by_partition = if haskey(params, symbol_divisions_by_partition)
-    #         params[symbol_divisions_by_partition]
-    #     else
-    #         Banyan.get_divisions(src_divisions, npartitions)
-    #     end
-    #     # println("In SplitGroup on get_worker_idx()=$(get_worker_idx()) batch_idx=1 with src_divisions=$src_divisions and divisions_by_partition=$divisions_by_partition for npartitions=$npartitions with boundedlower=$boundedlower and boundedupper=$boundedupper and having haskey(splitting_divisions, src)=$(haskey(splitting_divisions, src)) and haskey(params, symbol_divisions_by_partition)=$(haskey(params, symbol_divisions_by_partition)) where minimum(src[:, :sepal_width])=$(isempty(src.sepal_width) ? -1 : minimum(src.sepal_width)) and maximum(src[:, :sepal_width])=$(isempty(src.sepal_width) ? -1 : maximum(src.sepal_width))")
-    #     println("In SplitGroup on get_worker_idx()=$(get_worker_idx()) batch_idx=1 with src_divisions=$src_divisions and divisions_by_partition=$divisions_by_partition for npartitions=$npartitions with boundedlower=$boundedlower and boundedupper=$boundedupper and having haskey(splitting_divisions, src)=$(haskey(splitting_divisions, src)) and haskey(params, symbol_divisions_by_partition)=$(haskey(params, symbol_divisions_by_partition))")
-    # end
 
     # Ensure that this partition has a schema that is suitable for usage
     # here. We have to do this for `Shuffle` and `SplitGroup` (which is
@@ -999,31 +934,11 @@ RebalanceDataFrame(
 
 function ConsolidateDataFrame(part::DataFrames.DataFrame, src_params::Dict{String,Any}, dst_params::Dict{String,Any}, comm::MPI.Comm)
     io = IOBuffer()
-    @time "MPI.Barrier in ConsolidateDataFrame" MPI.Barrier(comm)
-    @time "Arrow.write in ConsolidateDataFrame" Arrow.write(io, part, compress=:lz4)
-    @time "MPI.Barrier in ConsolidateDataFrame after Arrow.write" MPI.Barrier(comm)
-    @time "MPI.Buffer in ConsolidateDataFrame" sendbuf = MPI.Buffer(view(io.data, 1:io.size))
+    Arrow.write(io, part, compress=:lz4)
+    sendbuf = MPI.Buffer(view(io.data, 1:io.size))
     recvvbuf = Banyan.buftovbuf(sendbuf, comm)
-    # TODO: Maybe sometimes use gatherv if all sendbuf's are known to be equally sized
-
-    # println("In ConsolidateDataFrame before MPI.Allgatherv! on get_worker_idx()=$(get_worker_idx())")
-    # distribute = get(src_params, "distribute", false)
-    @time "MPI.Gatherv! in ConsolidateDataFrame" begin
     MPI.Gatherv!(sendbuf, recvvbuf, 0, comm)
-    end
-    @time "MPI.Barrier in ConsolidateDataFrame after Gatherv!" MPI.Barrier(comm)
-    # println("In ConsolidateDataFrame after MPI.Allgatherv! on get_worker_idx()=$(get_worker_idx())")
     res = if is_main_worker(comm)
-        @time "deserialization in ConsolidateDataFrame" begin
-            [
-                de(view(
-                    recvvbuf.data,
-                    (recvvbuf.displs[i]+1):(recvvbuf.displs[i]+recvvbuf.counts[i])
-                ))
-                for i in 1:Banyan.get_nworkers(comm)
-            ]
-        end
-        @time "deserialization and merging in ConsolidateDataFrame" begin
         merge_on_executor(
             [
                 de(view(
@@ -1034,12 +949,9 @@ function ConsolidateDataFrame(part::DataFrames.DataFrame, src_params::Dict{Strin
             ],
             1
         )
-        end
     else
         empty(part)
     end
-    @time "MPI.Barrier in ConsolidateDataFrame after serialization and concatenation" MPI.Barrier(comm)
-    # println("Result of ConsolidateDataFrame on get_worker_idx()=$(get_worker_idx()) is $(Banyan.format_bytes(Banyan.total_memory_usage(res)))")
     res
 end
 
@@ -1068,12 +980,9 @@ function ReduceDataFrame(
     dst_params::Dict{String,Any},
     comm::MPI.Comm
 )
-    # res = reduce_and_sync_across(src_params["reducing_op"], part; comm=comm)
-    # println("At start of ReduceDataFrame on get_worker_idx()=$(get_worker_idx())")
     res = ConsolidateDataFrame(part, Dict{String,Any}(), Dict{String,Any}(), comm)
     res = src_params["reducing_op"](res, DataFrames.DataFrame()) 
     res_finished = src_params["finishing_op"](res)
-    # println("At end of ReduceDataFrame on get_worker_idx()=$(get_worker_idx())")
     res_finished
 end
 
@@ -1094,7 +1003,6 @@ function ReduceAndCopyToArrow(
     @nospecialize(finish_op::Function)
 ) where {T}
     # Get the # of rows of each group if this is a group-by-mean that is being reduced
-    et = @elapsed begin
     if loc_name == "Memory"
         part = start_op(part)
     end
@@ -1138,8 +1046,6 @@ function ReduceAndCopyToArrow(
             CopyToArrow(src, src, params, 1, 1, comm, loc_name, loc_params)
         end
     end
-    end
-    record_time(:reduction, et)
     
     src
 end

@@ -254,8 +254,8 @@ end
 
         for i = 1:2
             for path in [
-                # "s3://$(bucket)/iris_large.csv",
-                # "s3://$(bucket)/iris_large.parquet",
+                "s3://$(bucket)/iris_large.csv",
+                "s3://$(bucket)/iris_large.parquet",
                 "s3://$(bucket)/iris_large.arrow",
             ]
                 for f in [mean, (x -> mean(x))]

@@ -8,7 +8,6 @@ function read_julia_array_file(path::String, readrange::UnitRange{Int64}, filero
                 push!(dim_selector, Colon())
             end
         end
-        println("Read in Julia array file with size(arr)=$(size(arr)) and dim_selector=$dim_selector")
         convert(Base.Array, arr[dim_selector...])
     end
 end
@@ -100,8 +99,6 @@ function ReadBlockHelperJuliaArray(
         rowsscanned = newrowsscanned
     end
     dfs = Base.Vector{Any}(undef, ndfs)
-    @show files_to_read
-    @show filerowranges
     
     if !isempty(dfs)
         Threads.@threads for (i, file) in Base.collect(enumerate(files_to_read))
@@ -113,7 +110,6 @@ function ReadBlockHelperJuliaArray(
             if dfs_i != -1
                 filerowrange = filerowranges[i]
                 # Deterine path to read from
-                @show file
                 file_path = file[2]
                 path = Banyan.getpath(file_path)
 
@@ -143,7 +139,6 @@ function ReadBlockHelperJuliaArray(
     # guaranteed to have its ndims correct) and so if a split/merge/cast
     # function requires the schema (for example for grouping) then it must be
     # sure to take that account
-    println("At end of ReadBlockJuliaArray with size.(dfs)=$(size.(dfs))")
     res = if isempty(dfs)
         if isnothing(metadata)
             metadata = Banyan.deserialize_retry(

@@ -56,11 +56,8 @@ end
 function partitioned_for_groupby(df::Future, gdf::Future, gdf_length::Future, cols::Future, kwargs::Future)
     partitioned_with(pts_for_groupby, Future[df, gdf, gdf_length, cols, kwargs], scaled=Future[df, gdf], modules=String["BanyanDataFrames.DataFrames"], keytype=String)
     @partitioned df gdf gdf_length cols kwargs begin
-        # println("At start of groupby on get_worker_idx()=$(MPI.Initialized() ? get_worker_idx() : -1)")
-        # @show DataFrames.nrow(df)
         gdf = DataFrames.groupby(df, cols; kwargs...)
         gdf_length = DataFrames.length(gdf)
-        # println("At end of groupby on get_worker_idx()=$(MPI.Initialized() ? get_worker_idx() : -1) and gdf_length=$gdf_length")
     end
 end
 
@@ -241,7 +238,6 @@ function partitioned_for_subset(gdf_parent::Future, gdf::Future, res_nrows::Futu
         end
         res = DataFrames.subset(gdf, args...; kwargs...)
         res_nrows = DataFrames.nrow(res)
-        println("At end of subset with res=$res and res_nrows=$res_nrows")
     end
 end
 

@@ -272,9 +272,7 @@ function pts_for_getindex(futures::Base.Vector{Future})
     cols_sample = sample(cols)
     rows_sample = sample(rows)
     columns::Base.Vector{String} = names(df_sample_for_grouping.sample, cols_sample)
-    @show cols_sample typeof(cols_sample)
     return_vector = cols_sample isa Symbol || cols_sample isa String || cols_sample isa Integer
-    @show return_vector
     filter_rows = !(rows_sample isa Colon)
     if filter_rows
         res_sample_for_grouping = sample_for_grouping(res, return_vector ? Int64 : String)
@@ -308,7 +306,6 @@ function pts_for_getindex(futures::Base.Vector{Future})
         end
 
         pt(res_size, Reducing(return_vector ? add_sizes : +))
-        @show Reducing(return_vector ? add_sizes : +)
     else
         for dpt in Distributed(df_sample_for_grouping, scaled_by_same_as=res)
             pt(df, dpt)
@@ -354,7 +351,6 @@ function _getindex(df_sample::DataFrames.DataFrame, df::Future, df_nrows::Future
         end
         res_length::Int64
         res_size = return_vector ? tuple(res_length) : res_length
-        println("At end of getindex with res_size=$res_size return_vector=$return_vector cols=$cols and res_length=$res_length")
     end
 
     if return_vector
