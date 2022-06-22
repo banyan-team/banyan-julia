@@ -30,8 +30,8 @@ TOML = "fa267f1f-6049-4f14-aa54-33bafae1ed76"
 TimeZones = "f269a46b-ccf7-5d73-abea-4c690281aa53"
 
 [compat]
-AWSS3 = "^0.7.7"
-AWSSQS = "^0.6.5"
+AWSS3 = "0.7"
+AWSSQS = "0.6"
 Downloads = "^1.4"
 HTTP = "^0.9.17"
 ProgressMeter = "^1.7"
