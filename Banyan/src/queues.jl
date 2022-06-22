@@ -2,37 +2,20 @@
 # GET QUEUE URL #
 #################
 
-
-function get_scatter_queue(resource_id::Union{ResourceId,Nothing}=nothing)
-    if isnothing(resource_id)
-        resource_id = get_session().resource_id
-    end
-    return sqs_get_queue_with_retries(
+get_sqs_dict_from_url(url::String)::Dict{Symbol,Any} =
+    merge(
         get_aws_config(),
-        string("banyan_", resource_id, "_scatter.fifo"),
+        Dict(:resource => "/" * joinpath(splitpath(url)[end-1:end]))
     )
-end
 
-function get_gather_queue(resource_id::Union{ResourceId,Nothing}=nothing)
-    if isnothing(resource_id)
-        resource_id = get_session().resource_id
-    end
-    return sqs_get_queue_with_retries(
-        get_aws_config(),
-        string("banyan_", resource_id, "_gather.fifo"),
-    )
-end
+get_scatter_queue()::Dict{Symbol,Any} =
+    get_sqs_dict_from_url(get_session().scatter_queue_url)
 
-function get_execution_queue(resource_id::Union{ResourceId,Nothing}=nothing)
-    if isnothing(resource_id)
-        resource_id = get_session().resource_id
-    end
-    return sqs_get_queue_with_retries(
-        get_aws_config(),
-        string("banyan_", resource_id, "_execution.fifo"),
-    )
-end
+get_gather_queue()::Dict{Symbol,Any} =
+    get_sqs_dict_from_url(get_session().gather_queue_url)
 
+get_execution_queue()::Dict{Symbol,Any} =
+    get_sqs_dict_from_url(get_session().execution_queue_url)
 
 ###################
 # RECEIVE MESSAGE #
@@ -51,41 +34,53 @@ function sqs_receive_message_with_long_polling(queue)
     message = r[1]["Body"]
     md5     = r[1]["MD5OfBody"]
 
-    Dict(
+    Dict{Symbol,Any}(
         :message => message,
         :id => id,
         :handle => handle
     )
 end
 
-function get_next_message(queue, p=nothing; delete = true, error_for_main_stuck=nothing, error_for_main_stuck_time=nothing)
-    m = sqs_receive_message(queue)
+function get_next_message(
+    queue,
+    p::Union{Nothing,ProgressMeter.ProgressUnknown} = nothing;
+    delete::Bool = true,
+    error_for_main_stuck::Union{Nothing,String} = nothing,
+    error_for_main_stuck_time::Union{Nothing,DateTime} = nothing
+)::Tuple{String,Union{Nothing,String}}
+error_for_main_stuck = check_worker_stuck(error_for_main_stuck, error_for_main_stuck_time)
+    m = sqs_receive_message_with_long_polling(queue)
+    i = 1
+    j = 1
     while (isnothing(m))
         error_for_main_stuck = check_worker_stuck(error_for_main_stuck, error_for_main_stuck_time)
-        m = sqs_receive_message(queue)
-        # @debug "Waiting for message from SQS"
+        m = sqs_receive_message_with_long_polling(queue)
+        i += 1
         if !isnothing(p)
+            p::ProgressMeter.ProgressUnknown
             next!(p)
+            j += 1
         end
     end
     if delete
         sqs_delete_message(queue, m)
     end
-    return m[:message], error_for_main_stuck
+    return m[:message]::String, error_for_main_stuck
 end
 
-function receive_next_message(queue_name, p=nothing, error_for_main_stuck=nothing, error_for_main_stuck_time=nothing)
-    content, error_for_main_stuck = get_next_message(queue_name, p; error_for_main_stuck=error_for_main_stuck, error_for_main_stuck_time=error_for_main_stuck_time)
-    res = if startswith(content, "JOB_READY") || startswith(content, "SESSION_READY")
-        response = Dict{String,Any}(
+function receive_next_message(
+    queue_name,
+    p=nothing,
+    error_for_main_stuck=nothing,
+    error_for_main_stuck_time=nothing
+)::Tuple{Dict{String,Any},Union{Nothing,String}}
+    content::String, error_for_main_stuck::Union{Nothing,String} = get_next_message(queue_name, p; error_for_main_stuck=error_for_main_stuck, error_for_main_stuck_time=error_for_main_stuck_time)
+    res::Dict{String,Any} = if startswith(content, "JOB_READY") || startswith(content, "SESSION_READY")
+        Dict{String,Any}(
             "kind" => "SESSION_READY"
         )
     elseif startswith(content, "EVALUATION_END")
         # @debug "Received evaluation end"
-        response = Dict{String,Any}(
-            "kind" => "EVALUATION_END",
-            "end" => endswith(content, "MESSAGE_END")
-        )
         # Print out logs that were outputed by session on cluster. Will be empty if
         # `print_logs=false` for the session. Remove "EVALUATION_END" at start and
         #  chop off "MESSAGE_END" at the end
@@ -94,12 +89,14 @@ function receive_next_message(queue_name, p=nothing, error_for_main_stuck=nothin
         end
         tail = endswith(content, "MESSAGE_END") ? 11 : 0
         print(chop(content, head=14, tail=tail))
-        response
+        Dict{String,Any}(
+            "kind" => "EVALUATION_END",
+            "end" => endswith(content, "MESSAGE_END")
+        )
     elseif startswith(content, "JOB_FAILURE") || startswith(content, "SESSION_FAILURE")
         if !isnothing(p) && !p.done
             finish!(p, spinner='✗')
         end
-        # @debug "Session failed"
         # Print session logs. Will be empty if `print_logs=false` for the session. Remove
         # "JOB_FAILURE" and "JOB_END" from the message content. Note that logs
         # are streamed in multiple parts, due to SQS message limits.
@@ -114,7 +111,7 @@ function receive_next_message(queue_name, p=nothing, error_for_main_stuck=nothin
             # provisioned nodes should stick around for a bit so it should
             # only be a couple of minutes before the session is back up and
             # running.
-            end_session(failed=true, release_resoDurces_now=startswith(content, "JOB_FAILURE")) # This will reset the `current_session_id` and delete from `sessions`
+            end_session(failed=true, release_resources_now=startswith(content, "JOB_FAILURE")) # This will reset the `current_session_id` and delete from `sessions`
             error("Session failed; see preceding output")
         end
         Dict{String,Any}("kind" => "SESSION_FAILURE")
@@ -126,15 +123,16 @@ function receive_next_message(queue_name, p=nothing, error_for_main_stuck=nothin
 end
 
 # Used by Banyan/src/pfs.jl, intended to be called from the executor
-function receive_from_client(value_id)
+function receive_from_client(value_id::ValueId)
     # Send scatter message to client
+    message = Dict{String,String}("kind" => "SCATTER_REQUEST", "value_id" => value_id)
     send_message(
         get_gather_queue(),
-        JSON.json(Dict("kind" => "SCATTER_REQUEST", "value_id" => value_id))
+        JSON.json(message)
     )
     # Receive response from client
     m = JSON.parse(get_next_message(get_scatter_queue())[1])
-    v = from_jl_value_contents(m["contents"])
+    v = from_jl_value_contents(m["contents"]::String)
     v
 end
 
@@ -153,16 +151,34 @@ function send_message(queue_name, message)
     )
 end
 
-function send_to_client(value_id, value, worker_memory_used = 0)
-    send_message(
-        get_gather_queue(),
-        JSON.json(
-            Dict(
-                "kind" => "GATHER",
-                "value_id" => value_id,
-                "contents" => to_jl_value_contents(value),
-                "worker_memory_used" => worker_memory_used
+function send_to_client(value_id::ValueId, value, worker_memory_used = 0)
+    MAX_MESSAGE_LENGTH = 220_000
+    message = to_jl_value_contents(value)::String
+    i = 1
+    while true
+        is_last_message = length(message) <= MAX_MESSAGE_LENGTH
+        msg = Dict{String,Any}(
+            "kind" => (is_last_message ? "GATHER_END" : "GATHER"),
+            "value_id" => value_id,
+            "contents" => if is_last_message
+                message
+            else
+                msg = message[1:MAX_MESSAGE_LENGTH]
+                message = message[MAX_MESSAGE_LENGTH+1:end]
+                msg
+            end,
+            "worker_memory_used" => worker_memory_used,
+            "gather_page_idx" => i
+        )
+        send_message(
+            get_gather_queue(),
+            JSON.json(
+                msg
             )
         )
-    )
+        i += 1
+        if is_last_message
+            break
+        end
+    end
 end

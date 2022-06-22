@@ -56,7 +56,7 @@ using Distributions
 end
 
 
-#function run_bs(size::Integer)
+#function run_bs(size::Int64)
 
     # c05 = Float64(3.0)
     # c10 = Float64(1.5)

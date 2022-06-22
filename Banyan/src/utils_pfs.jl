@@ -5,18 +5,19 @@ using MPI
 # Helper functions #
 ####################
 
-get_worker_idx(comm::MPI.Comm = MPI.COMM_WORLD) = MPI.Comm_rank(comm) + 1
-get_nworkers(comm::MPI.Comm = MPI.COMM_WORLD) = MPI.Comm_size(comm)
+get_worker_idx(comm::MPI.Comm = MPI.COMM_WORLD)::Int64 = MPI.Comm_rank(comm) + 1
+get_nworkers(comm::MPI.Comm = MPI.COMM_WORLD)::Int64 = MPI.Comm_size(comm)
+is_main_worker(comm::MPI.Comm = MPI.COMM_WORLD) = get_worker_idx(comm) == 1
 
-get_partition_idx(batch_idx, nbatches, comm::MPI.Comm) =
+get_partition_idx(batch_idx::Int64, nbatches::Int64, comm::MPI.Comm)::Int64 =
     get_partition_idx(batch_idx, nbatches, get_worker_idx(comm))
 
-get_partition_idx(batch_idx, nbatches, worker_idx) =
+get_partition_idx(batch_idx::Int64, nbatches::Int64, worker_idx::Int64)::Int64 =
     (worker_idx - 1) * nbatches + batch_idx
 
-get_npartitions(nbatches, comm::MPI.Comm) = nbatches * get_nworkers(comm)
+get_npartitions(nbatches::Int64, comm::MPI.Comm)::Int64 = nbatches * get_nworkers(comm)
 
-split_len(src_len::Integer, idx::Integer, npartitions::Integer) =
+split_len(src_len::Int64, idx::Int64, npartitions::Int64)::UnitRange{Int64} =
     if npartitions > 1
         # dst_len = Int64(cld(src_len, npartitions))
         dst_len = cld(src_len, npartitions)
@@ -27,19 +28,31 @@ split_len(src_len::Integer, idx::Integer, npartitions::Integer) =
         1:src_len
     end
 
-split_len(src_len, batch_idx::Integer, nbatches::Integer, comm::MPI.Comm) = split_len(
+# This should only be used if src_len > npartitions
+split_len_with_fld(src_len::Int64, idx::Int64, npartitions::Int64)::UnitRange{Int64} =
+    if npartitions > 1
+        # dst_len = Int64(cld(src_len, npartitions))
+        dst_len = fld(src_len, npartitions)
+        dst_start = min((idx - 1) * dst_len + 1, src_len + 1)
+        dst_end = idx == npartitions ? src_len : min(idx * dst_len, src_len)
+        dst_start:dst_end
+    else
+        1:src_len
+    end
+
+split_len(src_len::Int64, batch_idx::Int64, nbatches::Int64, comm::MPI.Comm)::UnitRange{Int64} = split_len(
     src_len,
     get_partition_idx(batch_idx, nbatches, comm),
     get_npartitions(nbatches, comm),
 )
 
-split_on_executor(src, d, i) = error("Splitting $(typeof(src)) not supported")
+split_on_executor(src, d::Int64, i::UnitRange{Int64}) = error("Splitting $(typeof(src)) not supported")
 
 split_on_executor(
     src::T,
-    dim::Integer,
-    batch_idx::Integer,
-    nbatches::Integer,
+    dim::Int64,
+    batch_idx::Int64,
+    nbatches::Int64,
     comm::MPI.Comm,
 ) where {T} = begin
     npartitions = get_npartitions(nbatches, comm)
@@ -60,15 +73,40 @@ end
 
 # Helper functions along with get_worker_idx() and get_nworkers()
 split_across(obj, idx=get_worker_idx(), npartitions=get_nworkers()) = obj[split_len(length(obj), idx, npartitions)]
-sync_across(comm=MPI.COMM_WORLD) = MPI.Barrier(comm)
+sync_across(;comm=MPI.COMM_WORLD) = MPI.Barrier(comm)
+sync_across(obj; from_worker_idx=1, comm=MPI.COMM_WORLD) = MPI.bcast(obj, from_worker_idx-1, comm)
 reduce_across(func, val; to_worker_idx=1, comm=MPI.COMM_WORLD) = MPI.Reduce(val, func, to_worker_idx-1, comm)
+reduce_and_sync_across(func, val; comm=MPI.COMM_WORLD) = MPI.Allreduce(val, func, comm)
 
-merge_on_executor(obj::Any; key = nothing) = error("Merging $(typeof(obj)) not supported")
+function gather_across(obj::T, comm=MPI.COMM_WORLD) where {T}
+    is_main = is_main_worker(comm)
+    io = IOBuffer()
+    serialize(io, obj)
+    sendbuf = MPI.Buffer(view(io.data, 1:io.size))
+    sizes = MPI.Gather(sendbuf.count, 0, comm)
+    recvvbuf = is_main ? VBuffer(similar(sendbuf.data, sum(sizes)), sizes) : nothing
+    MPI.Gatherv!(sendbuf, recvvbuf, 0, comm)
+    if is_main
+        [
+            view(
+                recvvbuf.data,
+                (recvvbuf.displs[i]+1):(recvvbuf.displs[i]+recvvbuf.counts[i])
+            ) |> IOBuffer |> deserialize
+            for i in 1:get_nworkers(comm)
+        ]
+    else
+        T[]
+    end
+end
+
+merge_on_executor(obj::Any, key) = error("Merging $(typeof(obj)) not supported")
+# merge_on_executor(obj::Vector{Missing}; key=nothing) = missing
+# merge_on_executor(obj::Vector; key=nothing) = if isempty(obj) missing else error("Merging $(typeof(obj)) not supported") end
 
 # # TODO: Make `merge_on_executor` and `tobuf` and `frombuf`
 # # dispatch based on the `kind` so we only have to precompile Arrow if we are
 # # working with dataframes.
-# function merge_on_executor(kind::Symbol, vbuf::MPI.VBuffer, nchunks::Integer; key)
+# function merge_on_executor(kind::Symbol, vbuf::MPI.VBuffer, nchunks::Int64; key)
 #     chunks = [
 #         begin
 #             chunk = view(vbuf.data, (vbuf.displs[i]+1):(vbuf.displs[i]+vbuf.counts[i]))
@@ -84,22 +122,46 @@ merge_on_executor(obj::Any; key = nothing) = error("Merging $(typeof(obj)) not s
 #     merge_on_executor(chunks...; key = key)
 # end
 
-function get_partition_idx_from_divisions(
-    val,
-    divisions;
-    boundedlower = false,
-    boundedupper = false,
-)
+reduce_worker_idx_and_val(worker_idx_and_val_a, worker_idx_and_val_b) =
+    begin
+        if worker_idx_and_val_a[2]
+            worker_idx_and_val_a
+        else
+            worker_idx_and_val_b
+        end
+    end
+
+function find_worker_idx_where(val::Bool; comm::MPI.Comm = MPI.COMM_WORLD, allreduce::Bool = true)::Int64
+    worker_idx = get_worker_idx(comm)
+    worker_idx_and_val = (worker_idx, val)
+    worker_idx, aggregated_val = if allreduce
+        MPI.Allreduce(worker_idx_and_val, reduce_worker_idx_and_val, comm)
+    else
+        res = MPI.Reduce(worker_idx_and_val, reduce_worker_idx_and_val, get_nworkers(comm)-1, comm)
+        if worker_idx == 1
+            res
+        else
+            (-1, false)
+        end
+    end
+    aggregated_val ? worker_idx : -1
+end
+
+function get_oh_partition_idx_from_divisions(
+    oh::OH,
+    divisions::Base.Vector{Base.Vector{Tuple{OH,OH}}},
+    boundedlower::Bool,
+    boundedupper::Bool,
+)::Int64 where {OH}
     # The first and last partitions (used if this lacks a lower or upper bound)
     # must have actual division(s) associated with them. If there is no
     # partition that has divisions, then they will all be skipped and -1 will
     # be returned. So these indices are only used if there are nonempty
     # divisions.
-    firstdivisionidx = findfirst(x->!isempty(x), divisions)
-    lastdivisionidx = findlast(x->!isempty(x), divisions)
+    firstdivisionidx = findfirst(isnotempty, divisions)
+    lastdivisionidx = findlast(isnotempty, divisions)
 
     # The given divisions may be returned from `get_divisions`
-    oh = orderinghash(val)
     for (i, div) in enumerate(divisions)
         # Now _this_ is a plausible cause. `get_divisions` can return a bunch
         # of empty arrays and in that case we should just skip that division.
@@ -109,8 +171,8 @@ function get_partition_idx_from_divisions(
 
         isfirstdivision = i == firstdivisionidx
         islastdivision = i == lastdivisionidx
-        if ((!boundedlower && isfirstdivision) || oh >= first(div)[1]) &&
-           ((!boundedupper && islastdivision) || oh < last(div)[2])
+        if ((!boundedlower && isfirstdivision) || oh >= div[1][1]) &&
+           ((!boundedupper && islastdivision) || oh < div[end][2])
             return i
         end
     end
@@ -120,22 +182,25 @@ function get_partition_idx_from_divisions(
     -1
 end
 
+function get_partition_idx_from_divisions(val::T, divisions::Base.Vector{Base.Vector{Tuple{OH,OH}}}, boundedlower::Bool, boundedupper::Bool)::Int64 where {T,OH}
+    get_oh_partition_idx_from_divisions(orderinghash(val), divisions, boundedlower, boundedupper)
+end
+
 isoverlapping(a::AbstractRange, b::AbstractRange) = a.start ≤ b.stop && b.start ≤ a.stop
 
 ######################################################
 # Helper functions for serialization/deserialization #
 ######################################################
 
-to_jl_value(jl) = Dict("is_banyan_value" => true, "contents" => to_jl_value_contents(jl))
+@nospecialize
+
+to_jl_value(jl) = Dict{String,Any}("is_banyan_value" => true, "contents" => to_jl_value_contents(jl))
 
 # NOTE: This function is shared between the client library and the PT library
-to_jl_value_contents(jl) = begin
+function to_jl_value_contents(jl)::String
     # Handle functions defined in a module
     # TODO: Document this special case
     # if jl isa Function && !(isdefined(Base, jl) || isdefined(Core, jl) || isdefined(Main, jl))
-    if jl isa Expr && eval(jl) isa Function
-        jl = Dict("is_banyan_udf" => true, "code" => jl)
-    end
 
     # Convert Julia object to string
     io = IOBuffer()
@@ -146,7 +211,7 @@ to_jl_value_contents(jl) = begin
 end
 
 # NOTE: This function is shared between the client library and the PT library
-from_jl_value_contents(jl_value_contents) = begin
+function from_jl_value_contents(jl_value_contents::String)
     # Converty string to Julia object
     io = IOBuffer()
     iob64_decode = Base64DecodePipe(io)
@@ -155,11 +220,7 @@ from_jl_value_contents(jl_value_contents) = begin
     res = deserialize(iob64_decode)
 
     # Handle functions defined in a module
-    if res isa Dict && haskey(res, "is_banyan_udf") && res["is_banyan_udf"]
-        eval(res["code"])
-    else
-        res
-    end
+    res
 end
 
 
@@ -170,14 +231,30 @@ end
 # NOTE: `orderinghash` must either return a number or a vector of
 # equally-sized numbers
 # NOTE: This is an "order-preserving hash function" (google that for more info)
-orderinghash(x::Any) = x # This lets us handle numbers and dates
-orderinghash(s::AbstractString) = Integer.(codeunits(first(s, 32) * repeat(" ", 32-length(s))))
-orderinghash(A::AbstractArray) = orderinghash(first(A))
+function orderinghash(x::T)::Vector{T} where {T} T[x] end # This lets us handle numbers and dates
+function orderinghash(x::I)::Vector{Int64} where I<:Integer
+    Int64[convert(Int64, x)]
+end
+function orderinghash(x::I)::Vector{Float64} where I<:Real
+    Float64[convert(Float64, x)]
+end
+orderinghash(s::AbstractString)::Vector{UInt8} = orderinghash(convert(String, s))
+function orderinghash(s::String)::Vector{UInt8}
+    s_view = view(s, 1:min(32,length(s)))
+    a = codeunits(s_view)
+    a_view = view(a, 1:min(32,length(a)))
+    b_length = 32 - min(32,length(s))
+    b = fill(0x20, b_length)
+    vcat(a_view,b)
+end
+orderinghash(A::AA) where AA<:AbstractArray = orderinghash(first(A))
 
-to_vector(v::Vector) = v
-to_vector(v) = [v]
+const Division{V} = Tuple{V,V} where {V <: AbstractVector}
 
-function get_divisions(divisions, npartitions)
+divide_division(diff::Union{UInt8,Int64}, ndivisionsplits::Int64) = cld(diff, ndivisionsplits)
+divide_division(diff::Float64, ndivisionsplits::Int64) = diff / ndivisionsplits
+
+function get_divisions(divisions::Base.Vector{Division{V}}, npartitions::Int64)::Base.Vector{Base.Vector{Division{V}}} where V
     # This function accepts a list of divisions where each division is a tuple
     # of ordering hashes (values returned by `orderinghash` which are either
     # numbers or vectors of numbers). It also accepts a number of partitions to
@@ -185,11 +262,11 @@ function get_divisions(divisions, npartitions)
     # containing lists of divisions for each partition. A partition may contain
     # multiple divisions.
 
-    ndivisions = length(divisions)
+    ndivisions::Int64 = length(divisions)
     if ndivisions == 0
         # If there are no divisions (maybe this dataset or this partition of a
         # dataset is empty), we simply return empty set.
-        [[] for _ in 1:npartitions]
+        map(_->Division{V}[], 1:npartitions)
     elseif ndivisions >= npartitions
         # If there are more divisions than partitions, we can distribute them
         # easily. Each partition gets 0 or more divisions.
@@ -197,72 +274,55 @@ function get_divisions(divisions, npartitions)
         # library (here), annotation, and in locations) doesn't result in 0 or
         # instead we use ceiling division
         # ndivisions_per_partition = div(ndivisions, npartitions)
-        [
-            # This could be an empty array.
-            begin
-                divisions[split_len(ndivisions, partition_idx, npartitions)]
-            end for partition_idx = 1:npartitions
-        ]
+        map(partition_idx->divisions[split_len(ndivisions, partition_idx, npartitions)], 1:npartitions)
     else
         # Otherwise, each division must be shared among 1 or more partitions
-        allsplitdivisions = []
+        allsplitdivisions = Base.Vector{Division{V}}[]
         # npartitions_per_division = div(npartitions, ndivisions)
 
         # Iterate through the divisions and split each of them and find the
         # one that contains a split that this partition must own and use as
         # its `partition_divisions`
-        for (division_idx, division) in enumerate(divisions)
+        for (division_idx::Int64, division::Division{V}) in enumerate(divisions)
             # Determine the range (from `firstpartitioni` to `lastpartitioni`) of
             # partitions that own this division
-            # islastdivision = division_idx == ndivisions
-            # firstpartitioni = ((division_idx-1) * npartitions_per_division) + 1
-            # lastpartitioni = islastdivision ? npartitions : division_idx * npartitions_per_division
-            # partitionsrange = firstpartitioni:lastpartitioni
-            partitionsrange = split_len(npartitions, division_idx, ndivisions)
-
-            # # If the current partition is in that division, compute the
-            # # subdivision it should use for its partition
-            # if partition_idx in partitionsrange
+            # We have to use fld instead of the cld used by split_len because otherwise
+            # some divisions might have no partitions! :O
+            # partitionsrange = split_len(npartitions, division_idx, ndivisions)
+            partitionsrange = split_len_with_fld(npartitions, division_idx, ndivisions)
 
             # We need to split the division among all the partitions in
             # its range
             ndivisionsplits = length(partitionsrange)
 
-            # Get the `Vector{Number}`s to interpolate between
-            divisionbegin = to_vector(first(division))
-            divisionend = to_vector(last(division))
-
-            # @show divisionbegin
-            # @show divisionend
+            # Get the `Base.Vector{Number}`s to interpolate between
+            divisionbegin::V = division[1]
+            divisionend::V = division[2]
+            T = eltype(divisionbegin)
 
             # Initialize divisions for each split
-            splitdivisions =
-                [[copy(divisionbegin), copy(divisionend)] for _ = 1:ndivisionsplits]
+            # V_nonstatic = Base.Vector{T}
+            splitdivisions::Base.Vector{Division{Base.Vector{T}}} =
+                map(_ -> (convert(Base.Vector{T}, deepcopy(divisionbegin)), convert(Base.Vector{T}, deepcopy(divisionend))), 1:ndivisionsplits)
 
             # Adjust the divisions for each split to interpolate. The result
             # of an `orderinghash` call can be an array (in the case of
             # strings), so we must iterate through that array in order to
             # interpolate at the first element in that array where there is a
             # difference.
-            for (i, (dbegin, dend)) in enumerate(zip(divisionbegin, divisionend))
-                # Find the first index in the `Vector{Number}` where
+            for (i::Int64, (dbegin::T, dend::T)) in enumerate(zip(divisionbegin, divisionend))
+                # Find the first index in the `Base.Vector{Number}` where
                 # there is a difference that we can interpolate between
                 if dbegin != dend
-                    # dpersplit = div(dend-dbegin, ndivisionsplits)
                     # Iterate through each split
-                    # @show dpersplit
-                    # @show dbegin
-                    # @show dend
-                    start = copy(dbegin)
-                    for j = 1:ndivisionsplits
+                    start::T = copy(dbegin)
+                    for j::Int64 = 1:ndivisionsplits
                         # Update the start and end of the division
                         # islastsplit = j == ndivisionsplits
                         splitdivisions[j][1][i] = j == 1 ? dbegin : copy(start)
-                        start += cld(dend - dbegin, ndivisionsplits)
+                        start += divide_division(dend - dbegin, ndivisionsplits)
                         start = min(start, dend)
                         splitdivisions[j][2][i] = j == ndivisionsplits ? dend : copy(start)
-                        # splitdivisions[j][1][i] = dbegin + (dpersplit * (j-1))
-                        # splitdivisions[j][2][i] = islastsplit ? dend : dbegin + dpersplit * j
 
                         # Ensure that the remaining indices are matching between the start and end.
                         if j < ndivisionsplits
@@ -279,26 +339,6 @@ function get_divisions(divisions, npartitions)
                 end
             end
 
-            # Convert back to `Number` if the divisions were originally
-            # `Number`s. We support either numbers or lists of numbers for the
-            # ordering hashes that we use for the min-max bounds.
-            if !(first(division) isa Vector)
-                splitdivisions = [
-                    # NOTE: When porting this stuff to Python, be sure
-                    # to take into account the fact that Julia treats
-                    # many values as arrays
-                    (first(splitdivisionbegin), first(splitdivisionend)) for
-                    (splitdivisionbegin, splitdivisionend) in splitdivisions
-                ]
-            end
-
-            # # Get the split of the division that this partition should own
-            # splitdivision = splitdivisions[1+partition_idx-first(partitionsrange)]
-
-            # # Stop because we have found a division that this partition
-            # # is supposed to own a split from
-            # break
-
             # Each partition must have a _list_ of divisions so we must have a list
             # for each partition. So `allsplitdivisions` is an array where
             # each element is either a 1-element array containing a single
@@ -310,14 +350,12 @@ function get_divisions(divisions, npartitions)
                 # adding is the same or also empty. If it is the same or also
                 # empty, then we just add an empty divisions list. Otherwsie,
                 # we add in our novel split division.
-                if !isempty(allsplitdivisions) && last(allsplitdivisions) == splitdivision
-                    push!(allsplitdivisions, [])
+                if !isempty(allsplitdivisions) && allsplitdivisions[end] == splitdivision
+                    push!(allsplitdivisions, Division{V}[])
                 else
-                    push!(allsplitdivisions, [splitdivision])
+                    push!(allsplitdivisions, Division{V}[(convert(V, splitdivision[1]), convert(V, splitdivision[2]))])
                 end
             end
-
-            # end
         end
 
         allsplitdivisions
@@ -379,7 +417,7 @@ end
 # end
 
 # function fastlog2(v::UInt32)
-#     multiply_de_bruijn_bit_position::Vector{Int32} = [
+#     multiply_de_bruijn_bit_position::Base.Vector{Int32} = [
 #         0, 9, 1, 10, 13, 21, 2, 29, 11, 14, 16, 18, 22, 25, 3, 30,
 #         8, 12, 20, 28, 15, 17, 24, 7, 19, 27, 23, 6, 26, 5, 4, 31
 #     ]
@@ -435,18 +473,18 @@ function buftovbuf(buf::MPI.Buffer, comm::MPI.Comm)::MPI.VBuffer
     VBuffer(similar(buf.data, sum(sizes)), sizes)
 end
 
-# function bufstosendvbuf(bufs::Vector{MPI.Buffer}, comm::MPI.Comm)::MPI.VBuffer
+# function bufstosendvbuf(bufs::Base.Vector{MPI.Buffer}, comm::MPI.Comm)::MPI.VBuffer
 #     sizes = [length(buf.data) for buf in bufs]
 #     VBuffer(vcat(map(buf -> buf.data, bufs)), sizes)
 # end
 
-# function bufstorecvvbuf(bufs::Vector{MPI.Buffer}, comm::MPI.Comm)::MPI.VBuffer
+# function bufstorecvvbuf(bufs::Base.Vector{MPI.Buffer}, comm::MPI.Comm)::MPI.VBuffer
 #     # This function expects that each given buf has buf.data being an array and
 #     # that the number of bufs in bufs is equal to the size of the communicator.
 #     # sizes = MPI.Allgather(length(buf.data), comm)
 #     sizes = MPI.Alltoall([length(buf.data) for buf in bufs])
 #     # NOTE: Ensure that the data fields of the bufs are initialized to have the
-#     # right data type (e.g., Vector{UInt8} or Vector{Int64})
+#     # right data type (e.g., Base.Vector{UInt8} or Base.Vector{Int64})
 #     # We use `similar` here because we want zeroed out memory to receive data.
 #     VBuffer(similar(first(bufs).data, sum(sizes)), sizes)
 # end
@@ -464,28 +502,29 @@ end
 #     end
 # end
 
-function getpath(path, comm)
+Downloads_download_retry = retry(Downloads.download; delays=Base.ExponentialBackOff(; n=5))
+
+function getpath(path::String)::String
     if startswith(path, "http://") || startswith(path, "https://")
         # TODO: First check for size of file and only download to
         # disk if it doesn't fit in free memory
         # TODO: Add option for Internet locations as to whether or not to
         # cache on disk
-        hashed_path = string(hash(path))
-        joined_path = "efs/job_" * Banyan.get_session().resource_id * "_dataset_" * hashed_path * "_" * string(MPI.COMM_WORLD)
+        hashed_path = get_remotepath_id(path)
+        joined_path = "efs/job_$(Banyan.get_session().resource_id)_dataset_$(hashed_path)_$(MPI.Comm_rank(MPI.COMM_WORLD))"
         # @info "Downloading $path to $joined_path"
-        comm = MPI.COMM_WORLD
         # if MPI.Comm_rank(comm) == 0
-        if !isfile(joined_path)
         # NOTE: Even though we are storing in /tmp, this is
         # effectively caching the download. If this is undesirable
         # to a user, a short-term solution is to use a different
         # URL each time (e.g., add a dummy query to the end of the
         # URL)
-            Downloads.download(path, joined_path)
-        end
+        # TODO: Download to node-local storage and only re-download if the
+        # file does not exist (we are scared of checking if files exist because
+        # of NFS/S3FS consistency issues)
+        Downloads_download_retry(path, joined_path)
         # end
         # MPI.Barrier(comm)
-        # @show isfile(joined_path)
         joined_path
     elseif startswith(path, "s3://")
         replace(path, "s3://" => "/home/ec2-user/s3/")
@@ -496,3 +535,5 @@ function getpath(path, comm)
         "efs/"*path
     end
 end
+
+not_is_empty(piece) = !(piece isa Empty)

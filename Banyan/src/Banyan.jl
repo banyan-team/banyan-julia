@@ -5,41 +5,40 @@
 # - pt, pc
 # - @partitioned
 
-__precompile__()
-
 module Banyan
 
 global BANYAN_JULIA_BRANCH_NAME = "v22.02.13"
-global BANYAN_JULIA_PACKAGES = ["Banyan", "BanyanArrays", "BanyanDataFrames", "BanyanImages", "BanyanONNXRunTime", "BanyanHDF5"]
+global BANYAN_JULIA_PACKAGES = String[
+    "Banyan",
+    "BanyanArrays",
+    "BanyanDataFrames",
+    "BanyanImages",
+    "BanyanONNXRunTime",
+    "BanyanHDF5",
+]
+global NOT_USING_MODULES = String["ProfileView", "SnoopCompileCore"]
 
 using FilePathsBase: joinpath, isempty
 using Base: notnothing, env_project_file
 
-using AWS: _get_ini_value
-using AWSCore
-using AWSS3
-using AWSSQS
-using Base64
-using Dates
-using Downloads
-using HTTP
-using JSON
-using Random
-using Serialization
-using TOML
-
-using FileIO
-using FilePathsBase
-using IniFile
-
-# For PFs:
-using Serialization, Base64, MPI
-
-# For loading
-using ProgressMeter
-
-# For testing utils
-using LibGit2
+using AWSCore,
+    AWSS3,
+    AWSSQS,
+    Base64,
+    DataStructures,
+    Dates,
+    Downloads,
+    FileIO,
+    FilePathsBase,
+    HTTP,
+    JSON,
+    IniFile,
+    LibGit2,
+    MPI,
+    ProgressMeter,
+    Random,
+    Serialization,
+    TOML
 
 global BANYAN_API_ENDPOINT
 
@@ -79,30 +78,32 @@ export Session,
     download_session_logs
 
 # Futures
-export AbstractFuture, Future, partitioned_computation, compute_inplace, compute
+export AbstractFuture, Future, partitioned_computation, compute_inplace, compute, destroy_future
 
 # Samples
-export Sample, ExactSample, sample, setsample!
-export sample_memory_usage,
-    total_memory_usage,
-    sample_axes,
-    sample_keys,
-    sample_divisions,
-    sample_percentile,
-    sample_max_ngroups,
-    sample_min,
-    sample_max
+export Sample, ExactSample, sample, sample_for_grouping, SampleForGrouping, setsample!
+export sample_memory_usage, total_memory_usage, sample_axes, sample_keys, sample_by_key
+export NOTHING_SAMPLE
 
 # Locations
 export Location, LocationSource, LocationDestination, located, sourced, destined
-export Value, Size, Client, Disk, None, RemoteSource, RemoteDestination
-export clear_sources, clear_samples, invalidate_source, invalidate_sample
+export Value, Size, Client, Disk, None
+export invalidate_all_locations, invalidate_metadata, invalidate_sample
+export NOTHING_LOCATION, INVALID_LOCATION
+export has_separate_metadata, get_sample, get_metadata, get_sample_and_metadata
+export get_remotepath_id,
+    get_meta_path,
+    get_location_path,
+    get_cached_location,
+    cache_location,
+    get_max_exact_sample_length,
+    set_max_exact_sample_length
 
 # Serialization
 export from_jl_value_contents, to_jl_value_contents
 
 # Queues
-export receive_from_client, send_to_client
+export receive_from_client, send_to_client, get_sqs_dict_from_url
 
 # Partition types
 export PartitionType, pt, pc, mutated, @partitioned
@@ -120,15 +121,16 @@ export Any,
     Unbalanced,
     Distributed,
     Blocked,
+    BlockedAlong,
     Grouped,
+    GroupedBy,
     Partitioned
 
 # Partitioning constraints
 export Co, Cross, Equal, Sequential, Match, MatchOn, AtMost, Scale
 
 # Annotations
-export partitioned_using,
-    partitioned_with,
+export partitioned_with,
     keep_all_sample_keys,
     keep_all_sample_keys_renamed,
     keep_sample_keys_named,
@@ -141,14 +143,20 @@ export is_debug_on,
     get_s3fs_bucket_path,
     get_s3_bucket_path,
     download_remote_path,
-    with_downloaded_path_for_reading,
+    get_downloaded_path,
+    destroy_downloaded_path,
+    use_downloaded_path_for_writing,
     configure_scheduling,
     orderinghash,
     get_worker_idx,
     get_nworkers,
+    is_main_worker,
     split_across,
     reduce_across,
+    reduce_and_sync_across,
     sync_across,
+    gather_across,
+    find_worker_idx_where,
     get_partition_idx,
     get_npartitions,
     split_len,
@@ -159,22 +167,37 @@ export is_debug_on,
     to_jl_value,
     to_jl_value_contents,
     from_jl_value_contents,
-    to_vector,
     get_divisions,
     getpath,
     buftovbuf,
     indexapply,
     PartiallyMerged,
-    isinvestigating
+    isinvestigating,
+    record_time,
+    get_time,
+    forget_times,
+    display_times,
+    Division,
+    isnotempty,
+    EMPTY_DICT,
+    set_parent,
+    get_parent,
+    forget_parent,
+    fsync_file
+
+# Utilities for handling empty case
+export Empty, EMPTY, nonemptytype, disallowempty, empty_handler
+
+# Utilities for location constructors
+export get_cached_location, cache_location, get_sample_from_data, sample_from_range
 
 # Partitioning functions for usage in sessions that run on the cluster; dispatched
 # based on `res/pf_dispatch_table.json`.
 export ReturnNull,
+    ReadGroupHelper,
     ReadGroup,
-    Shuffle,
     SplitBlock,
     SplitGroup,
-    Consolidate,
     Merge,
     CopyFrom,
     CopyFromValue,
@@ -191,7 +214,6 @@ export ReturnNull,
     DivideFromClient,
     Reduce,
     ReduceWithKey,
-    Rebalance,
     Distribute,
     DistributeAndShuffle
 
@@ -216,15 +238,23 @@ include("queues.jl")
 include("utils.jl")
 include("utils_pfs.jl")
 include("pfs.jl")
+include("utils_abstract_types.jl")
+
+# Structs
+include("sample.jl")
+include("location.jl")
+include("future.jl")
+include("utils_partitions_structs.jl")
+include("task.jl")
+include("request.jl")
+include("session.jl")
 
 # Sessions
-include("utils_abstract_types.jl")
 include("utils_s3fs.jl")
 include("clusters.jl")
 include("sessions.jl")
 
 # Futures
-include("future.jl")
 include("samples.jl")
 include("locations.jl")
 include("futures.jl")
@@ -238,11 +268,6 @@ include("annotation.jl")
 # Utilities
 include("requests.jl")
 
-# Session
-include("session.jl")
-
-# include("offloaded.jl")
-
 function __init__()
     # The user must provide the following for authentication:
     # - User ID
@@ -252,17 +277,23 @@ function __init__()
 
     global BANYAN_API_ENDPOINT
     BANYAN_API_ENDPOINT = get(
-        ENV,"BANYAN_API_ENDPOINT",
-        "https://4whje7txc2.execute-api.us-west-2.amazonaws.com/prod/"
+        ENV,
+        "BANYAN_API_ENDPOINT",
+        "https://4whje7txc2.execute-api.us-west-2.amazonaws.com/prod/",
     )
 
     # Downloads settings
     global downloader
     downloader = Downloads.Downloader()
-    downloader.easy_hook = (easy, info) ->
-       Downloads.Curl.setopt(easy, Downloads.Curl.CURLOPT_LOW_SPEED_TIME, 40)
+    downloader.easy_hook =
+        (easy, info) ->
+            Downloads.Curl.setopt(easy, Downloads.Curl.CURLOPT_LOW_SPEED_TIME, 40)
+end
 
-    load_config()
+if Base.VERSION >= v"1.4.2"
+    include("precompile.jl")
+    _precompile_()
+    precompile(__init__, ()) || @warn "Banyan failed to precompile `__init__`"
 end
 
 end # module

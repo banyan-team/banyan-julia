@@ -5,6 +5,8 @@ using Base: AbstractVecOrTuple
 
 timezones_built = false
 
+const EMPTY_DICT = Dict{String,Any}()
+
 ##############
 # CONVERSION #
 ##############
@@ -19,7 +21,7 @@ json_to_jl(j) = JSON.parse(j)
 key_to_jl(key) = reinterpret(UInt8, hash(string(key))) |> String
 axis_to_jl(axis) = reinterpret(UInt8, hash(string(key))) |> String
 
-total_memory_usage(val) =
+total_memory_usage(val)::Int64 =
     begin
         size = Base.summarysize(val)
         # TODO: Maybe make this larger
@@ -31,22 +33,20 @@ total_memory_usage(val) =
     end
 
 # NOTE: This function is shared between the client library and the PT library
-function indexapply(op, objs...; index::Integer=1)
-    lists = [obj for obj in objs if (obj isa AbstractVector || obj isa Tuple)]
-    length(lists) > 0 || throw(ArgumentError("Expected at least one tuple as input"))
-    index = index isa Colon ? length(first(lists)) : index
-    operands = [((obj isa AbstractVector || obj isa Tuple) ? obj[index] : obj) for obj in objs]
-    indexres = op(operands...)
-    res = first(lists)
-    if first(lists) isa Tuple
-        res = [res...]
-        res[index] = indexres
-        Tuple(res)
-    else
-        res = copy(res)
-        res[index] = indexres
-        res
-    end
+function indexapply(op::Function, obj::NTuple{N,Int64}, index::Int64) where {N}
+    res = Base.collect(obj)
+    res[index] = op(obj[index])
+    Tuple(res)
+end
+function indexapply(op::Function, obj_a::NTuple{N,Int64}, obj_b::NTuple{N,Int64}, index::Int64) where {N}
+    res = Base.collect(obj_a)
+    res[index] = op(obj_a[index], obj_b[index])
+    Tuple(res)
+end
+function indexapply(val::Int64, obj::NTuple{N,Int64}, index::Int64) where {N}
+    res = Base.collect(obj)
+    res[index] = val
+    Tuple(res)
 end
 
 # converts give time as String to local timezone and returns DateTime
@@ -61,9 +61,9 @@ function parse_time(time)
     DateTime(astimezone(ZonedDateTime(time * "0000", "yyyy-mm-dd-HH:MM:SSzzzz"), localzone()))
 end
 
-function s3_bucket_arn_to_name(s3_bucket_arn)
+function s3_bucket_arn_to_name(s3_bucket_arn::String)::String
     # Get s3 bucket name from arn
-    s3_bucket_name = last(split(s3_bucket_arn, ":"))
+    s3_bucket_name = split(s3_bucket_arn, ":")[end]
     if endswith(s3_bucket_name, "/")
         s3_bucket_name = s3_bucket_name[1:end-1]
     elseif endswith(s3_bucket_name, "/*")
@@ -74,7 +74,7 @@ function s3_bucket_arn_to_name(s3_bucket_arn)
     return s3_bucket_name
 end
 
-function s3_bucket_name_to_arn(s3_bucket_name)
+function s3_bucket_name_to_arn(s3_bucket_name::String)::String
     # Get s3 bucket arn from name
     s3_bucket_arn = s3_bucket_name
     if endswith(s3_bucket_arn, "/")
@@ -99,13 +99,12 @@ end
 global banyan_config = nothing
 global aws_config_in_usage = nothing
 
-function load_config(banyanconfig_path=nothing)
+@nospecialize
+
+function load_config(banyanconfig_path::String)
     global banyan_config
 
     if isnothing(banyan_config)
-        if isnothing(banyanconfig_path)
-            banyanconfig_path = joinpath(homedir(), ".banyan", "banyanconfig.toml")
-        end
         if isfile(banyanconfig_path)
             banyan_config = TOML.parsefile(banyanconfig_path)
         end
@@ -113,20 +112,27 @@ function load_config(banyanconfig_path=nothing)
     banyan_config
 end
 
-function write_config(banyanconfig_path=nothing)
+function write_config(banyanconfig_path::String)
     global banyan_config
 
     # Write to banyanconfig.toml
-    if isnothing(banyanconfig_path)
-        banyanconfig_path = joinpath(homedir(), ".banyan", "banyanconfig.toml")
-    end
     mkpath(joinpath(homedir(), ".banyan"))
     f = open(banyanconfig_path, "w")
     TOML.print(f, banyan_config)
     close(f)
 end
 
-function configure(; user_id=nothing, api_key=nothing, ec2_key_pair_name=nothing, banyanconfig_path=nothing, kwargs...)
+get_banyanconfig_path()::String = joinpath(homedir(), ".banyan", "banyanconfig.toml")
+
+configure(; user_id=nothing, api_key=nothing, ec2_key_pair_name=nothing, banyanconfig_path=nothing) =
+    configure(
+        isnothing(user_id) ? "" : user_id,
+        isnothing(api_key) ? "" : api_key,
+        isnothing(ec2_key_pair_name) ? "" : ec2_key_pair_name,
+        isnothing(banyanconfig_path) ? get_banyanconfig_path() : banyanconfig_path
+    )
+
+function configure(user_id, api_key, ec2_key_pair_name, banyanconfig_path)
     # This function allows for users to configure their authentication.
     # Authentication details are then saved in
     # `$HOME/.banyan/banyanconfig.toml` so they don't have to be entered in again
@@ -149,50 +155,41 @@ function configure(; user_id=nothing, api_key=nothing, ec2_key_pair_name=nothing
     banyan_config = c
 
     # Check environment variables
-    if isnothing(user_id) && haskey(ENV, "BANYAN_USER_ID")
+    if isempty(user_id) && haskey(ENV, "BANYAN_USER_ID")
         user_id = ENV["BANYAN_USER_ID"]
     end
-    if isnothing(api_key) && haskey(ENV, "BANYAN_API_KEY")
+    if isempty(api_key) && haskey(ENV, "BANYAN_API_KEY")
         api_key = ENV["BANYAN_API_KEY"]
     end
-    if isnothing(ec2_key_pair_name) && haskey(ENV, "BANYAN_EC2_KEY_PAIR_NAME")
+    if isempty(ec2_key_pair_name) && haskey(ENV, "BANYAN_EC2_KEY_PAIR_NAME")
         api_key = ENV["BANYAN_EC2_KEY_PAIR_NAME"]
     end
 
     # Check banyanconfig file
-    banyan_config_has_info = !(isnothing(banyan_config) || isempty(banyan_config))
-    if isnothing(user_id) && banyan_config_has_info && haskey(banyan_config, "banyan") && haskey(banyan_config["banyan"], "user_id")
+    banyan_config_has_info = !(isempty(banyan_config) || isempty(banyan_config))
+    if isempty(user_id) && banyan_config_has_info && haskey(banyan_config, "banyan") && haskey(banyan_config["banyan"], "user_id")
         user_id = banyan_config["banyan"]["user_id"]
     end
-    if isnothing(api_key) && banyan_config_has_info && haskey(banyan_config, "banyan") && haskey(banyan_config["banyan"], "api_key")
+    if isempty(api_key) && banyan_config_has_info && haskey(banyan_config, "banyan") && haskey(banyan_config["banyan"], "api_key")
         api_key = banyan_config["banyan"]["api_key"]
     end
-    if isnothing(ec2_key_pair_name) && banyan_config_has_info && haskey(banyan_config, "aws") && haskey(banyan_config["aws"], "ec2_key_pair_name")
+    if isempty(ec2_key_pair_name) && banyan_config_has_info && haskey(banyan_config, "aws") && haskey(banyan_config["aws"], "ec2_key_pair_name")
         ec2_key_pair_name = banyan_config["aws"]["ec2_key_pair_name"]
     end
 
     # Ensure a configuration has been created or can be created. Otherwise,
     # return nothing
     existing_banyan_config = deepcopy(banyan_config)
-    if !isnothing(user_id) && !isnothing(api_key)
-        aws_ec2_config = (!isnothing(ec2_key_pair_name) && !isempty(ec2_key_pair_name)) ? Dict("ec2_key_pair_name" => ec2_key_pair_name) : Dict()
-        banyan_config = Dict(
+    if !isempty(user_id) && !isempty(api_key)
+        aws_ec2_config = (!isempty(ec2_key_pair_name) && !isempty(ec2_key_pair_name)) ? Dict{String,String}("ec2_key_pair_name" => ec2_key_pair_name) : Dict{String,String}()
+        banyan_config = Dict{String,Any}(
             "banyan" =>
-                Dict("user_id" => user_id, "api_key" => api_key),
+                Dict{String,String}("user_id" => user_id, "api_key" => api_key),
             "aws" => aws_ec2_config,
         )
     else
         error("Your user ID and API key must be specified using either keyword arguments, environment variables, or banyanconfig.toml")
     end
-
-    # # aws.region
-    # if !isnothing(region) && (
-    #     !(haskey(banyan_config["aws"], "region")) ||
-    #     region != banyan_config["aws"]["region"]
-    # )
-    #     banyan_config["aws"]["region"] = region
-    #     is_modified = true
-    # end
 
     # Update config file if it was modified
     if existing_banyan_config != banyan_config
@@ -202,25 +199,40 @@ function configure(; user_id=nothing, api_key=nothing, ec2_key_pair_name=nothing
     return banyan_config
 end
 
-function get_aws_config()
+@specialize
+
+"""
+Get the value for `key` in the `ini` file for a given `profile`.
+"""
+function _get_ini_value(
+    ini::Inifile, profile::String, key::String; default_value=nothing
+)
+    value = get(ini, "profile $profile", key)
+    value === :notfound && (value = get(ini, profile, key))
+    value === :notfound && (value = default_value)
+
+    return value
+end
+
+function get_aws_config()::Dict{Symbol,Any}
     global aws_config_in_usage
 
     # Get AWS configuration
     if isnothing(aws_config_in_usage)
         # Get region according to ENV, then credentials, then config files
         profile = get(ENV, "AWS_DEFAULT_PROFILE", get(ENV, "AWS_DEFAULT_PROFILE", "default"))
-        region = get(ENV, "AWS_DEFAULT_REGION", "")
+        region::String = get(ENV, "AWS_DEFAULT_REGION", "")
         if region == ""
             try
                 configfile = read(Inifile(), joinpath(homedir(), ".aws", "config"))
-                region = _get_ini_value(configfile, profile, "region", default_value="")
+                region = convert(String, _get_ini_value(configfile, profile, "region", default_value=""))::String
             catch
             end
         end
         if region == ""
             try
                 credentialsfile = read(Inifile(), joinpath(homedir(), ".aws", "credentials"))
-                region = _get_ini_value(credentialsfile, profile, "region", default_value="")
+                region = convert(String, _get_ini_value(credentialsfile, profile, "region", default_value=""))::String
             catch
             end
         end
@@ -229,24 +241,16 @@ function get_aws_config()
             throw(ErrorException("Could not discover AWS region to use from looking at AWS_PROFILE, AWS_DEFAULT_PROFILE, AWS_DEFAULT_REGION, HOME/.aws/credentials, and HOME/.aws/config"))
         end
 
-        aws_config_in_usage = Dict(
+        aws_config_in_usage = Dict{Symbol,Any}(
             :creds => AWSCredentials(),
             :region => region
         )
     end
 
-    # # Use default location if needed
-    # if !haskey(aws_config_in_usage, :region)
-    #     @warn "Using default AWS region of us-west-2 in \$HOME/.banyan/banyanconfig.toml"
-    #     aws_config_in_usage[:region] = "us-west-2"
-    # end
-
-    # Convert to dictionary and return
-
     aws_config_in_usage
 end
 
-get_aws_config_region() = get_aws_config()[:region]
+get_aws_config_region() = get_aws_config()[:region]::String
 
 #########################
 # ENVIRONMENT VARIABLES #
@@ -270,7 +274,7 @@ end
 # API REQUESTS #
 ################
 
-method_to_string(method) = begin
+method_to_string(method::Symbol)::String = begin
     if method == :create_cluster
         "create-cluster"
     elseif method == :destroy_cluster
@@ -295,16 +299,16 @@ end
 """
 Sends given request with given content
 """
-function request_body(url::AbstractString; kwargs...)
+function request_body(url::String; @nospecialize(kwargs...))
     global downloader
-    resp = nothing
-    body = sprint() do output
-        resp = request(url; output=output, throw=false, downloader=downloader, kwargs...)
-    end
+    s = IOBuffer(sizehint=0)
+    output = IOContext(s)
+    resp = request(url; output=output, throw=false, downloader=downloader, kwargs...)
+    body::String = String(resize!(s.data, s.size))
     return resp, body
 end
 
-function request_json(url::AbstractString; kwargs...)
+function request_json(url::String; @nospecialize(kwargs...))
     resp, body = request_body(url; kwargs...)
     return resp, JSON.parse(body)
 end
@@ -321,7 +325,7 @@ end
 # times out and `nothing` is returned.
 function send_request_get_response(method, content::Dict)
     # Prepare request
-    configuration = load_config()
+    configuration = load_config(get_banyanconfig_path())
     user_id = configuration["banyan"]["user_id"]
     api_key = configuration["banyan"]["api_key"]
     content["debug"] = is_debug_on()
@@ -350,7 +354,7 @@ function send_request_get_response(method, content::Dict)
         push!(headers, "banyan-ssh-key-path" => configuration["banyan"]["banyan_ssh_key_path"])
     end
     resp, data = request_json(
-	    url, input=IOBuffer(JSON.json(content)), method="POST", headers=headers
+	    url; input=IOBuffer(JSON.json(content)), method="POST", headers=headers
     )
     if resp.status == 403
         error("Please use a valid user ID and API key. Sign into the dashboard to retrieve these credentials.")
@@ -370,42 +374,42 @@ function send_request_get_response(method, content::Dict)
 
 end
 
-function send_request_get_response_using_http(method, content::Dict)
-    # Prepare request
-    # content = convert(Dict{Any, Any}, content)
-    configuration = load_config()
-    user_id = configuration["banyan"]["user_id"]
-    api_key = configuration["banyan"]["api_key"]
-    content["debug"] = is_debug_on()
-    url = string(BANYAN_API_ENDPOINT, method_to_string(method))
-    headers = (
-        ("content-type", "application/json"),
-        ("Username-APIKey", "$user_id-$api_key"),
-    )
+# function send_request_get_response_using_http(method, content::Dict)
+#     # Prepare request
+#     # content = convert(Dict{Any, Any}, content)
+#     configuration = load_config()
+#     user_id = configuration["banyan"]["user_id"]
+#     api_key = configuration["banyan"]["api_key"]
+#     content["debug"] = is_debug_on()
+#     url = string(BANYAN_API_ENDPOINT, method_to_string(method))
+#     headers = (
+#         ("content-type", "application/json"),
+#         ("Username-APIKey", "$user_id-$api_key"),
+#     )
 
-    # Post and return response
-    try
-        response = HTTP.post(url, headers, JSON.json(content))
-        body = String(response.body)
-        return JSON.parse(body)
-    catch e
-        if e isa HTTP.ExceptionRequest.StatusError
-            if e.response.status == 403
-                throw(
-                    ErrorException(
-                        "Please set a valid api_key. Sign in to the dashboard to retrieve your api key.",
-                    ),
-                )
-            end
-            if e.response.status != 504
-                throw(ErrorException(String(take!(IOBuffer(e.response.body)))))
-            end
-            rethrow()
-        else
-            rethrow()
-        end
-    end
-end
+#     # Post and return response
+#     try
+#         response = HTTP.post(url, headers, JSON.json(content))
+#         body = String(response.body)
+#         return JSON.parse(body)
+#     catch e
+#         if e isa HTTP.ExceptionRequest.StatusError
+#             if e.response.status == 403
+#                 throw(
+#                     ErrorException(
+#                         "Please set a valid api_key. Sign in to the dashboard to retrieve your api key.",
+#                     ),
+#                 )
+#             end
+#             if e.response.status != 504
+#                 throw(ErrorException(String(take!(IOBuffer(e.response.body)))))
+#             end
+#             rethrow()
+#         else
+#             rethrow()
+#         end
+#     end
+# end
 
 #########
 # FILES #
@@ -419,16 +423,18 @@ function load_json(path::String)
         JSON.parsefile(path[8:end])
     elseif startswith(path, "s3://")
         error("S3 path not currently supported")
-        # JSON.parsefile(S3Path(path, config=get_aws_config()))
+        # TODO: Maybe support with
+        # `JSON.parsefile(S3Path(path, config=get_aws_config()))` and also down
+        # in `load_toml`
     elseif startswith(path, "http://") || startswith(path, "https://")
-	    JSON.parse(String(HTTP.get(path).body))
+	    JSON.parse(request_body(path)[2])
     else
         error("Path $path must start with \"file://\", \"s3://\", or \"http(s)://\"")
     end
 end
 
 function load_toml(path::String)
-    if startswith(path, "file://")
+    res = if startswith(path, "file://")
         if !isfile(path[8:end])
             error("File $path does not exist")
         end
@@ -437,19 +443,33 @@ function load_toml(path::String)
         error("S3 path not currently supported")
         # JSON.parsefile(S3Path(path, config=get_aws_config()))
     elseif startswith(path, "http://") || startswith(path, "https://")
-	    TOML.parse(String(HTTP.get(path).body))
+	    TOML.parse(request_body(path)[2])
     else
         error("Path $path must start with \"file://\", \"s3://\", or \"http(s)://\"")
     end
+    res
 end
 
 function load_json(paths::Vector{String})
     # Each file should have merges, splits, and casts. So we need to take those
     # and merge them.
-    mergewith(merge, [load_json(p) for p in paths]...)
+    mergewith(merge, map(load_json, paths)...)
 end
 
-load_toml(paths::Vector{String}) = mergewith(merge, [load_toml(p) for p in paths]...)
+function load_toml(paths::Vector{String})
+    npaths = length(paths)
+    loaded_dir = mktempdir()
+    @sync for i = 1:npaths
+        @async Downloads.download(paths[i], joinpath(loaded_dir, "part" * string(i)))
+    end
+    loaded = Vector{String}(undef, npaths)
+    for i = 1:npaths
+        loaded[i] = "file://" * joinpath(loaded_dir, "part$i")
+    end
+    res = mergewith(merge, map(load_toml, loaded)...)
+    rm(loaded_dir, recursive=true)
+    res
+end
 
 # Loads file into String and returns
 function load_file(path::String)
@@ -462,7 +482,7 @@ function load_file(path::String)
         error("S3 path not currently supported")
         String(read(S3Path(path)))
     elseif startswith(path, "http://") || startswith(path, "https://")
-        String(HTTP.get(path).body)
+        request_body(path)[2]
     else
         error("Path $path must start with \"file://\", \"s3://\", or \"http(s)://\"")
     end
@@ -475,19 +495,6 @@ end
 
 function get_julia_version()
     return string(VERSION)
-end
-
-function get_loaded_packages()
-    # for m in names(Main, imported=true)
-    #     @show try Main.eval(m) catch nothing end isa Module && !(m in [:Main, :Base, :Core, :InteractiveUtils, :IJulia])
-    # end
-    modules = map(
-        m -> string(m),
-        filter(
-            m -> try Main.eval(m) catch nothing end isa Module && !(m in [:Main, :Base, :Core, :InteractiveUtils, :IJulia, :VSCodeServer]),
-            names(Main, imported=true)
-        )
-    )
 end
 
 # Returns the directory in which the Project.toml file is located
@@ -509,28 +516,28 @@ function format_bytes(bytes, decimals = 2)
     return string(round((bytes / ^(k, i)), digits = dm)) * " " * sizes[i+1]
 end
 
-byte_sizes = Dict(
-    "kB" => 10 ^ 3,
-    "MB" => 10 ^ 6,
-    "GB" => 10 ^ 9,
-    "TB" => 10 ^ 12,
-    "PB" => 10 ^ 15,
-    "KiB" => 2 ^ 10,
-    "MiB" => 2 ^ 20,
-    "GiB" => 2 ^ 30,
-    "TiB" => 2 ^ 40,
-    "PiB" => 2 ^ 50,
-    "B" => 1,
-    "" => 1,
+byte_sizes = Dict{String,Int64}(
+    "kB" => Int64(10 ^ 3),
+    "MB" => Int64(10 ^ 6),
+    "GB" => Int64(10 ^ 9),
+    "TB" => Int64(10 ^ 12),
+    "PB" => Int64(10 ^ 15),
+    "KiB" => Int64(2 ^ 10),
+    "MiB" => Int64(2 ^ 20),
+    "GiB" => Int64(2 ^ 30),
+    "TiB" => Int64(2 ^ 40),
+    "PiB" => Int64(2 ^ 50),
+    "B" => Int64(1),
+    "" => Int64(1),
 )
 
-byte_sizes = Dict(lowercase(k) => v for (k, v) in byte_sizes)
+byte_sizes = Dict{String,Int64}(lowercase(k) => v for (k, v) in byte_sizes)
 merge!(byte_sizes, Dict(string(k[1]) => v for (k, v) in byte_sizes if !isempty(k) && !occursin("i", k)))
 merge!(byte_sizes, Dict(k[1:end-1] => v for (k, v) in byte_sizes if !isempty(k) && occursin("i", k)))
 
-parse_bytes(r::Real) = r
+parse_bytes(r::Real)::Float64 = convert(Float64, r)
 
-function parse_bytes(s::String)
+function parse_bytes(s::String)::Float64
     s = replace(s, " " => "")
     if !any([isdigit(char) for char in s])
         s = "1" * s
@@ -549,7 +556,7 @@ function parse_bytes(s::String)
 
     n = -1
     try
-        n = parse(Float32, prefix)
+        n = parse(Float64, prefix)
     catch
         throw(ArgumentError("Could not interpret '$prefix' as a number"))
     end
@@ -565,9 +572,48 @@ function parse_bytes(s::String)
     result
 end
 
-function get_branch_name()
+function get_branch_name()::String
     prepo = LibGit2.GitRepo(realpath(joinpath(@__DIR__, "../..")))
     phead = LibGit2.head(prepo)
     branchname = LibGit2.shortname(phead)
     branchname
 end
+
+struct Empty end
+const EMPTY = Empty()
+nonemptytype(::Type{T}) where {T} = Base.typesplit(T, Empty)
+disallowempty(x::AbstractArray{T}) where {T} = convert(AbstractArray{nonemptytype(T)}, x)
+function empty_handler(op)
+    (a, b) -> if a isa Empty
+        b
+    elseif b isa Empty
+        a
+    else
+        op(a, b)
+    end
+end
+
+isnotempty(x) = !isempty(x)
+
+fsync_file(p) =
+    open(p) do f
+        # TODO: Maybe use MPI I/O method for fsync instead
+        ccall(:fsync, Cint, (Cint,), fd(f))
+    end
+
+deserialize_retry = retry(deserialize; delays=Base.ExponentialBackOff(; n=5))
+
+exponential_backoff_1s =
+    Base.ExponentialBackOff(; n=5, first_delay=0.1, factor=1.5)
+
+# ```
+# julia> for f in Base.ExponentialBackOff(; n=5, first_delay=0.1, factor=1.5)
+#        println(f)
+#        sleep(f)
+#        end
+# 0.1
+# 0.13579474148420326
+# 0.20068919503553564
+# 0.29422854986603664
+# 0.4414150248213825
+# ```

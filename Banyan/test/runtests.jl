@@ -15,10 +15,10 @@ end
 
 function use_session_for_testing(
     f::Function;
-    nworkers = parse(Int32, get(ENV, "BANYAN_NWORKERS", "2")),
+    nworkers = parse(Int64, get(ENV, "BANYAN_NWORKERS", "2")),
     sample_rate = 2,
+    nworkers = 2,
     max_exact_sample_length = 50,
-    with_s3fs = nothing,
     scheduling_config_name = "default scheduling",
 )
     haskey(ENV, "BANYAN_CLUSTER_NAME") || error(
@@ -29,7 +29,7 @@ function use_session_for_testing(
     # configuring a session for testing. Different sample rates are typically used
     # to test different data sizes. Stress tests may need a much greater sample
     # rate.
-    session_config_hash = sample_rate
+    session_config_hash = hash((sample_rate, nworkers))
 
     # Set the session and create a new one if needed
     global sessions_for_testing
@@ -39,7 +39,7 @@ function use_session_for_testing(
         else
             start_session(
                 cluster_name = ENV["BANYAN_CLUSTER_NAME"],
-                nworkers = nworkers,
+                nworkers = parse(Int64, get(ENV, "BANYAN_NWORKERS", string(nworkers))),
                 sample_rate = sample_rate,
                 print_logs = get(ENV, "BANYAN_PRINT_LOGS", "1") == "1",
                 url = "https://github.com/banyan-team/banyan-julia.git",
@@ -70,12 +70,7 @@ function use_session_for_testing(
     sessions_for_testing[session_config_hash] = get_session_id()
 
     # Set the maximum exact sample length
-    ENV["BANYAN_MAX_EXACT_SAMPLE_LENGTH"] = string(max_exact_sample_length)
-
-    # Force usage of S3FS if so desired
-    if !isnothing(with_s3fs)
-        ENV["BANYAN_USE_S3FS"] = with_s3fs ? "1" : "0"
-    end
+    set_max_exact_sample_length(max_exact_sample_length)
 
     configure_scheduling(name = scheduling_config_name)
 

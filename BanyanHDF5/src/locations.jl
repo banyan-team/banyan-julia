@@ -1,6 +1,6 @@
-function extract_dataset_path(remotepath)
+function extract_dataset_path(remotepath::String)::Tuple{String,String,Bool}
     # Detect whether this is an HDF5 file
-    hdf5_ending = if occursin(".h5", remotepath)
+    hdf5_ending::String = if occursin(".h5", remotepath)
         ".h5"
     elseif occursin(".hdf5", remotepath)
         ".hdf5"
@@ -10,7 +10,7 @@ function extract_dataset_path(remotepath)
     isa_hdf5 = hdf5_ending != ""
 
     # Get the actual path by removing the dataset from the path
-    remotepath, datasetpath = if hdf5_ending == ""
+    remotepath::String, datasetpath::String = if hdf5_ending == ""
         remotepath, nothing
     else
         remotepath, datasetpath = split(remotepath, hdf5_ending)
@@ -24,192 +24,162 @@ function extract_dataset_path(remotepath)
     remotepath, datasetpath, isa_hdf5
 end
 
-function RemoteHDF5Source(remotepath; shuffled=false, source_invalid = false, sample_invalid = false, invalidate_source = false, invalidate_sample = false)::Location
-    RemoteSource(
-        remotepath,
-        shuffled=shuffled,
-        source_invalid = source_invalid,
-        sample_invalid = sample_invalid,
-        invalidate_source = invalidate_source,
-        invalidate_sample = invalidate_sample
-    ) do remotepath, remote_source, remote_sample, shuffled
-        remotepath, datasetpath, isa_hdf5 = extract_dataset_path(remotepath)
+HDF5_getindex_retry = retry(HDF5.getindex; delays=Base.ExponentialBackOff(; n=5))
 
-        if !isa_hdf5
-            error("Expected HDF5 dataset for $remotepath")
-        end
+function _remote_hdf5_source(path_and_subpath, shuffled, metadata_invalid, sample_invalid, invalidate_metadata, invalidate_sample, max_exact_sample_length)
+    # Get session information
+    session_sample_rate = get_session().sample_rate
+    worker_idx, nworkers = get_worker_idx(), get_nworkers()
+    is_main = worker_idx == 1
 
-        # TODO: Cache stuff
-        p = download_remote_path(remotepath)
+    # Get current location
+    curr_location, curr_sample_invalid, curr_parameters_invalid = get_cached_location(path_and_subpath, metadata_invalid, sample_invalid)
+    if !curr_parameters_invalid && !curr_sample_invalid
+        return curr_location
+    end
 
-        # TODO: Support more cases beyond just single files and all files in
-        # given directory (e.g., wildcards)
+    # Download the path
+    remotepath, datasetpath, isa_hdf5 = extract_dataset_path(path_and_subpath)
+    isa_hdf5 || error("Expected HDF5 file for $remotepath")
+    p = getpath(remotepath)
+    HDF5.ishdf5(p) || "Expected HDF5 file at $remotepath"
 
-        # TODO: Read cached sample if possible
+    if is_main
+        f = h5open(p, "r")
+        close(f)
+    end
+    sync_across()
 
-        nbytes = 0
-        totalnrows = 0
+    # Open HDF5 file
+    dataset_to_read_from_exists = false
+    f = h5open(p, "r")
+    haskey(f, datasetpath) || error("Expected HDF5 dataset named \"$datasetpath\" in $remotepath")
+    dataset_to_read_from_exists = true
 
-        # Handle single-file nd-arrays
+    # Open the dataset
+    dset = try
+        HDF5_getindex_retry(f, datasetpath)
+    catch
+        close(f)
+        f = h5open(p, "r")
+        haskey(f, datasetpath) || error("Expected HDF5 dataset named \"$datasetpath\" in $remotepath")
+        getindex(f, datasetpath)
+    end
+    # TODO: Support mmap
+    # ismapping = false
+    # if HDF5.ismmappable(dset)
+    #     ismapping = true
+    #     dset = HDF5.readmmap(dset)
+    #     close(f)
+    # end
 
-        # TODO: Support HDF5 files that don't have .h5 in their filenmae
-        # filename, datasetpath = split(p, hdf5_ending)
-        # remotefilename, _ = split(remotepath, hdf5_ending)
-        # filename *= hdf5_ending
-        # remotefilename *= hdf5_ending
-        # datasetpath = datasetpath[2:end] # Chop off the /
+    # Collect metadata
+    nbytes = length(dset) * sizeof(eltype(dset))
+    datasize = size(dset)
+    datalength = datasize[1]
+    datandims = ndims(dset)
+    dataeltype = eltype(dset)
 
-        # Load metadata for reading
-
-        # TODO: Determine why sample size is so huge
-        # TODO: Determine why location parameters are not getting populated
-
-        # Open HDF5 file
-        dset_sample = nothing
-        datasize = nothing
-        datandims = nothing
-        dataeltype = nothing
-        dataset_to_read_from_exists = false
-        if isfile(p)
-            with_downloaded_path_for_reading(p) do pp
-                f = h5open(pp, "r")
-                if haskey(f, datasetpath)
-                    dataset_to_read_from_exists = true
-
-                    dset = f[datasetpath]
-                    ismapping = false
-                    if HDF5.ismmappable(dset)
-                        ismapping = true
-                        dset = HDF5.readmmap(dset)
-                        close(f)
-                    end
-
-                    # Collect metadata
-                    nbytes += length(dset) * sizeof(eltype(dset))
-                    datasize = size(dset)
-                    datalength = first(datasize)
-                    datandims = ndims(dset)
-                    dataeltype = eltype(dset)
-
-                    # TODO: Warn here if the data is too large
-                    # TODO: Modify the alert that is given before sample collection starts
-                    # TODO: Optimize utils_pfs.jl and generated code
-
-                    memory_used_in_sampling = datalength == 0 ? 0 : (nbytes * Banyan.getsamplenrows(datalength) / datalength)
-                    free_memory = Sys.free_memory()
-                    if memory_used_in_sampling > cld(free_memory, 4)
-                        @warn "Sample of $remotepath is too large (up to $(format_bytes(memory_used_in_sampling))/$(Banyan.format_bytes(free_memory)) to be used). Try re-starting this session with a greater `sample_rate` than $(get_session().sample_rate)."
-                        GC.gc()
-                    end
-
-                    if isnothing(remote_sample)
-                        # Collect sample
-                        totalnrows = datalength
-                        remainingcolons = repeat([:], ndims(dset) - 1)
-                        # Start of with an empty array. The dataset has to have at
-                        # least one row so we read that in and then take no data.
-                        # dset_sample = dset[1:1, remainingcolons...][1:0, remainingcolons...]
-                        # If the data is already shuffled or if we just want to
-                        # take an exact sample, we don't need to randomly sample here.
-                        if datalength > Banyan.get_max_exact_sample_length() && !shuffled
-                            sampleindices = randsubseq(1:datalength, 1 / get_session().sample_rate)
-                            # sample = dset[sampleindices, remainingcolons...]
-                            if !isempty(sampleindices)
-                                dset_sample = vcat([dset[sampleindex, remainingcolons...] for sampleindex in sampleindices]...)
+    # Collect sample
+    dset_sample = if curr_sample_invalid
+        # Read in the sample on each worker and
+        # aggregate and concatenate it on the main worker
+        rand_indices_range = split_len(datalength, worker_idx, nworkers)
+        rand_indices = sample_from_range(rand_indices_range, session_sample_rate)
+        exact_sample_needed = datalength < max_exact_sample_length
+        remaining_colons = Base.fill(Colon(), datandims-1)
+        dset_sample_value = if !exact_sample_needed
+            samples_on_workers = gather_across(
+                if shuffled || isempty(rand_indices)
+                    range_for_this_worker = rand_indices_range.start:(rand_indices_range.start+length(rand_indices)-1)
+                    dset[range_for_this_worker, remaining_colons...]
+                else
+                    vcat(
+                        (
+                            let dset_read = dset[rand_index, remaining_colons...]
+                                reshape(dset_read, (1, size(dset_read)...))
                             end
-                        end
-                        
-                        # Ensure that we have at least an empty initial array
-                        if isnothing(dset_sample)
-                            # NOTE: HDF5.jl does not support taking an empty slice
-                            # so we have to read in the first row and then take a
-                            # slice and this assumes that HDF5 datasets are always
-                            # non-empty (which I think they always are).
-                            dset_sample = dset[1:1, remainingcolons...][1:0, remainingcolons...]
-                        end
-
-                        # Extend or chop sample as needed
-                        samplelength = Banyan.getsamplenrows(datalength)
-                        # TODO: Warn about the sample size being too large
-                        if size(dset_sample, 1) < samplelength
-                            dset_sample = vcat(
-                                dset_sample,
-                                dset[1:(samplelength-size(dset_sample, 1)), remainingcolons...],
-                            )
-                        else
-                            dset_sample = dset[1:samplelength, remainingcolons...]
-                        end
-                    end
-
-                    # Close HDF5 file
-                    if !ismapping
-                        close(f)
-                    end
+                            for rand_index in rand_indices
+                        )...
+                    )
                 end
-            end
-        end
-
-        # If the sample is a PooledArray or CategoricalArray, convert it to a
-        # simple array so we can correctly compute its memory usage.
-        if !isnothing(dset_sample) && !(dset_sample isa Base.Array)
-            dset_sample = Banyan.convert_to_unpooled(dset_sample)
-        end
-
-        loc_for_reading, metadata_for_reading = if dataset_to_read_from_exists
-            (
-                "Remote",
-                Dict(
-                    "path" => remotepath,
-                    "subpath" => datasetpath,
-                    "size" => datasize,
-                    "ndims" => datandims,
-                    "eltype" => dataeltype,
-                    "nbytes" => 0,
-                    "format" => "hdf5"
-                ),
             )
+            vcat(samples_on_workers...)
         else
-            ("None", Dict{String,Any}())
+            dset[:, remaining_colons...]
         end
 
-        # Get the remote sample
-        if isnothing(remote_sample)
-            remote_sample = if isnothing(loc_for_reading)
-                Sample()
-            elseif totalnrows <= Banyan.get_max_exact_sample_length()
-                ExactSample(dset_sample, total_memory_usage = nbytes)
-            else
-                Sample(dset_sample, total_memory_usage = nbytes)
+        # Return a `Sample` on the main worker
+        if is_main
+            # If the sample is a PooledArray or CategoricalArray, convert it to a
+            # simple array so we can correctly compute its memory usage.
+            if !(dset_sample_value isa Base.Array)
+                dset_sample_value = Base.convert(Base.Array, dset_sample)
             end
+            if exact_sample_needed
+                ExactSample(dset_sample_value, nbytes)
+            else
+                Sample(dset_sample_value, nbytes)
+            end
+        else
+            NOTHING_SAMPLE
         end
+    else
+        curr_location.sample
+    end
 
-        Banyan.cleanup_tmp()
+    # Close HDF5 file
+    close(f)
 
-        # Construct location with metadata
-        LocationSource(
-            loc_for_reading,
-            metadata_for_reading,
+    if is_main
+        location_res = LocationSource(
+            "Remote",
+            Dict{String,Any}(
+                "path_and_subpath" => path_and_subpath,
+                "path" => remotepath,
+                "subpath" => datasetpath,
+                "size" => datasize,
+                "ndims" => datandims,
+                "eltype" => dataeltype,
+                "nbytes" => nbytes,
+                "format" => "hdf5"
+            ),
             nbytes,
-            remote_sample,
+            dset_sample,
         )
+        cache_location(remotepath, location_res, invalidate_sample, invalidate_metadata)
+        location_res
+    else
+        INVALID_LOCATION
     end
 end
 
-function RemoteHDF5Destination(remotepath; invalidate_source = true, invalidate_sample = true)::Location
-    RemoteDestination(remotepath, invalidate_source = invalidate_source, invalidate_sample = invalidate_sample) do remotepath
-        remotepath, datasetpath, isa_hdf5 = extract_dataset_path(remotepath)
+function RemoteHDF5Source(remotepath; shuffled=false, metadata_invalid = false, sample_invalid = false, invalidate_metadata = false, invalidate_sample = false, max_exact_sample_length = Banyan.get_max_exact_sample_length())::Location
+    offloaded(
+        _remote_hdf5_source,
+        remotepath,
+        shuffled,
+        metadata_invalid,
+        sample_invalid,
+        invalidate_metadata,
+        invalidate_sample,
+        max_exact_sample_length;
+        distributed=true
+    )
+end
 
-        if !isa_hdf5
-            error("Expected HDF5 dataset for $remotepath")
-        end
-
-        # Load metadata for writing to HDF5 file
-        loc_for_writing, metadata_for_writing =
-            ("Remote", Dict("path" => remotepath, "subpath" => datasetpath, "nbytes" => 0, "format" => "hdf5"))
-
-        LocationDestination(
-            loc_for_writing,
-            metadata_for_writing
+function RemoteHDF5Destination(remotepath)::Location
+    path_and_subpath = remotepath
+    remotepath, datasetpath, isa_hdf5 = extract_dataset_path(remotepath)
+    isa_hdf5 || error("Expected HDF5 dataset for $remotepath")
+    LocationDestination(
+        "Remote",
+        Dict{String,Any}(
+            "path" => remotepath,
+            "subpath" => datasetpath,
+            "path_and_subpath" => path_and_subpath,
+            "nbytes" => 0,
+            "format" => "hdf5"
         )
-    end
+    )
 end

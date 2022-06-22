@@ -1,7 +1,7 @@
 [splits.ReadBlockJuliaArray]
 expected = [ "key" ]
 partition_memory_usage = "part"
-scale_by = 2
+scale_by = 3
 views = false
 required = { name = "Distributing", distribution = "blocked", id = "!" }
 locations = [ { name = "Disk", datatype = "Array" } ]
@@ -36,4 +36,26 @@ views = false
 required = { name = "Replicating", replication = "all" }
 locations = [ { name = "Disk", datatype = "Array" } ]
 
-casts = { }
+[casts.ConsolidateArray]
+src_expected = [ "key" ]
+scale_by_src = 1
+scale_by_dst = 3
+src_required = { name = "Distributing" }
+dst_required = { name = "Replicating", replication = "all" }
+locations = [ { datatype = "Array" } ]
+
+[casts.RebalanceArray]
+scale_by_src = 1
+scale_by_dst = 3
+src_required = { name = "Distributing" }
+dst_required = { name = "Distributing", distribution = "blocked", balanced = true, id = "!" }
+locations = [ { datatype = "Array" } ]
+
+[casts.ShuffleArray]
+dst_expected = [ "key", "divisions" ]
+scale_by_src = 3
+scale_by_dst = 3
+src_required = { name = "Distributing" }
+dst_required = { name = "Distributing", distribution = "grouped", id = "!" }
+dst_default = { rev = false }
+locations = [ { datatype = "Array"} ]

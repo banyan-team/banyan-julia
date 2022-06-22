@@ -1,7 +1,7 @@
 function SetIntraOpNumThreads(
     api::OrtApi,
     options::OrtSessionOptions,
-    intra_op_num_threads::Integer,
+    intra_op_num_threads::Int64,
 )
     status = @ccall $(api.SetIntraOpNumThreads)(
         options.ptr::Ptr{Cvoid},
@@ -10,8 +10,8 @@ function SetIntraOpNumThreads(
     CAPI.check_and_release(api, status)
 end
 
-function load_inference_single_threaded(path::AbstractString; execution_provider::Symbol=:cpu,
-            envname::AbstractString="defaultenv", timer=ONNXRunTime.TIMER,
+function load_inference_single_threaded(path::String; execution_provider::Symbol=:cpu,
+            envname::String="defaultenv", timer=ONNXRunTime.TIMER,
                        )::ONNXRunTime.InferenceSession
     api = GetApi(;execution_provider)
     env = CreateEnv(api, name=envname)

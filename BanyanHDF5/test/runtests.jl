@@ -1,6 +1,7 @@
 using ReTest
 using Banyan, BanyanArrays, BanyanHDF5
 using FilePathsBase, AWSS3, HDF5
+using Downloads
 
 global sessions_for_testing = Dict()
 
@@ -16,7 +17,6 @@ function use_session_for_testing(
     f::Function;
     sample_rate = 2,
     max_exact_sample_length = 50,
-    with_s3fs = nothing,
     scheduling_config_name = "default scheduling",
 )
     haskey(ENV, "BANYAN_CLUSTER_NAME") || error(
@@ -37,7 +37,7 @@ function use_session_for_testing(
         else
             start_session(
                 cluster_name = ENV["BANYAN_CLUSTER_NAME"],
-                nworkers = parse(Int32, get(ENV, "BANYAN_NWORKERS", "2")),
+                nworkers = parse(Int64, get(ENV, "BANYAN_NWORKERS", "2")),
                 sample_rate = sample_rate,
                 print_logs = true,
                 url = "https://github.com/banyan-team/banyan-julia.git",
@@ -63,7 +63,8 @@ function use_session_for_testing(
                 force_pull = get(ENV, "BANYAN_FORCE_PULL", "0") == "1",
                 force_sync = get(ENV, "BANYAN_FORCE_SYNC", "0") == "1",
                 force_install = get(ENV, "BANYAN_FORCE_INSTALL", "0") == "1",
-                store_logs_on_cluster=get(ENV, "BANYAN_STORE_LOGS_ON_CLUSTER", "0") == "1"
+                store_logs_on_cluster=get(ENV, "BANYAN_STORE_LOGS_ON_CLUSTER", "0") == "1",
+                log_initialization = true
             )
         end
     )
@@ -71,12 +72,7 @@ function use_session_for_testing(
     sessions_for_testing[session_config_hash] = get_session_id()
 
     # Set the maximum exact sample length
-    ENV["BANYAN_MAX_EXACT_SAMPLE_LENGTH"] = string(max_exact_sample_length)
-
-    # Force usage of S3FS if so desired
-    if !isnothing(with_s3fs)
-        ENV["BANYAN_USE_S3FS"] = with_s3fs ? "1" : "0"
-    end
+    set_max_exact_sample_length(max_exact_sample_length)
 
     configure_scheduling(name = scheduling_config_name)
 
@@ -104,22 +100,20 @@ function use_data(data_src = "S3")
 
     if !data_for_testing && data_src == "S3"
         original = h5open(
-            download(
+            Downloads.download(
                 "https://support.hdfgroup.org/ftp/HDF5/examples/files/exbyapi/h5ex_d_fillval.h5",
             ),
         )
-        with_downloaded_path_for_reading(
-            joinpath(
-                S3Path("s3://$(get_cluster_s3_bucket_name())", config = Banyan.get_aws_config()),
-                "fillval.h5",
-            ),
-            for_writing = true,
-        ) do f
-            new = h5open(string(f), "w")
-            new["DS1"] = repeat(original["DS1"][:, :], 100, 100)
-            close(new)
-            println("In use_data with f=$f")
-        end
+        f_dst = joinpath(
+            S3Path("s3://$(get_cluster_s3_bucket_name())", config = Banyan.get_aws_config()),
+            "fillval.h5",
+        )
+        f = get_downloaded_path(f_dst, only_for_writing=true)
+        new = h5open(string(f), "w")
+        new["DS1"] = repeat(original["DS1"][:, :], 2, 2)
+        close(new)
+        println("In use_data with f=$f")
+        use_downloaded_path_for_writing(f_dst, f)
         close(original)
 
         # rm(get_s3fs_path(joinpath(get_cluster_s3_bucket_name(), "fillval_copy.h5")), force=true)
@@ -134,7 +128,11 @@ function use_data(data_src = "S3")
         # TODO: Maybe fsync here so that the directory gets properly updated
     end
 
-    data_for_testing = true
+    if data_src == "S3"
+        "s3://$(get_cluster_s3_bucket_name())/fillval.h5/DS1"
+    else
+        "https://support.hdfgroup.org/ftp/HDF5/examples/files/exbyapi/h5ex_d_fillval.h5/DS1"
+    end
 end
 
 include("hdf5.jl")

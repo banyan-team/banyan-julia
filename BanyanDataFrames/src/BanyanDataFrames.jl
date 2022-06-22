@@ -1,26 +1,20 @@
 module BanyanDataFrames
 
-using Banyan,
-    BanyanArrays,
-    AWS,
-    AWSCore,
-    AWSS3,
+using Arrow,
     Banyan,
+    BanyanArrays,
+    DataFrames,
+    Dates,
     Downloads,
     FileIO,
     FilePathsBase,
+    Missings,
     MPI,
+    ProgressMeter,
     Random,
-    Serialization
-
-using DataFrames, Missings, CSV, Parquet, Arrow
-using ProgressMeter
-
-include("locations.jl")
-include("df.jl")
-include("gdf.jl")
-include("utils_pfs.jl")
-include("pfs.jl")
+    Requires,
+    Serialization,
+    Statistics
 
 # Types
 export DataFrame, GroupedDataFrame
@@ -52,9 +46,13 @@ export groupby, select, transform, combine, subset
 # Missing
 export allowmissing, disallowmissing
 
+# PFs
 export ReadBlockCSV,
     ReadBlockParquet,
     ReadBlockArrow,
+    ReadBlockBalancedCSV,
+    ReadBlockBalancedParquet,
+    ReadBlockBalancedArrow,
     ReadGroupCSV,
     ReadGroupParquet,
     ReadGroupArrow,
@@ -70,11 +68,37 @@ export ReadBlockCSV,
     CopyTo,
     SplitBlock,
     SplitGroup,
-    Rebalance,
-    Consolidate,
-    Shuffle,
-    ReturnNullGrouping
+    RebalanceDataFrame,
+    ConsolidateDataFrame,
+    ShuffleDataFrame,
+    ReturnNullGrouping,
+    ReturnNullGroupingConsolidated,
+    ReturnNullGroupingRebalanced,
+    ReduceDataFrame,
+    ReduceAndCopyToArrow,
+    add_sizes
 
+# Locations
 export RemoteTableSource, RemoteTableDestination
+
+include("pt_lib_constructors.jl")
+include("locations.jl")
+include("df.jl")
+include("gdf.jl")
+include("utils_pfs.jl")
+include("pfs.jl")
+
+# We can include arrow.jl because we anyway need the Arrow.jl package for pfs.jl
+include("arrow.jl")
+
+function __init__()
+    @require CSV = "336ed68f-0bac-5ca0-87d4-7b16caf5d00b" include("csv.jl")
+    @require Parquet = "626c502c-15b0-58ad-a749-f091afb673ae" include("parquet.jl")
+end
+
+if Base.VERSION >= v"1.4.2"
+    include("precompile.jl")
+    _precompile_()
+end
 
 end # module

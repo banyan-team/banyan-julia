@@ -85,7 +85,7 @@
 #     return x
 # end
 
-# function ones(::Type{T}, len::Integer)::FutureArray{T,1} where {T<:Number}
+# function ones(::Type{T}, len::Int64)::FutureArray{T,1} where {T<:Number}
 #     data = future()
 #     data_size = future((len))
 #     created_size = future(len) # TODO: Support n-dimensional arrays with Match
@@ -258,7 +258,7 @@
 #     end
 # end
 
-# function run_bs(size::Integer)
+# function run_bs(size::Int64)
 #     price = ones(Float64, size) * 4.0
 #     strike = ones(Float64, size) * 4.0
 #     t = ones(Float64, size) * 4.0

@@ -1,6 +1,7 @@
 module BanyanArrays
 
 using Banyan,
+    Dates,
     MPI,
     Serialization
 
@@ -16,12 +17,19 @@ export ReadBlockJuliaArray,
     CopyToJuliaArray,
     SplitBlock,
     SplitGroup,
-    Rebalance,
-    Consolidate,
-    Shuffle
+    RebalanceArray,
+    ConsolidateArray,
+    ShuffleArray
+
+export add_sizes_on_axis
 
 include("array.jl")
 include("utils_pfs.jl")
 include("pfs.jl")
+
+if Base.VERSION >= v"1.4.2"
+    include("precompile.jl")
+    _precompile_()
+end
 
 end # module

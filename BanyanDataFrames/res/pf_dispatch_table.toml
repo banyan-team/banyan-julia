@@ -10,14 +10,34 @@ scale_by = 0
 views = false
 locations = [ { datatype = "GroupedDataFrame" } ]
 
+[casts.ReturnNullGroupingConsolidated]
+src_expected = [ "key" ]
+scale_by_src = 1
+scale_by_dst = 3
+src_required = { name = "Distributing" }
+dst_required = { name = "Replicating", replication = "all" }
+locations = [ { datatype = "GroupedDataFrame" } ]
+partition_memory_usage = "none"
+
+[casts.ReturnNullGroupingRebalanced]
+scale_by_src = 1
+scale_by_dst = 3
+src_required = { name = "Distributing" }
+dst_required = { name = "Distributing", distribution = "blocked", balanced = true, id = "!" }
+locations = [ { datatype = "GroupedDataFrame" } ]
+partition_memory_usage = "none"
+
 # ReadBlock
+
+# These were previously scaled_by = 3 but reduced to 2 because it seemed to
+# be causing unnecessary batched I/O.
 
 [splits.ReadBlockCSV]
 expected = [ "key" ]
 partition_memory_usage = "part"
 scale_by = 3
 views = false
-required = { name = "Distributing", distribution = "blocked", id = "!" }
+required = { name = "Distributing", distribution = "blocked", id = "!", balanced = false }
 locations = [ { name = "Remote", format = "csv" } ]
 
 [splits.ReadBlockParquet]
@@ -25,7 +45,7 @@ expected = [ "key" ]
 partition_memory_usage = "part"
 scale_by = 3
 views = false
-required = { name = "Distributing", distribution = "blocked", id = "!" }
+required = { name = "Distributing", distribution = "blocked", id = "!", balanced = false }
 locations = [ { name = "Remote", format = "parquet" } ]
 
 [splits.ReadBlockArrow]
@@ -33,10 +53,37 @@ expected = [ "key" ]
 partition_memory_usage = "part"
 scale_by = 3
 views = false
-required = { name = "Distributing", distribution = "blocked", id = "!" }
+required = { name = "Distributing", distribution = "blocked", id = "!", balanced = false }
+locations = [ { name = "Remote", format = "arrow" }, { name = "Disk", datatype = "DataFrame" } ]
+
+[splits.ReadBlockBalancedCSV]
+expected = [ "key" ]
+partition_memory_usage = "part"
+scale_by = 4
+views = false
+required = { name = "Distributing", distribution = "blocked", id = "!", balanced = true }
+locations = [ { name = "Remote", format = "csv" } ]
+
+[splits.ReadBlockBalancedParquet]
+expected = [ "key" ]
+partition_memory_usage = "part"
+scale_by = 4
+views = false
+required = { name = "Distributing", distribution = "blocked", id = "!", balanced = true }
+locations = [ { name = "Remote", format = "parquet" } ]
+
+[splits.ReadBlockBalancedArrow]
+expected = [ "key" ]
+partition_memory_usage = "part"
+scale_by = 4
+views = false
+required = { name = "Distributing", distribution = "blocked", id = "!", balanced = true }
 locations = [ { name = "Remote", format = "arrow" }, { name = "Disk", datatype = "DataFrame" } ]
 
 # ReadGroup
+
+# These were previously scaled_by = 6 but reduced to 4 because it seemed to
+# be causing unnecessary batched I/O.
 
 [splits.ReadGroupCSV]
 expected = [ "key", "divisions" ]
@@ -55,6 +102,7 @@ views = false
 required = { name = "Distributing", distribution = "grouped", id = "!" }
 default = { rev = false }
 locations = [ { name = "Remote", format = "parquet" } ]
+partition_memory_usage = "part"
 
 [splits.ReadGroupArrow]
 expected = [ "key", "divisions" ]
@@ -64,14 +112,19 @@ views = false
 required = { name = "Distributing", distribution = "grouped", id = "!" }
 default = { rev = false }
 locations = [ { name = "Remote", format = "arrow" }, { name = "Disk", datatype = "DataFrame" } ]
+partition_memory_usage = "part"
 
 # CopyFrom
+
+# These were previously scaled_by = 4 but reduced to 2 because it seemed to
+# be causing unnecessary batched I/O.
 
 [splits.CopyFromCSV]
 partition_memory_usage = "all"
 scale_by = 3
 views = false
 required = { name = "Replicating", dividing = false }
+default = { key = 1, balanced = false }
 locations = [ { name = "Remote", format = "csv" } ]
 
 [splits.CopyFromParquet]
@@ -79,6 +132,7 @@ partition_memory_usage = "all"
 scale_by = 3
 views = false
 required = { name = "Replicating", dividing = false }
+default = { key = 1, balanced = false }
 
   [[splits.CopyFromParquet.locations]]
   name = "Remote"
@@ -89,6 +143,7 @@ partition_memory_usage = "all"
 scale_by = 3
 views = false
 required = { name = "Replicating", dividing = false }
+default = { key = 1, balanced = false }
 locations = [ { name = "Remote", format = "arrow" }, { name = "Disk", datatype = "DataFrame" } ]
 
 # Write
@@ -137,4 +192,43 @@ views = false
 required = { name = "Replicating", replication = "all" }
 locations = [ { name = "Remote", format = "arrow" }, { name = "Disk", datatype = "DataFrame" } ]
 
-casts = { }
+# These were previously scaled_by = 3 but reduced to 2 because it seemed to
+# be causing unnecessary batched I/O.
+
+[merges.ReduceAndCopyToArrow]
+expected = [ "reducing_op", "finishing_op", "starting_op" ]
+location_names = [ "Memory", "Disk" ]
+partition_memory_usage = "all"
+scale_by = 1
+views = false
+required = { name = "Replicating" }
+
+[casts.ConsolidateDataFrame]
+src_expected = [ "key" ]
+scale_by_src = 1
+scale_by_dst = 2
+src_required = { name = "Distributing" }
+dst_required = { name = "Replicating", replication = "all" }
+locations = [ { datatype = "DataFrame" } ]
+
+[casts.RebalanceDataFrame]
+scale_by_src = 1
+scale_by_dst = 2
+src_required = { name = "Distributing" }
+dst_required = { name = "Distributing", distribution = "blocked", balanced = true, id = "!" }
+locations = [ { datatype = "DataFrame" } ]
+
+[casts.ShuffleDataFrame]
+dst_expected = [ "key", "divisions" ]
+scale_by_src = 2
+scale_by_dst = 2
+src_required = { name = "Distributing" }
+dst_required = { name = "Distributing", distribution = "grouped", id = "!" }
+dst_default = { rev = false }
+locations = [ { datatype = "DataFrame"} ]
+
+[casts.ReduceDataFrame]
+src_expected = [ "reducing_op", "finishing_op", "starting_op" ]
+scale_by_dst = 2
+src_required = { name = "Replicating" }
+dst_required = { name = "Replicating", replication = "all" }

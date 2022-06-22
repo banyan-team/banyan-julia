@@ -24,7 +24,6 @@ function use_session_for_testing(
     nworkers = 2,
     sample_rate = 2,
     max_exact_sample_length = 50,
-    with_s3fs = nothing,
     scheduling_config_name = "default scheduling",
 )
     haskey(ENV, "BANYAN_CLUSTER_NAME") || error(
@@ -80,12 +79,7 @@ function use_session_for_testing(
     sessions_for_testing[session_config_hash] = get_session_id()
 
     # Set the maximum exact sample length
-    ENV["BANYAN_MAX_EXACT_SAMPLE_LENGTH"] = string(max_exact_sample_length)
-
-    # Force usage of S3FS if so desired
-    if !isnothing(with_s3fs)
-        ENV["BANYAN_USE_S3FS"] = with_s3fs ? "1" : "0"
-    end
+    set_max_exact_sample_length(max_exact_sample_length)
 
     configure_scheduling(name = scheduling_config_name)
 

@@ -32,7 +32,7 @@
                     sub = filter(row -> row.sepal_width == 3.3, df)
                     sub2 = filter(row -> endswith(row.species, "8"), sub)
                     write_file(sub_save_path, sub)
-                    invalidate_source(sub2)
+                    invalidate_metadata(sub2)
                     invalidate_sample(sub2)
                     write_file(sub2_save_path, sub2)
                 else
@@ -196,6 +196,51 @@ end
     end
 end
 
+@testset "Fast groupby reduce with $scheduling_config" for scheduling_config in
+    [
+    "default scheduling",
+    "parallelism encouraged",
+    "pa##rallelism and batches encouraged",
+]
+    use_session_for_testing(scheduling_config_name = scheduling_config) do
+        use_basic_data()
+        bucket = get_cluster_s3_bucket_name()
+        for path in [
+            "s3://$(bucket)/iris_large.csv",
+            "s3://$(bucket)/iris_large.parquet",
+            "s3://$(bucket)/iris_large.arrow",
+        ]
+            for func in [sum, minimum, maximum, mean, nrow, (x -> sum(x))]
+                println("Testing fast groupby reduce with scheduling_config=$scheduling_config, path=$path, func=$func")
+                df = read_file(path)
+                gdf = groupby(df, :species)
+                res =
+                    combine(gdf, func == nrow ? nrow : (:petal_length => func))
+                @show compute(res)
+            end
+        end
+    end
+end
+
+@testset "ReadGroupJuliaArray" begin
+    use_session_for_testing(scheduling_config_name = "parallelism and batches encouraged") do
+        use_basic_data()
+        bucket = get_cluster_s3_bucket_name()
+        df = read_file("s3://$(bucket)/iris_large.arrow")
+        df_subset = subset(groupby(df, :species), :petal_length => pl -> pl .>= mean(pl))
+        compute(BanyanArrays.reduce(+, df_subset[:, :petal_length]))
+        nrow(df)
+        df_subset = subset(groupby(df, :species), :petal_length => pl -> pl .>= mean(pl))
+        db_subset_col = df_subset[:, :petal_length]
+        compute(BanyanArrays.reduce(+, db_subset_col))
+        df_subset = subset(groupby(df, :species), :petal_length => pl -> pl .>= mean(pl))
+        compute(BanyanArrays.reduce(+, map(+, db_subset_col, df_subset[:, :petal_length])))
+        # NOTE: Unfortunately we can't really test ReadGroupJuliaArray unless we use
+        # offloaded. But we don't really need to test it until we
+        # implement functions like sortslices and make arrays groupable.
+    end
+end
+
 @testset "Groupby basic for initial functionality with $scheduling_config" for scheduling_config in
                                                                                [
     "default scheduling",
@@ -213,170 +258,174 @@ end
                 "s3://$(bucket)/iris_large.parquet",
                 "s3://$(bucket)/iris_large.arrow",
             ]
-                df = read_file(path)
+                for f in [mean, (x -> mean(x))]
+                    df = read_file(path)
 
-                # Assert that exception gets thrown for parameters that aren't supported
-                @test_throws ErrorException groupby(df, :species; sort = false)
+                    println("nrow(df)=$(nrow(df))")
 
-                # Groupby all columns
-                gdf = groupby(df, :)
-                @test length(gdf) == 882
+                    # Assert that exception gets thrown for parameters that aren't supported
+                    @test_throws ErrorException groupby(df, :species; sort = false)
 
-                # Groupby first four columns
-                gdf = groupby(df, Cols(Between(1, 4)))
-                @test length(gdf) == 147
+                    # Groupby all columns
+                    gdf = groupby(df, :)
+                    @test length(gdf) == 882
 
-                # Groupby multiple columns selected using regex
-                gdf = groupby(df, r".*width")
-                @test length(gdf) == 97
+                    # Groupby first four columns
+                    gdf = groupby(df, Cols(Between(1, 4)))
+                    @test length(gdf) == 147
 
-                gdf_select_save_path = "s3://$(bucket)/test-tmp_gdf_select_$(split(path, "/")[end])"
-                gdf_transform_save_path = "s3://$(bucket)/test-tmp_gdf_transform_$(split(path, "/")[end])"
-                gdf_subset_save_path = "s3://$(bucket)/test-tmp_gdf_subset_$(split(path, "/")[end])"
+                    # Groupby multiple columns selected using regex
+                    gdf = groupby(df, r".*width")
+                    @test length(gdf) == 97
 
-                gdf = groupby(df, :species)
+                    gdf_select_save_path = "s3://$(bucket)/test-tmp_gdf_select_$(split(path, "/")[end])"
+                    gdf_transform_save_path = "s3://$(bucket)/test-tmp_gdf_transform_$(split(path, "/")[end])"
+                    gdf_subset_save_path = "s3://$(bucket)/test-tmp_gdf_subset_$(split(path, "/")[end])"
 
-                # Assert exception gets thrown for parameters that aren't supported
-                @test_throws ArgumentError select(
-                    gdf,
-                    :,
-                    [:petal_length] => (pl) -> pl .- mean(pl);
-                    ungroup = false,
-                )
-                @test_throws ArgumentError select(
-                    gdf,
-                    :,
-                    [:petal_length] => (pl) -> pl .- mean(pl);
-                    copycols = false,
-                )
-                @test_throws ArgumentError transform(
-                    gdf,
-                    :species => x -> "iris-" .* x;
-                    ungroup = false,
-                )
-                @test_throws ArgumentError transform(
-                    gdf,
-                    :species => x -> "iris-" .* x;
-                    copycols = false,
-                )
-                @test_throws ArgumentError subset(
-                    gdf,
-                    :petal_length => pl -> pl .>= mean(pl);
-                    ungroup = false,
-                )
-                @test_throws ArgumentError subset(
-                    gdf,
-                    :petal_length => pl -> pl .>= mean(pl);
-                    copycols = false,
-                )
+                    gdf = groupby(df, :species)
 
-                # Groupby species and perform select, transform, subset
-                if i == 1
-                    gdf_select = select(gdf, :, [:petal_length] => (pl) -> pl .- mean(pl))
-                    gdf_transform = transform(gdf, :species => x -> "iris-" .* x)
-                    gdf_subset = subset(gdf, :petal_length => pl -> pl .>= mean(pl))
-                    write_file(gdf_select_save_path, gdf_select)
-                    write_file(gdf_transform_save_path, gdf_transform)
-                    write_file(gdf_subset_save_path, gdf_subset)
-                else
-                    gdf_select = read_file(gdf_select_save_path)
-                    gdf_transform = read_file(gdf_transform_save_path)
-                    gdf_subset = read_file(gdf_subset_save_path)
-                end
-
-                # Collect results
-                gdf_select_size = size(gdf_select)
-                gdf_transform_size = size(gdf_transform)
-                gdf_subset_nrow = nrow(gdf_subset)
-                @test gdf_subset_nrow == 474
-                gdf_subset_collected = sort(compute(gdf_subset))
-                gdf_subset_row474 = Base.collect(gdf_subset_collected[474, :])
-                gdf_select_plf_square_add = round(
-                    compute(reduce(+, map(l -> l * l, gdf_select[:, :petal_length_function]))),
-                    digits = 2,
-                )
-                gdf_select_filter_length = nrow(
-                    compute(
-                        gdf_select[:, [:petal_length]][
-                            map(l -> l .== 1.3, gdf_select[:, :petal_length]),
-                            :,
-                        ],
-                    ),
-                )
-                gdf_transform_length =
-                    length(groupby(gdf_transform, [:species, :species_function]))
-                gdf_subset_collected = sort(compute(gdf_subset))
-                gdf_subset_row5 = Base.collect(gdf_subset_collected[5, :])
-                gdf_subset_row333 = Base.collect(gdf_subset_collected[333, :])
-                gdf_subset_row474 = Base.collect(gdf_subset_collected[474, :])
-                # gdf_keepkeys_false_names = names(combine(gdf, nrow, keepkeys = false))
-                gdf_keepkeys_true_names = Set(names(combine(gdf, nrow, keepkeys = true)))
-                petal_length_mean =
-                    sort(compute(combine(gdf, :petal_length => mean)), :petal_length_mean)[
+                    # Assert exception gets thrown for parameters that aren't supported
+                    @test_throws ArgumentError select(
+                        gdf,
                         :,
-                        :petal_length_mean,
+                        [:petal_length] => (pl) -> pl .- mean(pl);
+                        ungroup = false,
+                    )
+                    @test_throws ArgumentError select(
+                        gdf,
+                        :,
+                        [:petal_length] => (pl) -> pl .- mean(pl);
+                        copycols = false,
+                    )
+                    @test_throws ArgumentError transform(
+                        gdf,
+                        :species => x -> "iris-" .* x;
+                        ungroup = false,
+                    )
+                    @test_throws ArgumentError transform(
+                        gdf,
+                        :species => x -> "iris-" .* x;
+                        copycols = false,
+                    )
+                    @test_throws ArgumentError subset(
+                        gdf,
+                        :petal_length => pl -> pl .>= mean(pl);
+                        ungroup = false,
+                    )
+                    @test_throws ArgumentError subset(
+                        gdf,
+                        :petal_length => pl -> pl .>= mean(pl);
+                        copycols = false,
+                    )
+
+                    # Groupby species and perform select, transform, subset
+                    if i == 1
+                        gdf_select = select(gdf, :, [:petal_length] => (pl) -> pl .- mean(pl))
+                        gdf_transform = transform(gdf, :species => x -> "iris-" .* x)
+                        gdf_subset = subset(gdf, :petal_length => pl -> pl .>= mean(pl))
+                        write_file(gdf_select_save_path, gdf_select)
+                        write_file(gdf_transform_save_path, gdf_transform)
+                        write_file(gdf_subset_save_path, gdf_subset)
+                    else
+                        gdf_select = read_file(gdf_select_save_path)
+                        gdf_transform = read_file(gdf_transform_save_path)
+                        gdf_subset = read_file(gdf_subset_save_path)
+                    end
+
+                    # Collect results
+                    gdf_select_size = size(gdf_select)
+                    gdf_transform_size = size(gdf_transform)
+                    gdf_subset_nrow = nrow(gdf_subset)
+                    @test gdf_subset_nrow == 474
+                    gdf_subset_collected = sort(compute(gdf_subset))
+                    gdf_subset_row474 = Base.collect(gdf_subset_collected[474, :])
+                    gdf_select_plf_square_add = round(
+                        compute(reduce(+, map(l -> l * l, gdf_select[:, :petal_length_function]))),
+                        digits = 2,
+                    )
+                    gdf_select_filter_length = nrow(
+                        compute(
+                            gdf_select[:, [:petal_length]][
+                                map(l -> l .== 1.3, gdf_select[:, :petal_length]),
+                                :,
+                            ],
+                        ),
+                    )
+                    gdf_transform_length =
+                        length(groupby(gdf_transform, [:species, :species_function]))
+                    gdf_subset_collected = sort(compute(gdf_subset))
+                    gdf_subset_row5 = Base.collect(gdf_subset_collected[5, :])
+                    gdf_subset_row333 = Base.collect(gdf_subset_collected[333, :])
+                    gdf_subset_row474 = Base.collect(gdf_subset_collected[474, :])
+                    # gdf_keepkeys_false_names = names(combine(gdf, nrow, keepkeys = false))
+                    gdf_keepkeys_true_names = Set(names(combine(gdf, nrow, keepkeys = true)))
+                    petal_length_mean =
+                        sort(compute(combine(gdf, :petal_length => f => :petal_length_mean)), :petal_length_mean)[
+                            :,
+                            :petal_length_mean,
+                        ]
+                    petal_length_mean = map(m -> round(m, digits = 2), petal_length_mean)
+                    temp = combine(gdf, :petal_length => f => :petal_length, renamecols = false)
+                    temp_names = Set(names(temp))
+                    temp_petal_length = sort(compute(temp)[:, :petal_length])
+                    temp_petal_length = map(l -> round(l, digits = 2), temp_petal_length)
+
+                    # Assert
+                    @test gdf_select_size == (900, 6)
+                    @test gdf_transform_size == (900, 6)
+                    @test gdf_subset_nrow == 474
+                    @test gdf_select_plf_square_add == 163.32
+                    @test gdf_select_filter_length == 42
+                    @test gdf_transform_length == 18
+                    @test gdf_subset_row5 == [4.6, 3.1, 1.5, 0.2, "species_4"]
+                    @test gdf_subset_row333 == [6.7, 2.5, 5.8, 1.8, "species_18"]
+                    @test gdf_subset_row474 == [7.9, 3.8, 6.4, 2.0, "virginica"]
+
+                    # Combine
+                    # @test gdf_keepkeys_false_names == ["nrow"]
+                    @test gdf_keepkeys_true_names == Set(["nrow", "species"])
+                    @test petal_length_mean == [
+                        1.46,
+                        1.46,
+                        1.46,
+                        1.46,
+                        1.46,
+                        1.46,
+                        4.26,
+                        4.26,
+                        4.26,
+                        4.26,
+                        4.26,
+                        4.26,
+                        5.55,
+                        5.55,
+                        5.55,
+                        5.55,
+                        5.55,
+                        5.55,
                     ]
-                petal_length_mean = map(m -> round(m, digits = 2), petal_length_mean)
-                temp = combine(gdf, :petal_length => mean, renamecols = false)
-                temp_names = Set(names(temp))
-                temp_petal_length = sort(compute(temp)[:, :petal_length])
-                temp_petal_length = map(l -> round(l, digits = 2), temp_petal_length)
-
-                # Assert
-                @test gdf_select_size == (900, 6)
-                @test gdf_transform_size == (900, 6)
-                @test gdf_subset_nrow == 474
-                @test gdf_select_plf_square_add == 163.32
-                @test gdf_select_filter_length == 42
-                @test gdf_transform_length == 18
-                @test gdf_subset_row5 == [4.6, 3.1, 1.5, 0.2, "species_4"]
-                @test gdf_subset_row333 == [6.7, 2.5, 5.8, 1.8, "species_18"]
-                @test gdf_subset_row474 == [7.9, 3.8, 6.4, 2.0, "virginica"]
-
-                # Combine
-                # @test gdf_keepkeys_false_names == ["nrow"]
-                @test gdf_keepkeys_true_names == Set(["nrow", "species"])
-                @test petal_length_mean == [
-                    1.46,
-                    1.46,
-                    1.46,
-                    1.46,
-                    1.46,
-                    1.46,
-                    4.26,
-                    4.26,
-                    4.26,
-                    4.26,
-                    4.26,
-                    4.26,
-                    5.55,
-                    5.55,
-                    5.55,
-                    5.55,
-                    5.55,
-                    5.55,
-                ]
-                @test temp_names == Set(["petal_length", "species"])
-                @test temp_petal_length == [
-                    1.46,
-                    1.46,
-                    1.46,
-                    1.46,
-                    1.46,
-                    1.46,
-                    4.26,
-                    4.26,
-                    4.26,
-                    4.26,
-                    4.26,
-                    4.26,
-                    5.55,
-                    5.55,
-                    5.55,
-                    5.55,
-                    5.55,
-                    5.55,
-                ]
+                    @test temp_names == Set(["petal_length", "species"])
+                    @test temp_petal_length == [
+                        1.46,
+                        1.46,
+                        1.46,
+                        1.46,
+                        1.46,
+                        1.46,
+                        4.26,
+                        4.26,
+                        4.26,
+                        4.26,
+                        4.26,
+                        4.26,
+                        5.55,
+                        5.55,
+                        5.55,
+                        5.55,
+                        5.55,
+                        5.55,
+                    ]
+                end
             end
         end
     end
@@ -472,7 +521,7 @@ end
 
         for i = 1:2
             # Read empty df
-            df = read_file(path)
+            df = read_file(path, true)
 
             # Filter which results in an empty df and in a df with a single entry
             filtered_empty_save_path = get_save_path(bucket, "filtered_empty", path)
@@ -491,13 +540,14 @@ end
             has_schema = i != 2 || filetype == "arrow"
             has_num_cols = i != 2 || filetype != "parquet"
 
-            # Test sizes
+            # # Test sizes
+            @show sample(filtered_empty)
             filtered_empty_size = size(filtered_empty)
             filtered_single_size = size(filtered_single)
             @test filtered_empty_size == (has_num_cols ? (0, 5) : (0, 0))
             @test filtered_single_size == (1, 5)
 
-            # Test downloading single row
+            # # Test downloading single row
             filtered_single_sepal_width = compute(filtered_single[:, :sepal_width])
             filtered_single_petal_width = compute(filtered_single[:, :petal_width])
             @test filtered_single_sepal_width == [3.0]
@@ -518,12 +568,12 @@ end
             # so that no grouping splitting has to be done, we still have to do
             # a groupby-subset on an empty DataFrame with no schema and
             # DataFrames.jl doesn't support that.
-            if isinvestigating()[:size_exaggurated_tests]
+            if Banyan.INVESTIGATING_SIZE_EXAGGURATED_TESTS
                 println("In test on iteration $i")
             end
             if has_schema
                 # Groupby all columns and subset, resulting in empty df
-                if isinvestigating()[:size_exaggurated_tests]
+                if Banyan.INVESTIGATING_SIZE_EXAGGURATED_TESTS
                     CSV.write("test_res_filtered_empty.csv", sample(filtered_empty))
                     @show filtered_empty.data.value_id
                 end
@@ -532,14 +582,13 @@ end
                 @test filtered_empty_sub_size == (0, 5)
             end
 
-            # Test size after filtering single-row dataset
-            if isinvestigating()[:size_exaggurated_tests]
-                CSV.write("test_res_filtered_single.csv", sample(filtered_single))
-                filtered_single_sub = subset(groupby(filtered_single, :species), :petal_length => pl -> pl .>= mean(pl))
-            end
+            # # Test size after filtering single-row dataset
+            # if Banyan.INVESTIGATING_SIZE_EXAGGURATED_TESTS
+            #     CSV.write("test_res_filtered_single.csv", sample(filtered_single))
+            # end
+            filtered_single_sub = subset(groupby(filtered_single, :species), :petal_length => pl -> pl .>= mean(pl))
             filtered_single_sub_size = size(filtered_single_sub)
             @test filtered_single_sub_size == (1, 5)
-            
 
             # If this is round 1, write it out so that it can be read in round
             # 2
@@ -736,12 +785,14 @@ end
         for i = 1:2
             # Read empty df
             df = read_file(path)
+            @show path
 
             if headertype == "header"
                 @test size(df) == (0, 2)
             elseif headertype == "no header"
                 @test size(df) == (0, 0)
             end
+            @show sample(df)
 
             # Filter empty df, which should result in empty df
             filtered_save_path = get_save_path(bucket, "filtered", path)
@@ -754,21 +805,24 @@ end
                 write_file(filtered_save_path, filtered)
             else
                 filtered = read_file(filtered_save_path)
+                @show filtered_save_path
             end
+            @show sample(filtered)
 
             # Groupby all columns and aggregrate to count number of rows
             filtered_size = size(filtered)
             filtered_grouped = groupby(filtered, All())
             filtered_grouped_nrow = size(combine(filtered_grouped, nrow))
+            @show sample(combine(filtered_grouped, nrow))
             filtered_grouped_length = length(groupby(df, All()))
 
             if headertype == "header"
                 @test filtered_size == (0, 2)
-                @test filtered_grouped_nrow == (0, 3)
+                @test filtered_grouped_nrow == (0, 0)
                 @test filtered_grouped_length == 0
             elseif headertype == "no header"
                 @test filtered_size == (0, 0)
-                @test filtered_grouped_nrow == (0, 1)
+                @test filtered_grouped_nrow == (0, 0)
                 @test filtered_grouped_length == 0
             end
         end
@@ -777,42 +831,104 @@ end
 
 @testset "NYC Taxi Stress Test" begin
     use_session_for_testing(scheduling_config_name = "default scheduling", sample_rate=1024) do
-        setup_nyc_taxi_stress_test("5 GB")
+        # p = setup_nyc_taxi_stress_test(nbytes="128 MB")
+        # p = setup_nyc_taxi_stress_test(nbytes="1 GB")
+        p = setup_nyc_taxi_stress_test(nrows = 2_000_000_000)
+        # p = setup_nyc_taxi_stress_test(nrows = 250_000_000)
         for iter in 1:2
             @time begin
-                s3_bucket_name = get_cluster_s3_bucket_name()
-                df = read_csv(
-                    # "s3://$s3_bucket_name/nyc_tripdata.csv",
-                    "s3://$s3_bucket_name/nyc_tripdata_large.csv",
-                    # sample_invalid=true,
-                    # source_invalid=true,
-                    shuffled=true
+                # # for i in 1:100
+                # #     println("Attempting the #$i offloaded call")
+                # #     @time begin
+                # #     offloaded(;distributed=true) do 
+                # #         x = Base.zeros(100)
+                # #         sum(x)
+                # #     end
+                # #     println("Finished the #$i offloaded call")
+                # #     end
+                # # end
+                # # s3_bucket_name = get_cluster_s3_bucket_name()
+                # # @time begin
+                # df = read_csv(
+                #     # "s3://$s3_bucket_name/nyc_tripdata.csv",
+                #     # "s3://$s3_bucket_name/nyc_tripdata_large.csv",
+                #     p,
+                #     # sample_invalid=true,
+                #     # metadata_invalid=true,
+                #     shuffled=true
+                # )
+                # # @show sample(df)
+                # # println("Time in read_csv on run #$iter")
+                # # end
+                # # # @show sample(df)
+
+                # # Filter all trips with distance longer than 1.0. Group by passenger count
+                # # and get the average trip distance for each group.
+                # @time begin
+                # long_trips = filter(
+                #     row -> row.trip_distance < 1.0,
+                #     df
+                # )
+                # println("Time for filtering to long_trips on run #$iter")
+                # end
+                # # @debug Banyan.format_available_memory()
+                # # @show sample(long_trips)
+
+                # gdf = groupby(long_trips, :PULocationID)
+                # println("Finished groupby by location to gdf")
+                # @debug Banyan.format_available_memory()
+                # @time begin
+                # trip_means = combine(gdf, :trip_distance => mean)
+                # println("Time for combining by mean to trip_means on run #$iter")
+                # end
+                # @debug Banyan.format_available_memory()
+
+                # @time begin
+                # trip_means = compute(trip_means)
+                # println("Time for calling compute on trip_means on run #$iter")
+                # end
+                # println("Total time after starting session on run #$iter")
+                # @debug Banyan.format_available_memory()
+
+                mean_func = mean
+                # mean_func = x -> mean(x)
+
+                trip_means = compute(
+                    combine(
+                        groupby(
+                            filter(
+                                row -> row.trip_distance < 1.0,
+                                read_csv(p)
+                            ),
+                            :PULocationID
+                        ),
+                        :total_amount => mean_func,
+                        :tip_amount => mean_func,
+                        :trip_distance => mean_func
+                    )
                 )
-                # @show sample(df)
-                println("Finished reading df")
-                @debug Banyan.format_available_memory()
 
-                # Filter all trips with distance longer than 1.0. Group by passenger count
-                # and get the average trip distance for each group.
-                long_trips = filter(
-                    row -> row.trip_distance < 1.0,
-                    df
-                )
-                println("Finished filtering to long_trips")
-                @debug Banyan.format_available_memory()
-                # @show sample(long_trips)
-
-                gdf = groupby(long_trips, :PULocationID)
-                println("Finished groupby by location to gdf")
-                @debug Banyan.format_available_memory()
-                trip_means = combine(gdf, :trip_distance => mean)
-                println("Finished combining by mean to trip_means")
-                @debug Banyan.format_available_memory()
-
-                trip_means = compute(trip_means)
-                println("Finished collecting to trip_means")
-                @debug Banyan.format_available_memory()
+                # data = @time "read_csv" read_csv(p)
+                # filtered = @time "filter" filter(row -> row.trip_distance < 1.0, data)
+                # grouped = @time "groupby" groupby(filtered, :PULocationID)
+                # combined =
+                #     @time "combine" combine(
+                #         grouped,
+                #         :total_amount => mean_func,
+                #         :tip_amount => mean_func,
+                #         :trip_distance => mean_func
+                #     )
+                # trip_means = compute(combined, destroy=[data, filtered, grouped])
+                # # compute(filtered)
             end
         end
     end
+end
+
+@testset "CSV from Internet Latency" begin
+    test_csv_from_internet_latency()
+end
+
+@testset "CSV from S3 Latency" begin
+    test_csv_from_s3_latency()
 end

@@ -1,25 +1,21 @@
-struct GroupedDataFrame <: AbstractFuture
+mutable struct GroupedDataFrame <: AbstractFuture
     data::Future
     length::Future
     parent::DataFrame
     groupcols::Future
     groupkwargs::Future
-
-    # GroupedDataFrame() = new(Future(), Future(), Future())
-    # GroupedDataFrame(gdf::GroupedDataFrame) =
-    #     new(Future(), Future(gdf.nrows), Future(gdf.offset))
 end
 
 Banyan.convert(::Type{Future}, gdf::GroupedDataFrame) = gdf.data
 Banyan.isview(gdf::GroupedDataFrame) = true
-Banyan.sample_memory_usage(gdf::DataFrames.GroupedDataFrame) =
+Banyan.sample_memory_usage(gdf::DataFrames.GroupedDataFrame)::Int64 =
     total_memory_usage(gdf) - total_memory_usage(parent(gdf))
 
 Base.length(gdf::GroupedDataFrame) = compute(gdf.length)
 Base.size(gdf::GroupedDataFrame) = Tuple(length(gdf))
 Base.ndims(gdf::GroupedDataFrame) = 1
-DataFrames.groupcols(gdf::GroupedDataFrame) = groupcols(sample(gdf))
-DataFrames.valuecols(gdf::GroupedDataFrame) = valuecols(sample(gdf))
+DataFrames.groupcols(gdf::GroupedDataFrame) = groupcols(sample(gdf)::GroupedDataFrame)
+DataFrames.valuecols(gdf::GroupedDataFrame) = valuecols(sample(gdf)::GroupedDataFrame)
 
 # NOTE: For now we don't allow grouped dataframes to be copied since we are
 # only supporting simple use-cases where you want to aggregate or transform
@@ -31,193 +27,104 @@ DataFrames.valuecols(gdf::GroupedDataFrame) = valuecols(sample(gdf))
 # the `Grouped` PT constructor. And we never want to assign the `Grouped` PT
 # constructor to `GroupedDataFrame`s. `Blocked` will be sufficient.
 
+function _get_res_groupingkeys(keepkeys::Bool, gdf_parent::Future, groupcols_sample)::Base.Vector{String}
+    if keepkeys
+        gdf_parent_sample::DataFrames.DataFrame = sample(gdf_parent)
+        names(gdf_parent_sample, groupcols_sample)
+    else
+        String[]
+    end
+end
+
 # GroupedDataFrame creation
 
-function DataFrames.groupby(df::DataFrame, cols; kwargs...)::GroupedDataFrame
-    get(kwargs, :sort, true) || error("Groups cannot currently be ordered by how they originally appeared")
+function pts_for_groupby(futures::Base.Vector{Future})
+    df, gdf, gdf_length, cols, kwargs = futures
 
-    gdf_data = Future()
-    gdf_length = Future()
-    cols = Future(cols)
-    kwargs = Future(kwargs)
-    gdf = GroupedDataFrame(Future(datatype="GroupedDataFrame"), gdf_length, df, cols, kwargs)
+    df_sample_for_grouping = _sample_df_for_grouping(df, cols)
+    pt(df, Grouped(df_sample_for_grouping, scaled_by_same_as=gdf))
+    pt(df, BlockedAlong(1))
+    # TODO: Avoid circular dependency
+    # TODO: Specify key for Blocked
+    # TODO: Ensure that bangs in splitting functions in PF library are used
+    # appropriately
+    pt(gdf, BlockedAlong(1) & ScaledBySame(df))
+    pt(gdf_length, Reducing(+)) # TODO: See if we can `using Banyan` on the cluster and avoid this
+    pt(df, gdf, gdf_length, cols, kwargs, Replicated())
+end
 
-    # partition(df, Replicated())
-    # partition(gdf, Replicated())
-    # partition(gdf_length, Replicated())
-
-    groupingkeys = Symbol.(names(sample(df), compute(cols)))
-
-    partitioned_with(scaled=[df, gdf], modules="DataFrames") do
-        pt(df, Grouped(df, by=groupingkeys, scaled_by_same_as=gdf))
-        # TODO: Avoid circular dependency
-        # TODO: Specify key for Blocked
-        # TODO: Ensure that bangs in splitting functions in PF library are used
-        # appropriately
-        pt(gdf, Blocked(along=1) & ScaledBySame(as=df))
-        pt(gdf_length, Reducing(quote + end)) # TODO: See if we can `using Banyan` on the cluster and avoid this
-        pt(df, gdf, gdf_length, cols, kwargs, Replicated())
-    end
-
+function partitioned_for_groupby(df::Future, gdf::Future, gdf_length::Future, cols::Future, kwargs::Future)
+    partitioned_with(pts_for_groupby, Future[df, gdf, gdf_length, cols, kwargs], scaled=Future[df, gdf], modules=String["BanyanDataFrames.DataFrames"], keytype=String)
     @partitioned df gdf gdf_length cols kwargs begin
         gdf = DataFrames.groupby(df, cols; kwargs...)
         gdf_length = DataFrames.length(gdf)
     end
+end
 
-    # allowedgroupingkeys = names(sample(df), compute(cols))
-    # allowedgroupingkeys = get(kwargs, :sort, false) ? allowedgroupingkeys[1:1] : allowedgroupingkeys
-    # union!(sample(df, :allowedgroupingkeys), allowedgroupingkeys)
-    # setsample(gdf, :allowedgroupingkeys, allowedgroupingkeys)
-    # for key in allowedgroupingkeys
-    #     for balanced in [true, false]
-    #         partition(df, Grouped(;key=key, balanced=balanced))
-    #     end
-    #     # Grouped computes keystatistics for key for df
-    #     setsample(gdf, :keystatistics, key, sample(df, :keystatistics, key))
-    # end
+function DataFrames.groupby(df::DataFrame, cols::Any; kwargs...)::GroupedDataFrame
+    @nospecialize
 
-    # pt(gdf, Blocked(;dim=1), match=df, on=["balanced", "id"])
-    # ptartition(gdf_length, Reducing(;reducer=+))
-    # papt(df, gdf, gdf_length, cols, kwargs, Replicated())
-    # # TODO: Ensure splitting/merging functions work for Blocked on GroupedDataFrame
+    # We will simply pass the `cols` and `kwargs` into `Future` constructor
+    # so specialization isn't really needed
+    get(kwargs, :sort, true)::Bool || error("Groups cannot currently be ordered by how they originally appeared")
 
-    # mutated(gdf)
-    # mutated(gdf_length)
+    df_nrows = df.nrows
+    gdf_length = Future()
+    cols = Future(cols)
+    kwargs = Future(kwargs)
+    gdf = Future(datatype="GroupedDataFrame")
 
-    # @partitioned df gdf gdf_length cols kwargs begin
-    #     gdf = groupby(df, cols; kwargs...)
-    #     gdf_length = length(gdf)
-    # end
+    partitioned_for_groupby(df.data, gdf, gdf_length, cols, kwargs)
+
+    res = GroupedDataFrame(gdf, gdf_length, DataFrame(df, df_nrows), cols, kwargs)
     
-    # gdf
-
-    # # TODO: approximate -> sample and evaluate -> compute
-
-    # # w.r.t. keys and axes, there are several things you need to know:
-    # # - reuse of columns 
-    # # Create Future for result
-
-    # # gdf = GroupedDataFrame()
-    # # gdf_len = gdf.whole_len
-    # # df_len = df.whole_len
-    # # for (gpt, max_ngroups) in Grouped(gdf, )
-    # # partition(gdf, Distributed(), parent=df)
-    # # @partitioned df gdf begin end
-
-    # # when merging a GroupedDataFrame which must be pseudogrouped,
-    # # vcat the parents and the groupindices and modify the cat-ed parents
-    # # to have a column for the parent index and the gorup iindex within that parent
-    # # and then do a group-by on this
-    # # for writing to disk, just be sure to put everything into a dataframe such that it
-    # # can be read back and have a column that specifies how to group by
-
-    gdf
+    res
 end
 
 # GroupedDataFrame column manipulation
 
-function DataFrames.select(gdf::GroupedDataFrame, args...; kwargs...)
-    get(kwargs, :ungroup, true) || throw(ArgumentError("Select/transform/combine/subset operations on grouped dataframes must produce dataframes"))
-    get(kwargs, :copycols, true) || throw(ArgumentError("Select/transform/combine/subset operations on grouped dataframes cannot return a view"))
-    get(kwargs, :keepkeys, true) || throw(ArgumentError("Select/transform/combine/subset operations on grouped dataframes must keep the grouping columns"))
+function pts_for_select(futures::Base.Vector{Future})
+    gdf_parent, gdf, res, groupcols, groupkwargs, args, kwargs = futures
+    groupingkeys::Base.Vector{String} = _get_res_groupingkeys(true, gdf_parent, sample(groupcols))
+    gdf_parent_sample_for_grouping_keys::DFSampleForGrouping = sample_for_grouping(gdf_parent, groupingkeys)
+    pt(gdf_parent, Grouped(gdf_parent_sample_for_grouping_keys, scaled_by_same_as=res))
+    pt(gdf, BlockedAlong(1) & ScaledBySame(res))
+    pt(res, ScaledBySame(gdf_parent))
+    pt(gdf_parent, gdf, res, groupcols, groupkwargs, args, kwargs, Replicated())
+end
 
-    gdf_parent = gdf.parent
-    groupcols = gdf.groupcols
-    groupkwargs = gdf.groupkwargs
-    res = Future(datatype="DataFrame")
-    args = Future(args)
-    kwargs = Future(kwargs)
-
-    groupingkeys = Symbol.(names(sample(gdf_parent), compute(groupcols)))
-
-    partitioned_with(scaled=[gdf_parent, gdf, res], grouped=[gdf_parent, res], keys=get(compute(kwargs), :keepkeys, true) ? groupingkeys : [], drifted=true, modules="DataFrames") do
-        pt(gdf_parent, Grouped(gdf_parent, by=groupingkeys, scaled_by_same_as=res), match=res)
-        pt(gdf, Blocked(along=1) & ScaledBySame(as=res))
-        pt(res, ScaledBySame(as=gdf_parent))
-        pt(gdf_parent, gdf, res, groupcols, groupkwargs, args, kwargs, Replicated())
-    end
-
-    # partition(gdf, Replicated())
-    # partition(gdf_parent, Replicated())
-    # partition(res, Replicated())
-
-    # # TODO: Share sampled names if performance is impacted by repeatedly getting names
-
-    # # allowedgroupingkeys = names(sample(gdf_parent), compute(groupcols))
-    # # allowedgroupingkeys = get(Base.collect(groupkwargs), :sort, false) ? allowedgroupingkeys[1:1] : allowedgroupingkeys
-    # # union!(sample(gdf_parent, :allowedgroupingkeys), allowedgroupingkeys)
-    # if get(Base.collect(kwargs), :keepkeys, true)
-    #     union!(sample(res, :allowedgroupingkeys), sample(gdf, :allowedgroupingkeys))
-    # end
-    # for key in sample(gdf_parent, :allowedgroupingkeys)
-    #     setsample(res, :keystatistics, key, sample(gdf_parent, :keystatistics, key))
-    #     for balanced in [true, false]
-    #         partition(gdf_parent, Grouped(;key=key, balanced=balanced))
-    #         if get(Base.collect(kwargs), :keepkeys, true)
-    #             partition(res, Partitioned(), match=gdf_parent)
-    #         else
-    #             partition(res, Blocked(dim=1), match=gdf_parent, on=["balanced", "id"])
-    #         end
-    #     end
-    # end
-    # partition(gdf, Blocked(;dim=1), match=gdf_parent, on=["balanced", "id"])
-
-    # partition(groupcols, Replicated())
-    # partition(groupkwargs, Replicated())
-    # partition(args, Replicated())
-    # partition(kwargs, Replicated())
-
-    # # if kwargs[:ungroup]
-
-    # # else
-    # #     res = GroupedDataFrame(gdf)
-    # #     res_nrows = res.nrows
-    # #     partition(gdf, Pseudogrouped())
-    # #     partition(args, Replicated())
-    # #     partition(kwargs, Replicated())
-    # #     @partitioned gdf res res_nrows args kwargs begin
-    # #         res = select(gdf, args..., kwargs...)
-    # #         res_nrows = length(gdf_nrows)
-    # #     end
-    # # end
-
-    # mutated(res)
-
+function partitioned_for_select(gdf_parent::Future, gdf::Future, res::Future, res_groupingkeys::Base.Vector{String}, groupcols::Future, groupkwargs::Future, args::Future, kwargs::Future)
+    partitioned_with(pts_for_select, Future[gdf_parent, gdf, res, groupcols, groupkwargs, args, kwargs], scaled=[gdf_parent, gdf, res], grouped=[gdf_parent, res], keys=res_groupingkeys, drifted=true, modules=["BanyanDataFrames.DataFrames"], keytype=String)
     @partitioned gdf gdf_parent groupcols groupkwargs args kwargs res begin
         if !(gdf isa DataFrames.GroupedDataFrame) || gdf.parent !== gdf_parent
             gdf = DataFrames.groupby(gdf_parent, groupcols; groupkwargs...)
         end
         res = DataFrames.select(gdf, args...; kwargs...)
     end
-
-    DataFrame(res, copy(gdf_parent.nrows))
 end
 
-function DataFrames.transform(gdf::GroupedDataFrame, args...; kwargs...)
-    get(kwargs, :ungroup, true) || throw(ArgumentError("Select/transform/combine/subset operations on grouped dataframes must produce dataframes"))
-    get(kwargs, :copycols, true) || throw(ArgumentError("Select/transform/combine/subset operations on grouped dataframes cannot return a view"))
-    get(kwargs, :keepkeys, true) || throw(ArgumentError("Select/transform/combine/subset operations on grouped dataframes must keep the grouping columns"))
+function DataFrames.select(gdf::GroupedDataFrame, args...; kwargs...)::DataFrame
+    @nospecialize
+    get(kwargs, :ungroup, true)::Bool || throw(ArgumentError("Select/transform/combine/subset operations on grouped dataframes must produce dataframes"))
+    get(kwargs, :copycols, true)::Bool || throw(ArgumentError("Select/transform/combine/subset operations on grouped dataframes cannot return a view"))
+    get(kwargs, :keepkeys, true)::Bool || throw(ArgumentError("Select/transform/combine/subset operations on grouped dataframes must keep the grouping columns"))
 
-    gdf_parent = gdf.parent
+    gdf_parent = gdf.parent.data
+    res_nrows = copy(gdf.parent.nrows)
     groupcols = gdf.groupcols
     groupkwargs = gdf.groupkwargs
     res = Future(datatype="DataFrame")
     args = Future(args)
+    res_groupingkeys::Base.Vector{String} = _get_res_groupingkeys(get(kwargs, :keepkeys, true)::Bool, gdf_parent, sample(groupcols))
     kwargs = Future(kwargs)
 
-    # TODO: Put groupingkeys in GroupedDataFrame
-    groupingkeys = Symbol.(names(sample(gdf_parent), compute(groupcols)))
+    partitioned_for_select(gdf_parent, gdf.data, res, res_groupingkeys, groupcols, groupkwargs, args, kwargs)
 
-    # TODO: Maybe automatically infer sample properties (set with
-    # `partitioned_using`) by looking at the actual annotations in
-    # `partitioned_with`
+    DataFrame(res, res_nrows)
+end
 
-    partitioned_with(scaled=[gdf_parent, gdf, res], grouped=[gdf_parent, res], keys=get(compute(kwargs), :keepkeys, true) ? groupingkeys : [], drifted=true, modules="DataFrames") do
-        pt(gdf_parent, Grouped(gdf_parent, by=groupingkeys, scaled_by_same_as=res), match=res)
-        pt(gdf, Blocked(along=1) & ScaledBySame(as=res))
-        pt(res, ScaledBySame(as=gdf_parent))
-        pt(gdf_parent, gdf, res, groupcols, groupkwargs, args, kwargs, Replicated())
-    end
+function partitioned_for_transform(gdf_parent::Future, gdf::Future, res::Future, res_groupingkeys::Base.Vector{String}, groupcols::Future, groupkwargs::Future, args::Future, kwargs::Future)
+    partitioned_with(pts_for_select, Future[gdf_parent, gdf, res, groupcols, groupkwargs, args, kwargs], scaled=[gdf_parent, gdf, res], grouped=[gdf_parent, res], keys=res_groupingkeys, drifted=true, modules=["BanyanDataFrames.DataFrames"], keytype=String)
 
     @partitioned gdf gdf_parent groupcols groupkwargs args kwargs res begin
         if !(gdf isa DataFrames.GroupedDataFrame) || gdf.parent !== gdf_parent
@@ -225,224 +132,131 @@ function DataFrames.transform(gdf::GroupedDataFrame, args...; kwargs...)
         end
         res = DataFrames.transform(gdf, args...; kwargs...)
     end
-
-    DataFrame(res, copy(gdf_parent.nrows))
 end
 
-function DataFrames.combine(gdf::GroupedDataFrame, args...; kwargs...)
-    get(kwargs, :ungroup, true) || throw(ArgumentError("Select/transform/combine/subset operations on grouped dataframes must produce dataframes"))
-    get(kwargs, :copycols, true) || throw(ArgumentError("Select/transform/combine/subset operations on grouped dataframes cannot return a view"))
-    get(kwargs, :keepkeys, true) || throw(ArgumentError("Select/transform/combine/subset operations on grouped dataframes must keep the grouping columns"))
+function DataFrames.transform(gdf::GroupedDataFrame, args...; kwargs...)::DataFrame
+    @nospecialize
+    get(kwargs, :ungroup, true)::Bool || throw(ArgumentError("Select/transform/combine/subset operations on grouped dataframes must produce dataframes"))
+    get(kwargs, :copycols, true)::Bool || throw(ArgumentError("Select/transform/combine/subset operations on grouped dataframes cannot return a view"))
+    get(kwargs, :keepkeys, true)::Bool || throw(ArgumentError("Select/transform/combine/subset operations on grouped dataframes must keep the grouping columns"))
 
-    gdf_parent = gdf.parent
+    gdf_parent = gdf.parent.data
+    res_nrows = copy(gdf.parent.nrows)
     groupcols = gdf.groupcols
     groupkwargs = gdf.groupkwargs
-    res_nrows = Future()
-    res = DataFrame(Future(datatype="DataFrame"), res_nrows)
+    res = Future(datatype="DataFrame")
+    res_groupingkeys = _get_res_groupingkeys(get(kwargs, :keepkeys, true)::Bool, gdf_parent, sample(groupcols))
     args = Future(args)
+    
     kwargs = Future(kwargs)
 
     # TODO: Put groupingkeys in GroupedDataFrame
-    groupingkeys = Symbol.(names(sample(gdf_parent), compute(groupcols)))
 
-    partitioned_with(scaled=[gdf_parent, gdf, res], grouped=[gdf_parent, res], keys=get(compute(kwargs), :keepkeys, true) ? groupingkeys : [], drifted=true, modules="DataFrames") do
-        # TODO: If we want to support `keepkeys=false`, we need to make the
-        # result be Blocked and `filtered_from` the input
-        pts_for_filtering(gdf_parent, res, with=Grouped, by=groupingkeys)
-        pt(gdf, Blocked(along=1) & ScaledBySame(as=gdf_parent))
-        pt(res_nrows, Reducing(quote + end)) # TODO: Change to + if possible
-        # pt(gdf_parent, res, gdf, res_nrows, groupcols, groupkwargs, args, kwargs, Replicated())
-        pt(gdf_parent, res, gdf, res_nrows, groupcols, groupkwargs, args, kwargs, Replicated())
-    end
+    # TODO: Maybe automatically infer sample properties (set with
+    # `partitioned_using`) by looking at the actual annotations in
+    # `partitioned_with`
 
-    @partitioned gdf gdf_parent groupcols groupkwargs args kwargs res res_nrows begin
-        if !(gdf isa DataFrames.GroupedDataFrame) || gdf.parent !== gdf_parent
-            gdf = DataFrames.groupby(gdf_parent, groupcols; groupkwargs...)
+    partitioned_for_transform(gdf_parent, gdf.data, res, res_groupingkeys, groupcols, groupkwargs, args, kwargs)
+
+    DataFrame(res, res_nrows)
+end
+
+function pts_for_combine(futures::Base.Vector{Future})
+    gdf_parent::Future, gdf::Future, res_nrows::Future, res::Future, groupcols::Future, groupkwargs::Future, args::Future, kwargs::Future = futures
+
+    groupingkeys::Base.Vector{String} = _get_res_groupingkeys(true, gdf_parent, sample(groupcols))
+
+    # TODO: If we want to support `keepkeys=false`, we need to make the
+    # result be Blocked and `filtered_from` the input
+    rpts = ReducingGroupBy(sample(groupcols), sample(groupkwargs), sample(args), sample(kwargs))
+    for rpt in rpts
+        if Banyan.INVESTIGATING_REDUCING_GROUPBY
+            @show rpt
         end
-        res = DataFrames.combine(gdf, args...; kwargs...)
+        pt(gdf_parent, BlockedAlong(1) & Balanced())
+        pt(gdf_parent, BlockedAlong(1) & Unbalanced(res))
+        pt(res, rpt & ScaledBySame(gdf_parent))
+    end
+    pts_for_filtering(gdf_parent, res, groupingkeys)
+    # TODO: Make a ReducingGroupBy PT constructor that is similar to Reducing but takes in groupcols, groupkwargs, args, kwargs to determine the reducing_op and finishing_op
+    # TODO: Iterate over result of ReducingGroupBy and, annotate gdf_parent with Blocked and res with the ReducingGroupBy
+    pt(gdf, BlockedAlong(1) & ScaledBySame(gdf_parent))
+    pt(res_nrows, Reducing(+)) # TODO: Change to + if possible
+    # pt(gdf_parent, res, gdf, res_nrows, groupcols, groupkwargs, args, kwargs, Replicated())
+    pt(gdf_parent, res, gdf, res_nrows, groupcols, groupkwargs, args, kwargs, Replicated())
+end
+
+function partitioned_for_combine(gdf_parent::Future, gdf::Future, res_nrows::Future, res::Future, res_groupingkeys::Base.Vector{String}, groupcols::Future, groupkwargs::Future, args::Future, kwargs::Future)
+    partitioned_with(pts_for_combine, Future[gdf_parent, gdf, res_nrows, res, groupcols, groupkwargs, args, kwargs], scaled=[gdf_parent, gdf], grouped=[gdf_parent, res], keys=res_groupingkeys, drifted=true, modules=["BanyanDataFrames.DataFrames"], keytype=String)
+    @partitioned gdf gdf_parent groupcols groupkwargs args kwargs res res_nrows begin
+        if isempty(gdf_parent)
+            # This is needed because `combine` will fail for empty data with
+            # no groups when you have reducing operations like `minimum` that
+            # don't have an `init` specified.
+            res = DataFrames.DataFrame()
+        else
+            if !(gdf isa DataFrames.GroupedDataFrame) || gdf.parent !== gdf_parent
+                gdf = DataFrames.groupby(gdf_parent, groupcols; groupkwargs...)
+            end
+            res = DataFrames.combine(gdf, args...; kwargs...)
+            set_parent(res, gdf)
+        end
         res_nrows = DataFrames.nrow(res)
     end
-
-    res
 end
 
-function DataFrames.subset(gdf::GroupedDataFrame, args...; kwargs...)
-    get(kwargs, :ungroup, true) || throw(ArgumentError("Select/transform/combine/subset operations on grouped dataframes must produce dataframes"))
-    get(kwargs, :copycols, true) || throw(ArgumentError("Select/transform/combine/subset operations on grouped dataframes cannot return a view"))
-    get(kwargs, :keepkeys, true) || throw(ArgumentError("Select/transform/combine/subset operations on grouped dataframes must keep the grouping columns"))
+function DataFrames.combine(gdf::GroupedDataFrame, args...; kwargs...)::DataFrame
+    @nospecialize
+    get(kwargs, :ungroup, true)::Bool || throw(ArgumentError("Select/transform/combine/subset operations on grouped dataframes must produce dataframes"))
+    get(kwargs, :copycols, true)::Bool || throw(ArgumentError("Select/transform/combine/subset operations on grouped dataframes cannot return a view"))
+    get(kwargs, :keepkeys, true)::Bool || throw(ArgumentError("Select/transform/combine/subset operations on grouped dataframes must keep the grouping columns"))
 
-    gdf_parent = gdf.parent
+    gdf_parent = gdf.parent.data
     groupcols = gdf.groupcols
     groupkwargs = gdf.groupkwargs
     res_nrows = Future()
-    res = DataFrame(Future(datatype="DataFrame"), res_nrows)
+    res = Future(datatype="DataFrame")
     args = Future(args)
+    res_groupingkeys::Base.Vector{String} = _get_res_groupingkeys(get(kwargs, :keepkeys, true)::Bool, gdf_parent, sample(groupcols))
     kwargs = Future(kwargs)
 
-    # TODO: Put groupingkeys in GroupedDataFrame
-    groupingkeys = Symbol.(names(sample(gdf_parent), compute(groupcols)))
+    partitioned_for_combine(gdf_parent, gdf.data, res_nrows, res, res_groupingkeys, groupcols, groupkwargs, args, kwargs)
 
-    partitioned_with(scaled=[gdf_parent, gdf, res], grouped=[gdf_parent, res], keys=get(compute(kwargs), :keepkeys, true) ? groupingkeys : [], drifted=true, modules="DataFrames") do
-        pts_for_filtering(gdf_parent, res, with=Grouped, by=groupingkeys)
-        pt(gdf, Blocked(along=1) & ScaledBySame(as=gdf_parent))
-        pt(res_nrows, Reducing(quote (a, b) -> a .+ b end))
-        pt(gdf_parent, res, gdf, res_nrows, groupcols, groupkwargs, args, kwargs, Replicated())
-    end
+    DataFrame(res, res_nrows)
+end
 
+function partitioned_for_subset(gdf_parent::Future, gdf::Future, res_nrows::Future, res::Future, res_groupingkeys::Base.Vector{String}, groupcols::Future, groupkwargs::Future, args::Future, kwargs::Future)
+    # We don't annotate res as scaled because in an NYC trip data benchmark,
+    # it was overestimating the actual
+    # memory usage as 1024x the sampled memory usage when the actual was just
+    # 3x the sampled.
+    partitioned_with(pts_for_combine, Future[gdf_parent, gdf, res_nrows, res, groupcols, groupkwargs, args, kwargs], scaled=[gdf_parent, gdf, res], grouped=[gdf_parent, res], keys=res_groupingkeys, drifted=true, modules=["BanyanDataFrames.DataFrames"], keytype=String)
     @partitioned gdf gdf_parent groupcols groupkwargs args kwargs res res_nrows begin
+        
         if !(gdf isa DataFrames.GroupedDataFrame) || gdf.parent !== gdf_parent
             gdf = DataFrames.groupby(gdf_parent, groupcols; groupkwargs...)
         end
         res = DataFrames.subset(gdf, args...; kwargs...)
         res_nrows = DataFrames.nrow(res)
     end
-
-    res
 end
 
-# function transform(gdf::GroupedDataFrame)
-#     get(kwargs, :ungroup, true) || throw(ArgumentError("Select/transform/combine/subset operations on grouped dataframes must produce dataframes"))
-#     get(kwargs, :copycols, true) || throw(ArgumentError("Select/transform/combine/subset operations on grouped dataframes cannot return a view"))
+function DataFrames.subset(gdf::GroupedDataFrame, args...; kwargs...)::DataFrame
+    @nospecialize
+    get(kwargs, :ungroup, true)::Bool || throw(ArgumentError("Select/transform/combine/subset operations on grouped dataframes must produce dataframes"))
+    get(kwargs, :copycols, true)::Bool || throw(ArgumentError("Select/transform/combine/subset operations on grouped dataframes cannot return a view"))
+    get(kwargs, :keepkeys, true)::Bool || throw(ArgumentError("Select/transform/combine/subset operations on grouped dataframes must keep the grouping columns"))
 
-#     gdf_parent = gdf.parent
-#     groupcols = gdf.groupcols
-#     groupkwargs = gdf.groupkwargs
-#     res = Future()
-#     args = Future(args)
-#     kwargs = Future(kwargs)
+    gdf_parent = gdf.parent.data
+    groupcols = gdf.groupcols
+    groupkwargs = gdf.groupkwargs
+    res_nrows = Future()
+    res = Future(datatype="DataFrame")
+    args = Future(args)
+    res_groupingkeys::Base.Vector{String} = _get_res_groupingkeys(get(kwargs, :keepkeys, true)::Bool, gdf_parent, sample(groupcols))
+    kwargs = Future(kwargs)
 
-#     partition(gdf, Replicated())
-#     partition(gdf_parent, Replicated())
-#     partition(res, Replicated())
-    
-#     if get(Base.collect(kwargs), :keepkeys, true)
-#         union!(sample(res, :allowedgroupingkeys), sample(gdf, :allowedgroupingkeys))
-#     end
-#     for key in sample(gdf_parent, :allowedgroupingkeys)
-#         setsample(res, :keystatistics, key, sample(gdf_parent, :keystatistics, key))
-#         for balanced in [true, false]
-#             partition(gdf_parent, Grouped(;key=key, balanced=balanced))
-#             if get(Base.collect(kwargs), :keepkeys, true)
-#                 partition(res, Partitioned(), match=gdf_parent)
-#             else
-#                 partition(res, Blocked(dim=1), match=gdf_parent, on=["balanced", "id"])
-#             end
-#         end
-#     end
-#     partition(gdf, Blocked(;dim=1), match=gdf_parent, on=["balanced", "id"])
+    partitioned_for_subset(gdf_parent, gdf.data, res_nrows, res, res_groupingkeys, groupcols, groupkwargs, args, kwargs)
 
-#     partition(groupcols, Replicated())
-#     partition(groupkwargs, Replicated())
-#     partition(args, Replicated())
-#     partition(kwargs, Replicated())
-
-#     mutated(res)
-
-#     @partitioned gdf gdf_parent groupcols groupkwargs args kwargs res begin
-#         if gdf.parent !== gdf_parent
-#             gdf = groupby(gdf_parent, groupcols; groupkwargs...)
-#         end
-#         res = transform(gdf, args...; kwargs...)
-#     end
-
-#     res
-# end
-
-# function combine(gdf::GroupedDataFrame)
-#     get(kwargs, :ungroup, true) || throw(ArgumentError("Select/transform/combine/subset operations on grouped dataframes must produce dataframes"))
-#     get(kwargs, :copycols, true) || throw(ArgumentError("Select/transform/combine/subset operations on grouped dataframes cannot return a view"))
-
-#     gdf_parent = gdf.parent
-#     groupcols = gdf.groupcols
-#     groupkwargs = gdf.groupkwargs
-#     res = Future()
-#     args = Future(args)
-#     kwargs = Future(kwargs)
-
-#     partition(gdf, Replicated())
-#     partition(gdf_parent, Replicated())
-#     partition(res, Replicated())
-    
-#     if get(Base.collect(kwargs), :keepkeys, true)
-#         union!(sample(res, :allowedgroupingkeys), sample(gdf, :allowedgroupingkeys))
-#     end
-#     for key in sample(gdf_parent, :allowedgroupingkeys)
-#         for balanced in [true, false]
-#             partition(gdf_parent, Grouped(;key=key, balanced=balanced))
-#             if get(Base.collect(kwargs), :keepkeys, true)
-#                 partition(res, Grouped(key=key, balanced=false, id="*"), match=gdf_parent, on="divisions")
-#             else
-#                 partition(res, Blocked(dim=1, balanced=false, id="*"))
-#             end
-#         end
-#     end
-#     partition(gdf, Blocked(;dim=1), match=gdf_parent, on=["balanced", "id"])
-
-#     partition(groupcols, Replicated())
-#     partition(groupkwargs, Replicated())
-#     partition(args, Replicated())
-#     partition(kwargs, Replicated())
-
-#     # TODO: Allow for putting multiple variables that share a PT in a call to partition
-
-#     mutated(res)
-
-#     @partitioned gdf gdf_parent groupcols groupkwargs args kwargs res begin
-#         if gdf.parent !== gdf_parent
-#             gdf = groupby(gdf_parent, groupcols; groupkwargs...)
-#         end
-#         res = combine(gdf, args...; kwargs...)
-#     end
-
-#     res
-# end
-
-# # TODO: Implement filter using some framework for having references by keeping
-# # track of the lineage of which code regions produced which 
-
-# function subset(gdf::GroupedDataFrame)
-#     get(kwargs, :ungroup, true) || throw(ArgumentError("Select/transform/combine/subset operations on grouped dataframes must produce dataframes"))
-#     get(kwargs, :copycols, true) || throw(ArgumentError("Select/transform/combine/subset operations on grouped dataframes cannot return a view"))
-
-#     gdf_parent = gdf.parent
-#     groupcols = gdf.groupcols
-#     groupkwargs = gdf.groupkwargs
-#     res = Future()
-#     args = Future(args)
-#     kwargs = Future(kwargs)
-
-#     partition(gdf, Replicated())
-#     partition(gdf_parent, Replicated())
-#     partition(res, Replicated())
-    
-#     if get(Base.collect(kwargs), :keepkeys, true)
-#         union!(sample(res, :allowedgroupingkeys), sample(gdf, :allowedgroupingkeys))
-#     end
-#     for key in sample(gdf_parent, :allowedgroupingkeys)
-#         for balanced in [true, false]
-#             partition(gdf_parent, Grouped(;key=key, balanced=balanced))
-#             if get(Base.collect(kwargs), :keepkeys, true)
-#                 partition(res, Grouped(key=key, balanced=false, id="*"), match=gdf_parent, on="divisions")
-#             else
-#                 partition(res, Blocked(dim=1, balanced=false, id="*"))
-#             end
-#         end
-#     end
-#     partition(gdf, Blocked(;dim=1), match=gdf_parent, on=["balanced", "id"])
-
-#     partition(groupcols, Replicated())
-#     partition(groupkwargs, Replicated())
-#     partition(args, Replicated())
-#     partition(kwargs, Replicated())
-
-#     mutated(res)
-
-#     @partitioned gdf gdf_parent groupcols groupkwargs args kwargs res begin
-#         if gdf.parent !== gdf_parent
-#             gdf = groupby(gdf_parent, groupcols; groupkwargs...)
-#         end
-#         res = subset(gdf, args...; kwargs...)
-#     end
-
-#     res
-# end
+    DataFrame(res, res_nrows)
+end

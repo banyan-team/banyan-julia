@@ -78,18 +78,37 @@ function get_test_path(src, format, filetype, nimages, bucket_name)
     elseif src == "S3"
         if format == "path"
             "s3://$bucket_name/$s3_dir/test_image_1.$filetype"
-        elseif format == "directory"
-            "s3://$bucket_name/$s3_dir/"
-        elseif format == "generator"
-            prefix_path = "s3://$bucket_name/$s3_dir/test_image_"
-            (
-                Dict{String,Any}(
-                    "prefix_path" => prefix_path,
-                    "filetype" => filetype
-                ),
-                1:nimages,
-                (path_info, i) -> path_info["prefix_path"] * "$i." * path_info["filetype"]
-            )
+        elseif format == "directory" || format == "generator"
+            p = S3Path("s3://$bucket_name/earthdata_jpg_$nimages/", config=Banyan.get_aws_config())
+            if !isdir(p)
+                mkdir(p)
+            end
+            for i in 1:nimages
+                dst = joinpath(p, "part_$i")
+                if !isfile(dst)
+                    srcp = "https://gibs.earthdata.nasa.gov/wmts/epsg4326/best/MODIS_Terra_CorrectedReflectance_TrueColor/default/2012-07-09/250m/6/13/$i.jpg"
+                    src = Downloads.download(srcp)
+                    cp(Path(src), dst)
+                end
+            end
+            if format == "directory"
+                "s3://$bucket_name/earthdata_jpg_$nimages/"
+            else
+                (
+                    1:nimages,
+                    i -> "s3://$bucket_name/earthdata_jpg_$nimages/part_$i"
+                )
+            end
+        # elseif format == "generator"
+        #     prefix_path = "s3://$bucket_name/$s3_dir/test_image_"
+        #     (
+        #         Dict{String,Any}(
+        #             "prefix_path" => prefix_path,
+        #             "filetype" => filetype
+        #         ),
+        #         1:nimages,
+        #         (path_info, i) -> path_info["prefix_path"] * "$i." * path_info["filetype"]
+        #     )
         end
     end
 end

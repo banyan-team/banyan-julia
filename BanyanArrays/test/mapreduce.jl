@@ -157,21 +157,27 @@ end
         x = BanyanArrays.fill(10.0, 2048)
         y = BanyanArrays.fill(10.0, 2048)
         a = BanyanArrays.fill(10.0, 2048)
+        @show a
+        @show x
         x += y
+        @show x
+        @show a
         x += a
+        @show x
+        @show a
         y_sum_collect = compute(sum(y))
         @test y_sum_collect == 2048 * 10.0
         a = nothing
         x_sum_collect = compute(sum(x))
         @test x_sum_collect == 2048 * 10.0 * 3
-        y = nothing
-        z = x + x
-        z_sum_collect = compute(sum(z))
-        @test z_sum_collect == 2048 * 10.0 * 6
-        x_sum = sum(x)
-        x = nothing
-        x_sum_collect = compute(x_sum)
-        @test x_sum_collect == 2048 * 10.0 * 3
+        # y = nothing
+        # z = x + x
+        # z_sum_collect = compute(sum(z))
+        # @test z_sum_collect == 2048 * 10.0 * 6
+        # x_sum = sum(x)
+        # x = nothing
+        # x_sum_collect = compute(x_sum)
+        # @test x_sum_collect == 2048 * 10.0 * 3
     end
 end
 
@@ -251,12 +257,14 @@ end
     end
 end
 
-@testset "getindex and collect with $scheduling_config" for scheduling_config in [
+@testset "getindex and collect with $scheduling_config and different_partitioning_dims=$different_partitioning_dims" for scheduling_config in [
     "default scheduling",
     "parallelism encouraged",
     "parallelism and batches encouraged",
-]
+], different_partitioning_dims in [true, false]
     use_session_for_testing(scheduling_config_name = scheduling_config) do
+
+        Banyan.investigate_different_partitioning_dims(different_partitioning_dims)
 
         x = BanyanArrays.fill(1.0, (1000, 100))
         x_vecs = mapslices(v -> [v], x, dims=2)[:, 1]
@@ -269,6 +277,7 @@ end
 
         x = BanyanArrays.fill(1.0, (1000, 100))
         x_vecs = mapslices(v -> [v], x, dims=2)[:]
+        @test length(x_vecs) == 1000
         bc = BanyanArrays.collect(1:length(x_vecs))
         res = map(x_vecs, BanyanArrays.collect(1:1000)) do x_vec, i
             length(x_vec) + i
@@ -301,7 +310,9 @@ end
             0
         end
         compute_inplace(res)
-        part1_str = read(S3Path("s3://$(get_cluster_s3_bucket_name())/test_getindex_and_collect/part1.txt", config=Banyan.get_aws_config()), String)
+        part1_str = offloaded() do
+            read("s3/$(get_cluster_s3_bucket_name())/test_getindex_and_collect/part1.txt", String)
+        end
         offloaded() do 
             bucket = readdir("s3")[1]
             rm("s3/$bucket/test_getindex_and_collect/", recursive=true)
@@ -310,16 +321,16 @@ end
     end
 end
 
-@testset "Main worker stuck" begin
-    use_session_for_testing(scheduling_config_name = "default scheduling") do
-        offloaded(distributed=true) do
-            if get_worker_idx() > 1
-                error("Failure right here")
-            end
-            sync_across()
-        end
-    end
-end
+# @testset "Main worker stuck" begin
+#     use_session_for_testing(scheduling_config_name = "default scheduling") do
+#         offloaded(distributed=true) do
+#             if get_worker_idx() > 1
+#                 error("Failure right here")
+#             end
+#             sync_across()
+#         end
+#     end
+# end
 
 # TODO: Re-enable this test once we ensure that we can write out small
 # enough datasets without unnecessary batching

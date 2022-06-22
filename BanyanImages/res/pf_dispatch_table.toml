@@ -4,7 +4,7 @@ partition_memory_usage = "part"
 scale_by = 2
 owns_partitions = false
 required = { name = "Distributing", distribution = "blocked", id = "!" }
-locations = [ {name = "Remote", format = "png"}, {name = "Remote", format = "jpg"} ]
+locations = [ {name = "Remote", format = "image"} ]
 
 # [merges.WriteImage]
 # partition_memory_usage = "part"

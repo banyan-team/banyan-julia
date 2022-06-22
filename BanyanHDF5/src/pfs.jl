@@ -1,34 +1,40 @@
-function ReadBlockHDF5(
+# TODO: Use retry logic in pfs.jl and locations.jl for BanyanHDF5 if needed
+
+function ReadBlockHelperHDF5(
     src,
-    params,
-    batch_idx::Integer,
-    nbatches::Integer,
+    params::Dict{String,Any},
+    batch_idx::Int64,
+    nbatches::Int64,
     comm::MPI.Comm,
-    loc_name,
-    loc_params,
+    loc_name::String,
+    loc_params::Dict{String,Any},
+    loc_params_path::String,
+    loc_params_subpath::String,
+    dim::Int64
 )
     # Handle single-file nd-arrays
     # We check if it's a file because for items on disk, files are HDF5
     # datasets while directories contain Parquet, CSV, or Arrow datasets
-    path = Banyan.getpath(loc_params["path"], comm)
-    if isinvestigating()[:parallel_hdf5]
+    path = Banyan.getpath(loc_params_path)
+    if Banyan.INVESTIGATING_PARALLEL_HDF5
         println("In ReadBlockHDF5 with path=$path, loc_name=$loc_name, isfile(path)=$(isfile(path))")
     end
-    if !((loc_name == "Remote" && (occursin(".h5", loc_params["path"]) || occursin(".hdf5", loc_params["path"]))) ||
+    if !((loc_name == "Remote" && (occursin(".h5", loc_params_path) || occursin(".hdf5", loc_params_path))) ||
         (loc_name == "Disk" && HDF5.ishdf5(path)))
         error("Expected HDF5 file to read in; failed to read from $path")
     end
 
-    if isinvestigating()[:parallel_hdf5]
+    if Banyan.INVESTIGATING_PARALLEL_HDF5
         println("In ReadBlockHDF5 with HDF5.ishdf5(path)=$(HDF5.ishdf5(path))")
     end
+    filtering_op = get(params, "filtering_op", identity)
        
-    # @show isfile(path)
+    info = MPI.Info()
     f = h5open(path, "r")
-    if isinvestigating()[:parallel_hdf5]
+    if Banyan.INVESTIGATING_PARALLEL_HDF5
         println("In ReadBlockHDF5 after h5open")
     end
-    dset = loc_name == "Disk" ? f["part"] : f[loc_params["subpath"]]
+    dset = loc_name == "Disk" ? f["part"] : f[loc_params_subpath]
 
     ismapping = false
     # TODO: Use `view` instead of `getindex` in the call to
@@ -41,98 +47,126 @@ function ReadBlockHDF5(
     #     close(f)
     #     dset = Banyan.split_on_executor(dset, params["key"], batch_idx, nbatches, comm)
     # else
-    dim = params["key"]
     dimsize = size(dset, dim)
     dimrange = Banyan.split_len(dimsize, batch_idx, nbatches, comm)
     dset = if length(dimrange) == 0
         # If we want to read in an emoty dataset, it's a little tricky to
         # do that with HDF5.jl. But this is how we do it:
         if dimsize == 0
-            dset[[Colon() for _ in 1:ndims(dset)]...]
+            dset[fill(Colon(), ndims(dset))...]
         else
-            dset[[
+            dim_selector_a::Base.Vector{Union{UnitRange{Int64},Colon}} = Union{UnitRange{Int64},Colon}[]
+            dim_selector_b::Base.Vector{Union{UnitRange{Int64},Colon}} = Union{UnitRange{Int64},Colon}[]
+            for i = 1:ndims(dset)
+                if i == dim
+                    push!(dim_selector_a, 1:1)
+                    push!(dim_selector_b, 1:0)
+                else
+                    push!(dim_selector_a, Colon())
+                    push!(dim_selector_b, Colon())
+                end 
+            end
+            dset[
                 # We first read in the first slice into memory. This is
                 # because HDF5.jl (unlike h5py) does not support just
                 # reading in an empty `1:0` slice.
-                if i == dim
-                    1:1
-                else
-                    Colon()
-                end for i = 1:ndims(dset)
-            ]...][[
+                dim_selector_a...
+            ][
                 # Then once that row is in memory we just remove it so
                 # that we have the appropriate empty slice.
-                if i == dim
-                    1:0
-                else
-                    Colon()
-                end for i = 1:ndims(dset)
-            ]...]
+                dim_selector_b...
+            ]
         end
     else 
         # If it's not an empty slice that we want to read, it's pretty
         # straightforward - we just specify the slice.
-        dset[[
+        dim_selector::Base.Vector{Union{UnitRange{Int64},Colon}} = Union{UnitRange{Int64},Colon}[]
+        for i = 1:ndims(dset)
             if i == dim
-                dimrange
+                push!(dim_selector, dimrange)
             else
-                Colon()
-            end for i = 1:ndims(dset)
-        ]...]
+                push!(dim_selector, Colon())
+            end 
+        end
+        filtering_op(dset[dim_selector...])
     end
     close(f)
-    if isinvestigating()[:parallel_hdf5]
+    if Banyan.INVESTIGATING_PARALLEL_HDF5
         println("In ReadBlockHDF5 at end with size(dset)=$(size(dset)), dimrange=$dimrange")
     end
     dset
 end
 
-ReadGroupHDF5 = Banyan.ReadGroup(ReadBlockHDF5)
-
-function WriteHDF5(
+ReadBlockHDF5(
     src,
-    part,
-    params,
-    batch_idx::Integer,
-    nbatches::Integer,
+    params::Dict{String,Any},
+    batch_idx::Int64,
+    nbatches::Int64,
     comm::MPI.Comm,
+    loc_name::String,
+    loc_params::Dict{String,Any},
+) = ReadBlockHelperHDF5(
+    src,
+    params,
+    batch_idx,
+    nbatches,
+    comm,
     loc_name,
     loc_params,
+    loc_params["path"]::String,
+    loc_params["subpath"]::String,
+    params["key"]::Int64
 )
-    # Get rid of splitting divisions if they were used to split this data into
-    # groups
-    splitting_divisions = Banyan.get_splitting_divisions()
-    delete!(splitting_divisions, part)
+
+ReadGroupHelperHDF5 = ReadGroupHelper(ReadBlockHDF5, ShuffleArray)
+ReadGroupHDF5 = ReadGroup(ReadGroupHelperHDF5)
+
+function WriteHelperHDF5(
+    src,
+    part,
+    params::Dict{String,Any},
+    batch_idx::Int64,
+    nbatches::Int64,
+    comm::MPI.Comm,
+    loc_name::String,
+    loc_params::Dict{String,Any},
+    loc_params_path::String,
+    loc_params_subpath::String,
+    path_and_subpath::String,
+    dim::Int64
+)
 
     # Get path of directory to write to
-    path = loc_params["path"]
+    path::String = loc_params_path
     if startswith(path, "http://") || startswith(path, "https://")
         error("Writing to http(s):// is not supported")
     elseif startswith(path, "s3://")
-        path = Banyan.getpath(path, comm)
+        path = Banyan.getpath(path)
         # NOTE: We expect that the ParallelCluster instance was set up
         # to have the S3 filesystem mounted at ~/s3fs/<bucket name>
     else
         # Prepend "efs/" for local paths
-        path = Banyan.getpath(path, comm)
+        path = Banyan.getpath(path)
     end
 
     worker_idx = Banyan.get_worker_idx(comm)
     idx = Banyan.get_partition_idx(batch_idx, nbatches, comm)
-
-    # TODO: Use Julia serialization to write arrays as well as other
-    # objects to disk. This way, we won't trip up when we come across
-    # a distributed array that we want to write to disk but can't because
-    # of an unsupported HDF5 data type.
-    # TODO: Support missing values in the array for locations that use
-    # Julia serialized objects
-    part = Missings.disallowmissing(part)
-
-    if !hasmethod(HDF5.datatype, (eltype(part),))
-        error("Unable to write array with element type $(eltype(part)) to HDF5 dataset at $(loc_params["path"])")
+    is_main = worker_idx == 1
+    if is_main
+        # We invalidate both the location and the metadata in this case
+        serialize(
+            Banyan.get_location_path(path_and_subpath),
+            INVALID_LOCATION
+        )
     end
+    
+    # Invalidate location if 
 
-    dim = params["key"]
+    (
+        hasmethod(HDF5.datatype, (eltype(part),)) ||
+        part isa Empty
+    ) || error("Unable to write array with element type $(eltype(part)) to HDF5 dataset at $loc_params_path")
+
     # TODO: Ensure that wherever we are using MPI for reduction or
     # broadcasts, we should always ensure that we cast back into
     # the original data type. Even if we have an isbits type like a tuple,
@@ -151,11 +185,11 @@ function WriteHDF5(
     # batch to a separate group. TODO: If we need multiple batches, don't
     # write the last batch to its own group. Instead just write it into the
     # aggregated group.
-    group_prefix = loc_name == "Disk" ? "part" : loc_params["subpath"]
+    group_prefix::String = loc_name == "Disk" ? "part" : loc_params_subpath
     partition_idx = Banyan.get_partition_idx(batch_idx, nbatches, comm)
     worker_idx = Banyan.get_worker_idx(comm)
     nworkers = Banyan.get_nworkers(comm)
-    group = nbatches == 1 ? group_prefix : group_prefix * "_part$idx" * "_dim=$dim"
+    group::String = nbatches == 1 ? group_prefix : group_prefix * "_part$idx" * "_dim=$dim"
 
     # TODO: Have an option in the location to set this to either "w" or
     # "cw". Both will create a new file if it's not already there but
@@ -168,62 +202,144 @@ function WriteHDF5(
 
     info = MPI.Info()
 
+    # let fileprop = HDF5.FileAccessProperties()
+    #     fileprop.driver = HDF5.Drivers.MPIO(comm, info)
+    #     driver = fileprop.driver
+    #     h5comm = driver.comm
+    #     h5info = driver.info
+    #     @show fileprop
+    #     @show driver
+    #     @show h5comm
+    #     @show h5info
+    # end
+
     # Write out to an HDF5 dataset differently depending on whether there
     # are multiple batches per worker or just one per worker
+    dim_selector::Base.Vector{Union{UnitRange{Int64},Colon,Int64}} = Union{UnitRange{Int64},Colon,Int64}[]
     if nbatches == 1
-        # Determine the offset into the resulting HDF5 dataset where this
-        # worker should write
-        offset = MPI.Exscan(size(part, dim), +, comm)
-        if worker_idx == 1
-            offset = 0
+        # Get some size and some eltype
+        size_and_eltype = part isa Empty ? ((0,), Any) : (size(part), eltype(part))
+        # Instead of reducing, we just do a bcast. We don't need to get the total
+        # size since this is just for metadata.
+        # size_and_eltype = MPI.Reduce(size_and_eltype, reduce_sizes_and_eltypes, 0, comm)
+        nonempty_worker_idx = find_worker_idx_where(!(part isa Empty); comm=comm)
+        nonempty_worker_idx != -1 || error("Cannot write entirely empty HDF5 dataset with unknown data type")
+        some_size, whole_eltype = MPI.bcast(size_and_eltype, nonempty_worker_idx-1, comm)
+
+        # Get offset length
+        offset = MPI.Exscan(part isa Empty ? 0 : size(part, dim), +, comm)
+        offset = worker_idx == 1 ? 0 : offset
+
+        # Get size of total dataset
+        whole_size = if worker_idx == nworkers
+            Banyan.indexapply(
+                offset + (part isa Empty ? 0 : size(part, dim)),
+                some_size,
+                dim
+            )
+        else
+            (0,)
         end
+        whole_size = MPI.bcast(whole_size, nworkers - 1, comm) # Broadcast dataset size to all workers
 
         # Create file if not yet created
         # TODO: Figure out why sometimes a deleted file still `isfile`
-        f = h5open(
-            path,
-            "cw",
-            fapl_mpio = (comm, info),
-            dxpl_mpio = HDF5.H5FD_MPIO_COLLECTIVE,
-        )
-        close(f)
+        # path_isfile = sync_across(isfile(path); comm=comm)
+        # if is_main
+        #     @show HDF5.ishdf5(path)
+        #     @show isfile(path)
+        #     @show path
+        #     f = if !isfile(path) || !HDF5.ishdf5(path)
+        #         println("Before writing file")
+        #         h5open(
+        #             path,
+        #             "w"
+        #             # fapl_mpio = (comm, info),
+        #             # dxpl_mpio = HDF5.H5FD_MPIO_COLLECTIVE,
+        #         )
+        #     elseif force_overwrite
+        #         # Overwrite existing dataset if found
+        #         # TODO: Return error on client side if we don't want to allow this
+        #         f_res = h5open(path, "r+")
+        #         if haskey(f_res, group)
+        #             delete_object(f_res[group])
+        #         end
+        #         f_res
+        #     end
+
+        #     dset = create_dataset(f, group, whole_eltype, (whole_size, whole_size))
+
+        #     close(f)
+        # end
+        f = if !isfile(path) || !HDF5.ishdf5(path)
+            h5open(
+                path,
+                "w",
+                MPI.COMM_WORLD,
+                MPI.Info(),
+                # fapl_mpio = (comm, info),
+                # dxpl_mpio = HDF5.H5FD_MPIO_COLLECTIVE,
+            )
+        elseif force_overwrite
+            # Overwrite existing dataset if found
+            # TODO: Return error on client side if we don't want to allow this
+            f_res = h5open(path, "r+", comm, info)
+            if haskey(f_res, group)
+                delete_object(f_res[group])
+            end
+            f_res
+        end
+
+        dset = create_dataset(f, group, whole_eltype, (whole_size, whole_size))
 
         MPI.Barrier(comm)
 
         # Open file for writing data
-        f = h5open(path, "r+", comm, info)
+        # driver = HDF5.Drivers.MPIO(comm, info)
+        # f = h5open(
+        #     path,
+        #     "r+",
+        #     comm,
+        #     info,
+        #     # driver.comm,
+        #     # driver.info,
+        #     # fapl_mpio = (comm, info),
+        #     # dxpl_mpio = :collective # HDF5.H5FD_MPIO_COLLECTIVE,
+        #     fclose_degree = :strong
+        # )
+        
+        # whole_eltype = MPI.bcast(whole_eltype, nworkers - 1, comm)
 
-        # Overwrite existing dataset if found
-        # TODO: Return error on client side if we don't want to allow this
-        if force_overwrite && haskey(f, group)
-            delete_object(f[group])
-        end
-
-        # Create dataset
-        whole_size = Banyan.indexapply(+, size(part), offset, index = dim)
-        whole_size = MPI.bcast(whole_size, nworkers - 1, comm) # Broadcast dataset size to all workers
-        dset = create_dataset(f, group, eltype(part), (whole_size, whole_size))
+        # # Create dataset
+        # dset = f[group]
 
         # Write out each partition
-        setindex!(
-            dset,
-            part,
-            [
-                # d == dim ? Banyan.split_len(whole_size[dim], batch_idx, nbatches, comm) :
+        if !(part isa Empty)
+            dim_selector = Union{Colon, UnitRange{Int64}, Int64}[]
+            dim_selector_isempty = false
+            for d = 1:ndims(dset)
                 if d == dim
-                    (offset+1):(offset+size(part, dim))
+                    r = (offset+1):(offset+size(part, dim))
+                    push!(dim_selector, r)
+                    dim_selector_isempty = isempty(r)
                 else
-                    Colon()
-                end for d = 1:ndims(dset)
-            ]...,
-        )
-
+                    push!(dim_selector, Colon())
+                end
+            end
+            if !dim_selector_isempty
+                setindex!(
+                    dset,
+                    part,
+                    # d == dim ? Banyan.split_len(whole_size[dim], batch_idx, nbatches, comm) :
+                    dim_selector...,
+                )
+            end
+        end
         # Close file
         close(dset)
+        MPI.Barrier(MPI.COMM_WORLD)
         close(f)
-        # Not needed since we barrier at the end of each iteration of a merging
-        # stage with I/O
-        # MPI.Barrier(comm)
+        MPI.Barrier(MPI.COMM_WORLD)
     else
         # TODO: See if we have missing `close`s or missing `fsync`s or extra `MPI.Barrier`s
         # fsync_file(p) =
@@ -253,26 +369,43 @@ function WriteHDF5(
         f = h5open(path, "r+", comm, info)
         # Allocate all datasets needed by gathering all sizes to the head
         # node and making calls from there
-        part_lengths = MPI.Allgather(size(part, dim), comm)
+        part_sizes = MPI.Allgather(
+            part isa Empty ? EMPTY : size(part),
+            comm
+        )
+        size_and_eltype = part isa Empty ? ((0,), Any) : (size(part), eltype(part))
+        # Instead of reducing, we just do a bcast. We don't need to get the total
+        # size since this is just for metadata.
+        # size_and_eltype = MPI.Reduce(size_and_eltype, reduce_sizes_and_eltypes, 0, comm)
+        nonempty_worker_idx = find_worker_idx_where(!(part isa Empty); comm=comm)
+        some_size, whole_eltype = if nonempty_worker_idx != -1
+            MPI.bcast(size_and_eltype, nonempty_worker_idx-1, comm)
+        else
+            # In this case, this batch doesn't have any workers that are non-empty and so no
+            # datasets will get written
+            ((0,), Any)
+        end
 
         partdsets = [
             begin
-                idx = Banyan.get_partition_idx(batch_idx, nbatches, worker_i)
-                group = group_prefix * "_part$idx" * "_dim=$dim"
-                # If there are multiple batches, each batch just gets written
-                # to its own group
-                dataspace_size =
-                    Banyan.indexapply(_ -> part_length, size(part), index = dim)
-                # TODO: Maybe pass in values for fapl_mpi and
-                # dxpl_mpio = HDF5.H5FD_MPIO_COLLECTIVE,
-                new_dset = create_dataset(
-                    f,
-                    group,
-                    eltype(part),
-                    (dataspace_size, dataspace_size),
-                )
-                new_dset
-            end for (worker_i, part_length) in enumerate(part_lengths)
+                if !(part_size isa Empty)
+                    idx = Banyan.get_partition_idx(batch_idx, nbatches, worker_i)
+                    group = group_prefix * "_part$idx" * "_dim=$dim"
+                    # If there are multiple batches, each batch just gets written
+                    # to its own group
+                    # TODO: Maybe pass in values for fapl_mpi and
+                    # dxpl_mpio = HDF5.H5FD_MPIO_COLLECTIVE,
+                    new_dset = create_dataset(
+                        f,
+                        group,
+                        whole_eltype,
+                        (part_size, part_size),
+                    )
+                    new_dset
+                else
+                    EMPTY
+                end
+            end for (worker_i, part_size) in enumerate(part_sizes)
         ]
 
         # Wait for the head node to allocate all the datasets for this
@@ -285,13 +418,17 @@ function WriteHDF5(
 
         # Each worker then writes their partition to a separate dataset
         # in parallel
-        partdsets[worker_idx][Base.fill(Colon(), ndims(part))...] = part
+        if !(part isa Empty)
+            partdsets[worker_idx][Base.fill(Colon(), ndims(part))...] = part
+        end
 
         # Close (flush) all the intermediate datasets that we have created
         # TODO: Try removing this barrier
         MPI.Barrier(comm)
         for partdset in partdsets
-            close(partdset)
+            if !(partdset isa Empty)
+                close(partdset)
+            end
         end
         # TODO: Try removing this barrier
         MPI.Barrier(comm)
@@ -299,35 +436,64 @@ function WriteHDF5(
         # Collect datasets from each batch and write into the final result dataset
         if batch_idx == nbatches
             # Get all intermediate datasets that have been written to by this worker
-            partdsets = [
-                begin
-                    # Determine what index partition this batch is
-                    idx = Banyan.get_partition_idx(batch_idx, nbatches, comm)
+            partdsets = Dict{Int64,HDF5.Dataset}()
+            for batch_idx = 1:nbatches
+                # Determine what index partition this batch is
+                idx = Banyan.get_partition_idx(batch_idx, nbatches, comm)
 
-                    # Get the dataset
-                    group = group_prefix * "_part$idx" * "_dim=$dim"
-                    f[group]
-                end for batch_idx = 1:nbatches
-            ]
+                # Get the dataset
+                group = group_prefix * "_part$idx" * "_dim=$dim"
+                if haskey(f, group)
+                    partdsets[batch_idx] = f[group]
+                end
+            end
 
             # Compute the size of all the batches on this worker
             # concatenated
-            whole_batch_length = sum([size(partdset, dim) for partdset in partdsets])
+            whole_batch_length::Int64 = sum(
+                map(
+                    partdset -> size(partdset, dim),
+                    values(partdsets)
+                )
+            )
+            # whole_batch_size = whole_batch_size_and_eltype[1]
+            # whole_batch_length = whole_batch_size isa Empty ? 0 : whole_batch_size[dim]
 
             # Determine the offset into the resulting HDF5 dataset where this
             # worker should write
-            offset = MPI.Exscan(whole_batch_length, +, comm)
-            if worker_idx == 1
-                offset = 0
-            end
+            offset::Int64 = MPI.Exscan(whole_batch_length, +, comm)
+            offset = worker_idx == 1 ? 0 : offset
+            # offset_size = MPI.Exscan(whole_batch_size_and_eltype, reduce_sizes_and_eltypes, comm)
+            # if worker_idx == nworkers && offset_size isa Empty && part isa Empty
+            #     error("Cannot write an empty array to an HDF5 dataset")
+            # end
+            # offset = (worker_idx == 1 || offset_size isa Empty) ? 0 : offset_size[dim]
 
             # Make the last worker create the dataset (since it can compute
             # the total dataset size using its offset)
             # NOTE: It's important that we use the last node since the
             # last node has the scan result
-            whole_size =
-                Banyan.indexapply(_ -> offset + whole_batch_length, size(part), index = dim)
+            nonempty_worker_idx = find_worker_idx_where(!isempty(partdsets); comm=comm)
+            nonempty_worker_idx != -1 || error("Cannot write entirely empty HDF5 dataset with unknown data type")
+            size_and_eltype = if isempty(partdsets)
+                ((0,), Any)
+            else
+                let some_dataset = first(values(partdsets))
+                    (size(some_dataset), eltype(some_dataset))
+                end
+            end
+            some_size, whole_eltype = MPI.bcast(size_and_eltype, nworkers-1, comm)
+            whole_size = if worker_idx == nworkers
+                Banyan.indexapply(
+                    offset + whole_batch_length,
+                    some_size,
+                    dim
+                )
+            else
+                (0,)
+            end
             whole_size = MPI.bcast(whole_size, nworkers - 1, comm) # Broadcast dataset size to all workers
+            # whole_eltype = MPI.bcast(whole_eltype, nworkers - 1, comm)
             # The permission used here is "r+" because we already
             # created the file on the head node
             # Delete the dataset if needed before we write the
@@ -339,7 +505,7 @@ function WriteHDF5(
             # If there are multiple batches, each batch just gets written
             # to its own group
             dset =
-                create_dataset(f, group_prefix, eltype(part), (whole_size, whole_size))
+                create_dataset(f, group_prefix, whole_eltype, (whole_size, whole_size))
 
             # Wait until all workers have the file
             # TODO: Maybe use a broadcast so that each node is only blocked on
@@ -350,45 +516,58 @@ function WriteHDF5(
             # Write out each batch
             batchoffset = offset
             for batch_i = 1:nbatches
-                partdset = partdsets[batch_i]
+                if haskey(partdsets, batch_i)
+                    partdset = partdsets[batch_i]
 
-                # Determine what index partition this batch is
-                idx = Banyan.get_partition_idx(batch_i, nbatches, comm)
+                    # Determine what index partition this batch is
+                    idx = Banyan.get_partition_idx(batch_i, nbatches, comm)
 
-                # Write
-                group = group_prefix * "_part$idx" * "_dim=$dim"
-                partdset_reading = partdset[Base.fill(Colon(), ndims(dset))...]
+                    # Write
+                    group = group_prefix * "_part$idx" * "_dim=$dim"
+                    partdset_reading = partdset[Base.fill(Colon(), ndims(dset))...]
 
-                # # println("In writing worker_idx=$worker_idx, batch_idx=$batch_idx/$nbatches: after reading batch $batch_i with available memory: $(Banyan.format_available_memory())")
-                setindex!(
-                    # We are writing to the whole dataset that was just
-                    # created
-                    dset,
-                    # We are copying from the written HDF5 dataset for a
-                    # particular batch
-                    partdset_reading,
-                    # We write to the appropriate split of the whole
-                    # dataset
-                    [
+                    dim_selector = []
+                    for d = 1:ndims(dset)
                         if d == dim
-                            (batchoffset+1):batchoffset+size(partdset, dim)
+                            push!(dim_selector, (batchoffset+1):batchoffset+size(partdset, dim))
                         else
-                            Colon()
+                            push!(dim_selector, Colon())
                         end
+                    end
+                    setindex!(
+                        # We are writing to the whole dataset that was just
+                        # created
+                        dset,
+                        # We are copying from the written HDF5 dataset for a
+                        # particular batch
+                        partdset_reading,
+                        # We write to the appropriate split of the whole
+                        # dataset
                         # Banyan.split_len(whole_size[dim], batch_idx, nbatches, comm) : Colon()
-                        for d = 1:ndims(dset)
-                    ]...,
-                )
-                partdset_reading = nothing
+                        dim_selector...,
+                    )
+                    partdset_reading = nothing
 
-                # Update the offset of this batch
-                batchoffset += size(partdset, dim)
-                close(partdset)
-                partdset = nothing
+                    # Update the offset of this batch
+                    batchoffset += size(partdset, dim)
+                    close(partdset)
+                    partdset = nothing
+                end
             end
             close(dset)
             dset = nothing
             # fsync_file()
+
+            groups_to_delete = String[]
+            for worker_i = 1:nworkers
+                for batch_i = 1:nbatches
+                    idx = Banyan.get_partition_idx(batch_i, nbatches, worker_i)
+                    group = group_prefix * "_part$idx" * "_dim=$dim"
+                    if haskey(f, group)
+                        push!(groups_to_delete, group)
+                    end
+                end
+            end
 
             # TODO: Delete data by keeping intermediates in separate file
             # Wait until all the data is written
@@ -399,12 +578,8 @@ function WriteHDF5(
             # TODO: Use a broadcast here
 
             # Then, delete all data for all groups on the head node
-            for worker_i = 1:nworkers
-                for batch_i = 1:nbatches
-                    idx = Banyan.get_partition_idx(batch_i, nbatches, worker_i)
-                    group = group_prefix * "_part$idx" * "_dim=$dim"
-                    delete_object(f[group])
-                end
+            for group in groups_to_delete
+                delete_object(f[group])
             end
             # TODO: Ensure that closing (flushing) HDF5 datasets
             # and files is sufficient. We might additionally have
@@ -423,26 +598,64 @@ function WriteHDF5(
         # TODO: Ensure that we are closing stuff everywhere before trying
         # to write
 
-        if batch_idx < nbatches
-            MPI.Barrier(comm)
-        end
+        MPI.Barrier(comm)
+        fsync_file(path)
+        MPI.Barrier(comm)
     end
+    if true#is_main
+        f = h5open("/home/ec2-user/s3/banyan-cluster-data-test-lustre-0ce21f27/fillval.h5", "r+", comm, info)
+        close(f)
+    end
+    nothing
 end
 
-CopyFromHDF5(src, params, batch_idx, nbatches, comm, loc_name, loc_params) = begin
+function WriteHDF5(
+    src,
+    part,
+    params::Dict{String,Any},
+    batch_idx::Int64,
+    nbatches::Int64,
+    comm::MPI.Comm,
+    loc_name::String,
+    loc_params::Dict{String,Any},
+)
+    # Get rid of splitting divisions if they were used to split this data into
+    # groups
+    splitting_divisions = Banyan.get_splitting_divisions()
+    delete!(splitting_divisions, part)
+
+    WriteHelperHDF5(
+        src,
+        part,
+        params,
+        batch_idx,
+        nbatches,
+        comm,
+        loc_name,
+        loc_params,
+        loc_params["path"]::String,
+        loc_params["subpath"]::String,
+        loc_params["path_and_subpath"]::String,
+        params["key"]::Int64
+    )
+end
+
+CopyFromHDF5(src, params::Dict{String,Any}, batch_idx::Int64, nbatches::Int64, comm::MPI.Comm, loc_name::String, loc_params::Dict{String,Any}) = begin
     params["key"] = 1
+    # TODO: Only read in the full data on the main worker, on other workers read in an empty
+    # array split on an axis specified by PT from client side annotation
     ReadBlockHDF5(src, params, 1, 1, MPI.COMM_SELF, loc_name, loc_params)
 end
 
 function CopyToHDF5(
     src,
     part,
-    params,
-    batch_idx::Integer,
-    nbatches::Integer,
+    params::Dict{String,Any},
+    batch_idx::Int64,
+    nbatches::Int64,
     comm::MPI.Comm,
-    loc_name,
-    loc_params,
+    loc_name::String,
+    loc_params::Dict{String,Any},
 )
     if Banyan.get_partition_idx(batch_idx, nbatches, comm) == 1
         params["key"] = 1

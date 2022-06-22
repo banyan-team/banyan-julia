@@ -7,26 +7,22 @@
 # location will have a memory usage that will tell the future how much memory
 # is used.
 
-"""
-    Future()
-    Future(value::Any)
-    Future(location::Location)
-    Future(; kwargs...)
+get_location(v::ValueId)::Location = get(get_session().locations, v, NOTHING_LOCATION)
+get_location(f::Future)::Location = get(get_session().locations, f.value_id, NOTHING_LOCATION)
 
-Constructs a new future, representing a value that has not yet been computed.
-"""
-function Future(;source::Location = None(), mutate_from::Union{<:AbstractFuture,Nothing}=nothing, datatype="Any")
+function create_new_future(source::Location, mutate_from::Future, datatype::String)
     # Generate new value id
-    value_id = generate_value_id()
+    value_id::ValueId = generate_value_id()
 
     # Create new Future and assign a location to it
-    new_future = Future(datatype, nothing, value_id, false, true)
+    new_future = create_future(datatype, nothing, value_id, false, true)
     sourced(new_future, source)
     destined(new_future, None())
 
     # TODO: Add Size location here if needed
     # Handle locations that have an associated value
-    if source.src_name in ["None", "Client", "Value"]
+    source_src_name = source.src_name
+    if source_src_name == "None" || source_src_name ==  "Client" || source_src_name ==  "Value"
         new_future.value = source.sample.value
         new_future.stale = false
     end
@@ -46,12 +42,11 @@ function Future(;source::Location = None(), mutate_from::Union{<:AbstractFuture,
         # `partition` or implicitly through `Future` constructors
         mutated(new_future)
     end
-
     new_future
 end
 
-function Future(value::Any; datatype="Any")
-    location = if total_memory_usage(value) ≤ 4 * 1024
+function create_future_from_sample(value::T, datatype::String)::Future where T
+    location::Location = if total_memory_usage(value) ≤ 4 * 1024
         Value(value)
     else
         # TODO: Store values in S3 instead so that we can read from there
@@ -59,29 +54,25 @@ function Future(value::Any; datatype="Any")
     end
 
     # Create future, store value, and return
-    Future(source=location, datatype=datatype)
+    create_new_future(location, NOTHING_FUTURE, datatype)
 end
 
-"""
-    Future(future::AbstractFuture)
+# Constructs a future from a future that was already created.
 
-Constructs a future from a future that was already created.
+# If the given future has not had its value mutated (meaning that the value
+# stored with it here on the client is the most up-to-date version of it), we use
+# its value to construct a new future from a copy of the value.
 
-If the given future has not had its value mutated (meaning that the value
-stored with it here on the client is the most up-to-date version of it), we use
-its value to construct a new future from a copy of the value.
+# However, if the future has been mutated by some code region that has already
+# been recorded, we construct a new future with location `None` and mark it as
+# mutated. This is because presumably in the case that we _can't_ copy over the
+# given future, we would want to assign to it in the upcoming code region where
+# it's going to be used.
 
-However, if the future has been mutated by some code region that has already
-been recorded, we construct a new future with location `None` and mark it as
-mutated. This is because presumably in the case that we _can't_ copy over the
-given future, we would want to assign to it in the upcoming code region where
-it's going to be used.
-"""
-function Future(fut::AbstractFuture; mutation::Function=identity)
-    fut = convert(Future, fut)
+function create_future_from_existing(fut::Future, @nospecialize(mutation::Function))::Future
     if !fut.stale
         # Copy over value
-        new_future = Future(
+        new_future = create_future(
             fut.datatype,
             deepcopy(mutation(fut.value)),
             generate_value_id(),
@@ -96,12 +87,23 @@ function Future(fut::AbstractFuture; mutation::Function=identity)
 
         new_future
     else
-        Future(datatype=fut.datatype)
+        create_new_future(None(), NOTHING_FUTURE, fut.datatype)
     end
 end
 
-# convert(::Type{Future}, value::Any) = Future(value)
-convert(::Type{Future}, fut::Future) = fut
+struct NothingValue end
+const NOTHING_VALUE = NothingValue()
 
-get_location(value_id::ValueId) = get(get_session().locations, value_id, nothing)
-get_location(fut::AbstractFuture) = get_location(convert(Future, fut).value_id)
+function Future(
+    value::Any = NOTHING_VALUE; datatype="Any",
+    source::Location = None(), mutate_from::Union{Future,Nothing}=nothing,
+    from::Union{AbstractFuture,Nothing} = nothing, @nospecialize(mutation::Function=identity),
+)
+    if !isnothing(from)
+        create_future_from_existing(convert(Future, from)::Future, mutation)
+    elseif value isa NothingValue
+        create_new_future(source, isnothing(mutate_from) ? NOTHING_FUTURE : mutate_from, datatype)
+    else
+        create_future_from_sample(value, datatype)
+    end
+end
