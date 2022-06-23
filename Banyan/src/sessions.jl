@@ -614,27 +614,27 @@ end
 
 
 function run_session(;
-    cluster_name::Union{String,Nothing} = nothing,
-    nworkers::Union{Integer,Nothing} = 16,
+    cluster_name::String = NOTHING_STRING,
+    nworkers::Int64 = 16,
     release_resources_after::Union{Integer,Nothing} = 20,
-    print_logs::Union{Bool,Nothing} = false,
-    store_logs_in_s3::Union{Bool,Nothing} = true,
-    store_logs_on_cluster::Union{Bool,Nothing} = false,
-    sample_rate::Union{Integer,Nothing} = nworkers,
-    session_name::Union{String,Nothing} = nothing,
-    files::Union{Vector,Nothing} = [],
-    code_files::Union{Vector,Nothing} = [],
-    force_update_files = true,
-    pf_dispatch_table::Union{String,Nothing} = nothing,
-    using_modules::Union{Vector,Nothing} = [],
-    url::Union{String,Nothing} = nothing,
-    branch::Union{String,Nothing} = nothing,
-    directory::Union{String,Nothing} = nothing,
-    dev_paths::Union{Vector,Nothing} = [],
-    force_sync::Union{Bool,Nothing} = false,
-    force_pull::Union{Bool,Nothing} = false,
-    force_install::Union{Bool,Nothing} = false,
-    estimate_available_memory::Union{Bool,Nothing} = true,
+    print_logs::Bool = false,
+    store_logs_in_s3::Bool = true,
+    store_logs_on_cluster::Bool = false,
+    sample_rate::Int64 = nworkers,
+    session_name::String = NOTHING_STRING,
+    files::Vector{String} = String[],
+    code_files::Vector{String} = String[],
+    force_update_files::Bool = true,
+    pf_dispatch_table::Union{Vector{String},Nothing} = nothing,
+    using_modules::Vector{String} = String[],
+    url::String = NOTHING_STRING,
+    branch::String = NOTHING_STRING,
+    directory::String = NOTHING_STRING,
+    dev_paths::Vector{String} = String[],
+    force_sync::Bool = false,
+    force_pull::Bool = false,
+    force_install::Bool = false,
+    estimate_available_memory::Bool = true,
     email_when_ready::Union{Bool,Nothing}=nothing,
     kwargs...,)::SessionId
 
@@ -659,7 +659,7 @@ function run_session(;
             nothing
         end
         if !isnothing(session_id)
-            end_session(session_id, failed=true)
+            end_session(session_id, failed=true, release_resources_now=true)
             if print_logs
                 print_session_logs(session_id, cluster_name, delete_file=!store_logs_in_s3_orig)
             end
@@ -671,8 +671,8 @@ function run_session(;
         catch
             nothing
         end
-        end_session(session_id, failed=false)
         if !isnothing(session_id)
+            end_session(session_id, failed=false, release_resources_now=true)
             if print_logs
                 print_session_logs(session_id, cluster_name, delete_file=!store_logs_in_s3_orig)
             end
