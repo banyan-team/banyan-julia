@@ -7,7 +7,7 @@
 
 module Banyan
 
-global BANYAN_JULIA_BRANCH_NAME = "v22.02.13"
+global BANYAN_JULIA_BRANCH_NAME = "v22.03.06"
 global BANYAN_JULIA_PACKAGES = String[
     "Banyan",
     "BanyanArrays",
