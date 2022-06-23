@@ -199,6 +199,9 @@ function ReadBlockHelper(@nospecialize(format_value))
         balanced = params[symbol_balanced]
         m_path = loc_name == symbol_Disk ? sync_across(is_main_worker(comm) ? get_meta_path(loc_params_path) : "", comm=comm) : loc_params["meta_path"]::String
         loc_params = loc_name == symbol_Disk ? (Banyan.deserialize_retry(get_location_path(loc_params_path))::Location).src_parameters : loc_params
+        if Banyan.INVESTIGATING_BDF_INTERNET_FILE_NOT_FOUND
+            @show (m_path, loc_params, get_worker_idx())
+        end
         meta = Arrow_Table_retry(m_path)
         filtering_op = get(params, symbol_filtering_op, identity)
 
@@ -287,11 +290,10 @@ function ReadBlockHelper(@nospecialize(format_value))
 
         # Read in data frames
         if !balanced
-            if Banyan.INVESTIGATING_BDF_INTERNET_FILE_NOT_FOUND
-                @show (files_for_curr_partition, get_worker_idx())
-            end
-
             files_for_curr_partition = files_by_partition[partition_idx]
+            if Banyan.INVESTIGATING_BDF_INTERNET_FILE_NOT_FOUND
+                @show (files_for_curr_partition, meta_path, get_worker_idx())
+            end
             dfs = if !isempty(files_for_curr_partition)
                 dfs_res::Base.Vector{DataFrames.DataFrame} = Base.Vector{DataFrames.DataFrame}(undef, length(files_for_curr_partition))
                 Threads.@threads for (i, file_i) in Base.collect(enumerate(files_for_curr_partition))
