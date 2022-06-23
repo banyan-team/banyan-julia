@@ -290,11 +290,10 @@ function ReadBlockHelper(@nospecialize(format_value))
 
         # Read in data frames
         if !balanced
+            files_for_curr_partition = files_by_partition[partition_idx]
             if Banyan.INVESTIGATING_BDF_INTERNET_FILE_NOT_FOUND
                 @show (files_for_curr_partition, get_worker_idx())
             end
-
-            files_for_curr_partition = files_by_partition[partition_idx]
             dfs = if !isempty(files_for_curr_partition)
                 dfs_res::Base.Vector{DataFrames.DataFrame} = Base.Vector{DataFrames.DataFrame}(undef, length(files_for_curr_partition))
                 Threads.@threads for (i, file_i) in Base.collect(enumerate(files_for_curr_partition))
