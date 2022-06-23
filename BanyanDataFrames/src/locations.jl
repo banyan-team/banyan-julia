@@ -28,19 +28,29 @@ function _remote_table_source(remotepath, shuffled, metadata_invalid, sample_inv
     # - Constructed with a `NamedTuple` mapping to `Vector`s and read in as an Arrow.Table
     # - Columns: file name, # of rows, # of bytes
 
-    # Get list of local paths
-    localpaths::Base.Vector{String} = if !curr_parameters_invalid
-        convert(Base.Vector{String}, curr_meta[:path])
+    # Get list of local paths. Note that in the future when we support a list of
+    # Internet locations, we will want to only call getpath laterin this code when/if
+    # we actually read stuff in.
+    localpaths::Base.Vector{String}, remotepaths::Base.Vector{String} = if !curr_parameters_invalid
+        localpaths_res = convert(Base.Vector{String}, curr_meta[:path])
+        localpaths_res, map(getpath, localpaths_res)
     else
         localpath::String = getpath(remotepath)
         localpath_is_dir = isdir(localpath)
-        paths = if localpath_is_dir
-            paths_on_main = is_main ? readdir(localpath, join=true) : String[]
-            sync_across(paths_on_main)
+        if localpath_is_dir
+            paths_on_main = is_main ? readdir(localpath, join=false) : String[]
+            paths = sync_across(paths_on_main)
+            npaths = length(paths)
+            localpaths_res = Base.Vector{String}(undef, npaths)
+            remotepaths_res = Base.Vector{String}(undef, npaths)
+            for i = 1:npaths
+                localpaths_res[i] = joinpath(localpath, paths[i])
+                remotepaths_res[i] = joinpath(remotepath, paths[i])
+            end
+            localpaths_res, remotepaths_res
         else
-            String[localpath]
+            String[localpath], String[remotepath]
         end
-        paths
     end
     curr_meta_nrows::Base.Vector{Int64} = !curr_parameters_invalid ? convert(Base.Vector{Int64}, curr_meta[:nrows]) : Int64[]
     local_paths_on_curr_worker::Base.Vector{String} = split_across(localpaths)
@@ -288,7 +298,7 @@ function _remote_table_source(remotepath, shuffled, metadata_invalid, sample_inv
     meta_path = is_main ? get_meta_path(remotepath) : ""
     if curr_parameters_invalid
         # Write `NamedTuple` with metadata to `meta_path` with `Arrow.write`
-        Arrow.write(is_main ? meta_path : IOBuffer(), (path=localpaths, nrows=meta_nrows), compress=:zstd)
+        Arrow.write(is_main ? meta_path : IOBuffer(), (path=remotepaths, nrows=meta_nrows), compress=:zstd)
     end
 
 

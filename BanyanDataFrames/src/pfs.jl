@@ -176,6 +176,7 @@ symbol_filtering_op = "filtering_op"
 symbol_path = "path"
 symbol_balanced = "balanced"
 symbol_nrows = "nrows"
+symbol_job_id = "job_id"
 
 function ReadBlockHelper(@nospecialize(format_value))
     function ReadBlock(
@@ -196,13 +197,9 @@ function ReadBlockHelper(@nospecialize(format_value))
         
         loc_params_path = loc_params[symbol_path]::String
         balanced = params[symbol_balanced]
-        # By calling getpath we ensure that this data exists on each node and
-        # is ready to be read in even if the cluster has changed but same S3 bucket
-        # with cached location is used.
-        existing_path = getpath(loc_params_path)
-        meta_path = loc_name == symbol_Disk ? sync_across(is_main_worker(comm) ? get_meta_path(loc_params_path) : "", comm=comm) : loc_params["meta_path"]::String
+        m_path = loc_name == symbol_Disk ? sync_across(is_main_worker(comm) ? get_meta_path(loc_params_path) : "", comm=comm) : loc_params["meta_path"]::String
         loc_params = loc_name == symbol_Disk ? (Banyan.deserialize_retry(get_location_path(loc_params_path))::Location).src_parameters : loc_params
-        meta = Arrow_Table_retry(meta_path)
+        meta = Arrow_Table_retry(m_path)
         filtering_op = get(params, symbol_filtering_op, identity)
 
         # Handle multi-file tabular datasets
@@ -298,7 +295,7 @@ function ReadBlockHelper(@nospecialize(format_value))
             dfs = if !isempty(files_for_curr_partition)
                 dfs_res::Base.Vector{DataFrames.DataFrame} = Base.Vector{DataFrames.DataFrame}(undef, length(files_for_curr_partition))
                 Threads.@threads for (i, file_i) in Base.collect(enumerate(files_for_curr_partition))
-                    path = meta_path[file_i]
+                    path = getpath(meta_path[file_i])
                     dfs_res[i] = filtering_op(read_file(format_value, path))
                 end
                 dfs_res
@@ -342,7 +339,7 @@ function ReadBlockHelper(@nospecialize(format_value))
             rowrange = Banyan.split_len(nrows, batch_idx, nbatches, comm)
             rowsscanned = 0
             Threads.@threads for (i, path::String, readrange, filerowrange) in files_to_read
-                dfs[i] = read_file(format_value, path, rowrange, readrange, filerowrange)
+                dfs[i] = read_file(format_value, getpath(path), rowrange, readrange, filerowrange)
             end
         end
 
@@ -484,13 +481,13 @@ function WriteHelper(@nospecialize(format_value))
 
         # Get paths for reading in metadata and Location
         tmp_suffix = nbatches > 1 ? ".tmp" : ""
-        meta_path = is_main ? get_meta_path(loc_params_path * tmp_suffix) : ""
+        m_path = is_main ? get_meta_path(loc_params_path * tmp_suffix) : ""
         location_path = is_main ? get_location_path(loc_params_path * tmp_suffix) : ""
-        meta_path, location_path = sync_across((meta_path, location_path), comm=comm)
+        m_path, location_path = sync_across((m_path, location_path), comm=comm)
 
         # Read in meta path if it's there
-        curr_localpaths, curr_nrows = if nbatches > 1 && batch_idx > 1
-            let curr_meta = Arrow_Table_retry(meta_path)
+        curr_remotepaths, curr_nrows = if nbatches > 1 && batch_idx > 1
+            let curr_meta = Arrow_Table_retry(m_path)
                 (convert(Base.Vector{String}, curr_meta[:path]), convert(Base.Vector{Int64}, curr_meta[:nrows]))
             end
         else
@@ -508,7 +505,7 @@ function WriteHelper(@nospecialize(format_value))
                     "format" => format_string,
                     "nrows" => 0,
                     "path" => loc_params_path,
-                    "meta_path" => meta_path,
+                    "meta_path" => m_path,
                     "empty_sample" => to_jl_value_contents(empty_df)
                 ),
                 0,
@@ -528,12 +525,12 @@ function WriteHelper(@nospecialize(format_value))
             # Determine paths and #s of rows for metadata file
             for worker_i in 1:nworkers
                 push!(
-                    curr_localpaths,
+                    curr_remotepaths,
                     let sortableidx = Banyan.sortablestring(
                         Banyan.get_partition_idx(batch_idx, nbatches, worker_i),
                         npartitions
                     )
-                        joinpath(actualpath, "part_$sortableidx" * ".$format_string")
+                        joinpath(loc_params_path, "part_$sortableidx" * ".$format_string")
                     end
                 )
             end
@@ -569,7 +566,7 @@ function WriteHelper(@nospecialize(format_value))
             end
 
             # Determine paths for this batch and gather # of rows
-            Arrow.write(meta_path, (path=curr_localpaths, nrows=curr_nrows), compress=:zstd)
+            Arrow.write(m_path, (path=curr_remotepaths, nrows=curr_nrows), compress=:zstd)
 
             if !is_disk && batch_idx == nbatches && total_nrows <= get_max_exact_sample_length()
                 # If the total # of rows turns out to be inexact then we can simply mark it as
@@ -592,7 +589,7 @@ function WriteHelper(@nospecialize(format_value))
             actual_meta_path = get_meta_path(loc_params_path)
             actual_location_path = get_location_path(loc_params_path)
             if worker_idx == 1
-                cp(meta_path, actual_meta_path, force=true)
+                cp(m_path, actual_meta_path, force=true)
                 cp(location_path, actual_location_path, force=true)
             end
 
