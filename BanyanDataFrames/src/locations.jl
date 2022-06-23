@@ -291,7 +291,12 @@ function _remote_table_source(remotepath, shuffled, metadata_invalid, sample_inv
         Arrow.write(is_main ? meta_path : IOBuffer(), (path=localpaths, nrows=meta_nrows), compress=:zstd)
     end
 
-    println("At end of _remote_table_source on get_worker_idx()=$(MPI.Initialized() ? get_worker_idx() : -1)")
+
+    if Banyan.INVESTIGATING_BDF_INTERNET_FILE_NOT_FOUND
+        @show (remotepath, meta_path)
+    end
+
+    # println("At end of _remote_table_source on get_worker_idx()=$(MPI.Initialized() ? get_worker_idx() : -1)")
 
     # Return LocationSource
     if is_main

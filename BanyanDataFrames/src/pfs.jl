@@ -290,6 +290,10 @@ function ReadBlockHelper(@nospecialize(format_value))
 
         # Read in data frames
         if !balanced
+            if Banyan.INVESTIGATING_BDF_INTERNET_FILE_NOT_FOUND
+                @show (files_for_curr_partition, get_worker_idx())
+            end
+
             files_for_curr_partition = files_by_partition[partition_idx]
             dfs = if !isempty(files_for_curr_partition)
                 dfs_res::Base.Vector{DataFrames.DataFrame} = Base.Vector{DataFrames.DataFrame}(undef, length(files_for_curr_partition))
@@ -328,6 +332,10 @@ function ReadBlockHelper(@nospecialize(format_value))
                 rowsscanned = newrowsscanned
             end
             dfs = Base.Vector{Any}(undef, ndfs)
+
+            if Banyan.INVESTIGATING_BDF_INTERNET_FILE_NOT_FOUND
+                @show (files_to_read, get_worker_idx())
+            end
 
             # Iterate through files and identify which ones correspond to the range of
             # rows for the batch currently being processed by this worker
