@@ -154,6 +154,9 @@ function _remote_table_source(remotepath, shuffled, metadata_invalid, sample_inv
                         (shuffled || exact_sample_needed) ? 1.0 : session_sample_rate,
                         meta_nrows_for_worker[i]::Int64
                     )
+                        if Banyan.INVESTIGATING_COLLECTING_SAMPLES
+                            println("Sampling on get_worker_idx()=$(get_worker_idx()) from local_path_on_curr_worker=$local_path_on_curr_worker with session_sample_rate=$session_sample_rate with meta_nrows_for_worker[i]=$(meta_nrows_for_worker[i]) and i=$i with nrow(df)=$(DataFrames.nrow(df)) and nrows_extra_on_worker=$nrows_extra_on_worker")
+                        end
                         if shuffled && i == nfiles_on_worker && nrows_extra_on_worker > 0
                             df[1:(end-nrows_extra_on_worker), :]
                         else

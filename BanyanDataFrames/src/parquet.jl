@@ -16,12 +16,18 @@ get_metadata(::Val{:parquet}, p)::Int64 =
         0
     end
 get_sample(::Val{:parquet}, p, sample_rate, len) = let rand_indices = sample_from_range(1:len, sample_rate)
+    if Banyan.INVESTIGATING_COLLECTING_SAMPLES
+        println("In get_sample on get_worker_idx()=$(get_worker_idx()) with rand_indices=$rand_indices from len=$len")
+    end
     if (sample_rate != 1.0 && isempty(rand_indices))
         DataFrames.DataFrame()
     else
         try
             get_sample_from_data(DataFrames_DataFrame_retry(Parquet_read_parquet_retry(p; rows=1:len), copycols=false), sample_rate, rand_indices)
         catch
+            if Banyan.INVESTIGATING_COLLECTING_SAMPLES
+                println("In get_sample on get_worker_idx()=$(get_worker_idx()) and file not found from p=$p and reading in range 1:$len")
+            end
             # File does not exist
             DataFrames.DataFrame()
         end
