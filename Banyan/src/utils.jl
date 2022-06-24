@@ -604,7 +604,7 @@ fsync_file(p) =
 deserialize_retry = retry(deserialize; delays=Base.ExponentialBackOff(; n=5))
 
 exponential_backoff_1s =
-    Base.ExponentialBackOff(; n=5, first_delay=0.1, factor=1.5)
+    Base.ExponentialBackOff(; n=5, first_delay=0.1, factor=1.6)
 
 # ```
 # julia> for f in Base.ExponentialBackOff(; n=5, first_delay=0.1, factor=1.5)
