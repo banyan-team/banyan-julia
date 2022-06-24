@@ -492,10 +492,10 @@ function download_session_logs(session_id::SessionId, cluster_name::String, file
 end
 
 function print_session_logs(session_id, cluster_name, delete_file=true)
-    s3_bucket_name = get_cluster_s3_bucket_name(cluster_name; kwargs...)
+    s3_bucket_name = get_cluster_s3_bucket_name(cluster_name)
     log_file_name = "banyan-log-for-session-$(session_id)"
     logs = s3_get(get_aws_config(), s3_bucket_name, log_file_name)
-    println(logs)
+    println(String(logs))
     if delete_file
         s3_delete(get_aws_config(), s3_bucket_name, log_file_name)
     end
@@ -661,7 +661,7 @@ function run_session(;
         if !isnothing(session_id)
             end_session(session_id, failed=true, release_resources_now=true)
             if print_logs
-                print_session_logs(session_id, cluster_name, delete_file=!store_logs_in_s3_orig)
+                print_session_logs(session_id, cluster_name, !store_logs_in_s3_orig)
             end
         end
         rethrow()
@@ -674,7 +674,7 @@ function run_session(;
         if !isnothing(session_id)
             end_session(session_id, failed=false, release_resources_now=true)
             if print_logs
-                print_session_logs(session_id, cluster_name, delete_file=!store_logs_in_s3_orig)
+                print_session_logs(session_id, cluster_name, !store_logs_in_s3_orig)
             end
         end    
     end
