@@ -345,7 +345,7 @@ function ReadBlockHelper(@nospecialize(format_value))
             end
         end
 
-        if Banyan.INVESTIGATING_LOSING_DATA
+        if Banyan.INVESTIGATING_BDF_INTERNET_FILE_NOT_FOUND || Banyan.INVESTIGATING_LOSING_DATA
             # println("In ReadBlock with rowrange=$rowrange, nrow.(dfs)=$(nrow.(dfs))")
             println("In ReadBlock with nrow.(dfs)=$(nrow.(dfs))")
         end

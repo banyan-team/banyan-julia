@@ -76,6 +76,10 @@ function _remote_table_source(remotepath, shuffled, metadata_invalid, sample_inv
         split_across(curr_meta_nrows)
     end
 
+    if Banyan.INVESTIGATING_COLLECTING_SAMPLES
+        println("In _remote_table_source on get_worker_idx()=$(get_worker_idx()) with curr_sample_invalid=$curr_sample_invalid, curr_parameters_invalid=$curr_parameters_invalid, localpaths=$localpaths, remotepaths=$remotepaths, local_paths_on_curr_worker=$local_paths_on_curr_worker, meta_nrows_on_worker=$meta_nrows_on_worker")
+    end
+
     # Compute the total # of rows so that if the current sample is invalid
     # we can determine whether to get an exact or inexact sample and
     # otherwise so that we can update the sample rate.
@@ -104,6 +108,9 @@ function _remote_table_source(remotepath, shuffled, metadata_invalid, sample_inv
 
     # Get sample and also metadata if not yet valid at this point
     recollected_sample_needed = curr_sample_invalid || !is_metadata_valid
+    if Banyan.INVESTIGATING_COLLECTING_SAMPLES
+        println("In _remote_table_source on get_worker_idx()=$(get_worker_idx()) with is_metadata_valid=$is_metadata_valid, shuffled = $shuffled, recollected_sample_needed=$recollected_sample_needed")
+    end
     meta_nrows, total_nrows, total_nbytes, remote_sample::Sample, empty_sample::String = if recollected_sample_needed
         # In this case, we actually recollect a sample. This is the case
         # where either we actually have an invalid sample or the sample is
@@ -128,6 +135,9 @@ function _remote_table_source(remotepath, shuffled, metadata_invalid, sample_inv
                         break
                     end
                 end
+                if Banyan.INVESTIGATING_COLLECTING_SAMPLES
+                    println("In _remote_table_source on get_worker_idx()=$(get_worker_idx()) with nrows_on_worker_target=$nrows_on_worker_target, nfiles_on_worker_res=$nfiles_on_worker_res, nrows_on_worker_so_far=$nrows_on_worker_so_far")
+                end
                 perm_for_shuffling, nfiles_on_worker_res, nrows_on_worker_so_far - nrows_on_worker_target
             else
                 Colon(), length(local_paths_on_curr_worker), 0
@@ -151,6 +161,10 @@ function _remote_table_source(remotepath, shuffled, metadata_invalid, sample_inv
                         end
                     end
                 )
+            end
+
+            if Banyan.INVESTIGATING_COLLECTING_SAMPLES
+                println("In _remote_table_source on get_worker_idx()=$(get_worker_idx()) with shuffling_perm=$shuffling_perm, nfiles_on_worker=$nfiles_on_worker, nrows_extra_on_worker=$nrows_extra_on_worker")
             end
         else
             # This is the case for formats like CSV where we must read in the
@@ -183,6 +197,9 @@ function _remote_table_source(remotepath, shuffled, metadata_invalid, sample_inv
                     break
                 end
             end
+        end
+        if Banyan.INVESTIGATING_COLLECTING_SAMPLES
+            println("In _remote_table_source on get_worker_idx()=$(get_worker_idx()) with exact_sample_needed=$exact_sample_needed, nrow.(local_samples)=$(DataFrames.nrow.(local_samples))")
         end
         local_sample::DataFrames.DataFrame = isempty(local_samples) ? DataFrames.DataFrame() : vcat(local_samples...)
 
@@ -237,7 +254,7 @@ function _remote_table_source(remotepath, shuffled, metadata_invalid, sample_inv
                 ceil(Int64, remote_sample_value_memory_usage * session_sample_rate)
             end
             remote_sample_value_nrows = nrow(remote_sample_value)
-            if Banyan.INVESTIGATING_MEMORY_USAGE
+            if Banyan.INVESTIGATING_COLLECTING_SAMPLES || Banyan.INVESTIGATING_MEMORY_USAGE
                 @show total_nrows_res remote_sample_value_nrows
                 @show remote_sample_value_memory_usage total_nbytes_res session_sample_rate
             end
@@ -271,7 +288,7 @@ function _remote_table_source(remotepath, shuffled, metadata_invalid, sample_inv
             cached_remote_sample_res::Sample = curr_location.sample
             remote_sample_value_nrows = nrow(cached_remote_sample_res.value)
             remote_sample_value_nbytes = total_memory_usage(cached_remote_sample_res.value)
-            if Banyan.INVESTIGATING_MEMORY_USAGE
+            if Banyan.INVESTIGATING_COLLECTING_SAMPLES || Banyan.INVESTIGATING_MEMORY_USAGE
                 @show remote_sample_value_nbytes remote_sample_value_nrows total_nrows_res
             end
             total_nbytes_res = ceil(Int64, remote_sample_value_nbytes * total_nrows_res / remote_sample_value_nrows)
@@ -281,7 +298,7 @@ function _remote_table_source(remotepath, shuffled, metadata_invalid, sample_inv
             # has been invalidated)
             cached_remote_sample_res.rate = ceil(Int64, total_nrows_res / remote_sample_value_nrows)
             cached_remote_sample_res.memory_usage = ceil(Int64, total_nbytes_res / cached_remote_sample_res.rate)::Int64
-            if Banyan.INVESTIGATING_MEMORY_USAGE
+            if Banyan.INVESTIGATING_COLLECTING_SAMPLES || Banyan.INVESTIGATING_MEMORY_USAGE
                 @show cached_remote_sample_res.rate total_nbytes_res cached_remote_sample_res.memory_usage
             end
 
@@ -301,7 +318,6 @@ function _remote_table_source(remotepath, shuffled, metadata_invalid, sample_inv
         Arrow.write(is_main ? meta_path : IOBuffer(), (path=remotepaths, nrows=meta_nrows), compress=:zstd)
     end
 
-
     if Banyan.INVESTIGATING_BDF_INTERNET_FILE_NOT_FOUND
         @show (remotepath, meta_path)
     end
@@ -311,7 +327,7 @@ function _remote_table_source(remotepath, shuffled, metadata_invalid, sample_inv
     # Return LocationSource
     if is_main
         # Construct the `Location` to return
-        if Banyan.INVESTIGATING_MEMORY_USAGE
+        if Banyan.INVESTIGATING_COLLECTING_SAMPLES || Banyan.INVESTIGATING_MEMORY_USAGE
             @show total_nbytes
         end
         location_res = LocationSource(
