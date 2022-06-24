@@ -32,8 +32,8 @@ function _remote_table_source(remotepath, shuffled, metadata_invalid, sample_inv
     # Internet locations, we will want to only call getpath laterin this code when/if
     # we actually read stuff in.
     localpaths::Base.Vector{String}, remotepaths::Base.Vector{String} = if !curr_parameters_invalid
-        localpaths_res = convert(Base.Vector{String}, curr_meta[:path])
-        localpaths_res, map(getpath, localpaths_res)
+        remotepaths_res = convert(Base.Vector{String}, curr_meta[:path])
+        map(getpath, remotepaths_res), remotepaths_res
     else
         localpath::String = getpath(remotepath)
         localpath_is_dir = isdir(localpath)
