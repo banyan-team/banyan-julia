@@ -17,7 +17,7 @@ get_metadata(::Val{:parquet}, p)::Int64 =
     end
 get_sample(::Val{:parquet}, p, sample_rate, len) = let rand_indices = sample_from_range(1:len, sample_rate)
     if Banyan.INVESTIGATING_COLLECTING_SAMPLES
-        println("In get_sample on get_worker_idx()=$(get_worker_idx()) with rand_indices=$rand_indices from len=$len")
+        println("In get_sample on get_worker_idx()=$(get_worker_idx()) with length(rand_indices)=$(length(rand_indices)) from len=$len")
     end
     if (sample_rate != 1.0 && isempty(rand_indices))
         DataFrames.DataFrame()
