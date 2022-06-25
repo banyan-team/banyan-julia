@@ -483,7 +483,7 @@ function WriteHelper(@nospecialize(format_value))
                     )
                 end
                 record_time(:write_file, et)
-                println("Called write_file on get_worker_idx()=$(get_worker_idx()) with dst=$dst and Base.total_memory_usage(part_res)=$(Base.total_memory_usage(part_res)), is_disk=$is_disk")
+                println("Called write_file on get_worker_idx()=$(get_worker_idx()) with dst=$dst and Base.total_memory_usage(part_res)=$(Banyan.total_memory_usage(part_res)), is_disk=$is_disk")
             else
                 write_file(
                     format_value,
