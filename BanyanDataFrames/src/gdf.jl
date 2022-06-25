@@ -42,6 +42,8 @@ function pts_for_groupby(futures::Base.Vector{Future})
     df, gdf, gdf_length, cols, kwargs = futures
 
     df_sample_for_grouping = _sample_df_for_grouping(df, cols)
+    # We can use distributed because downstream functions might constrain it to
+    # just grouped partitioning if needed.
     pt(df, Distributed(df_sample_for_grouping, scaled_by_same_as=gdf))
     # TODO: Avoid circular dependency
     # TODO: Specify key for Blocked

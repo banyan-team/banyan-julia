@@ -304,6 +304,9 @@ function ReadBlockHelper(@nospecialize(format_value))
             else
                 DataFrames.DataFrame[]
             end
+            if Banyan.INVESTIGATING_SLOW_WRITING
+                println("In ReadBlock on get_worker_idx()=$(get_worker_idx()) with files_for_curr_partition=$files_for_curr_partition, loc_name=$loc_name, nrow.(dfs)=$(DataFrames.nrow.(dfs))")
+            end
         else
             # Determine the range of rows to read in from each file so that the result
             # is perfectly balanced across all partitions
@@ -343,11 +346,14 @@ function ReadBlockHelper(@nospecialize(format_value))
             Threads.@threads for (i, path::String, readrange, filerowrange) in files_to_read
                 dfs[i] = read_file(format_value, getpath(path), rowrange, readrange, filerowrange)
             end
+            if Banyan.INVESTIGATING_SLOW_WRITING
+                println("In ReadBlock on get_worker_idx()=$(get_worker_idx()) with files_to_read=$files_to_read, loc_name=$loc_name, nrow.(dfs)=$(DataFrames.nrow.(dfs))")
+            end
         end
 
         if Banyan.INVESTIGATING_BDF_INTERNET_FILE_NOT_FOUND || Banyan.INVESTIGATING_LOSING_DATA
             # println("In ReadBlock with rowrange=$rowrange, nrow.(dfs)=$(nrow.(dfs))")
-            println("In ReadBlock with nrow.(dfs)=$(nrow.(dfs))")
+            println("In ReadBlock with nrow.(dfs)=$(DataFrames.nrow.(dfs))")
         end
 
         # Concatenate and return
@@ -467,12 +473,25 @@ function WriteHelper(@nospecialize(format_value))
         part_res = part isa Empty ? part : convert(DataFrames.DataFrame, part)
         if !(part isa Empty)
             dst = joinpath(path, "part_$sortableidx" * ".$format_string")
-            write_file(
-                format_value,
-                part_res,
-                dst,
-                nrows
-            )
+            if Banyan.INVESTIGATING_SLOW_WRITING
+                et = @elapsed begin
+                    write_file(
+                        format_value,
+                        part_res,
+                        dst,
+                        nrows
+                    )
+                end
+                record_time(:write_file, et)
+                println("Called write_file on get_worker_idx()=$(get_worker_idx()) with dst=$dst and Base.total_memory_usage(part_res)=$(Banyan.total_memory_usage(part_res)), is_disk=$is_disk")
+            else
+                write_file(
+                    format_value,
+                    part_res,
+                    dst,
+                    nrows
+                )
+            end
         end 
         # We don't need this barrier anymore because we do a broadcast right after
         # MPI.Barrier(comm)
@@ -519,8 +538,16 @@ function WriteHelper(@nospecialize(format_value))
         nbytes = part_res isa Empty ? 0 : Banyan.total_memory_usage(part_res)
         sample_rate = get_session().sample_rate
         sampled_part = (part_res isa Empty || is_disk) ? empty_df : Banyan.get_sample_from_data(part_res, sample_rate, nrows)
-        gathered_data =
-            gather_across((nrows, nbytes, part_res isa Empty ? part_res : empty(part_res), sampled_part), comm)
+        if Banyan.INVESTIGATING_SLOW_WRITING
+            et = @elapsed begin
+                gathered_data =
+                    gather_across((nrows, nbytes, part_res isa Empty ? part_res : empty(part_res), sampled_part), comm)
+            end
+            record_time(:gather_across_in_Write, et)
+        else
+            gathered_data =
+                gather_across((nrows, nbytes, part_res isa Empty ? part_res : empty(part_res), sampled_part), comm)
+        end
         
         # On the main worker, finalize metadata and location info.
         if is_main
@@ -568,7 +595,14 @@ function WriteHelper(@nospecialize(format_value))
             end
 
             # Determine paths for this batch and gather # of rows
-            Arrow.write(m_path, (path=curr_remotepaths, nrows=curr_nrows), compress=:zstd)
+            if Banyan.INVESTIGATING_SLOW_WRITING
+                et = @elapsed begin
+                    Arrow.write(m_path, (path=curr_remotepaths, nrows=curr_nrows), compress=:zstd)
+                end
+                record_time(:Arrow_write_metadata, et)
+            else
+                Arrow.write(m_path, (path=curr_remotepaths, nrows=curr_nrows), compress=:zstd)
+            end
 
             if !is_disk && batch_idx == nbatches && total_nrows <= get_max_exact_sample_length()
                 # If the total # of rows turns out to be inexact then we can simply mark it as
@@ -591,8 +625,16 @@ function WriteHelper(@nospecialize(format_value))
             actual_meta_path = get_meta_path(loc_params_path)
             actual_location_path = get_location_path(loc_params_path)
             if worker_idx == 1
-                cp(m_path, actual_meta_path, force=true)
-                cp(location_path, actual_location_path, force=true)
+                if Banyan.INVESTIGATING_SLOW_WRITING
+                    et = @elapsed begin
+                        cp(m_path, actual_meta_path, force=true)
+                        cp(location_path, actual_location_path, force=true)
+                    end
+                    record_time(:cp_in_Write, et)
+                else
+                    cp(m_path, actual_meta_path, force=true)
+                    cp(location_path, actual_location_path, force=true)
+                end
             end
 
             # Copy over files to actual location
@@ -615,7 +657,14 @@ function WriteHelper(@nospecialize(format_value))
                 if tmpdir_idx != -1
                     tmpsrc = joinpath(path, tmpdir[tmpdir_idx])
                     actualdst = joinpath(actualpath, tmpdir[tmpdir_idx])
-                    cp(tmpsrc, actualdst, force=true)
+                    if Banyan.INVESTIGATING_SLOW_WRITING
+                        et = @elapsed begin
+                            cp(tmpsrc, actualdst, force=true)
+                        end
+                        record_time(:cp_in_Write, et)
+                    else
+                        cp(tmpsrc, actualdst, force=true)
+                    end
                 end
             end
             MPI.Barrier(comm)
