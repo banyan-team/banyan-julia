@@ -525,6 +525,11 @@ function getpath(path::String)::String
         Downloads_download_retry(path, joined_path)
         # end
         # MPI.Barrier(comm)
+
+        if Banyan.INVESTIGATING_BDF_INTERNET_FILE_NOT_FOUND
+            @show (path, joined_path)
+        end
+
         joined_path
     elseif startswith(path, "s3://")
         replace(path, "s3://" => "/home/ec2-user/s3/")

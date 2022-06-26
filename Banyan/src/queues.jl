@@ -5,7 +5,7 @@
 get_sqs_dict_from_url(url::String)::Dict{Symbol,Any} =
     merge(
         get_aws_config(),
-        Dict(:resource => "/" * joinpath(splitpath(url)[end-1:end]))
+        Dict(:resource => "/" * replace(joinpath(splitpath(url)[end-1:end]), "\\"=>"/"))
     )
 
 get_scatter_queue()::Dict{Symbol,Any} =
