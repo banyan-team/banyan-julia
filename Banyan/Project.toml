@@ -1,7 +1,7 @@
 name = "Banyan"
 uuid = "706d138b-e922-45b9-a636-baf8ae0d5317"
 authors = ["Banyan <support@banyancomputing.com>"]
-version = "0.4.0"
+version = "0.4.1"
 
 [deps]
 AWSCore = "4f1ea46c-232b-54a6-9b17-cc2d0f3e6598"
