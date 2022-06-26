@@ -289,11 +289,13 @@ function ReadBlockHelper(@nospecialize(format_value))
         end
 
         # Read in data frames
-        if !balanced
+        if !balanced #&& length(meta_path) > 1
+            # This is the optimized case for where we don't want to be redundantly reading in the same file on multiple workers
             files_for_curr_partition = files_by_partition[partition_idx]
             if Banyan.INVESTIGATING_BDF_INTERNET_FILE_NOT_FOUND
                 @show (files_for_curr_partition, meta_path, get_worker_idx())
             end
+            @time "In ReadBlockHelper on get_worker_idx()=$(get_worker_idx()) for reading" begin
             dfs = if !isempty(files_for_curr_partition)
                 dfs_res::Base.Vector{DataFrames.DataFrame} = Base.Vector{DataFrames.DataFrame}(undef, length(files_for_curr_partition))
                 Threads.@threads for (i, file_i) in Base.collect(enumerate(files_for_curr_partition))
@@ -303,6 +305,7 @@ function ReadBlockHelper(@nospecialize(format_value))
                 dfs_res
             else
                 DataFrames.DataFrame[]
+            end
             end
             if Banyan.INVESTIGATING_SLOW_WRITING
                 println("In ReadBlock on get_worker_idx()=$(get_worker_idx()) with files_for_curr_partition=$files_for_curr_partition, loc_name=$loc_name, nrow.(dfs)=$(DataFrames.nrow.(dfs))")
@@ -343,8 +346,10 @@ function ReadBlockHelper(@nospecialize(format_value))
             # rows for the batch currently being processed by this worker
             rowrange = Banyan.split_len(nrows, batch_idx, nbatches, comm)
             rowsscanned = 0
+            @time "In ReadBlockHelper on get_worker_idx()=$(get_worker_idx()) for reading files_to_read=$files_to_read" begin
             Threads.@threads for (i, path::String, readrange, filerowrange) in files_to_read
                 dfs[i] = read_file(format_value, getpath(path), rowrange, readrange, filerowrange)
+            end
             end
             if Banyan.INVESTIGATING_SLOW_WRITING
                 println("In ReadBlock on get_worker_idx()=$(get_worker_idx()) with files_to_read=$files_to_read, loc_name=$loc_name, nrow.(dfs)=$(DataFrames.nrow.(dfs))")
@@ -362,6 +367,7 @@ function ReadBlockHelper(@nospecialize(format_value))
         # guaranteed to have its ndims correct) and so if a split/merge/cast
         # function requires the schema (for example for grouping) then it must be
         # sure to take that account
+        @time "In ReadBlockHelper on get_worker_idx()=$(get_worker_idx()) for concatenation" begin
         res = if isempty(dfs)
             # When we construct the location, we store an empty data frame with The
             # correct schema.
@@ -370,6 +376,7 @@ function ReadBlockHelper(@nospecialize(format_value))
             dfs[1]
         else
             vcat(dfs...)
+        end
         end
         res
     end
@@ -446,6 +453,7 @@ function WriteHelper(@nospecialize(format_value))
             MPI.Barrier(comm)
         end
 
+        @time "In WriteHelper on get_worker_idx()=$(get_worker_idx()) for rmdir_on_nfs and MPI.Barrier" begin
         if is_main
             if nbatches == 1
                 # If there is no batching we can delete the original directory
@@ -465,6 +473,7 @@ function WriteHelper(@nospecialize(format_value))
             end
         end
         MPI.Barrier(comm)
+        end
 
         # Write out for this batch
         nrows = part isa Empty ? 0 : size(part, 1)
@@ -473,6 +482,7 @@ function WriteHelper(@nospecialize(format_value))
         part_res = part isa Empty ? part : convert(DataFrames.DataFrame, part)
         if !(part isa Empty)
             dst = joinpath(path, "part_$sortableidx" * ".$format_string")
+            @time "In WriteHelper on get_worker_idx()=$(get_worker_idx()) for write_file" begin
             if Banyan.INVESTIGATING_SLOW_WRITING
                 et = @elapsed begin
                     write_file(
@@ -492,6 +502,7 @@ function WriteHelper(@nospecialize(format_value))
                     nrows
                 )
             end
+            end
         end 
         # We don't need this barrier anymore because we do a broadcast right after
         # MPI.Barrier(comm)
@@ -501,6 +512,7 @@ function WriteHelper(@nospecialize(format_value))
         ##########################################
 
         # Get paths for reading in metadata and Location
+        @time "In WriteHelper on get_worker_idx()=$(get_worker_idx()) for syncing across stuff" begin
         tmp_suffix = nbatches > 1 ? ".tmp" : ""
         m_path = is_main ? get_meta_path(loc_params_path * tmp_suffix) : ""
         location_path = is_main ? get_location_path(loc_params_path * tmp_suffix) : ""
@@ -514,8 +526,10 @@ function WriteHelper(@nospecialize(format_value))
         else
             (String[], Int64[])
         end
+        end
 
         # Read in the current location if it's there
+        @time "In WriteHelper on get_worker_idx()=$(get_worker_idx()) for deserialize_retry" begin
         empty_df = DataFrames.DataFrame()
         curr_location::Location = if nbatches > 1 && batch_idx > 1
             Banyan.deserialize_retry(location_path)
@@ -532,6 +546,7 @@ function WriteHelper(@nospecialize(format_value))
                 0,
                 ExactSample(empty_df, 0)
             )
+        end
         end
 
         # Gather # of rows, # of bytes, empty sample, and actual sample
@@ -552,6 +567,7 @@ function WriteHelper(@nospecialize(format_value))
         # On the main worker, finalize metadata and location info.
         if is_main
             # Determine paths and #s of rows for metadata file
+            @time "In WriteHelper on get_worker_idx()=$(get_worker_idx()) for computing metadata" begin
             for worker_i in 1:nworkers
                 push!(
                     curr_remotepaths,
@@ -611,9 +627,12 @@ function WriteHelper(@nospecialize(format_value))
                 # on when we need to use this location.
                 curr_location.sample_invalid = true
             end
+            end
 
             # Write out the updated `Location`
+            @time "In WriteHelper on get_worker_idx()=$(get_worker_idx()) for serializing metadata" begin
             serialize(location_path, curr_location)
+            end
         end
 
         ###################################
@@ -621,6 +640,7 @@ function WriteHelper(@nospecialize(format_value))
         ###################################
 
         if nbatches > 1 && batch_idx == nbatches
+            @time "In WriteHelper on get_worker_idx()=$(get_worker_idx()) for copying" begin
             # Copy over location and meta path
             actual_meta_path = get_meta_path(loc_params_path)
             actual_location_path = get_location_path(loc_params_path)
@@ -670,6 +690,7 @@ function WriteHelper(@nospecialize(format_value))
             MPI.Barrier(comm)
             if is_main
                 Banyan.rmdir_on_nfs(path)
+            end
             end
         else
             MPI.Barrier(comm)

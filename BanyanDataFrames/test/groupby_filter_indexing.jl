@@ -932,3 +932,23 @@ end
 @testset "CSV from S3 Latency" begin
     test_csv_from_s3_latency()
 end
+
+@testset "Slow writing to disk" begin
+    use_session_for_testing(sample_rate=1024) do
+        for _ in 1:2
+            s3_bucket_name = get_cluster_s3_bucket_name()
+            df = BanyanDataFrames.read_parquet(
+                "s3://$s3_bucket_name/nyc_tripdata.parquet",
+            )
+
+            long_trips = filter(
+                row -> row.trip_distance > 1.0,
+                df
+            )
+            gdf = groupby(long_trips, :passenger_count)
+            trip_means = combine(gdf, :trip_distance => mean)
+
+            trip_means = compute(trip_means)
+        end
+    end
+end
