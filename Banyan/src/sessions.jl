@@ -505,8 +505,19 @@ function end_all_sessions(cluster_name::String; release_resources_now = false, r
     @info "Ending all running sessions for cluster named $cluster_name"
     configure(; kwargs...)
     sessions = get_sessions(cluster_name, status=["creating", "running"])
+    errors_to_throw = []
     for (session_id, session) in sessions
-        end_session(session_id; release_resources_now=release_resources_now, release_resources_after=release_resources_after, kwargs...)
+        try
+            end_session(session_id; release_resources_now=release_resources_now, release_resources_after=release_resources_after, kwargs...)
+        catch e
+            push!(errors_to_throw, (session_id, (e, catch_backtrace())))
+        end
+    end
+    if !isempty(errors_to_throw)
+        for (session_id, err) in errors_to_throw
+            @error "Error attempting to end session with ID $session_id" exception=err
+        end
+        error(length(errors_to_throw) > 1 ? "Failed to end some sessions" : "Failed to end a session")
     end
 end
 
