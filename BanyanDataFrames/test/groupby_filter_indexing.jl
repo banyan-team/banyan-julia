@@ -936,6 +936,7 @@ end
 @testset "Slow writing to disk" begin
     use_session_for_testing(sample_rate=1024) do
         for _ in 1:2
+            @time begin
             s3_bucket_name = get_cluster_s3_bucket_name()
             df = BanyanDataFrames.read_parquet(
                 "s3://$s3_bucket_name/nyc_tripdata.parquet",
@@ -949,6 +950,7 @@ end
             trip_means = combine(gdf, :trip_distance => mean)
 
             trip_means = compute(trip_means)
+            end
         end
     end
 end
