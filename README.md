@@ -1,8 +1,6 @@
 # Banyan Julia
 
-Banyan Julia is an extension to the Julia programming language for that seamlessly scales existing libraries and code to massive data and compute. Banyan allows _partition types_ to be assigned to variables in existing code. Annotated code is automatically offloaded to run in a distributed fashion on managed clusters running in your AWS Virtual Private Cloud. Banyan optimizes code on-the-fly to take advantage of CPU caches and multicores in the clusters where the offloaded code runs.
-
-Software libraries can be annotated with partition types and subsequent use of the annotated functions automatically runs at scale. Currently, we have annotated several popular Julia libraries:
+Banyan Julia is a suite of libraries for processing big data with massive parallelism in the cloud. The difference between Banyan Julia and alternatives (such as Dagger.jl, Distributed, MPI.jl) is that anything you can [`compute`](https://www.banyancomputing.com/computing-futures) can be instantly [`sample`](https://www.banyancomputing.com/sampling-data)d.
 
 - [BanyanArrays.jl](https://www.banyancomputing.com/banyan-arrays-jl-docs) for reading/writing large HDF5 datasets and distributed map-reduce computation
 - [BanyanImages.jl](https://www.banyancomputing.com/banyan-images-jl-docs) for massively parallel image processing
