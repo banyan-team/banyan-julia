@@ -361,8 +361,8 @@ function partitioned_computation_concrete(
     # require the last value to be merged simply because it is being evaluated.
 
     sessions = get_sessions_dict()
-    session_id = get_session_id()
     session = get_session()
+    session_id = get_session_id()
     resource_id = session.resource_id
 
 

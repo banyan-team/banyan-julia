@@ -531,7 +531,7 @@ function get_session_status(session_id::String=get_session_id(); kwargs...)::Str
     end
     response = send_request_get_response(:describe_sessions, params)
     if !haskey(response["sessions"], session_id)
-        @warn "Session with ID $session_id is assumed to still be creating"
+        @warn "Session with ID $session_id is assumed to have just started creating"
         return "creating"
     end
     session_status = response["sessions"][session_id]["status"]
