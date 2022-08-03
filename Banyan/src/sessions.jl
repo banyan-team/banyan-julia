@@ -86,7 +86,6 @@ function _start_session(
     store_logs_in_s3::Bool,
     store_logs_on_cluster::Bool,
     log_initialization::Bool,
-    sample_rate::Int64,
     session_name::String,
     files::Vector{String},
     code_files::Vector{String},
@@ -109,7 +108,10 @@ function _start_session(
     no_email::Bool,
     for_running::Bool,
     sessions::Dict{String,Session},
+    sampling_configs::Dict{LocationPath,SamplingConfig}
 )
+    global session_sampling_configs
+
     # Construct parameters for starting session
     cluster_name = if cluster_name == NOTHING_STRING
         running_clusters = get_running_clusters()
@@ -129,7 +131,6 @@ function _start_session(
     session_configuration = Dict{String,Any}(
         "cluster_name" => cluster_name,
         "num_workers" => nworkers,
-        "sample_rate" => sample_rate,
         "release_resources_after" => release_resources_after == -1 ? nothing : release_resources_after,
         "return_logs" => print_logs,
         "store_logs_in_s3" => store_logs_in_s3,
@@ -141,7 +142,8 @@ function _start_session(
         "using_modules" => using_modules,
         "reuse_resources" => !force_update_files,
         "estimate_available_memory" => estimate_available_memory,
-        "language" => "jl"
+        "language" => "jl",
+        "sampling_configs" => sampling_configs_to_jl(sampling_configs)
     )
     if session_name != NOTHING_STRING
         session_configuration["session_name"] = session_name
@@ -269,7 +271,6 @@ function _start_session(
         session_id,
         resource_id,
         nworkers,
-        sample_rate,
         organization_id,
         cluster_instance_id,
         not_using_modules,
@@ -279,6 +280,7 @@ function _start_session(
         gather_queue_url=gather_queue_url,
         execution_queue_url=execution_queue_url
     )
+    session_sampling_configs[session_id] = sampling_configs
 
     if !nowait
         wait_for_session(session_id)
@@ -298,7 +300,6 @@ function start_session(;
     store_logs_in_s3::Bool = true,
     store_logs_on_cluster::Bool = false,
     log_initialization::Bool = false,
-    sample_rate::Int64 = nworkers,
     session_name::String = NOTHING_STRING,
     files::Vector{String} = String[],
     code_files::Vector{String} = String[],
@@ -318,6 +319,10 @@ function start_session(;
     nowait::Bool = true,
     email_when_ready::Union{Bool,Nothing} = nothing,
     for_running::Bool = false,
+    always_exact=nothing,
+    sample_rate=nothing,
+    max_num_bytes_exact=nothing,
+    force_new_sample_rate=nothing,
     kwargs...,
 )::SessionId
     # Should save 5ms of overhead
@@ -331,6 +336,12 @@ function start_session(;
 
     # Configure
     configure(; kwargs...)
+    configure_sampling(;
+        always_exact=always_exact,
+        sample_rate=sample_rate,
+        max_num_bytes_exact=max_num_bytes_exact,
+        force_new_sample_rate=force_new_sample_rate
+    )
     
     current_session_id = _start_session(
         cluster_name,
@@ -340,7 +351,6 @@ function start_session(;
         store_logs_in_s3,
         store_logs_on_cluster,
         log_initialization,
-        sample_rate,
         session_name,
         files,
         code_files,
@@ -362,7 +372,8 @@ function start_session(;
         isnothing(email_when_ready) ? false : email_when_ready,
         isnothing(email_when_ready),
         for_running,
-        sessions
+        sessions,
+        get_sampling_configs()
     )
     current_session_id
 end

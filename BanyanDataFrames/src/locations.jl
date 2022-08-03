@@ -3,7 +3,7 @@ get_file_ending(remotepath::String)::String = splitext(remotepath)[2][2:end]
 Arrow_Table_retry = retry(Arrow.Table; delays=Base.ExponentialBackOff(; n=5))
 
 function _remote_table_source(remotepath, shuffled, metadata_invalid, sample_invalid, invalidate_metadata, invalidate_sample, max_exact_sample_length)::Location
-    session_sample_rate = get_session().sample_rate
+    session_sample_rate = get_sample_rate()
     is_main = is_main_worker()
     
     # Get cached Location and if it has valid parameters and sample, return

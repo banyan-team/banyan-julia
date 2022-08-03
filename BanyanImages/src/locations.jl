@@ -98,7 +98,7 @@
 
 #     if isnothing(remote_sample)
 
-#         samplesize = (nimages <= MAX_EXACT_SAMPLE_NUM_IMAGES) ? nimages : ceil(Int64, nimages / get_session().sample_rate)
+#         samplesize = (nimages <= MAX_EXACT_SAMPLE_NUM_IMAGES) ? nimages : ceil(Int64, nimages / get_sample_rate())
 #         nbytes_of_sample = 0
 
 #         progressbar = Progress(length(files_to_read_from), "Collecting sample from $remotepath")
@@ -282,7 +282,7 @@ function _remote_image_source(
     add_channelview
 )
     # Get session information
-    session_sample_rate = get_session().sample_rate
+    session_sample_rate = get_sample_rate()
     worker_idx, nworkers = get_worker_idx(), get_nworkers()
     is_main = worker_idx == 1
 

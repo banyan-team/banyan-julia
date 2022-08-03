@@ -28,7 +28,7 @@ HDF5_getindex_retry = retry(HDF5.getindex; delays=Base.ExponentialBackOff(; n=5)
 
 function _remote_hdf5_source(path_and_subpath, shuffled, metadata_invalid, sample_invalid, invalidate_metadata, invalidate_sample, max_exact_sample_length)
     # Get session information
-    session_sample_rate = get_session().sample_rate
+    session_sample_rate = get_sample_rate()
     worker_idx, nworkers = get_worker_idx(), get_nworkers()
     is_main = worker_idx == 1
 

@@ -1,3 +1,25 @@
+function configure_sampling(
+    path="";
+    rate=nothing,
+    always_exact=nothing,
+    max_num_bytes_exact=nothing,
+    kwargs...
+)
+    global session_sampling_configs
+
+    sc = get_sampling_config(path; kwargs...)
+    nsc = SamplingConfig(
+        !isnothing(sc.rate) ? rate : sc.rate,
+        !isnothing(sc.always_exact) ? always_exact : sc.always_exact,
+        !isnothing(sc.max_num_bytes_exact) ? max_num_bytes_exact : sc.max_num_bytes_exact,
+        !isnothing(sc.force_new_sample_rate) ? force_new_sample_rate : sc.force_new_sample_rate,
+    )
+
+    session_id = _get_session_id_no_error()
+    lp = get_location_path_with_format(path; kwargs...)
+    session_sampling_configs[session_id][lp] = nsc
+end
+
 ###############################################################
 # Sample that caches properties returned by an AbstractSample #
 ###############################################################

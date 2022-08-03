@@ -40,6 +40,9 @@ using AWSCore,
     Serialization,
     TOML
 
+using S3: @service
+@service S3
+
 global BANYAN_API_ENDPOINT
 
 # Account management
@@ -84,6 +87,7 @@ export AbstractFuture, Future, partitioned_computation, compute_inplace, compute
 export Sample, ExactSample, sample, sample_for_grouping, SampleForGrouping, setsample!
 export sample_memory_usage, total_memory_usage, sample_axes, sample_keys, sample_by_key
 export NOTHING_SAMPLE
+export SamplingConfig
 
 # Locations
 export Location, LocationSource, LocationDestination, located, sourced, destined
@@ -98,6 +102,7 @@ export get_remotepath_id,
     cache_location,
     get_max_exact_sample_length,
     set_max_exact_sample_length
+export LocationPath
 
 # Serialization
 export from_jl_value_contents, to_jl_value_contents

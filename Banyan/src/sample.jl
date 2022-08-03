@@ -9,11 +9,11 @@ mutable struct Sample
     groupingkeys::Vector{<:Any}
 
     Sample() =
-        new(nothing, objectid(nothing), 0, get_session().sample_rate, Any[])
+        new(nothing, objectid(nothing), 0, get_sample_rate(), Any[])
     Sample(value::Any) =
-        new(value, objectid(value), sample_memory_usage(value), get_session().sample_rate, Any[])
+        new(value, objectid(value), sample_memory_usage(value), get_sample_rate(), Any[])
     function Sample(value::Any, memory_usage::Int64)
-        sample_rate = get_session().sample_rate
+        sample_rate = get_sample_rate()
         memory_usage = convert(Int64, round(memory_usage / sample_rate))::Int64
         new(value, objectid(value), memory_usage, sample_rate, Any[])
     end
@@ -22,3 +22,13 @@ mutable struct Sample
         new(value, objectid(value), memory_usage, rate, Any[])
     end
 end
+
+struct SamplingConfig
+    rate::Int64
+    always_exact::Bool
+    max_num_bytes_exact::Int64
+    force_new_sample_rate::Bool
+end
+
+const DEFAULT_SAMPLING_CONFIG = SamplingConfig(1024, false, parse_bytes("256 MB"), false)
+session_sampling_configs = Dict{SessionId,SamplingConfig}("" => DEFAULT_SAMPLING_CONFIG)

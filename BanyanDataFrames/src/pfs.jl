@@ -517,7 +517,7 @@ function WriteHelper(@nospecialize(format_value))
 
         # Gather # of rows, # of bytes, empty sample, and actual sample
         nbytes = part_res isa Empty ? 0 : Banyan.total_memory_usage(part_res)
-        sample_rate = get_session().sample_rate
+        sample_rate = get_sample_rate()
         sampled_part = (part_res isa Empty || is_disk) ? empty_df : Banyan.get_sample_from_data(part_res, sample_rate, nrows)
         gathered_data =
             gather_across((nrows, nbytes, part_res isa Empty ? part_res : empty(part_res), sampled_part), comm)

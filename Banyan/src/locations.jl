@@ -293,7 +293,7 @@ getsamplenrows(totalnrows::Int64)::Int64 =
         totalnrows
     else
         # Must have at least 1 row
-        cld(totalnrows, get_session().sample_rate)
+        cld(totalnrows, get_sample_rate())
     end
 
 # We maintain a cache of locations and a cache of samples. Locations contain

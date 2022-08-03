@@ -566,6 +566,7 @@ function send_evaluation(value_id::ValueId, session_id::SessionId)
             "organization_id" => get_session().organization_id,
             "cluster_instance_id" => get_session().cluster_instance_id,
             "cluster_name" => get_session().cluster_name,
+            "sampling_configs" => sampling_configs_to_jl(get_sampling_configs())
         ),
     )
     if isnothing(response)
@@ -667,6 +668,7 @@ function offloaded(given_function::Function, args...; distributed::Bool = false)
             "organization_id" => get_session().organization_id,
             "cluster_instance_id" => get_session().cluster_instance_id,
             "cluster_name" => get_session().cluster_name,
+            "sampling_configs" => sampling_configs_to_jl(get_sampling_configs())
         ),
     )
     if isnothing(response)
