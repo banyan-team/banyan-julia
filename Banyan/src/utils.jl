@@ -199,6 +199,25 @@ function configure(user_id, api_key, ec2_key_pair_name, banyanconfig_path)
     return banyan_config
 end
 
+# Getting organization IDs
+
+organization_ids = Dict{String,String}
+function get_organization_id()
+    global organization_ids
+    global sessions
+    user_id = configure()["banyan"]["user_id"]
+    session_id = _get_session_id_no_error()
+    if haskey(organization_ids, user_id)
+        organization_ids[user_id]
+    elseif haskey(sessions, session_id)
+        sessions[session_id].organization_ids
+    else
+        organization_id = send_request_get_response(:describe_users, Dict())["organization_id"]
+        organization_ids[user_id] = organization_id
+        organization_id
+    end
+end
+
 @specialize
 
 """
@@ -293,6 +312,8 @@ method_to_string(method::Symbol)::String = begin
         "update-cluster"
     elseif method == :set_cluster_ready
         "set-cluster-ready"
+    elseif method == :describe_users
+        "describe-users"
     end
 end
 

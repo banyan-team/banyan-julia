@@ -40,6 +40,7 @@ using AWSCore,
     Serialization,
     TOML
 
+using AWS.AWSServices: s3
 using S3: @service
 @service S3
 
