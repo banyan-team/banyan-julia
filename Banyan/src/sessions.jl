@@ -319,10 +319,6 @@ function start_session(;
     nowait::Bool = true,
     email_when_ready::Union{Bool,Nothing} = nothing,
     for_running::Bool = false,
-    always_exact=nothing,
-    sample_rate=nothing,
-    max_num_bytes_exact=nothing,
-    force_new_sample_rate=nothing,
     kwargs...,
 )::SessionId
     # Should save 5ms of overhead
@@ -336,12 +332,7 @@ function start_session(;
 
     # Configure
     configure(; kwargs...)
-    configure_sampling(;
-        always_exact=always_exact,
-        sample_rate=sample_rate,
-        max_num_bytes_exact=max_num_bytes_exact,
-        force_new_sample_rate=force_new_sample_rate
-    )
+    configure_sampling(; kwargs...)
     
     current_session_id = _start_session(
         cluster_name,

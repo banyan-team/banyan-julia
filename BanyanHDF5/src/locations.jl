@@ -33,8 +33,8 @@ function _remote_hdf5_source(path_and_subpath, shuffled, metadata_invalid, sampl
     is_main = worker_idx == 1
 
     # Get current location
-    curr_location, curr_sample_invalid, curr_parameters_invalid = get_cached_location(path_and_subpath, metadata_invalid, sample_invalid)
-    if !curr_parameters_invalid && !curr_sample_invalid
+    curr_location, curr_sample_invalid, curr_metadata_invalid = get_cached_location(path_and_subpath, metadata_invalid, sample_invalid)
+    if !curr_metadata_invalid && !curr_sample_invalid
         return curr_location
     end
 

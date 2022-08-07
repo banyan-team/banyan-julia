@@ -24,7 +24,7 @@
 )::Tuple{Union{Nothing,String},Union{Nothing,DateTime}}
     value_id = message["value_id"]::ValueId
     if value_id == "-2" && isnothing(error_for_main_stuck_time)
-        error_for_main_stuck_msg::String = from_jl_value_contents(message["contents"]::String)
+        error_for_main_stuck_msg::String = from_jl_string(message["contents"]::String)
         if contains(error_for_main_stuck_msg, "session $(get_session_id())")
             error_for_main_stuck = error_for_main_stuck_msg
             error_for_main_stuck_time = Dates.now()
@@ -277,7 +277,7 @@ function _partitioned_computation_concrete(fut::Future, destination::Location, n
                 JSON.json(
                     Dict{String,Any}(
                         "value_id" => value_id,
-                        "contents" => to_jl_value_contents(f.value)
+                        "contents" => to_jl_string(f.value)
                     ),
                 ),
             )
@@ -296,7 +296,7 @@ function _partitioned_computation_concrete(fut::Future, destination::Location, n
             contents = get(partial_gathers, value_id, "") * message["contents"]::String
             # @debug "Received gather request for $value_id"
             if haskey(session.futures_on_client, value_id)
-                value = from_jl_value_contents(contents)
+                value = from_jl_string(contents)
                 f = session.futures_on_client[value_id]::Future
                 f.value = value
                 # TODO: Update stale/mutated here to avoid costly
@@ -623,11 +623,11 @@ end
 # Make the `offloaded` function on the client side keep looping and 
 #     (1) checking receive_next_message and 
 #     (2) checking for message[“kind”] == "GATHER" and 
-#     (3) `break`ing and `return`ing the value (using `from_jl_value_contents(message["contents"])`) 
+#     (3) `break`ing and `return`ing the value (using `from_jl_string(message["contents"])`) 
 #         if value_id == -1
 # Make `offloaded` function in Banyan.jl 
 #   which calls evaluate passing in a string of bytes 
-#   by serializing the given function (just call to_jl_value_contents on it) 
+#   by serializing the given function (just call to_jl_string on it) 
 #   and passing it in with the parameter offloaded_function_code
 #
 # Make `offloaded` function specify 
@@ -642,7 +642,7 @@ function offloaded(given_function::Function, args...; distributed::Bool = false)
     # doesn't need information about memory usage from intiial package loading.
 
     # Get serialized function
-    serialized::String = to_jl_value_contents((given_function, args))
+    serialized::String = to_jl_string((given_function, args))
 
     # Submit evaluation request
     !isempty(get_session().organization_id) || error("Organization ID not stored locally for this session")
@@ -713,7 +713,7 @@ function offloaded(given_function::Function, args...; distributed::Bool = false)
                 # recompute the initial available memory every time we start a session
                 # and this should presumably include the offloaded memory usage.
                 get_session().worker_memory_used = get_session().worker_memory_used + memory_used
-                stored_message = from_jl_value_contents(contents)
+                stored_message = from_jl_string(contents)
             end
             error_for_main_stuck, error_for_main_stuck_time = check_worker_stuck_error(message, error_for_main_stuck, error_for_main_stuck_time) 
         elseif (message_type == "EVALUATION_END")

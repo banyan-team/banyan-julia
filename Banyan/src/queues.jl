@@ -132,7 +132,7 @@ function receive_from_client(value_id::ValueId)
     )
     # Receive response from client
     m = JSON.parse(get_next_message(get_scatter_queue())[1])
-    v = from_jl_value_contents(m["contents"]::String)
+    v = from_jl_string(m["contents"]::String)
     v
 end
 
@@ -153,7 +153,7 @@ end
 
 function send_to_client(value_id::ValueId, value, worker_memory_used = 0)
     MAX_MESSAGE_LENGTH = 220_000
-    message = to_jl_value_contents(value)::String
+    message = to_jl_string(value)::String
     i = 1
     while true
         is_last_message = length(message) <= MAX_MESSAGE_LENGTH

@@ -1,30 +1,41 @@
 function configure_sampling(
     path="";
-    rate=nothing,
+    sample_rate=nothing,
     always_exact=nothing,
     max_num_bytes_exact=nothing,
+    force_new_sample_rate=nothing,
+    assume_shuffled=nothing,
+    for_all_locations=false,
     kwargs...
 )
     global session_sampling_configs
 
     sc = get_sampling_config(path; kwargs...)
     nsc = SamplingConfig(
-        !isnothing(sc.rate) ? rate : sc.rate,
-        !isnothing(sc.always_exact) ? always_exact : sc.always_exact,
-        !isnothing(sc.max_num_bytes_exact) ? max_num_bytes_exact : sc.max_num_bytes_exact,
-        !isnothing(sc.force_new_sample_rate) ? force_new_sample_rate : sc.force_new_sample_rate,
+        !isnothing(sample_rate) ? rate : sc.rate,
+        !isnothing(always_exact) ? always_exact : sc.always_exact,
+        !isnothing(max_num_bytes_exact) ? max_num_bytes_exact : sc.max_num_bytes_exact,
+        !isnothing(force_new_sample_rate) ? force_new_sample_rate : sc.force_new_sample_rate,
+        !isnothing(assume_shuffled) ? assume_shuffled : sc.assume_shuffled,
     )
 
     session_id = _get_session_id_no_error()
     lp = get_location_path_with_format(path; kwargs...)
-    session_sampling_configs[session_id][lp] = nsc
+    sampling_configs = session_sampling_configs[session_id]
+    if for_all_locations
+        empty!(sampling_configs)
+        sampling_configs[NO_LOCATION_PATH] = nsc
+    else
+        sampling_configs[lp] = nsc
+    end
+    
 end
 
 ###############################################################
 # Sample that caches properties returned by an AbstractSample #
 ###############################################################
 
-ExactSample(value::Any) = Sample(value, sample_memory_usage(value), 1)
+ExactSample(value::Any) = Sample(value, 1)
 ExactSample(value::Any, memory_usage::Int64) = Sample(value, memory_usage, 1)
 
 function setsample!(fut::Future, value::Any)
@@ -188,7 +199,7 @@ function sample_max(A::T, key::K) where {T,K}
     isempty(A) ? nothing : _maximum(orderinghashes(A, key))
 end
 
-const NOTHING_SAMPLE = Sample(nothing, -1, -1)
+const NOTHING_SAMPLE = Sample(nothing, UInt(0), Int64(-1), Int64(-1), Int64[])
 
 Base.isnothing(s::Sample) = s.rate == -1
 

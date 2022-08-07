@@ -296,7 +296,7 @@ function _precompile_()
     precompile(download_remote_path, (String,))
     precompile(download_remote_s3_path, (String,))
     Base.precompile(Tuple{typeof(sqs_get_queue_with_retries),Dict{Symbol, Any},Vararg{Any}})   # time: 0.24037404
-    precompile(to_jl_value_contents, (Function,))
+    precompile(to_jl_string, (Function,))
 
     # futures.jl
     precompile(create_new_future, (Location, Future, String))

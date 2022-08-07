@@ -106,7 +106,7 @@ export get_remotepath_id,
 export LocationPath
 
 # Serialization
-export from_jl_value_contents, to_jl_value_contents
+export from_jl_string, to_jl_string
 
 # Queues
 export receive_from_client, send_to_client, get_sqs_dict_from_url
@@ -171,8 +171,8 @@ export is_debug_on,
     get_partition_idx_from_divisions,
     isoverlapping,
     to_jl_value,
-    to_jl_value_contents,
-    from_jl_value_contents,
+    to_jl_string,
+    from_jl_string,
     get_divisions,
     getpath,
     buftovbuf,

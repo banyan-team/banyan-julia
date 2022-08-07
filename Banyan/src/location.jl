@@ -10,7 +10,7 @@ mutable struct Location
     dst_parameters::LocationParameters
     total_memory_usage::Int64
     sample::Sample
-    parameters_invalid::Bool
+    metadata_invalid::Bool
     sample_invalid::Bool
 
     # function Location(
@@ -106,9 +106,11 @@ function get_sampling_configs()
     session_sampling_configs[_get_session_id_no_error()]
 end
 get_sampling_config(l_path::LocationPath)::SamplingConfig =
-    get(get_sampling_configs(), l_path, sampling_configs[NO_LOCATION_PATH])
+    let scs = get_sampling_configs()
+        get(scs, l_path, scs[NO_LOCATION_PATH])
+    end
 
-get_sample_rate(p::String; kwargs...) =
+get_sample_rate(p::String=""; kwargs...) =
     get_sample_rate(get_location_path_with_format(p; kwargs...))
 parse_sample_rate(object_key) =
     parse(Int64, object_key[(findlast("_", object_key).start+1):end])
@@ -116,6 +118,11 @@ function get_sample_rate(l_path::LocationPath)
     # Get the desired sample rate
     desired_sample_rate = get_sampling_config(l_path).rate
 
+    # If we just want the default sample rate or if a new sample rate is being
+    # forced, then just return that.
+    if isempty(l_path.path)
+        return desired_sample_rate
+    end
     sc = get_sampling_config(l_path)
     if sc.force_new_sample_rate
         return desired_sample_rate
@@ -180,17 +187,24 @@ struct AWSExceptionInfo
     end
 end
 
-function get_location_source(lp::LocationPath)::Tuple{Location,String}
+function get_location_source(lp::LocationPath)::Tuple{Location,String,String}
+    # This checks local cache and S3 cache for sample and metadata files.
+    # It then returns a Location object (with a null sample) and the local file names
+    # to read/write the metadata and sample from/to.
+
     # Load in metadata
     metadata_path = get_metadata_path(lp)
     metadata_local_path = joinpath(homedir(), ".banyan", "metadata", metadata_path)
     metadata_s3_path = "/$(banyan_metadata_bucket_name())/$metadata_path"
+    src_params_not_stored_locally = false
     src_params::Dict{String, String} = if exists(metadata_local_path)
         lm = Dates.unix2datetime(mtime(metadata_local_path))
         if_modified_since_string =
             "$(dayabbr(lm)), $(twodigit(day(lm))) $(monthabbr(lm)) $(year(lm)) $(twodigit(hour(lm))):$(twodigit(minute(lm))):$(twodigit(second(lm))) GMT"
         try
-            get_src_params_dict_from_arrow(s3("GET", metadata_s3_path, Dict("headers" => Dict("If-Modified-Since" => if_modified_since_string))))
+            d = get_src_params_dict_from_arrow(s3("GET", metadata_s3_path, Dict("headers" => Dict("If-Modified-Since" => if_modified_since_string))))
+            src_params_not_stored_locally = true
+            d
         catch e
             if is_debug_on()
                 show(e)
@@ -208,7 +222,9 @@ function get_location_source(lp::LocationPath)::Tuple{Location,String}
         end
     else
         try
-            get_src_params_dict_from_arrow(s3("GET", metadata_s3_path))
+            d = get_src_params_dict_from_arrow(s3("GET", metadata_s3_path))
+            src_params_not_stored_locally = true
+            d
         catch e
             if is_debug_on()
                 show(e)
@@ -219,6 +235,10 @@ function get_location_source(lp::LocationPath)::Tuple{Location,String}
             end
             Dict{String, String}()
         end
+    end
+    # Store metadata locally
+    if src_params_not_stored_locally && !isempty(d)
+        Arrow.write(metadata_local_path, Arrow.Table(); metadata=src_params)
     end
 
     # Load in sample
@@ -304,14 +324,19 @@ function get_location_source(lp::LocationPath)::Tuple{Location,String}
         final_local_sample_path = joinpath(samples_local_dir, sample_path_suffix)
         write(final_local_sample_path, blob)
     end
-
+    
+    # Construct and return LocationSource
     res_location = LocationSource(
         get(src_params, "name", "Remote"),
         src_params,
-        get(src_params, "total_memory_usage", 0),
+        parse(Int64, get(src_params, "total_memory_usage", "0")),
         NOTHING_SAMPLE
     )
-    res_location.parameters_invalid = isempty(src_params)
+    res_location.metadata_invalid = isempty(src_params)
     res_location.sample_invalid = isempty(final_local_sample_path)
-    (res_location, final_local_sample_path)
+    (
+        res_location,
+        metaata_local_path,
+        isempty(final_local_sample_path) ? final_local_sample_path : "sample_path_prefix$desired_sample_rate"
+    )
 end

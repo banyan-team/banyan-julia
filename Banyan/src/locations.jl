@@ -68,7 +68,7 @@ function sourced(fut::Future, loc::Location)
                     # Otherwise just make a fresh new sample.
                     Sample()
                 end,
-                loc.parameters_invalid,
+                loc.metadata_invalid,
                 loc.sample_invalid
             ),
         )
@@ -92,7 +92,7 @@ function sourced(fut::Future, loc::Location)
                     # location if there is one.
                     fut_location.sample
                 end,
-                loc.parameters_invalid,
+                loc.metadata_invalid,
                 loc.sample_invalid
             ),
         )
@@ -116,7 +116,7 @@ function destined(fut::Future, loc::Location)
                 loc.dst_parameters,
                 fut_location.total_memory_usage,
                 Sample(),
-                loc.parameters_invalid,
+                loc.metadata_invalid,
                 loc.sample_invalid
             ),
         )
@@ -131,7 +131,7 @@ function destined(fut::Future, loc::Location)
                 loc.dst_parameters,
                 fut_location.total_memory_usage,
                 fut_location.sample,
-                fut_location.parameters_invalid,
+                fut_location.metadata_invalid,
                 fut_location.sample_invalid
             ),
         )
@@ -219,7 +219,7 @@ Size(val)::Location = LocationSource(
     "Value",
     Dict{String,Any}("value" => to_jl_value(val)),
     0,
-    Sample(indexapply(getsamplenrows, val, 1)),
+    Sample(indexapply(getsamplenrows, val, 1), 1),
 )
 
 function Client(val::T)::Location where {T}
@@ -313,7 +313,7 @@ _invalidate_metadata(remotepath) =
     let p = get_location_path(remotepath)
         if isfile(p)
             loc = deserialize_retry(p)
-            loc.parameters_invalid = true
+            loc.metadata_invalid = true
             serialize(p, loc)
         end
     end
@@ -368,10 +368,10 @@ function get_cached_location(remotepath, remotepath_id, metadata_invalid, sample
         INVALID_LOCATION
     end
     curr_location.sample_invalid = curr_location.sample_invalid || sample_invalid
-    curr_location.parameters_invalid = curr_location.parameters_invalid || metadata_invalid
+    curr_location.metadata_invalid = curr_location.metadata_invalid || metadata_invalid
     curr_sample_invalid = curr_location.sample_invalid
-    curr_parameters_invalid = curr_location.parameters_invalid
-    curr_location, curr_sample_invalid, curr_parameters_invalid
+    curr_metadata_invalid = curr_location.metadata_invalid
+    curr_location, curr_sample_invalid, curr_metadata_invalid
 end
 
 get_cached_location(remotepath, metadata_invalid, sample_invalid) =
@@ -381,7 +381,7 @@ function cache_location(remotepath, remotepath_id, location_res::Location, inval
     location_path = get_location_path(remotepath, remotepath_id)
     location_to_write = deepcopy(location_res)
     location_to_write.sample_invalid = location_to_write.sample_invalid || invalidate_sample
-    location_to_write.parameters_invalid = location_to_write.parameters_invalid || invalidate_metadata
+    location_to_write.metadata_invalid = location_to_write.metadata_invalid || invalidate_metadata
     serialize(location_path, location_to_write)
 end
 cache_location(remotepath, location_res::Location, invalidate_sample, invalidate_metadata) =

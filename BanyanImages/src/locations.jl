@@ -173,7 +173,7 @@
 
 #     # Serialize generator
 #     if isnothing(remote_source)
-#         files = remotepath isa Tuple ? Banyan.to_jl_value_contents(remotepath) : files_to_read_from
+#         files = remotepath isa Tuple ? Banyan.to_jl_string(remotepath) : files_to_read_from
 #     end
 
 #     empty_part_size = (0, (datasize[2:end])...)
@@ -188,7 +188,7 @@
 #                 "ndims" => ndims,
 #                 "size" => datasize,
 #                 "eltype" => dataeltype,
-#                 "emptysample" => to_jl_value_contents(Base.Array{dataeltype}(undef, empty_part_size)),
+#                 "emptysample" => to_jl_string(Base.Array{dataeltype}(undef, empty_part_size)),
 #                 "format" => format,
 #                 "add_channelview" => add_channelview
 #             ),
@@ -287,8 +287,8 @@ function _remote_image_source(
     is_main = worker_idx == 1
 
     # Get current location
-    curr_location, curr_sample_invalid, curr_parameters_invalid = get_cached_location((remotepath, add_channelview), remotepath_id, metadata_invalid, sample_invalid)
-    if !curr_parameters_invalid && !curr_sample_invalid
+    curr_location, curr_sample_invalid, curr_metadata_invalid = get_cached_location((remotepath, add_channelview), remotepath_id, metadata_invalid, sample_invalid)
+    if !curr_metadata_invalid && !curr_sample_invalid
         return curr_location
     end
 
@@ -302,12 +302,12 @@ function _remote_image_source(
     #       other is each iterated element and return a single path
 
     # Iterable object that iterates over local paths
-    meta_path = if !curr_parameters_invalid
+    meta_path = if !curr_metadata_invalid
         curr_location.src_parameters["meta_path"]::String
     else
         is_main ? get_meta_path((remotepath, add_channelview), remotepath_id) : ""
     end
-    if is_main && curr_parameters_invalid
+    if is_main && curr_metadata_invalid
         localpaths::Base.Vector{String} = getpaths(remotepath)
         Arrow.write(meta_path, (path=localpaths,))
     end
@@ -361,7 +361,7 @@ function _remote_image_source(
         # Construct location with metadata
         location_res = LocationSource(
             "Remote",
-            if curr_parameters_invalid
+            if curr_metadata_invalid
                 empty_part_size = (0, (datasize_res[2:end])...)
                 Dict{String,Any}(
                     "meta_path" => meta_path,
@@ -370,7 +370,7 @@ function _remote_image_source(
                     "ndims" => ndims_res,
                     "size" => datasize_res,
                     "eltype" => dataeltype_res,
-                    "empty_sample" => to_jl_value_contents(Base.Array{dataeltype_res}(undef, empty_part_size)),
+                    "empty_sample" => to_arrow_string(Base.Array{dataeltype_res}(undef, empty_part_size)),
                     "add_channelview" => add_channelview,
                     "format" => "image"
                 )

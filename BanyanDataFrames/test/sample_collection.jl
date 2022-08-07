@@ -35,12 +35,17 @@
         # Construct location
         if reusing != "nothing"
             RemoteTableSource(src_name, invalidate_metadata = true, invalidate_sample = true)
+            invalidate_location(src_name)
             RemoteTableSource(src_name, metadata_invalid = true, sample_invalid = true)
+        end
+        if (reusing == "nothing" || reusing == "sample")
+            invalidate_metadata(src_name)
+        end
+        if (reusing == "nothing" || reusing == "location")
+            invalidate_sample(src_name)
         end
         remote_source = RemoteTableSource(
             src_name,
-            metadata_invalid = (reusing == "nothing" || reusing == "sample"),
-            sample_invalid = (reusing == "nothing" || reusing == "location"),
             shuffled = with_or_without_shuffled == "with",
             max_exact_sample_length = max_exact_sample_length
         )
@@ -48,7 +53,7 @@
         # Verify the location
         
         @test remote_source.total_memory_usage > 0
-        @test !remote_source.parameters_invalid
+        @test !remote_source.metadata_invalid
         @test !remote_source.sample_invalid
         @test remote_source.src_parameters["nrows"] == src_nrows
         # if contains(src_name, "dir")

@@ -33,7 +33,7 @@
 #         datasize = add_channelview ? (nimages, 3, 100, 100) : (nimages, 100, 100)
 #         empty_part_size = add_channelview ? (0, 3, 100, 100) : (0, 100, 100)
 #     elseif format == "generator"
-#         files = Banyan.to_jl_value_contents(path)
+#         files = Banyan.to_jl_string(path)
 #         datasize = add_channelview ? (nimages, 3, 512, 512) : (nimages, 512, 512)
 #         empty_part_size = add_channelview ? (0, 3, 512, 512) : (0, 512, 512)
 #     elseif format == "path"
@@ -66,7 +66,7 @@
 #             "ndims" => 3,
 #             "size" => datasize, # Inaccurate value
 #             "eltype" => dataeltype,
-#             "empty_sample" => Banyan.to_jl_value_contents(Base.Array{dataeltype}(undef, empty_part_size)),
+#             "empty_sample" => Banyan.to_jl_string(Base.Array{dataeltype}(undef, empty_part_size)),
 #             "format" => filetype,
 #             "add_channelview" => add_channelview
 #         ),
