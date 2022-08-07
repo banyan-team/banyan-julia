@@ -92,7 +92,7 @@ export SamplingConfig
 
 # Locations
 export Location, LocationSource, LocationDestination, located, sourced, destined
-export Value, Size, Client, Disk, None
+export Value, Size, Client, Disk, None, RemoteSource
 export invalidate_all_locations, invalidate_metadata, invalidate_sample
 export NOTHING_LOCATION, INVALID_LOCATION
 export has_separate_metadata, get_sample, get_metadata, get_sample_and_metadata

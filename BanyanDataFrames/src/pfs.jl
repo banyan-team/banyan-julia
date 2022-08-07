@@ -199,7 +199,8 @@ function ReadBlockHelper(@nospecialize(format_value))
         lp = LocationPath(loc_params_path, "arrow", "2")
         balanced = params[symbol_balanced]
         m_path = "s3/$(banyan_metadata_bucket_name())/$(Banyan.get_metadata_path(lp))"
-        loc_params = loc_name == symbol_Disk ? Dict{String,String}(Arrow.getmetadata(Arrow.Table(m_path))) : loc_params
+        m_tbl = Arrow_Table_retry(m_path)
+        loc_params = loc_name == symbol_Disk ? Dict{String,String}(Arrow.getmetadata(m_tbl)) : loc_params
         if Banyan.INVESTIGATING_BDF_INTERNET_FILE_NOT_FOUND
             @show (m_path, loc_params, get_worker_idx())
         end
@@ -217,12 +218,12 @@ function ReadBlockHelper(@nospecialize(format_value))
         # [1] https://en.wikipedia.org/wiki/First-fit-decreasing_bin_packing
 
         # Initialize
-        meta_nrows = loc_params["nrows"]
-        meta_path = loc_params["path"]
+        meta_nrows = m_tbl.nrows
+        meta_path = m_tbl.path
         nworkers = get_nworkers(comm)
         npartitions = nbatches * nworkers
         partition_idx = get_partition_idx(batch_idx, nbatches, comm)
-        nrows::Int64 = loc_params[symbol_nrows]::Int64
+        nrows::Int64 = meta_nrows
         rows_per_partition = cld(nrows, npartitions)
         sorting_perm = sortperm(meta_nrows, rev=true)
         files_by_partition = Base.Vector{Int64}[]
@@ -312,7 +313,7 @@ function ReadBlockHelper(@nospecialize(format_value))
             ndfs = 0
             rowsscanned = 0
             files_to_read = []
-            for file in Tables.rows(meta)
+            for file in Tables.rows(m_tbl)
                 path = file[1]
                 path_nrows = file[2]
                 newrowsscanned = rowsscanned + path_nrows

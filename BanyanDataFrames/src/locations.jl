@@ -262,7 +262,7 @@ function _remote_table_source(lp::LocationPath, loc::Location, sample_rate::Int6
             # latency for retrieving metadata/samples for BDF.jl.
             io = IOBuffer()
             Arrow.write(io, remote_sample_value, compress=:zstd)
-            remote_sample_value_arrow = io
+            remote_sample_value_arrow = io.data
 
             # Construct Sample with the concatenated value, memory usage, and sample rate
             remote_sample_value_memory_usage = total_memory_usage(remote_sample_value)
@@ -354,30 +354,31 @@ function _remote_table_source(lp::LocationPath, loc::Location, sample_rate::Int6
             "empty_sample" => empty_sample
         )
 
-    # Write the metadata to S3 cache if previously invalid
-    if curr_metadata_invalid
-        # Write `NamedTuple` with metadata to `meta_path` with `Arrow.write`
-        Arrow.write(
-            is_main ? metadata_path : IOBuffer(),
-            (path=remotepaths, nrows=meta_nrows);
-            compress=:zstd,
-            metadata=src_params
-        )
-    end
-
-    # Write the sample to S3 cache if previously invalid
-    if curr_sample_invalid
-        write(sample_path, remote_sample.value.data)
-    end
-
-    if Banyan.INVESTIGATING_BDF_INTERNET_FILE_NOT_FOUND
-        @show (remotepath, meta_path)
-    end
-
-    # println("At end of _remote_table_source on get_worker_idx()=$(MPI.Initialized() ? get_worker_idx() : -1)")
-
-    # Return LocationSource to client side
     if is_main
+        # Write the metadata to S3 cache if previously invalid
+        if curr_metadata_invalid
+            # Write `NamedTuple` with metadata to `meta_path` with `Arrow.write`
+            Arrow.write(
+                is_main ? metadata_path : IOBuffer(),
+                (path=remotepaths, nrows=meta_nrows);
+                compress=:zstd,
+                metadata=src_params
+            )
+        end
+
+        # Write the sample to S3 cache if previously invalid
+        if curr_sample_invalid
+            write(sample_path, remote_sample.value.data)
+        end
+
+        if Banyan.INVESTIGATING_BDF_INTERNET_FILE_NOT_FOUND
+            @show (remotepath, meta_path)
+        end
+
+        # println("At end of _remote_table_source on get_worker_idx()=$(MPI.Initialized() ? get_worker_idx() : -1)")
+
+        # Return LocationSource to client specified
+
         # Construct the `Location` to return
         if Banyan.INVESTIGATING_COLLECTING_SAMPLES || Banyan.INVESTIGATING_MEMORY_USAGE
             @show total_nbytes
@@ -394,7 +395,6 @@ function _remote_table_source(lp::LocationPath, loc::Location, sample_rate::Int6
 end
 
 load_arrow_sample(f) = f |> Arrow.Table |> DataFrames.DataFrame
-load_arrow_sample_from_buf(iobuf) = iobuf |> seekstart |> load_arrow_sample
 
 # TODO: Modify offloaded function to:
 # - Use get_sampling_config() to get sample rate, shuffled, max_num_bytes_exact
@@ -406,43 +406,14 @@ load_arrow_sample_from_buf(iobuf) = iobuf |> seekstart |> load_arrow_sample
 # - Keep empty_sample but make it be a string of Arrow data with a to/from_arrow_value
 # - Return location with sample and metadata
 
-function RemoteTableSource(remotepath)::Location
-    lp = LocationPath(remotepath, "arrow", "2")
-    
-    # Look at local and S3 caches of metadata and samples to attempt to
-    # construct a Location.
-    loc, local_metadata_path, local_sample_path = get_location_source(lp)
-
-    if !loc.metadata_invalid && !loc.sample_invalid
-        # Case where both sample and parameters are valid
-        loc.sample.value = load_arrow_sample(local_sample_path)
-        loc
-    elseif loc.metadata_invalid && !loc.sample_invalid
-        # Case where parameters are invalid
-        new_loc = offloaded(_remote_table_source, lp, loc, parse_sample_rate(local_sample_path); distributed=true)
-        Arrow.write(local_metadata_path, Arrow.Table(); metadata=new_loc.src_parameters)
-        new_loc.sample.value = load_arrow_sample(local_sample_path)
-        new_loc
-    else
-        # Case where sample is invalid
-
-        # Get the Location with up-to-date metadata (source parameters) and sample
-        new_loc = offloaded(_remote_table_source, lp, loc, parse_sample_rate(local_sample_path); distributed=true)
-
-        if !loc.metadata_invalid
-            # Store the metadata locally. The local copy just has the source
-            # parameters but PFs can still access the S3 copy which will have the
-            # table of file names and #s of rows.
-            Arrow.write(local_metadata_path, Arrow.Table(); metadata=new_loc.src_parameters)
-        end
-
-        # Store the Arrow sample locally and update the returned Sample
-        write(local_sample_path, new_loc.sample.value.data)
-        new_loc.sample.value = load_arrow_sample_from_buf(new_loc.sample.value)
-        
-        new_loc
-    end
-end
+RemoteTableSource(remotepath)::Location =
+    RemoteSource(
+        LocationPath(remotepath, "arrow", "2"),
+        _remote_table_source,
+        load_arrow_sample,
+        load_arrow_sample,
+        write
+    )
 
 # Load metadata for writing
 # NOTE: `remotepath` should end with `.parquet` or `.csv` if Parquet

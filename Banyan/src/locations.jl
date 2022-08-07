@@ -428,3 +428,49 @@ function get_sample_and_metadata(::Val{:jl}, p, sample_rate)
     data = deserialize_retry(p)
     get_sample_from_data(data, sample_rate, size(data, 1)), size(data, 1)
 end
+
+function RemoteSource(
+    lp::LocationPath,
+    _remote_source::Function,
+    load_sample::Function,
+    load_sample_from_blob::Function,
+    write_sample::Function
+)::Location
+    # _remote_table_source(lp::LocationPath, loc::Location, sample_rate::Int64)::Location
+    # load_sample accepts a file path
+    # load_sample_from_blob accepts an array of bytes
+    
+    # Look at local and S3 caches of metadata and samples to attempt to
+    # construct a Location.
+    loc, local_metadata_path, local_sample_path = get_location_source(lp)
+
+    if !loc.metadata_invalid && !loc.sample_invalid
+        # Case where both sample and parameters are valid
+        loc.sample.value = load_sample(local_sample_path)
+        loc
+    elseif loc.metadata_invalid && !loc.sample_invalid
+        # Case where parameters are invalid
+        new_loc = offloaded(_remote_source, lp, loc, parse_sample_rate(local_sample_path); distributed=true)
+        Arrow.write(local_metadata_path, Arrow.Table(); metadata=new_loc.src_parameters)
+        new_loc.sample.value = load_sample(local_sample_path)
+        new_loc
+    else
+        # Case where sample is invalid
+
+        # Get the Location with up-to-date metadata (source parameters) and sample
+        new_loc = offloaded(_remote_source, lp, loc, parse_sample_rate(local_sample_path); distributed=true)
+
+        if !loc.metadata_invalid
+            # Store the metadata locally. The local copy just has the source
+            # parameters but PFs can still access the S3 copy which will have the
+            # table of file names and #s of rows.
+            Arrow.write(local_metadata_path, Arrow.Table(); metadata=new_loc.src_parameters)
+        end
+
+        # Store the Arrow sample locally and update the returned Sample
+        write_sample(local_sample_path, new_loc.sample.value)
+        new_loc.sample.value = load_sample_from_blob(new_loc.sample.value)
+        
+        new_loc
+    end
+end
