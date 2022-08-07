@@ -26,16 +26,20 @@ end
 
 HDF5_getindex_retry = retry(HDF5.getindex; delays=Base.ExponentialBackOff(; n=5))
 
-function _remote_hdf5_source(path_and_subpath, shuffled, metadata_invalid, sample_invalid, invalidate_metadata, invalidate_sample, max_exact_sample_length)
+function _remote_hdf5_source(lp::LocationPath, loc::Location, sc::SamplingConfig)
+    path_and_subpath = lp.path
+    shuffled = sc.assume_shuffled
+    curr_metadata_invalid = loc.metadata_invalid
+    curr_sample_invalid = loc.sample_invalid
+
     # Get session information
-    session_sample_rate = get_sample_rate()
+    sample_rate = sc.rate
     worker_idx, nworkers = get_worker_idx(), get_nworkers()
     is_main = worker_idx == 1
 
     # Get current location
-    curr_location, curr_sample_invalid, curr_metadata_invalid = get_cached_location(path_and_subpath, metadata_invalid, sample_invalid)
     if !curr_metadata_invalid && !curr_sample_invalid
-        return curr_location
+        return loc
     end
 
     # Download the path
@@ -85,8 +89,8 @@ function _remote_hdf5_source(path_and_subpath, shuffled, metadata_invalid, sampl
         # Read in the sample on each worker and
         # aggregate and concatenate it on the main worker
         rand_indices_range = split_len(datalength, worker_idx, nworkers)
-        rand_indices = sample_from_range(rand_indices_range, session_sample_rate)
-        exact_sample_needed = datalength < max_exact_sample_length
+        rand_indices = sample_from_range(rand_indices_range, sample_rate)
+        exact_sample_needed = nbytes < sc.max_num_bytes_exact
         remaining_colons = Base.fill(Colon(), datandims-1)
         dset_sample_value = if !exact_sample_needed
             samples_on_workers = gather_across(
@@ -125,48 +129,47 @@ function _remote_hdf5_source(path_and_subpath, shuffled, metadata_invalid, sampl
             NOTHING_SAMPLE
         end
     else
-        curr_location.sample
+        NOTHING_SAMPLE
     end
 
     # Close HDF5 file
     close(f)
 
     if is_main
-        location_res = LocationSource(
-            "Remote",
-            Dict{String,Any}(
-                "path_and_subpath" => path_and_subpath,
-                "path" => remotepath,
-                "subpath" => datasetpath,
-                "size" => datasize,
-                "ndims" => datandims,
-                "eltype" => dataeltype,
-                "nbytes" => nbytes,
-                "format" => "hdf5"
-            ),
-            nbytes,
-            dset_sample,
+        # Construct parameters for Location
+        src_params = Dict{String,String}(
+            "name" => "Remote",
+            "path_and_subpath" => path_and_subpath,
+            "path" => remotepath,
+            "subpath" => datasetpath,
+            "eltype_and_size" => Banyan.to_jl_string((dataeltype, datasize)),
+            "total_memory_usage" => string(nbytes),
+            "format" => "hdf5"
         )
-        cache_location(remotepath, location_res, invalidate_sample, invalidate_metadata)
-        location_res
+
+        # Get paths to store metadata and sample in
+        metadata_path = "s3/$(banyan_metadata_bucket_name())/$(get_metadata_path(lp))"
+        sample_path = "s3/$(banyan_samples_bucket_name())/$(get_sample_path_prefix(lp)$sample_rate)"
+
+        # Store metadata and sample in S3
+        Arrow.write(metadata_path; metadata=src_params)
+        serialize(sample_path, dset_sample)
+
+        # Return Location to client side
+        LocationSource("Remote", src_params, nbytes, dset_sample)
     else
         INVALID_LOCATION
     end
 end
 
-function RemoteHDF5Source(remotepath; shuffled=false, metadata_invalid = false, sample_invalid = false, invalidate_metadata = false, invalidate_sample = false, max_exact_sample_length = Banyan.get_max_exact_sample_length())::Location
-    offloaded(
+RemoteHDF5Source(remotepath)::Location =
+    RemoteSource(
+        LocationPath(remotepath),
         _remote_hdf5_source,
-        remotepath,
-        shuffled,
-        metadata_invalid,
-        sample_invalid,
-        invalidate_metadata,
-        invalidate_sample,
-        max_exact_sample_length;
-        distributed=true
+        deserialize,
+        identity,
+        serialize
     )
-end
 
 function RemoteHDF5Destination(remotepath)::Location
     path_and_subpath = remotepath
@@ -178,7 +181,6 @@ function RemoteHDF5Destination(remotepath)::Location
             "path" => remotepath,
             "subpath" => datasetpath,
             "path_and_subpath" => path_and_subpath,
-            "nbytes" => 0,
             "format" => "hdf5"
         )
     )

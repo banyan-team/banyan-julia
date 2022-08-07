@@ -51,7 +51,7 @@ function read_table(path::String; kwargs...)
     @nospecialize
     df_loc = RemoteTableSource(path; kwargs...)
     df_loc.src_name == "Remote" || error("$path does not exist")
-    df_loc_nrows::Int64 = df_loc.src_parameters["nrows"]
+    df_loc_nrows::Int64 = parse(Int64, df_loc.src_parameters["nrows"])
     df_nrows = Future(df_loc_nrows)
     DataFrame(Future(datatype="DataFrame", source=df_loc), df_nrows)
 end

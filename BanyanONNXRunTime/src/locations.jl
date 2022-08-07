@@ -19,7 +19,6 @@ function RemoteONNXSource(remotepath)::Location
     loc_for_reading = "Remote"
     metadata_for_reading = Dict{String,Any}(
         "path" => remotepath,
-        "nbytes" => nbytes,
         "format" => "onnx",
         "datatype" => "ONNX"
     )

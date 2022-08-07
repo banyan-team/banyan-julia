@@ -2,10 +2,9 @@ get_file_ending(remotepath::String)::String = splitext(remotepath)[2][2:end]
 
 Arrow_Table_retry = retry(Arrow.Table; delays=Base.ExponentialBackOff(; n=5))
 
-function _remote_table_source(lp::LocationPath, loc::Location, sample_rate::Int64)::Location
+function _remote_table_source(lp::LocationPath, loc::Location, sampling_config::SamplingConfig)::Location
     # Setup for sampling
     remotepath = lp.path
-    sampling_config = get_sampling_config(lp)
     shuffled, max_num_bytes_exact = sampling_config.assume_shuffled, sampling_config.max_num_bytes_exact
     # TODO: Replace `max_exact_sample_length` with `max_num_bytes_exact`
     is_main = is_main_worker()
@@ -359,7 +358,7 @@ function _remote_table_source(lp::LocationPath, loc::Location, sample_rate::Int6
         if curr_metadata_invalid
             # Write `NamedTuple` with metadata to `meta_path` with `Arrow.write`
             Arrow.write(
-                is_main ? metadata_path : IOBuffer(),
+                metadata_path,
                 (path=remotepaths, nrows=meta_nrows);
                 compress=:zstd,
                 metadata=src_params
@@ -423,7 +422,7 @@ RemoteTableDestination(remotepath)::Location =
         "Remote",
         Dict(
             "format" => get_file_ending(remotepath),
-            "nrows" => 0,
+            "nrows" => "0",
             "path" => remotepath,
         ),
     )

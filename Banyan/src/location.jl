@@ -62,6 +62,8 @@ struct LocationPath
             format_version
         )
     end
+
+    LocationPath(path) = LocationPath(path, "jl", get_julia_version())``
 end
 
 global TABLE_FORMATS = ["csv", "parquet", "arrow"]

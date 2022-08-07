@@ -433,16 +433,20 @@ function RemoteSource(
     lp::LocationPath,
     _remote_source::Function,
     load_sample::Function,
-    load_sample_from_blob::Function,
+    load_sample_after_offloaded::Function,
     write_sample::Function
 )::Location
     # _remote_table_source(lp::LocationPath, loc::Location, sample_rate::Int64)::Location
     # load_sample accepts a file path
-    # load_sample_from_blob accepts an array of bytes
+    # load_sample_after_offloaded accepts the sampled value returned by the offloaded function
+    # (for BDF.jl, this is an Arrow blob of bytes that needs to be converted into an actual
+    # dataframe once sent to the client side)
     
     # Look at local and S3 caches of metadata and samples to attempt to
     # construct a Location.
     loc, local_metadata_path, local_sample_path = get_location_source(lp)
+    sc = get_sampling_config(lp)
+    sc.rate = parse_sample_rate(local_sample_path)
 
     if !loc.metadata_invalid && !loc.sample_invalid
         # Case where both sample and parameters are valid
@@ -450,7 +454,7 @@ function RemoteSource(
         loc
     elseif loc.metadata_invalid && !loc.sample_invalid
         # Case where parameters are invalid
-        new_loc = offloaded(_remote_source, lp, loc, parse_sample_rate(local_sample_path); distributed=true)
+        new_loc = offloaded(_remote_source, lp, loc, sc; distributed=true)
         Arrow.write(local_metadata_path, Arrow.Table(); metadata=new_loc.src_parameters)
         new_loc.sample.value = load_sample(local_sample_path)
         new_loc
@@ -458,7 +462,7 @@ function RemoteSource(
         # Case where sample is invalid
 
         # Get the Location with up-to-date metadata (source parameters) and sample
-        new_loc = offloaded(_remote_source, lp, loc, parse_sample_rate(local_sample_path); distributed=true)
+        new_loc = offloaded(_remote_source, lp, loc, sc; distributed=true)
 
         if !loc.metadata_invalid
             # Store the metadata locally. The local copy just has the source
@@ -469,7 +473,7 @@ function RemoteSource(
 
         # Store the Arrow sample locally and update the returned Sample
         write_sample(local_sample_path, new_loc.sample.value)
-        new_loc.sample.value = load_sample_from_blob(new_loc.sample.value)
+        new_loc.sample.value = load_sample_after_offloaded(new_loc.sample.value)
         
         new_loc
     end
