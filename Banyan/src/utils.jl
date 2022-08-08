@@ -268,6 +268,16 @@ method_to_string(method::Symbol)::String = begin
         "describe-users"
     elseif method == :create_process
         "create-process"
+    elseif method == :destroy_process
+        "destroy-process"
+    elseif method == :describe_processes
+        "describe-processes"
+    elseif method == :run_process
+        "run_process"
+    elseif method == :stop_process
+        "stop_process"
+
+
     end
 end
 

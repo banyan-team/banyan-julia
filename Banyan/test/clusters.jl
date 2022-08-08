@@ -60,7 +60,7 @@ end
 
     # Create a cluster (at least initiate) and check that S3 bucket exists
     c = create_cluster(
-        name=cluster_name,
+        cluster_name=cluster_name,
         instance_type="t3.large",
         s3_bucket_name=s3_bucket,
         wait_now=false
@@ -84,7 +84,7 @@ end
         sleep(15)
     end
     c_r = create_cluster(
-        name=cluster_name,
+        cluster_name=cluster_name,
         wait_now=false
     )
     s3_bucket_name_r = get_cluster_s3_bucket_name(cluster_name)
@@ -109,7 +109,7 @@ end
     cluster_name = "cluster-$(Random.randstring(['a':'z'; '0':'9'], 6))"
     t = @elapsed begin
         c = create_cluster(
-            name=cluster_name,
+            cluster_name=cluster_name,
             instance_type=instance_type,
             max_num_workers=16,
             initial_num_workers=1

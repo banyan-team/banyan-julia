@@ -10,8 +10,8 @@ function create_process(process_name, script; cron_schedule = "", creation_kwarg
 
     session_configuration = Dict{String,Any}(
         "cluster_name" => get(creation_kwargs, :cluster_name, NOTHING_STRING),
-        "num_workers" => get(creation_kwargs, :num_workers, 16),
-        "sample_rate" => get(creation_kwargs, :sample_rate, nworkers),
+        "num_workers" => get(creation_kwargs, :num_workers, 150),
+        "sample_rate" => get(creation_kwargs, :sample_rate, nworkers * 10),
         "release_resources_after" => get(creation_kwargs, :release_resources_after, 20),
         "return_logs" => get(creation_kwargs, :return_logs, false),
         "store_logs_in_s3" => get(creation_kwargs, :store_logs_in_s3, false),
@@ -218,4 +218,76 @@ function create_process(process_name, script; cron_schedule = "", creation_kwarg
         ),
     )
 
+end
+
+
+function destroy_process(process_name)
+    response = send_request_get_response(
+        :destroy_process,
+        Dict{String,Any}(
+            "process_name" => process_name
+        ),
+    )
+    return response
+end
+
+function get_processes()
+    filters = ()
+    response = send_request_get_response(
+        :describe_processes,
+        Dict{String,Any}(
+            "filters" => filters
+        ),
+    )
+    return response["processes"]
+end
+
+function get_process(process_name)
+    filters = ("process_name" => process_name)
+    response = send_request_get_response(
+        :describe_processes,
+        Dict{String,Any}(
+            "filters" => filters
+        ),
+    )
+    return response["processes"]
+end
+
+function end_process(process_name)
+    response = send_request_get_response(
+        :stop_process,
+        Dict{String,Any}(
+            "process_name" => process_name
+        ),
+    )
+    return response
+end
+
+function run_process(process_name, args)
+    response = send_request_get_response(
+        :run_process,
+        Dict{String,Any}(
+            "process_name" => process_name,
+            "args" => args,
+            "session_id" => ""
+        ),
+    )
+    session_id = response["session_id"]
+    wait_for_session(session_id)
+    get_session_results(session_id)
+end
+
+function start_process(process_name, "rate(24 hours)")
+    aws_config = get_aws_config()
+    aws_region = aws_config["region"]
+
+    response = send_request_get_response(
+        :create_process,
+        Dict{String,Any}(
+            "process_name" => process_name,
+            "creation_kwargs" => args,
+            "cron_string" => schedule,
+            "aws_region" => aws_region
+        ),
+    )
 end

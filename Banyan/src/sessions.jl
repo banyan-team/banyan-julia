@@ -268,10 +268,11 @@ function _start_session(
     session_configuration["environment_info"] = environment_info
 
     # Upload files to S3
+    scripts_bucket_name = "banyan-scripts-$(get_organization_id())"
     for f in vcat(files, code_files)
-        s3_path = S3Path("s3://$(s3_bucket_name)/$(basename(f))", config=global_aws_config())
+        s3_path = S3Path("s3://$(scripts_bucket_name)/$(basename(f))", config=get_aws_config())
         if !isfile(s3_path) || force_update_files
-            s3_put(global_aws_config(), s3_bucket_name, basename(f), load_file(f))
+            s3_put(get_aws_config(), scripts_bucket_name, basename(f), load_file(f))
         end
     end
     # TODO: Optimize so that we only upload (and download onto cluster) the files if the filename doesn't already exist
@@ -555,6 +556,8 @@ function start_session(;
     if wait_now
         get_session(new_start_session_task_id)
     end
+    
+    ENV["RESULTS"] = ""
 
     # Return the current session ID
     get_session_id()
@@ -595,6 +598,7 @@ function end_session(session_id::SessionId = ""; print_logs=nothing, failed = fa
         "session_id" => session_id,
         "failed" => failed,
         "release_resources_now" => release_resources_now,
+        "results" => get(ENV, "RESULTS", "")
     )
     if !isnothing(release_resources_after)
         request_params["release_resources_after"] = release_resources_after
@@ -784,11 +788,11 @@ function end_all_sessions(cluster_name::String; release_resources_now = false, r
     end
 end
 
-function get_session_status(session_id::String=_get_session_id_no_error(); kwargs...)::String
+function get_session_state(session_id::String=_get_session_id_no_error(); kwargs...)::String
     global start_session_tasks
     sessions = get_sessions_dict()
     if !haskey(sessions, session_id) && haskey(start_session_tasks, session_id) && !istaskdone(start_session_tasks[session_id])
-        return :creating
+        return (:creating, "")
     end
     configure(; kwargs...)
     filters = Dict{String,Any}("session_id" => session_id)
@@ -799,7 +803,7 @@ function get_session_status(session_id::String=_get_session_id_no_error(); kwarg
     response = send_request_get_response(:describe_sessions, params)
     if !haskey(response["sessions"], session_id)
         @warn "Session with ID $session_id is assumed to have just started creating"
-        return "creating"
+        return ("creating", "")
     end
     session_status = response["sessions"][session_id]["status"]
     resource_id = response["sessions"][session_id]["resource_id"]
@@ -811,12 +815,19 @@ function get_session_status(session_id::String=_get_session_id_no_error(); kwarg
         # where it's like we're actually using this session do we set the status.
         @error response["sessions"][session_id]["status_explanation"]
     end
-    session_status
+
+    return (session_status, response["sessions"][session_id]["results"])
 end
+
+get_session_status(session_id::String=_get_session_id_no_error(); kwargs...)::String =
+    get_session_state(session_id; kwargs...)[1]
+get_session_results(session_id::String=_get_session_id_no_error(); kwargs...)::String =
+    get_session_state(session_id; kwargs...)[2]
 
 function _wait_for_session(session_id::SessionId, show_progress; kwargs...)
     sessions_dict = get_sessions_dict()
-    session_status = get_session_status(session_id; kwargs...)
+    session_status_tuple = get_session_state(session_id; kwargs...)
+    session_status = session_status_tuple[1]
     p = ProgressUnknown("Preparing session with ID $session_id", spinner=true, enabled=show_progress)
     t = 0
     st = time()
