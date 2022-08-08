@@ -21,10 +21,7 @@ global NOT_USING_MODULES = String["ProfileView", "SnoopCompileCore"]
 using FilePathsBase: joinpath, isempty
 using Base: notnothing, env_project_file
 
-using AWSCore,
-    AWSS3,
-    AWSSQS,
-    Base64,
+using Base64,
     DataStructures,
     Dates,
     Downloads,
@@ -41,8 +38,10 @@ using AWSCore,
     TOML
 
 using AWS.AWSServices: s3
-using S3: @service
+using AWS: @service
 @service S3
+@service SQS
+using AWSS3
 
 global BANYAN_API_ENDPOINT
 

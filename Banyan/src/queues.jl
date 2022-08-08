@@ -2,59 +2,28 @@
 # GET QUEUE URL #
 #################
 
-get_sqs_dict_from_url(url::String)::Dict{Symbol,Any} =
-    merge(
-        get_aws_config(),
-        Dict(:resource => "/" * replace(joinpath(splitpath(url)[end-1:end]), "\\"=>"/"))
-    )
-
-get_scatter_queue()::Dict{Symbol,Any} =
-    get_sqs_dict_from_url(get_session().scatter_queue_url)
-
-get_gather_queue()::Dict{Symbol,Any} =
-    get_sqs_dict_from_url(get_session().gather_queue_url)
-
-get_execution_queue()::Dict{Symbol,Any} =
-    get_sqs_dict_from_url(get_session().execution_queue_url)
+scatter_queue_url()::Dict{Symbol,Any} = get_session().scatter_queue_url
+gather_queue_url()::Dict{Symbol,Any} = get_session().gather_queue_url
+execution_queue_url()::Dict{Symbol,Any} = get_session().execution_queue_url
 
 ###################
 # RECEIVE MESSAGE #
 ###################
 
-function sqs_receive_message_with_long_polling(queue)
-    r = AWSSQS.sqs(queue, "ReceiveMessage", MaxNumberOfMessages = "1")
-    r = r["messages"]
-
-    if isnothing(r)
-        return nothing
-    end
-
-    handle  = r[1]["ReceiptHandle"]
-    id      = r[1]["MessageId"]
-    message = r[1]["Body"]
-    md5     = r[1]["MD5OfBody"]
-
-    Dict{Symbol,Any}(
-        :message => message,
-        :id => id,
-        :handle => handle
-    )
-end
-
 function get_next_message(
-    queue,
+    queue_url,
     p::Union{Nothing,ProgressMeter.ProgressUnknown} = nothing;
     delete::Bool = true,
     error_for_main_stuck::Union{Nothing,String} = nothing,
     error_for_main_stuck_time::Union{Nothing,DateTime} = nothing
 )::Tuple{String,Union{Nothing,String}}
-error_for_main_stuck = check_worker_stuck(error_for_main_stuck, error_for_main_stuck_time)
-    m = sqs_receive_message_with_long_polling(queue)
+    error_for_main_stuck = check_worker_stuck(error_for_main_stuck, error_for_main_stuck_time)
+    m = SQS.receive_message(queue_url, Dict("MaxNumberOfMessages" => "1"))
     i = 1
     j = 1
-    while (isnothing(m))
+    while (!haskey(m, "ReceiveMessageResult") || !haskey(m["ReceiveMessageResult"], "Message"))
         error_for_main_stuck = check_worker_stuck(error_for_main_stuck, error_for_main_stuck_time)
-        m = sqs_receive_message_with_long_polling(queue)
+        m = SQS.receive_message(queue_url, Dict("MaxNumberOfMessages" => "1"))
         i += 1
         if !isnothing(p)
             p::ProgressMeter.ProgressUnknown
@@ -62,19 +31,21 @@ error_for_main_stuck = check_worker_stuck(error_for_main_stuck, error_for_main_s
             j += 1
         end
     end
+    m_dict = m["ReceiveMessageResult"]["Message"]
     if delete
-        sqs_delete_message(queue, m)
+        SQS.delete_message(queue_url, m_dict["ReceiptHandle"]::String)
     end
-    return m[:message]::String, error_for_main_stuck
+    return m_dict["Body"]::String, error_for_main_stuck
 end
 
-function receive_next_message(
+function sqs_receive_next_message(
     queue_name,
     p=nothing,
     error_for_main_stuck=nothing,
     error_for_main_stuck_time=nothing
 )::Tuple{Dict{String,Any},Union{Nothing,String}}
-    content::String, error_for_main_stuck::Union{Nothing,String} = get_next_message(queue_name, p; error_for_main_stuck=error_for_main_stuck, error_for_main_stuck_time=error_for_main_stuck_time)
+    content::String, error_for_main_stuck::Union{Nothing,String} =
+        get_next_message(queue_name, p; error_for_main_stuck=error_for_main_stuck, error_for_main_stuck_time=error_for_main_stuck_time)
     res::Dict{String,Any} = if startswith(content, "JOB_READY") || startswith(content, "SESSION_READY")
         Dict{String,Any}(
             "kind" => "SESSION_READY"
@@ -126,12 +97,9 @@ end
 function receive_from_client(value_id::ValueId)
     # Send scatter message to client
     message = Dict{String,String}("kind" => "SCATTER_REQUEST", "value_id" => value_id)
-    send_message(
-        get_gather_queue(),
-        JSON.json(message)
-    )
+    sqs_send_message(gather_queue_url(), JSON.json(message))
     # Receive response from client
-    m = JSON.parse(get_next_message(get_scatter_queue())[1])
+    m = JSON.parse(get_next_message(scatter_queue_url())[1])
     v = from_jl_string(m["contents"]::String)
     v
 end
@@ -141,44 +109,81 @@ end
 # SEND MESSAGE #
 ################
 
-function send_message(queue_name, message)
+function sqs_send_message(queue_url, message)
     generated_message_id = generate_message_id()
-    sqs_send_message(
-        queue_name,
+    SQS.send_message(
+        queue_url,
         message,
-        (:MessageGroupId, "1"),
-        (:MessageDeduplicationId, generated_message_id),
+        Dict(
+            "MessageGroupId" => "1",
+            "MessageDeduplicationId" => generated_message_id
+        )
     )
 end
 
 function send_to_client(value_id::ValueId, value, worker_memory_used = 0)
     MAX_MESSAGE_LENGTH = 220_000
     message = to_jl_string(value)::String
-    i = 1
+
+    # Break the message down into chunk ranges
+    nmessages = 0
+    message_length = length(message)
+    message_ranges = []
+    message_i = 1
     while true
-        is_last_message = length(message) <= MAX_MESSAGE_LENGTH
-        msg = Dict{String,Any}(
-            "kind" => (is_last_message ? "GATHER_END" : "GATHER"),
-            "value_id" => value_id,
-            "contents" => if is_last_message
-                message
-            else
-                msg = message[1:MAX_MESSAGE_LENGTH]
-                message = message[MAX_MESSAGE_LENGTH+1:end]
-                msg
-            end,
-            "worker_memory_used" => worker_memory_used,
-            "gather_page_idx" => i
-        )
-        send_message(
-            get_gather_queue(),
-            JSON.json(
-                msg
-            )
-        )
-        i += 1
+        is_last_message = message_length <= MAX_MESSAGE_LENGTH
+        starti = message_i
+        if is_last_message
+            message_i += message_length
+            message_length = 0
+        else
+            message_i += MAX_MESSAGE_LENGTH
+            message_length -= MAX_MESSAGE_LENGTH
+        end
+        push!(message_ranges, starti:message_i)
+        nmessages += 1
         if is_last_message
             break
         end
+    end
+
+    # Launch asynchronous threads to send SQS messages
+    gather_q_url = gather_queue_url()
+    num_chunks = length(message_ranges)
+    if num_chunks > 1
+        @sync for i = 1:message_ranges
+            @async begin
+                msg = Dict{String,Any}(
+                    "kind" => "GATHER",
+                    "value_id" => value_id,
+                    "contents" => message[message_ranges[i]],
+                    "worker_memory_used" => worker_memory_used,
+                    "chunk_idx" => i,
+                    "num_chunks" => num_chunks
+                )
+                msg_json = JSON.json(msg)
+                SQS.send_message(
+                    msg_json,
+                    gather_q_url,
+                    Dict("MessageGroupId" => string(i))
+                )
+            end
+        end
+    else
+        i = 1
+        msg = Dict{String,Any}(
+            "kind" => "GATHER",
+            "value_id" => value_id,
+            "contents" => message[message_ranges[i]],
+            "worker_memory_used" => worker_memory_used,
+            "chunk_idx" => i,
+            "num_chunks" => num_chunks
+        )
+        msg_json = JSON.json(msg)
+        SQS.send_message(
+            msg_json,
+            gather_q_url,
+            Dict("MessageGroupId" => string(i))
+        )
     end
 end
