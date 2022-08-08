@@ -3,6 +3,8 @@ function read_hdf5(path; kwargs...)
     A_loc.src_name == "Remote" || error("$path does not exist")
     A = Future(datatype="Array", source=A_loc)
     A_loc_eltype, A_loc_size = Banyan.from_jl_string(A_loc.src_parameters["eltype_and_size"])
+    A_loc_eltype = Banyan.type_from_str(A_loc.src_parameters["eltype"])
+    A_loc_size = Banyan.size_from_str(A_loc.src_parameters["size"])
     A_loc_ndims = length(A_loc_size)
     BanyanArrays.Array{A_loc_eltype,A_loc_ndims}(A, Future(A_loc_size))
 end

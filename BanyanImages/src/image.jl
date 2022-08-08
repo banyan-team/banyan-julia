@@ -1,10 +1,11 @@
-function read_png(path; kwargs...)
-    image_loc = RemoteImageSource(path; kwargs...)
+function read_png(path; add_channelview=false)
+    image_loc = RemoteImageSource(path, add_channelview)
     image_loc.src_name == "Remote" || error("$path does not exist")
     image = Future(;source=image_loc, datatype="Array")
-    image_loc_eltype = image_loc.src_parameters["eltype"]
-    image_loc_ndims = image_loc.src_parameters["ndims"]
-    BanyanArrays.Array{image_loc_eltype,image_loc_ndims}(image, Future(image_loc.src_parameters["size"]))
+    image_loc_eltype = type_from_str(image_loc.src_parameters["eltype"])
+    image_loc_size = size_from_str(image_loc.src_parameters["size"])
+    image_loc_ndims = length(image_loc_size)
+    BanyanArrays.Array{image_loc_eltype,image_loc_ndims}(image, Future(image_loc_size))
 end
 
 read_jpg(p; kwargs...) = read_png(p; kwargs...)

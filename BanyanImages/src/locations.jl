@@ -272,24 +272,17 @@ _load_image_and_add_channelview(path_on_worker::String) = load_retry(path_on_wor
 
 _reshape_image(image) = reshape(image, (1, size(image)...))
 
-function _remote_image_source(
-    remotepath,
-    remotepath_id,
-    metadata_invalid,
-    sample_invalid,
-    invalidate_metadata,
-    invalidate_sample,
-    add_channelview
-)
+function _remote_image_source(lp::LocationPath, loc::Location, sc::SamplingConfig, remotepath, add_channelview::Bool)
+    curr_sample_invalid = loc.sample_invalid
+    curr_metadata_invalid = loc.metadata_invalid
+    
     # Get session information
-    session_sample_rate = get_sample_rate()
     worker_idx, nworkers = get_worker_idx(), get_nworkers()
     is_main = worker_idx == 1
 
     # Get current location
-    curr_location, curr_sample_invalid, curr_metadata_invalid = get_cached_location((remotepath, add_channelview), remotepath_id, metadata_invalid, sample_invalid)
     if !curr_metadata_invalid && !curr_sample_invalid
-        return curr_location
+        return loc
     end
 
     # Remote path is either
@@ -301,28 +294,23 @@ function _remote_image_source(
     #       that operates on two arguments where one is the object and the
     #       other is each iterated element and return a single path
 
-    # Iterable object that iterates over local paths
-    meta_path = if !curr_metadata_invalid
-        curr_location.src_parameters["meta_path"]::String
-    else
-        is_main ? get_meta_path((remotepath, add_channelview), remotepath_id) : ""
-    end
-    if is_main && curr_metadata_invalid
-        localpaths::Base.Vector{String} = getpaths(remotepath)
-        Arrow.write(meta_path, (path=localpaths,))
-    end
-    meta_path = sync_across(meta_path)
+    # Get paths to store metadata and sample in
+    metadata_path = "s3/$(banyan_metadata_bucket_name())/$(get_metadata_path(lp))"
+    sample_path = "s3/$(banyan_samples_bucket_name())/$(get_sample_path_prefix(lp)$(sc.rate))"
 
-    # Load in the metadata and get the # of images
-    meta_table = Arrow_Table_retry(meta_path)
-    nimages = Tables.rowcount(meta_table)
+    # Iterable object that iterates over local paths
+    localpaths = curr_metadata_invalid ? getpaths(remotepath) : Arrow.Table(metadata_path).path
+    nimages = length(localpaths)
     
     # Read in images on each worker. We need to read in at least one image
     # regardless of whether we want to get the sample or the metadata
-    exact_sample_needed = nimages < 10
+    _load_img = add_channelview ? _load_image_and_add_channelview : _load_image
+    first_img = is_main ? (localpaths[1] |> _load_img |> _reshape_image) : nothing
+    exact_sample_needed = is_main ? ((total_memory_usage(first_img) * length(localpaths)) < sc.max_num_bytes_exact) : false
+    exact_sample_needed = sync_across(exact_sample_needed)
     need_to_parallelize = nimages >= 10
     total_num_images_to_read_in = if curr_sample_invalid
-        exact_sample_needed ? nimages : cld(nimages, session_sample_rate)
+        exact_sample_needed ? nimages : cld(nimages, sc.rate)
     else
         # We still have to read in an image even if we have a valid sample
         # because to get the metadata we need at least one image.
@@ -332,9 +320,21 @@ function _remote_image_source(
         # If we don't need to paralellize then we are only reading on the main
         # worker amd we don't gather across.
         images_range_on_worker = need_to_parallelize ? split_len(total_num_images_to_read_in, worker_idx, nworkers) : 1:1
-        paths_on_worker = map(getpath, meta_table.path[images_range_on_worker])
-        images = map(add_channelview ? _load_image_and_add_channelview : _load_image, paths_on_worker)
-        sample_on_worker = map(_reshape_image, images)
+        first_img_usable = false
+        if images_range_on_worker.start == 1 && !isnothing(first_img)
+            first_img_usable = true
+            images_range_on_worker = 2:(images_range_on_worker.stop)
+        end
+        sample_on_worker = if length(images_range_on_worker) > 0
+            paths_on_worker = map(getpath, localpaths[images_range_on_worker])
+            images = map(_load_img, paths_on_worker)
+            map(_reshape_image, images)
+        else
+            []
+        end
+        if first_img_usable
+            push!(sample_on_worker, first_img)
+        end
         # sample_on_worker is an array of images
         need_to_parallelize ? gather_across(sample_on_worker) : [sample_on_worker]
         # result is an array of arrays of images
@@ -348,58 +348,62 @@ function _remote_image_source(
         # though if we only need the sample we don't technically need the
         # metadata)
         remote_sample_value = cat(vcat(samples_on_workers...)..., dims=1)
-        ndims_res = ndims(remote_sample_value)
         dataeltype_res = eltype(remote_sample_value)
         nbytes_res = cld(length(remote_sample_value) * sizeof(dataeltype_res) * nimages, total_num_images_to_read_in)
         datasize_res = indexapply(nimages, size(remote_sample_value), 1)
         remote_sample = if curr_sample_invalid
-            exact_sample_needed ? ExactSample(remote_sample_value, nbytes_res) : Sample(remote_sample_value, nbytes_res)
+            if exact_sample_needed
+                ExactSample(remote_sample_value, nbytes_res)
+            else
+                Sample(remote_sample_value, nbytes_res, sc.rate)
+            end
         else
-            curr_location.sample
+            NOTHING_SAMPLE
+        end
+
+        src_parameters = if curr_metadata_invalid
+            Dict{String,Any}(
+                "name" => "Remote",
+                "nimages" => string(nimages),
+                "total_memory_usage" => string(nbytes_res),  # NOTE: We assume all files have same size
+                "size" => size_to_str(datasize_res),
+                "eltype" => type_to_str(dataeltype_res),
+                "add_channelview" => add_channelview ? "1" : "0",
+                "format" => "image"
+            )
+        else
+            curr_location.src_parameters
+        end
+
+        # Store metadata and sample in S3
+        if curr_metadata_invalid
+            Arrow.write(metadata_path, (path=localpaths,); metadata=src_params)
+        end
+        if curr_sample_invalid
+            serialize(sample_path, remote_sample)
         end
 
         # Construct location with metadata
-        location_res = LocationSource(
-            "Remote",
-            if curr_metadata_invalid
-                empty_part_size = (0, (datasize_res[2:end])...)
-                Dict{String,Any}(
-                    "meta_path" => meta_path,
-                    "nimages" => nimages,
-                    "nbytes" => nbytes_res,  # NOTE: We assume all files have same size
-                    "ndims" => ndims_res,
-                    "size" => datasize_res,
-                    "eltype" => dataeltype_res,
-                    "empty_sample" => to_arrow_string(Base.Array{dataeltype_res}(undef, empty_part_size)),
-                    "add_channelview" => add_channelview,
-                    "format" => "image"
-                )
-            else
-                curr_location.src_parameters
-            end,
-            nbytes_res,
-            remote_sample,
-        )
-        cache_location(remotepath, remotepath_id, location_res, invalidate_sample, invalidate_metadata)
-        location_res
+        LocationSource("Remote", src_parameters, nbytes_res, remote_sample)
     else
         INVALID_LOCATION
     end
 end
 
-function RemoteImageSource(remotepath; metadata_invalid = false, sample_invalid = false, invalidate_metadata = false, invalidate_sample = false, add_channelview=false)::Location
-    offloaded(
+RemoteImageSource(remotepath, add_channelview)::Location =
+    RemoteSource(
+        LocationPath(
+            remotepath isa String ? remotepath : "lang_jl_$(hash(remotepath))",
+            add_channelview ? "jl_channelview" : "jl",
+            Banyan.get_julia_version()
+        ),
         _remote_image_source,
+        deserialize,
+        identity,
+        serialize,
         remotepath,
-        Banyan.get_remotepath_id(remotepath),
-        metadata_invalid,
-        sample_invalid,
-        invalidate_metadata,
-        invalidate_sample,
-        add_channelview;
-        distributed=true
+        add_channelview
     )
-end
 
 # TODO: Implement writing
 

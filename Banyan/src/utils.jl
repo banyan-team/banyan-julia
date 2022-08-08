@@ -637,4 +637,55 @@ exponential_backoff_1s =
 # 0.20068919503553564
 # 0.29422854986603664
 # 0.4414150248213825
-# ```
+# ````
+
+invert(my_dict::AbstractDict) = Dict(value => key for (key, value) in my_dict)
+
+TYPE_TO_STR =
+    Dict{DataType,String}(
+        Int8 => "int8",
+        Int16 => "int16",
+        Int32 => "int32",
+        Int64 => "int64",
+        Int128 => "int128",
+        Float16 => "float16",
+        Float32 => "float32",
+        Float64 => "float64",
+        String => "str",
+        Bool => "bool",
+    )
+
+STR_TO_TYPE = invert(TYPE_TO_STR)
+
+function type_to_str(ty::DataType)::String
+    global TYPE_TO_STR
+    if haskey(TYPE_TO_STR, ty)
+        TYPE_TO_STR[ty]
+    else
+        "lang_jl_" * to_jl_string(ty)
+    end
+end
+
+function type_from_str(s::String)
+    if startswith(s, "lang_")
+        if startswith(s, "lang_jl_")
+            from_jl_string(s[4:end])
+        else
+            error("Cannot parse type $s from non-Julia language")
+        end
+    elseif haskey(TYPE_TO_STR, s)
+        TYPE_TO_STR[s]
+    else
+        error("Type not supported. You may need to update to the latest version of Banyan or declare the data/sample/metadata you are accessing invalid.")
+    end
+end
+
+size_to_str(sz) = join(map(string, sz), ",")
+size_from_str(s) =
+    let sz_strs = split(s, ",")
+        res = Vector{Int64}(undef, length(sz_strs))
+        for (i, sz_str) in enumerate(sz_strs)
+            res[i] = parse(Int64, sz_str)
+        end
+        Tuple(res)
+    end

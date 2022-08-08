@@ -434,7 +434,8 @@ function RemoteSource(
     _remote_source::Function,
     load_sample::Function,
     load_sample_after_offloaded::Function,
-    write_sample::Function
+    write_sample::Function,
+    args...
 )::Location
     # _remote_table_source(lp::LocationPath, loc::Location, sample_rate::Int64)::Location
     # load_sample accepts a file path
@@ -454,7 +455,7 @@ function RemoteSource(
         loc
     elseif loc.metadata_invalid && !loc.sample_invalid
         # Case where parameters are invalid
-        new_loc = offloaded(_remote_source, lp, loc, sc; distributed=true)
+        new_loc = offloaded(_remote_source, lp, loc, sc, args...; distributed=true)
         Arrow.write(local_metadata_path, Arrow.Table(); metadata=new_loc.src_parameters)
         new_loc.sample.value = load_sample(local_sample_path)
         new_loc
@@ -462,7 +463,7 @@ function RemoteSource(
         # Case where sample is invalid
 
         # Get the Location with up-to-date metadata (source parameters) and sample
-        new_loc = offloaded(_remote_source, lp, loc, sc; distributed=true)
+        new_loc = offloaded(_remote_source, lp, loc, sc, args...; distributed=true)
 
         if !loc.metadata_invalid
             # Store the metadata locally. The local copy just has the source

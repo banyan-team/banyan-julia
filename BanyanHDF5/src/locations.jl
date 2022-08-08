@@ -123,7 +123,7 @@ function _remote_hdf5_source(lp::LocationPath, loc::Location, sc::SamplingConfig
             if exact_sample_needed
                 ExactSample(dset_sample_value, nbytes)
             else
-                Sample(dset_sample_value, nbytes)
+                Sample(dset_sample_value, nbytes, sample_rate)
             end
         else
             NOTHING_SAMPLE
@@ -137,22 +137,27 @@ function _remote_hdf5_source(lp::LocationPath, loc::Location, sc::SamplingConfig
 
     if is_main
         # Construct parameters for Location
-        src_params = Dict{String,String}(
-            "name" => "Remote",
-            "path_and_subpath" => path_and_subpath,
-            "path" => remotepath,
-            "subpath" => datasetpath,
-            "eltype_and_size" => Banyan.to_jl_string((dataeltype, datasize)),
-            "total_memory_usage" => string(nbytes),
-            "format" => "hdf5"
-        )
+        src_params = if curr_metadata_invalid
+            Dict{String,String}(
+                "name" => "Remote",
+                "path_and_subpath" => path_and_subpath,
+                "path" => remotepath,
+                "subpath" => datasetpath,
+                "eltype" => Banyan.size_to_str(dataszie),
+                "size" => Banyan.type_to_str(dataeltype),
+                "total_memory_usage" => string(nbytes),
+                "format" => "hdf5"
+            )
+        else
+            loc.src_parameters
+        end
 
         # Get paths to store metadata and sample in
         metadata_path = "s3/$(banyan_metadata_bucket_name())/$(get_metadata_path(lp))"
         sample_path = "s3/$(banyan_samples_bucket_name())/$(get_sample_path_prefix(lp)$sample_rate)"
 
         # Store metadata and sample in S3
-        Arrow.write(metadata_path; metadata=src_params)
+        Arrow.write(metadata_path, Arrow.Table(); metadata=src_params)
         serialize(sample_path, dset_sample)
 
         # Return Location to client side
