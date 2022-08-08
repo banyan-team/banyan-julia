@@ -266,6 +266,8 @@ method_to_string(method::Symbol)::String = begin
         "set-cluster-ready"
     elseif method == :describe_users
         "describe-users"
+    elseif method == :create_process
+        "create-process"
     end
 end
 

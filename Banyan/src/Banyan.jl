@@ -21,7 +21,7 @@ global NOT_USING_MODULES = String["ProfileView", "SnoopCompileCore"]
 using FilePathsBase: joinpath, isempty
 using Base: notnothing, env_project_file
 
-using Arrow,
+using Arrow
     Base64,
     DataStructures,
     Dates,
@@ -272,6 +272,9 @@ include("annotation.jl")
 
 # Utilities
 include("requests.jl")
+
+# Processes
+include("processes.jl")
 
 function __init__()
     # The user must provide the following for authentication:
