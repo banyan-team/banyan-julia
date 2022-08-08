@@ -206,7 +206,7 @@ function _remote_table_source(lp::LocationPath, loc::Location, sampling_config::
                 total_nbytes_res = reduce_and_sync_across(+, local_nbytes)
 
                 # If the sample is too small, redo it, getting an exact sample
-                if !exact_sample_needed_res && total_nbytes_res < max_exact_sample_length
+                if !exact_sample_needed_res && total_nbytes_res <= sampling_config.max_num_bytes_exact
                     exact_sample_needed = true
                     exact_sample_needed_res = true
                 else

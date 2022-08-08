@@ -1,6 +1,8 @@
 function read_hdf5(path; kwargs...)
+    invalidate(path; kwargs...)
     A_loc = RemoteHDF5Source(path; kwargs...)
     A_loc.src_name == "Remote" || error("$path does not exist")
+    invalidate(path; after=true, kwargs...)
     A = Future(datatype="Array", source=A_loc)
     A_loc_eltype, A_loc_size = Banyan.from_jl_string(A_loc.src_parameters["eltype_and_size"])
     A_loc_eltype = Banyan.type_from_str(A_loc.src_parameters["eltype"])

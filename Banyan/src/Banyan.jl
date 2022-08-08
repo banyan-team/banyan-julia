@@ -93,17 +93,12 @@ export SamplingConfig
 # Locations
 export Location, LocationSource, LocationDestination, located, sourced, destined
 export Value, Size, Client, Disk, None, RemoteSource
-export invalidate_all_locations, invalidate_metadata, invalidate_sample
-export NOTHING_LOCATION, INVALID_LOCATION
+export invalidate_all_locations, invalidate_location, invalidate_metadata, invalidate_samples, invalidate
+export NOTHING_LOCATION, INVALID_LOCATION, NO_LOCATION_PATH
 export has_separate_metadata, get_sample, get_metadata, get_sample_and_metadata
-export get_remotepath_id,
-    get_meta_path,
-    get_location_path,
-    get_cached_location,
-    cache_location,
-    get_max_exact_sample_length,
-    set_max_exact_sample_length
-export LocationPath
+export LocationPath, SamplingConfig
+export has_metadata, has_sample, get_sample_rate, configure_sampling
+export type_to_str, str_to_type
 
 # Serialization
 export from_jl_string, to_jl_string

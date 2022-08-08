@@ -1,6 +1,8 @@
 function read_png(path; add_channelview=false)
+    invalidate(path; kwargs...)
     image_loc = RemoteImageSource(path, add_channelview)
     image_loc.src_name == "Remote" || error("$path does not exist")
+    invalidate(path; after=true, kwargs...)
     image = Future(;source=image_loc, datatype="Array")
     image_loc_eltype = type_from_str(image_loc.src_parameters["eltype"])
     image_loc_size = size_from_str(image_loc.src_parameters["size"])

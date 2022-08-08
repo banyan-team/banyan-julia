@@ -133,7 +133,7 @@ function get_sample_rate(l_path::LocationPath)
     # Find a cached sample with a similar sample rate
     pre = get_sample_path_prefix(l_path)
     banyan_samples_objects = try
-        res = S3.list_objects_v2(Bucket=banyan_samples_bucket_name(), prefix=pre)["Contents"]
+        res = S3.list_objects_v2(banyan_samples_bucket_name(), Dict("prefix" => pre))["Contents"]
         res isa Base.Vector ? res : [res]
     catch
         return desired_sample_rate
@@ -155,7 +155,7 @@ end
 
 function has_metadata(l_path:: LocationPath)::Bool
     try
-        !isempty(S3.list_objects_v2(Bucket=banyan_metadata_bucket_name(), prefix=get_metadata_path(l_path))["Contents"])
+        !isempty(S3.list_objects_v2(banyan_metadata_bucket_name(), Dict("prefix" => get_metadata_path(l_path)))["Contents"])
     catch
         false
     end
@@ -165,7 +165,7 @@ function has_sample(l_path:: LocationPath)::Bool
     sc = get_sampling_config(l_path)
     pre = sc.force_new_sample_rate ? get_sample_path(l_path, sc.rate) : get_sample_path_prefix(l_path)
     try
-        !isempty(S3.list_objects_v2(Bucket=banyan_samples_bucket_name(), prefix=pre)["Contents"])
+        !isempty(S3.list_objects_v2(banyan_samples_bucket_name(), Dict("prefix" => pre))["Contents"])
     catch
         false
     end
@@ -199,7 +199,7 @@ function get_location_source(lp::LocationPath)::Tuple{Location,String,String}
     metadata_local_path = joinpath(homedir(), ".banyan", "metadata", metadata_path)
     metadata_s3_path = "/$(banyan_metadata_bucket_name())/$metadata_path"
     src_params_not_stored_locally = false
-    src_params::Dict{String, String} = if exists(metadata_local_path)
+    src_params::Dict{String, String} = if isfile(metadata_local_path)
         lm = Dates.unix2datetime(mtime(metadata_local_path))
         if_modified_since_string =
             "$(dayabbr(lm)), $(twodigit(day(lm))) $(monthabbr(lm)) $(year(lm)) $(twodigit(hour(lm))):$(twodigit(minute(lm))):$(twodigit(second(lm))) GMT"
@@ -300,7 +300,7 @@ function get_location_source(lp::LocationPath)::Tuple{Location,String,String}
 
     # If no such sample is found, search the S3 bucket
     banyan_samples_objects = try
-        res = S3.list_objects_v2(Bucket=banyan_samples_bucket_name(), prefix=sample_path_prefix)["Contents"]
+        res = S3.list_objects_v2(banyan_samples_bucket_name(), Dict("prefix" => sample_path_prefix))["Contents"]
         res isa Base.Vector ? res : [res]
     catch e
         if is_debug_on()

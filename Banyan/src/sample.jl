@@ -31,5 +31,5 @@ struct SamplingConfig
     assume_shuffled::Bool
 end
 
-const DEFAULT_SAMPLING_CONFIG = SamplingConfig(1024, false, parse_bytes("256 MB"), false, true)
+const DEFAULT_SAMPLING_CONFIG = SamplingConfig(1024, false, parse_bytes("32 MB"), false, true)
 session_sampling_configs = Dict{SessionId,Dict{LocationPath,SamplingConfig}}("" => Dict(NO_LOCATION_PATH => DEFAULT_SAMPLING_CONFIG))

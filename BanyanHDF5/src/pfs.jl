@@ -154,10 +154,11 @@ function WriteHelperHDF5(
     is_main = worker_idx == 1
     if is_main
         # We invalidate both the location and the metadata in this case
-        serialize(
-            Banyan.get_location_path(path_and_subpath),
-            INVALID_LOCATION
-        )
+        invalidate_location(loc_params_path)
+        # serialize(
+        #     Banyan.get_location_path(path_and_subpath),
+        #     INVALID_LOCATION
+        # )
     end
     
     # Invalidate location if 

@@ -26,7 +26,6 @@
     reusing in ["nothing", "sample", "location", "sample and location"]
 
     # Use session with appropriate sample collection configuration
-    max_exact_sample_length = exact_or_inexact == "Exact" ? 1_024_000 : 0
     use_session_for_testing(sample_rate = 2) do
 
         # Use data to collect a sample from
@@ -44,11 +43,11 @@
         if (reusing == "nothing" || reusing == "location")
             invalidate_sample(src_name)
         end
-        remote_source = RemoteTableSource(
-            src_name,
-            shuffled = with_or_without_shuffled == "with",
-            max_exact_sample_length = max_exact_sample_length
+        configure_sampling(
+            always_exact = exact_or_inexact,
+            assume_shuffled = with_or_without_shuffled == "with",
         )
+        remote_source = RemoteTableSource(src_name)
 
         # Verify the location
         
