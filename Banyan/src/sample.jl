@@ -27,7 +27,7 @@ const NOTHING_SAMPLE = Sample(nothing, Int64(-1))
 
 Base.isnothing(s::Sample) = s.rate == -1
 
-struct SamplingConfig
+mutable struct SamplingConfig
     rate::Int64
     always_exact::Bool
     max_num_bytes_exact::Int64

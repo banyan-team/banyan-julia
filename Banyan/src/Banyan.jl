@@ -37,10 +37,12 @@ using Base64,
     TOML
 
 using AWS
-using AWS.AWSServices: s3
+AWS.DEFAULT_BACKEND[] = AWS.DownloadsBackend()
+s3 = set_features(AWS.AWSServices.s3; use_response_type=true)
+using AWS.AWSExceptions
 using AWS: @service
-@service S3
-@service SQS
+@service S3 use_response_type = true
+@service SQS use_response_type = true
 using AWSS3
 
 global BANYAN_API_ENDPOINT

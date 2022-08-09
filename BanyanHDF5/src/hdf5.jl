@@ -1,6 +1,6 @@
 function read_hdf5(path; kwargs...)
     invalidate(path; kwargs...)
-    A_loc = RemoteHDF5Source(path; kwargs...)
+    A_loc = RemoteHDF5Source(path)
     A_loc.src_name == "Remote" || error("$path does not exist")
     invalidate(path; after=true, kwargs...)
     A = Future(datatype="Array", source=A_loc)

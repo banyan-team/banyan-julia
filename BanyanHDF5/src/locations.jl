@@ -138,7 +138,7 @@ function _remote_hdf5_source(lp::LocationPath, loc::Location, sc::SamplingConfig
     if is_main
         # Construct parameters for Location
         src_params = if curr_metadata_invalid
-            Dict{String,String}(
+            Dict{String,Any}(
                 "name" => "Remote",
                 "path_and_subpath" => path_and_subpath,
                 "path" => remotepath,

@@ -50,7 +50,7 @@ Base.propertynames(df::DataFrame) = propertynames(sample(df)::DataFrames.DataFra
 function read_table(path::String; kwargs...)
     @nospecialize
     invalidate(path; kwargs...)
-    df_loc = RemoteTableSource(path; kwargs...)
+    df_loc = RemoteTableSource(path)
     df_loc.src_name == "Remote" || error("$path does not exist")
     invalidate(path; after=true, kwargs...)
     df_loc_nrows::Int64 = parse(Int64, df_loc.src_parameters["nrows"])

@@ -44,7 +44,7 @@ end
 
 global TABLE_FORMATS = ["csv", "parquet", "arrow"]
 
-function get_location_path_with_format(p::String, kwargs...)::LocationPath
+function get_location_path_with_format(p::String; kwargs...)::LocationPath
     if isempty(p)
         return NO_LOCATION_PATH
     end
@@ -88,7 +88,7 @@ function set_session_sampling_configs(d::Dict{SessionId,Dict{LocationPath,Sampli
     session_sampling_configs = d
 end
 
-get_sampling_config(path="", kwargs...) = get_sampling_config(get_location_path_with_format(path; kwargs...))
+get_sampling_config(path=""; kwargs...) = get_sampling_config(get_location_path_with_format(path; kwargs...))
 function get_sampling_configs()
     global session_sampling_configs
     session_sampling_configs[_get_session_id_no_error()]
@@ -102,8 +102,13 @@ get_sampling_config(l_path::LocationPath)::SamplingConfig =
 
 get_sample_rate(p::String=""; kwargs...) =
     get_sample_rate(get_location_path_with_format(p; kwargs...))
-parse_sample_rate(object_key) =
-    parse(Int64, object_key[(findlast("_", object_key).start+1):end])
+function parse_sample_rate(object_key)
+    lastpos = findlast("_", object_key)
+    if isnothing(lastpos)
+        error("Object name \"$object_key\" doesn't contain a sample rate")
+    end
+    parse(Int64, object_key[(lastpos.start+1):end])
+end
 function get_sample_rate(l_path::LocationPath)
     # Get the desired sample rate
     desired_sample_rate = get_sampling_config(l_path).rate
@@ -182,6 +187,8 @@ struct AWSExceptionInfo
 end
 
 function get_location_source(lp::LocationPath)::Tuple{Location,String,String}
+    global s3
+
     # This checks local cache and S3 cache for sample and metadata files.
     # It then returns a Location object (with a null sample) and the local file names
     # to read/write the metadata and sample from/to.
@@ -246,7 +253,8 @@ function get_location_source(lp::LocationPath)::Tuple{Location,String,String}
     found_local_samples = Tuple{String,Int64}[]
     found_local_sample_rate_diffs = Int64[]
     samples_local_dir = joinpath(homedir(), ".banyan", "samples")
-    for local_sample_path in readdir(samples_local_dir, join=true)
+    local_sample_paths = isdir(samples_local_dir) ? readdir(samples_local_dir, join=true) : String[]
+    for local_sample_path in local_sample_paths
         if startswith(local_sample_path, sample_path_prefix)
             local_sample_rate = parse_sample_rate(object_key)
             diff_sample_rate = abs(local_sample_rate - desired_sample_rate)
@@ -330,7 +338,11 @@ function get_location_source(lp::LocationPath)::Tuple{Location,String,String}
     res_location.sample_invalid = isempty(final_local_sample_path)
     (
         res_location,
-        metaata_local_path,
-        isempty(final_local_sample_path) ? final_local_sample_path : "sample_path_prefix$desired_sample_rate"
+        metadata_local_path,
+        if !isempty(final_local_sample_path)
+            final_local_sample_path
+        else
+            joinpath(samples_local_dir, "$sample_path_prefix$desired_sample_rate")
+        end
     )
 end

@@ -549,7 +549,7 @@ function get_session_status(session_id::String=get_session_id(); kwargs...)::Str
     session_status
 end
 
-function _wait_for_session(session_id::SessionId=get_session_id(), kwargs...)
+function _wait_for_session(session_id::SessionId=get_session_id(); kwargs...)
     sessions_dict = get_sessions_dict()
     session_status = get_session_status(session_id; kwargs...)
     p = ProgressUnknown("Preparing session with ID $session_id", spinner=true)
@@ -580,7 +580,7 @@ function _wait_for_session(session_id::SessionId=get_session_id(), kwargs...)
     end
 end
 
-function wait_for_session(session_id::SessionId=get_session_id(), kwargs...)
+function wait_for_session(session_id::SessionId=get_session_id(); kwargs...)
     sessions_dict = get_sessions_dict()
     is_session_ready = if haskey(sessions_dict, session_id)
         session_info::Session = sessions_dict[session_id]
@@ -592,7 +592,7 @@ function wait_for_session(session_id::SessionId=get_session_id(), kwargs...)
         false
     end
     if !is_session_ready
-        _wait_for_session(session_id, kwargs...)
+        _wait_for_session(session_id; kwargs...)
     end
 end
 

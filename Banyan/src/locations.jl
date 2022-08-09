@@ -11,7 +11,7 @@ Location(name::String, parameters::LocationParameters, sample_memory_usage::Int6
 
 Base.isnothing(l::Location) = isnothing(l.sample)
 
-LocationSource(name::String, parameters::LocationParameters, sample_memory_usage::Int64 = -1, sample::Sample = Sample())::Location =
+LocationSource(name::String, parameters::Union{Dict{String,Any},Dict{String,String}}, sample_memory_usage::Int64 = -1, sample::Sample = Sample())::Location =
     Location(name, "None", parameters, LocationParameters(), sample_memory_usage, sample, false, false)
 
 LocationDestination(
@@ -350,11 +350,11 @@ function invalidate_location(p; kwargs...)
     invalidate_metadata(p; kwargs...)
     invalidate_samples(p; kwargs...)
 end
-function invalidate_all_locations(p; kwargs...)
+function invalidate_all_locations()
     for subdir in ["samples", "metadata"]
         local_dir = joinpath(homedir(), ".banyan", subdir)
-        if isdir(samples_local_dir)
-            rm(local_dir; force=true, recrusive=true)
+        if isdir(local_dir)
+            rm(local_dir; force=true, recursive=true)
         end
     end
 
@@ -374,14 +374,16 @@ function invalidate_all_locations(p; kwargs...)
             for d in banyan_samples_objects
                 push!(objects_to_delete, Dict("Key" => d["Key"]))
             end
-            try
-                S3.delete_objects(
-                    banyan_samples_bucket_name(),
-                    Dict("Objects" => objects_to_delete)
-                )
-            catch e
-                if is_debug_on()
-                    show(e)
+            if !isempty(objects_to_delete)
+                try
+                    S3.delete_objects(
+                        banyan_samples_bucket_name(),
+                        Dict("Objects" => objects_to_delete)
+                    )
+                catch e
+                    if is_debug_on()
+                        show(e)
+                    end
                 end
             end
         end

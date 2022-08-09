@@ -123,7 +123,7 @@ end
 
 get_banyanconfig_path()::String = joinpath(homedir(), ".banyan", "banyanconfig.toml")
 
-configure(; user_id=nothing, api_key=nothing, ec2_key_pair_name=nothing, banyanconfig_path=nothing) =
+configure(; user_id=nothing, api_key=nothing, ec2_key_pair_name=nothing, banyanconfig_path=nothing, kwargs...) =
     configure(
         isnothing(user_id) ? "" : user_id,
         isnothing(api_key) ? "" : api_key,
@@ -200,7 +200,7 @@ end
 
 # Getting organization IDs
 
-organization_ids = Dict{String,String}
+organization_ids = Dict{String,String}()
 function get_organization_id()
     global organization_ids
     global sessions
@@ -209,7 +209,7 @@ function get_organization_id()
     if haskey(organization_ids, user_id)
         organization_ids[user_id]
     elseif haskey(sessions, session_id)
-        sessions[session_id].organization_ids
+        sessions[session_id].organization_id
     else
         organization_id = send_request_get_response(:describe_users, Dict())["organization_id"]
         organization_ids[user_id] = organization_id

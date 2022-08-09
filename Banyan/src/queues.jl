@@ -2,9 +2,9 @@
 # GET QUEUE URL #
 #################
 
-scatter_queue_url()::Dict{Symbol,Any} = get_session().scatter_queue_url
-gather_queue_url()::Dict{Symbol,Any} = get_session().gather_queue_url
-execution_queue_url()::Dict{Symbol,Any} = get_session().execution_queue_url
+scatter_queue_url()::String = get_session().scatter_queue_url
+gather_queue_url()::String = get_session().gather_queue_url
+execution_queue_url()::String = get_session().execution_queue_url
 
 ###################
 # RECEIVE MESSAGE #
@@ -112,8 +112,8 @@ end
 function sqs_send_message(queue_url, message)
     generated_message_id = generate_message_id()
     SQS.send_message(
-        queue_url,
         message,
+        queue_url,
         Dict(
             "MessageGroupId" => "1",
             "MessageDeduplicationId" => generated_message_id

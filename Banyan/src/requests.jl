@@ -287,6 +287,10 @@ function _partitioned_computation_concrete(fut::Future, destination::Location, n
             value_id = message["value_id"]::ValueId
             num_chunks = message["num_chunks"]::Int64
             num_remaining_chunks = num_chunks - 1
+
+            if is_debug_on()
+                printlng("Gathering $num_chunks chunk$(num_chunks > 1 ? "s" : "") to client")
+            end
             
             whole_message_contents = if num_chunks > 1
                 partial_messages = Vector{String}(undef, num_chunks)
@@ -704,6 +708,10 @@ function offloaded(given_function::Function, args...; distributed::Bool = false)
             value_id = message["value_id"]::ValueId
             num_chunks = message["num_chunks"]::Int64
             num_remaining_chunks = num_chunks - 1
+
+            if is_debug_on()
+                printlng("Gathering $num_chunks chunk$(num_chunks > 1 ? "s" : "") to client")
+            end
             
             whole_message_contents = if num_chunks > 1
                 partial_messages = Vector{String}(undef, num_chunks)

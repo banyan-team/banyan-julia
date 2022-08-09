@@ -115,27 +115,29 @@ end
         @test !has_metadata(p2)
         @test !has_sample(p2)
 
-        df2 = read_table(df2)
+        df2 = read_table(p2)
         @show get_sample_rate(p2)
         sample(df2)
         @show get_sample_rate(p2)
-        df2 = read_table(df2; samples_invalid=true)
+        df2 = read_table(p2; samples_invalid=true)
         sample(df2)
         configure_sampling(sample_rate=7, for_all_locations=true)
-        df2 = read_table(df2; metadata_invalid=true)
+        df2 = read_table(p2; metadata_invalid=true)
         sample(df2)
-        @test get_sample_rate() == 5
+        @test get_sample_rate(p2) == 5
+        @test get_sample_rate() == 7
         configure_sampling(sample_rate=7, force_new_sample_rate=true, for_all_locations=true)
         @test get_sample_rate(p2) == 5
-        df2 = read_table(df2)
         @test get_sample_rate() == 7
-        @test get_sample_rate() == 5
-        df2 = read_table(df2; location_invalid=true)
+        df2 = read_table(p2)
+        @test get_sample_rate(p2) == 7
+        @test get_sample_rate() == 7
+        df2 = read_table(p2; location_invalid=true)
         sample(df2)
         @test has_metadata(p2)
         @test has_sample(p2)
         @show get_sample_rate(p2)
-        configure_sampling(p2; always_exact=tru)
+        configure_sampling(p2; always_exact=true)
         sample(df2)
     end
 end
