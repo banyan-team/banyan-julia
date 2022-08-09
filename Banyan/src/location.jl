@@ -8,36 +8,10 @@ mutable struct Location
     dst_name::String
     src_parameters::LocationParameters
     dst_parameters::LocationParameters
-    total_memory_usage::Int64
+    sample_memory_usage::Int64
     sample::Sample
     metadata_invalid::Bool
     sample_invalid::Bool
-
-    # function Location(
-    #     src_name::String,
-    #     dst_name::String,
-    #     src_parameters::Dict{String,<:Any},
-    #     dst_parameters::Dict{String,<:Any},
-    #     total_memory_usage::Union{Int64,Nothing} = nothing,
-    #     sample::Sample = Sample(),
-    # )
-    #     # NOTE: A file might be None and None if it is simply to be cached on
-    #     # disk and then read from
-    #     # if src_name == "None" && dst_name == "None"
-    #     #     error(
-    #     #         "Location must either be usable as a source or as a destination for data",
-    #     #     )
-    #     # end
-
-    #     new(
-    #         src_name,
-    #         dst_name,
-    #         src_parameters,
-    #         dst_parameters,
-    #         total_memory_usage,
-    #         sample
-    #     )
-    # end
 end
 
 struct LocationPath
@@ -66,8 +40,10 @@ struct LocationPath
     LocationPath(path) = LocationPath(path, "jl", get_julia_version())``
 end
 
+# Functions with `LocationPath`s`
+
 global TABLE_FORMATS = ["csv", "parquet", "arrow"]
-z
+
 function get_location_path_with_format(p::String, kwargs...)::LocationPath
     if isempty(p)
         return NO_LOCATION_PATH
@@ -102,6 +78,16 @@ Base.hash(lp::LocationPath) = lp.path_hash_uint
 
 const NO_LOCATION_PATH = LocationPath("", "", "")
 
+# Sample config management
+
+const DEFAULT_SAMPLING_CONFIG = SamplingConfig(1024, false, parse_bytes("32 MB"), false, true)
+session_sampling_configs = Dict{SessionId,Dict{LocationPath,SamplingConfig}}("" => Dict(NO_LOCATION_PATH => DEFAULT_SAMPLING_CONFIG))
+
+function set_session_sampling_configs(d::Dict{SessionId,Dict{LocationPath,SamplingConfig}})
+    global session_sampling_configs
+    session_sampling_configs = d
+end
+
 get_sampling_config(path="", kwargs...) = get_sampling_config(get_location_path_with_format(path; kwargs...))
 function get_sampling_configs()
     global session_sampling_configs
@@ -111,6 +97,8 @@ get_sampling_config(l_path::LocationPath)::SamplingConfig =
     let scs = get_sampling_configs()
         get(scs, l_path, scs[NO_LOCATION_PATH])
     end
+
+# Getting sample rate
 
 get_sample_rate(p::String=""; kwargs...) =
     get_sample_rate(get_location_path_with_format(p; kwargs...))
@@ -153,6 +141,8 @@ function get_sample_rate(l_path::LocationPath)
     sample_rate != -1 ? sample_rate : desired_sample_rate
 end
 
+# Checking for having metadata, samples
+
 function has_metadata(l_path:: LocationPath)::Bool
     try
         !isempty(S3.list_objects_v2(banyan_metadata_bucket_name(), Dict("prefix" => get_metadata_path(l_path)))["Contents"])
@@ -170,6 +160,8 @@ function has_sample(l_path:: LocationPath)::Bool
         false
     end
 end
+
+# Helper function for getting `Location` for location constructors
 
 twodigit(i::Int64) = i < 10 ? ("0" * string(i)) : string(i)
 
@@ -331,7 +323,7 @@ function get_location_source(lp::LocationPath)::Tuple{Location,String,String}
     res_location = LocationSource(
         get(src_params, "name", "Remote"),
         src_params,
-        parse(Int64, get(src_params, "total_memory_usage", "0")),
+        parse(Int64, get(src_params, "sample_memory_usage", "0")),
         NOTHING_SAMPLE
     )
     res_location.metadata_invalid = isempty(src_params)

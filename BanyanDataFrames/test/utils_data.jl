@@ -2,17 +2,17 @@
 # path - path to write file to in bucket
 # download_path - either http(s) link to a file or a local Path indicating the source of the file
 function verify_file_in_s3(bucket, path, download_path)
-    if !s3_exists(Banyan.get_aws_config(), bucket, path)
+    if !s3_exists(Banyan.global_aws_config(), bucket, path)
         if typeof(download_path) == String &&
            (startswith(download_path, "https://") || startswith(download_path, "http://"))
             Downloads.download(
                 download_path,
-                S3Path("s3://$(bucket)/$(path)", config = Banyan.get_aws_config()),
+                S3Path("s3://$(bucket)/$(path)", config = Banyan.global_aws_config()),
             )
         else  # upload local file
             cp(
                 Path(download_path),
-                S3Path("s3://$(bucket)/$(path)", config = Banyan.get_aws_config()),
+                S3Path("s3://$(bucket)/$(path)", config = Banyan.global_aws_config()),
             )
         end
     end
@@ -58,11 +58,11 @@ function setup_basic_tests(bucket_name=get_cluster_s3_bucket_name())
         "iris_species_info.parquet",
         "iris_species_info.arrow",
     ]
-    bucket_contents = s3_list_keys(Banyan.get_aws_config(), bucket_name)
+    bucket_contents = s3_list_keys(Banyan.global_aws_config(), bucket_name)
     to_be_downloaded = [
         iris_s3_path for iris_s3_path in iris_s3_paths if
         # TODO: Use the following when AWSS3.jl supports folders
-        # !s3_exists(Banyan.get_aws_config(), bucket_name, iris_s3_path)
+        # !s3_exists(Banyan.global_aws_config(), bucket_name, iris_s3_path)
         !(iris_s3_path in bucket_contents)
     ]
     if !isempty(to_be_downloaded)
@@ -146,7 +146,7 @@ function setup_empty_tests(bucket_name=get_cluster_s3_bucket_name())
     # Write empty dataframe
     empty_df = DataFrames.DataFrame()
     println("At start of setup_empty_tests")
-    if !ispath(S3Path("s3://$bucket_name/empty_df.csv", config = Banyan.get_aws_config()))
+    if !ispath(S3Path("s3://$bucket_name/empty_df.csv", config = Banyan.global_aws_config()))
         write_df_to_csv_to_s3(
             empty_df,
             "empty_df.csv",
@@ -156,7 +156,7 @@ function setup_empty_tests(bucket_name=get_cluster_s3_bucket_name())
         )
     end
     println("After first setup_empty_tests")
-    if !ispath(S3Path("s3://$bucket_name/empty_df.arrow", config = Banyan.get_aws_config()))
+    if !ispath(S3Path("s3://$bucket_name/empty_df.arrow", config = Banyan.global_aws_config()))
         write_df_to_arrow_to_s3(
             empty_df,
             "empty_df.arrow",
@@ -168,7 +168,7 @@ function setup_empty_tests(bucket_name=get_cluster_s3_bucket_name())
 
     # Write empty dataframe with two columns
     empty_df2 = DataFrames.DataFrame(x = [], y = [])
-    if !ispath(S3Path("s3://$bucket_name/empty_df2.csv", config = Banyan.get_aws_config()))
+    if !ispath(S3Path("s3://$bucket_name/empty_df2.csv", config = Banyan.global_aws_config()))
         write_df_to_csv_to_s3(
             empty_df2,
             "empty_df2.csv",
@@ -177,7 +177,7 @@ function setup_empty_tests(bucket_name=get_cluster_s3_bucket_name())
             "empty_df2.csv",
         )
     end
-    if !ispath(S3Path("s3://$bucket_name/empty_df2.arrow", config = Banyan.get_aws_config()))
+    if !ispath(S3Path("s3://$bucket_name/empty_df2.arrow", config = Banyan.global_aws_config()))
         write_df_to_arrow_to_s3(
             empty_df2,
             "empty_df2.arrow",
@@ -197,13 +197,13 @@ end
 #     idx = 0
 #     part_names = []
 #     while num_bytes_so_far < num_bytes
-#         dst_path = S3Path("s3://$bucket_name/nyc_tripdata_large.csv/part$idx.csv", config = Banyan.get_aws_config())
+#         dst_path = S3Path("s3://$bucket_name/nyc_tripdata_large.csv/part$idx.csv", config = Banyan.global_aws_config())
 #         if Banyan.INVESTIGATING_SETUP_NYC_TAXI_STRESS_TEST
 #             println("In while loop in setup_nyc_taxi_stress_test")
 #             @show dst_path
-#             @show !s3_exists(Banyan.get_aws_config(), bucket_name, "nyc_tripdata_large.csv/part$idx.csv")
+#             @show !s3_exists(Banyan.global_aws_config(), bucket_name, "nyc_tripdata_large.csv/part$idx.csv")
 #         end
-#         if !s3_exists(Banyan.get_aws_config(), bucket_name, "nyc_tripdata_large.csv/part$idx.csv")
+#         if !s3_exists(Banyan.global_aws_config(), bucket_name, "nyc_tripdata_large.csv/part$idx.csv")
 #             if isnothing(nyc_trip_data_120_mb_path)
 #                 nyc_trip_data_120_mb_path = Path(download("https://s3.amazonaws.com/nyc-tlc/trip+data/yellow_tripdata_2021-01.csv"))
 #             end
@@ -218,13 +218,13 @@ end
 #         println("Outside while loop in setup_nyc_taxi_stress_test")
 #         @show part_names
 #     end
-#     for p in s3_list_keys(Banyan.get_aws_config(), bucket_name, "nyc_tripdata_large.csv/")
+#     for p in s3_list_keys(Banyan.global_aws_config(), bucket_name, "nyc_tripdata_large.csv/")
 #         p_str = string(p)
 #         if !any((endswith(p_str, part_name) for part_name in part_names))
 #             if Banyan.INVESTIGATING_SETUP_NYC_TAXI_STRESS_TEST
 #                 println("In final for loop in setup_nyc_taxi_stress_test with p=$p")
 #             end
-#             s3_delete(Banyan.get_aws_config(), bucket_name, p)
+#             s3_delete(Banyan.global_aws_config(), bucket_name, p)
 #         end
 #     end
 # end
@@ -277,7 +277,7 @@ function setup_stress_tests(bucket_name=get_cluster_s3_bucket_name())
         for filetype in ["csv", "parquet", "arrow"]
             for ncopy = 1:n_repeats
                 dst_path = "s3://$(bucket_name)/tripdata_large_$(filetype).$(filetype)/tripdata_$(month)_copy$(ncopy).$(filetype)"
-                dst_s3_path = S3Path(dst_path, config = Banyan.get_aws_config())
+                dst_s3_path = S3Path(dst_path, config = Banyan.global_aws_config())
                 push!(dst_s3_paths, dst_s3_path)
                 if !isfile(dst_s3_path)
                     push!(dst_s3_paths_missing, dst_s3_path)
@@ -309,7 +309,7 @@ function setup_stress_tests(bucket_name=get_cluster_s3_bucket_name())
                 cp(
                     Path(get_local_path_tripdata(s3_path)),
                     s3_path,
-                    config = Banyan.get_aws_config(),
+                    config = Banyan.global_aws_config(),
                 )
             end
         end
@@ -319,10 +319,10 @@ end
 function cleanup_tests(bucket_name=get_cluster_s3_bucket_name())
     # Delete all temporary test files that are prepended with "test-tmp__"
     @show bucket_name
-    for p in s3_list_keys(Banyan.get_aws_config(), bucket_name)
+    for p in s3_list_keys(Banyan.global_aws_config(), bucket_name)
         if contains(string(p), "test-tmp_")
-            # s3_path = S3Path("s3://$bucket_name/$p", config = Banyan.get_aws_config())
-            rm(S3Path("s3://$bucket_name/$p", config = Banyan.get_aws_config()), recursive=true)
+            # s3_path = S3Path("s3://$bucket_name/$p", config = Banyan.global_aws_config())
+            rm(S3Path("s3://$bucket_name/$p", config = Banyan.global_aws_config()), recursive=true)
         end
     end
 end

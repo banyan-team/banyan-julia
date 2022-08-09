@@ -68,7 +68,6 @@ impl_error(fn_name, as) = error("$fn_name not implemented for $(typeof(as))")
 sample_by_key(as::Any, key::Any) = impl_error("sample_by_key", as)
 sample_axes(as::Any)::Vector{Int64} = impl_error("sample_axes", as)
 sample_keys(as::Any) = impl_error("sample_keys", as)
-sample_memory_usage(as::Any)::Int64 = total_memory_usage(as)
 
 # Sample computation functions
 
@@ -199,10 +198,6 @@ end
 function sample_max(A::T, key::K) where {T,K}
     isempty(A) ? nothing : _maximum(orderinghashes(A, key))
 end
-
-const NOTHING_SAMPLE = Sample(nothing, UInt(0), Int64(-1), Int64(-1), Int64[])
-
-Base.isnothing(s::Sample) = s.rate == -1
 
 # Caching samples with same statistics
 

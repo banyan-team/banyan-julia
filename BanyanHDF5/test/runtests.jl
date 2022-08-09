@@ -101,7 +101,7 @@ function use_data(data_src = "S3")
             ),
         )
         f_dst = joinpath(
-            S3Path("s3://$(get_cluster_s3_bucket_name())", config = Banyan.get_aws_config()),
+            S3Path("s3://$(get_cluster_s3_bucket_name())", config = Banyan.global_aws_config()),
             "fillval.h5",
         )
         f = get_downloaded_path(f_dst, only_for_writing=true)
@@ -115,7 +115,7 @@ function use_data(data_src = "S3")
         # rm(get_s3fs_path(joinpath(get_cluster_s3_bucket_name(), "fillval_copy.h5")), force=true)
         rm(
             joinpath(
-                S3Path("s3://$(get_cluster_s3_bucket_name())", config = Banyan.get_aws_config()),
+                S3Path("s3://$(get_cluster_s3_bucket_name())", config = Banyan.global_aws_config()),
                 "fillval_copy.h5",
             ),
             force = true,

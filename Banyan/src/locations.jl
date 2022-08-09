@@ -6,13 +6,13 @@ const NOTHING_LOCATION = Location("None", "None", LocationParameters(), Location
 
 const INVALID_LOCATION = Location("None", "None", LocationParameters(), LocationParameters(), Int64(-1), NOTHING_SAMPLE, true, true)
 
-Location(name::String, parameters::LocationParameters, total_memory_usage::Int64 = -1, sample::Sample = Sample())::Location =
-    Location(name, name, parameters, parameters, total_memory_usage, sample, false, false)
+Location(name::String, parameters::LocationParameters, sample_memory_usage::Int64 = -1, sample::Sample = Sample())::Location =
+    Location(name, name, parameters, parameters, sample_memory_usage, sample, false, false)
 
 Base.isnothing(l::Location) = isnothing(l.sample)
 
-LocationSource(name::String, parameters::LocationParameters, total_memory_usage::Int64 = -1, sample::Sample = Sample())::Location =
-    Location(name, "None", parameters, LocationParameters(), total_memory_usage, sample, false, false)
+LocationSource(name::String, parameters::LocationParameters, sample_memory_usage::Int64 = -1, sample::Sample = Sample())::Location =
+    Location(name, "None", parameters, LocationParameters(), sample_memory_usage, sample, false, false)
 
 LocationDestination(
     name::String,
@@ -31,7 +31,7 @@ function to_jl(lt::Location)
         # TODO: Instead of computing the total memory usage here, compute it
         # at the end of each `@partitioned`. That way we will count twice for
         # mutation
-        "total_memory_usage" => lt.total_memory_usage == -1 ? nothing : lt.total_memory_usage,
+        "sample_memory_usage" => lt.sample_memory_usage == -1 ? nothing : lt.sample_memory_usage,
     )
 end
 
@@ -59,7 +59,7 @@ function sourced(fut::Future, loc::Location)
                 "None",
                 loc.src_parameters,
                 Dict{String,Any}(),
-                loc.total_memory_usage,
+                loc.sample_memory_usage,
                 if !isnothing(loc.sample.value)
                     # If this location is like some remote location, then we need
                     # a sample from it.
@@ -81,7 +81,7 @@ function sourced(fut::Future, loc::Location)
                 fut_location.dst_name,
                 loc.src_parameters,
                 fut_location.dst_parameters,
-                loc.total_memory_usage,
+                loc.sample_memory_usage,
                 if !isnothing(loc.sample.value)
                     # If this location is like some remote location, then we need
                     # a sample from it.
@@ -114,7 +114,7 @@ function destined(fut::Future, loc::Location)
                 loc.dst_name,
                 EMPTY_DICT,
                 loc.dst_parameters,
-                fut_location.total_memory_usage,
+                fut_location.sample_memory_usage,
                 Sample(),
                 loc.metadata_invalid,
                 loc.sample_invalid
@@ -129,7 +129,7 @@ function destined(fut::Future, loc::Location)
                 loc.dst_name,
                 fut_location.src_parameters,
                 loc.dst_parameters,
-                fut_location.total_memory_usage,
+                fut_location.sample_memory_usage,
                 fut_location.sample,
                 fut_location.metadata_invalid,
                 fut_location.sample_invalid
@@ -211,7 +211,7 @@ get_dst_parameters(fut)::LocationParameters = get_location(fut).dst_parameters
 ####################
 
 function Value(val::T)::Location where {T}
-    LocationSource("Value", Dict{String,Any}("value" => to_jl_value(val)), total_memory_usage(val), ExactSample(val))
+    LocationSource("Value", Dict{String,Any}("value" => to_jl_value(val)), sample_memory_usage(val), ExactSample(val))
 end
 
 # TODO: Implement Size
@@ -223,7 +223,7 @@ Size(val)::Location = LocationSource(
 )
 
 function Client(val::T)::Location where {T}
-    LocationSource("Client", Dict{String,Any}(), total_memory_usage(val), ExactSample(val))
+    LocationSource("Client", Dict{String,Any}(), sample_memory_usage(val), ExactSample(val))
 end
 const CLIENT = Location("None", "Client", LocationParameters(), LocationParameters(), Int64(0), Sample(nothing, Int64(0), Int64(1)), false, false)
 Client()::Location = deepcopy(CLIENT)

@@ -102,7 +102,7 @@ function _remote_table_source(lp::LocationPath, loc::Location, sampling_config::
     else
         parse(Int64, loc.src_parameters["nrows"])
     end
-    total_nbytes = curr_metadata_invalid ? -1 : parse(Int64, loc.src_parameters["total_memory_usage"])
+    total_nbytes = curr_metadata_invalid ? -1 : parse(Int64, loc.src_parameters["sample_memory_usage"])
     exact_sample_needed = sampling_config.always_exact || total_nbytes <= max_num_bytes_exact
 
     # inv: (a) `meta_nrows_on_worker`, (b) `total_nrows_res`, and
@@ -200,7 +200,7 @@ function _remote_table_source(lp::LocationPath, loc::Location, sampling_config::
                     meta_nrows_on_worker[i] = path_nrows
                     push!(local_samples, path_sample)
                     local_nrows += path_nrows
-                    local_nbytes += ceil(Int64, total_memory_usage(path_sample) * path_sample_rate)
+                    local_nbytes += ceil(Int64, sample_memory_usage(path_sample) * path_sample_rate)
                 end
                 total_nrows_res = reduce_and_sync_across(+, local_nrows)
                 total_nbytes_res = reduce_and_sync_across(+, local_nbytes)
@@ -264,7 +264,7 @@ function _remote_table_source(lp::LocationPath, loc::Location, sampling_config::
             remote_sample_value_arrow = io.data
 
             # Construct Sample with the concatenated value, memory usage, and sample rate
-            remote_sample_value_memory_usage = total_memory_usage(remote_sample_value)
+            remote_sample_value_memory_usage = sample_memory_usage(remote_sample_value)
             total_nbytes_res = if exact_sample_needed
                 remote_sample_value_memory_usage
             else
@@ -278,7 +278,7 @@ function _remote_table_source(lp::LocationPath, loc::Location, sampling_config::
             remote_sample_res::Sample = if exact_sample_needed
                 # Technically we don't need to be passing in `total_bytes_res`
                 # here but we do it because we are anyway computing it to
-                # return as the `total_memory_usage` for the `Location` and so
+                # return as the `sample_memory_usage` for the `Location` and so
                 # we might as well avoid recomputing it in the `Sample`
                 # constructors
                 ExactSample(remote_sample_value_arrow, total_nbytes_res)
@@ -307,7 +307,7 @@ function _remote_table_source(lp::LocationPath, loc::Location, sampling_config::
             #     sample_rate
             # )
             # remote_sample_value_nrows = nrow(cached_remote_sample_res.value)
-            # remote_sample_value_nbytes = total_memory_usage(cached_remote_sample_res.value)
+            # remote_sample_value_nbytes = sample_memory_usage(cached_remote_sample_res.value)
             # if Banyan.INVESTIGATING_COLLECTING_SAMPLES || Banyan.INVESTIGATING_MEMORY_USAGE
             #     @show remote_sample_value_nbytes remote_sample_value_nrows total_nrows_res
             # end
@@ -323,7 +323,7 @@ function _remote_table_source(lp::LocationPath, loc::Location, sampling_config::
             # end
 
             cached_remote_sample_value = DataFrames.DataFrame(Arrow.Table(sample_path))
-            remote_sample_value_nbytes = total_memory_usage(cached_remote_sample_value)
+            remote_sample_value_nbytes = sample_memory_usage(cached_remote_sample_value)
             remote_sample_value_nrows = DataFrames.nrow(cached_remote_sample_value)
             total_nbytes_res = ceil(Int64, remote_sample_value_nbytes * total_nrows_res / remote_sample_value_nrows)
             cached_remote_sample_res = NOTHING_SAMPLE
@@ -341,7 +341,7 @@ function _remote_table_source(lp::LocationPath, loc::Location, sampling_config::
     src_params =
         Dict(
             "name" => "Remote",
-            "total_memory_usage" => string(total_nbytes),
+            "sample_memory_usage" => string(total_nbytes),
             # For dispatching the appropriate PF for this format
             "format" => format_string,
             # For constructing the `BanyanDataFrames.DataFrame`'s `nrows::Future` field

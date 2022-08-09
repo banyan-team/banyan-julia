@@ -175,15 +175,15 @@ function _start_session(
         environment_hash = get_hash(project_toml * manifest_toml * version)
         environment_info["environment_hash"] = environment_hash
         environment_info["project_toml"] = "$(environment_hash)/Project.toml"
-        file_already_in_s3 = isfile(S3Path("s3://$(s3_bucket_name)/$(environment_hash)/Project.toml", config=get_aws_config()))
+        file_already_in_s3 = isfile(S3Path("s3://$(s3_bucket_name)/$(environment_hash)/Project.toml", config=global_aws_config()))
         if !file_already_in_s3
-            s3_put(get_aws_config(), s3_bucket_name, "$(environment_hash)/Project.toml", project_toml)
+            s3_put(global_aws_config(), s3_bucket_name, "$(environment_hash)/Project.toml", project_toml)
         end
         if manifest_toml != ""
             environment_info["manifest_toml"] = "$(environment_hash)/Manifest.toml"
-            file_already_in_s3 = isfile(S3Path("s3://$(s3_bucket_name)/$(environment_hash)/Manifest.toml", config=get_aws_config()))
+            file_already_in_s3 = isfile(S3Path("s3://$(s3_bucket_name)/$(environment_hash)/Manifest.toml", config=global_aws_config()))
             if !file_already_in_s3
-                s3_put(get_aws_config(), s3_bucket_name, "$(environment_hash)/Manifest.toml", manifest_toml)
+                s3_put(global_aws_config(), s3_bucket_name, "$(environment_hash)/Manifest.toml", manifest_toml)
             end
         end
     else
@@ -208,9 +208,9 @@ function _start_session(
 
     # Upload files to S3
     for f in vcat(files, code_files)
-        s3_path = S3Path("s3://$(s3_bucket_name)/$(basename(f))", config=get_aws_config())
+        s3_path = S3Path("s3://$(s3_bucket_name)/$(basename(f))", config=global_aws_config())
         if !isfile(s3_path) || force_update_files
-            s3_put(get_aws_config(), s3_bucket_name, basename(f), load_file(f))
+            s3_put(global_aws_config(), s3_bucket_name, basename(f), load_file(f))
         end
     end
     # TODO: Optimize so that we only upload (and download onto cluster) the files if the filename doesn't already exist
@@ -488,7 +488,7 @@ function download_session_logs(session_id::SessionId, cluster_name::String, file
         mkdir(joinpath(homedir(), ".banyan", "logs"))
     end
     filename = !isnothing(filename) ? filename : joinpath(homedir(), ".banyan", "logs", log_file_name)
-    s3_get_file(get_aws_config(), s3_bucket_name, log_file_name, filename)
+    s3_get_file(global_aws_config(), s3_bucket_name, log_file_name, filename)
     @info "Downloaded logs for session with ID $session_id to $filename"
     return filename
 end
@@ -496,10 +496,10 @@ end
 function print_session_logs(session_id, cluster_name, delete_file=true)
     s3_bucket_name = get_cluster_s3_bucket_name(cluster_name)
     log_file_name = "banyan-log-for-session-$(session_id)"
-    logs = s3_get(get_aws_config(), s3_bucket_name, log_file_name)
+    logs = s3_get(global_aws_config(), s3_bucket_name, log_file_name)
     println(String(logs))
     if delete_file
-        s3_delete(get_aws_config(), s3_bucket_name, log_file_name)
+        s3_delete(global_aws_config(), s3_bucket_name, log_file_name)
     end
 end
 

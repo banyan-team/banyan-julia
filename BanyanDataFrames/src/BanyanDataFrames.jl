@@ -20,7 +20,7 @@ using Arrow,
 export DataFrame, GroupedDataFrame
 
 # I/O
-export read_csv, write_csv, read_parquet, write_parquet, read_arrow, write_arrow
+export read_table, write_table, read_csv, write_csv, read_parquet, write_parquet, read_arrow, write_arrow
 
 # Dataframe properties
 export nrow, ncol, size, names, propertynames

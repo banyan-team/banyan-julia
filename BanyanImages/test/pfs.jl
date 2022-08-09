@@ -29,7 +29,7 @@
 
 #     # Construct files
 #     if format == "directory"
-#         files = readdir(S3Path(path, config=Banyan.get_aws_config()))
+#         files = readdir(S3Path(path, config=Banyan.global_aws_config()))
 #         datasize = add_channelview ? (nimages, 3, 100, 100) : (nimages, 100, 100)
 #         empty_part_size = add_channelview ? (0, 3, 100, 100) : (0, 100, 100)
 #     elseif format == "generator"

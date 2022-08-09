@@ -75,7 +75,7 @@ function create_cluster(;
     end
     if isnothing(s3_bucket_arn)
         s3_bucket_arn = ""
-    elseif !(s3_bucket_name in s3_list_buckets(get_aws_config()))
+    elseif !(s3_bucket_name in s3_list_buckets(global_aws_config()))
         error("Bucket $s3_bucket_name does not exist in the connected AWS account")
     end
 
@@ -294,7 +294,7 @@ end
 function upload_to_s3(src_path; dst_name=basename(src_path), cluster_name=get_cluster_name(), kwargs...)
     configure(; kwargs...)
     bucket_name = get_cluster_s3_bucket_name(cluster_name)
-    s3_dst_path = S3Path("s3://$bucket_name/$dst_name", config=get_aws_config())
+    s3_dst_path = S3Path("s3://$bucket_name/$dst_name", config=global_aws_config())
     if startswith(src_path, "http://") || startswith(src_path, "https://")
         Downloads.download(
             src_path,
@@ -320,7 +320,7 @@ function upload_to_s3(src_path; dst_name=basename(src_path), cluster_name=get_cl
                     Path("$src_path/$f_name"),
                     S3Path(
                         "s3://$bucket_name/$(basename(src_path))/$(f_name)",
-                        config=get_aws_config()
+                        config=global_aws_config()
                     )
                 )
             end

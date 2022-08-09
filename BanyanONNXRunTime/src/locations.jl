@@ -10,7 +10,7 @@ function RemoteONNXSource(remotepath)::Location
     if p_exists
         pp = get_downloaded_path(p)
         model = ONNXRunTime.load_inference(pp)
-        nbytes = Banyan.total_memory_usage(model)
+        nbytes = Banyan.sample_memory_usage(model)
         destroy_downloaded_path(pp)
     end
 

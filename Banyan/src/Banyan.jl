@@ -29,7 +29,6 @@ using Base64,
     FilePathsBase,
     HTTP,
     JSON,
-    IniFile,
     LibGit2,
     MPI,
     ProgressMeter,
@@ -37,6 +36,7 @@ using Base64,
     Serialization,
     TOML
 
+using AWS
 using AWS.AWSServices: s3
 using AWS: @service
 @service S3
@@ -85,7 +85,7 @@ export AbstractFuture, Future, partitioned_computation, compute_inplace, compute
 
 # Samples
 export Sample, ExactSample, sample, sample_for_grouping, SampleForGrouping, setsample!
-export sample_memory_usage, total_memory_usage, sample_axes, sample_keys, sample_by_key
+export sample_memory_usage, sample_memory_usage, sample_axes, sample_keys, sample_by_key
 export NOTHING_SAMPLE
 export SamplingConfig
 
@@ -189,7 +189,7 @@ export is_debug_on,
 export Empty, EMPTY, nonemptytype, disallowempty, empty_handler
 
 # Utilities for location constructors
-export get_cached_location, cache_location, get_sample_from_data, sample_from_range
+export get_sample_from_data, sample_from_range
 
 # Partitioning functions for usage in sessions that run on the cluster; dispatched
 # based on `res/pf_dispatch_table.json`.

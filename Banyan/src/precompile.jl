@@ -285,8 +285,9 @@ function _precompile_()
     end
 
     # locations.jl
-    precompile(get_cached_location, (String, Bool, Bool))
-    precompile(cache_location, (String, Location, Bool, Bool))
+    for lp_func in [get_sample_rate, get_location_source, has_metadata, has_sample]
+        precompile(lp_func, (LocationPath,))
+    end
     precompile(sample_from_range, (UnitRange{Int64}, Int64))
 
     # utils.jl, utils_s3fs.jl

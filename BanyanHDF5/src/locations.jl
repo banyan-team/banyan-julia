@@ -145,7 +145,7 @@ function _remote_hdf5_source(lp::LocationPath, loc::Location, sc::SamplingConfig
                 "subpath" => datasetpath,
                 "eltype" => Banyan.size_to_str(dataszie),
                 "size" => Banyan.type_to_str(dataeltype),
-                "total_memory_usage" => string(nbytes),
+                "sample_memory_usage" => string(nbytes),
                 "format" => "hdf5"
             )
         else

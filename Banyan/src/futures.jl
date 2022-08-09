@@ -46,7 +46,7 @@ function create_new_future(source::Location, mutate_from::Future, datatype::Stri
 end
 
 function create_future_from_sample(value::T, datatype::String)::Future where T
-    location::Location = if total_memory_usage(value) ≤ 4 * 1024
+    location::Location = if sample_memory_usage(value) ≤ 4 * 1024
         Value(value)
     else
         # TODO: Store values in S3 instead so that we can read from there

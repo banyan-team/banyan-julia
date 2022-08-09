@@ -306,7 +306,7 @@ function _remote_image_source(lp::LocationPath, loc::Location, sc::SamplingConfi
     # regardless of whether we want to get the sample or the metadata
     _load_img = add_channelview ? _load_image_and_add_channelview : _load_image
     first_img = is_main ? (localpaths[1] |> _load_img |> _reshape_image) : nothing
-    exact_sample_needed = is_main ? ((total_memory_usage(first_img) * length(localpaths)) < sc.max_num_bytes_exact) : false
+    exact_sample_needed = is_main ? ((sample_memory_usage(first_img) * length(localpaths)) < sc.max_num_bytes_exact) : false
     exact_sample_needed = sync_across(exact_sample_needed)
     need_to_parallelize = nimages >= 10
     total_num_images_to_read_in = if curr_sample_invalid
@@ -365,7 +365,7 @@ function _remote_image_source(lp::LocationPath, loc::Location, sc::SamplingConfi
             Dict{String,Any}(
                 "name" => "Remote",
                 "nimages" => string(nimages),
-                "total_memory_usage" => string(nbytes_res),  # NOTE: We assume all files have same size
+                "sample_memory_usage" => string(nbytes_res),  # NOTE: We assume all files have same size
                 "size" => size_to_str(datasize_res),
                 "eltype" => type_to_str(dataeltype_res),
                 "add_channelview" => add_channelview ? "1" : "0",

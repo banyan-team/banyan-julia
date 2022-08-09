@@ -515,7 +515,7 @@ function WriteHelper(@nospecialize(format_value))
         else
             Dict(
                 "name" => "Remote",
-                "total_memory_usage" => "0",
+                "sample_memory_usage" => "0",
                 "format" => format_string,
                 "nrows" => "0",
                 "path" => loc_params_path,
@@ -524,7 +524,7 @@ function WriteHelper(@nospecialize(format_value))
         end
 
         # Gather # of rows, # of bytes, empty sample, and actual sample
-        nbytes = part_res isa Empty ? 0 : Banyan.total_memory_usage(part_res)
+        nbytes = part_res isa Empty ? 0 : Banyan.sample_memory_usage(part_res)
         sampling_config = get_sampling_config(lp)
         sample_rate = sampling_config.rate
         sampled_part = (part_res isa Empty || is_disk) ? empty_df : Banyan.get_sample_from_data(part_res, sample_rate, nrows)
@@ -549,13 +549,13 @@ function WriteHelper(@nospecialize(format_value))
 
             # Update the # of bytes
             total_nrows::Int64 = parse(Int64, curr_src_parameters["nrows"])
-            total_memory_usage::Int64 = parse(Int64, curr_src_parameters["total_memory_usage"])
+            sample_memory_usage::Int64 = parse(Int64, curr_src_parameters["sample_memory_usage"])
             empty_sample_found = false
             for (new_nrows::Int64, new_nbytes::Int64, empty_part, sampled_part) in gathered_data
                 # Update the total # of rows and the total # of bytes
                 total_nrows += sum(new_nrows)
                 push!(curr_nrows, new_nrows)
-                total_memory_usage += new_nbytes
+                sample_memory_usage += new_nbytes
 
                 # Get the empty sample
                 if !empty_sample_found && !(empty_part isa Empty)
@@ -564,9 +564,9 @@ function WriteHelper(@nospecialize(format_value))
                 end
             end
             curr_src_parameters["nrows"] = string(total_nrows)
-            curr_src_parameters["total_memory_usage"] = string(total_memory_usage)
+            curr_src_parameters["sample_memory_usage"] = string(sample_memory_usage)
 
-            if !is_disk && batch_idx == nbatches && total_memory_usage <= sampling_config.max_num_bytes_exact
+            if !is_disk && batch_idx == nbatches && sample_memory_usage <= sampling_config.max_num_bytes_exact
                 # If the total # of rows turns out to be inexact then we can simply mark it as
                 # stale so that it can be collected more efficiently later on
                 # We should be able to quickly recompute a more useful sample later

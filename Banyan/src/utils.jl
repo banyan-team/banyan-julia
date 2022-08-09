@@ -21,7 +21,7 @@ json_to_jl(j) = JSON.parse(j)
 key_to_jl(key) = reinterpret(UInt8, hash(string(key))) |> String
 axis_to_jl(axis) = reinterpret(UInt8, hash(string(key))) |> String
 
-total_memory_usage(val)::Int64 =
+sample_memory_usage(val::Any)::Int64 =
     begin
         size = Base.summarysize(val)
         # TODO: Maybe make this larger
@@ -97,7 +97,6 @@ end
 # Banyan.jl may be being used). However, wrapping this in a mutex to ensure
 # synchronized mutation in this module would be a good TODO.
 global banyan_config = nothing
-global aws_config_in_usage = nothing
 
 @nospecialize
 
@@ -220,56 +219,7 @@ end
 
 @specialize
 
-"""
-Get the value for `key` in the `ini` file for a given `profile`.
-"""
-function _get_ini_value(
-    ini::Inifile, profile::String, key::String; default_value=nothing
-)
-    value = get(ini, "profile $profile", key)
-    value === :notfound && (value = get(ini, profile, key))
-    value === :notfound && (value = default_value)
-
-    return value
-end
-
-function get_aws_config()::Dict{Symbol,Any}
-    global aws_config_in_usage
-
-    # Get AWS configuration
-    if isnothing(aws_config_in_usage)
-        # Get region according to ENV, then credentials, then config files
-        profile = get(ENV, "AWS_DEFAULT_PROFILE", get(ENV, "AWS_DEFAULT_PROFILE", "default"))
-        region::String = get(ENV, "AWS_DEFAULT_REGION", "")
-        if region == ""
-            try
-                configfile = read(Inifile(), joinpath(homedir(), ".aws", "config"))
-                region = convert(String, _get_ini_value(configfile, profile, "region", default_value=""))::String
-            catch
-            end
-        end
-        if region == ""
-            try
-                credentialsfile = read(Inifile(), joinpath(homedir(), ".aws", "credentials"))
-                region = convert(String, _get_ini_value(credentialsfile, profile, "region", default_value=""))::String
-            catch
-            end
-        end
-
-        if region == ""
-            throw(ErrorException("Could not discover AWS region to use from looking at AWS_PROFILE, AWS_DEFAULT_PROFILE, AWS_DEFAULT_REGION, HOME/.aws/credentials, and HOME/.aws/config"))
-        end
-
-        aws_config_in_usage = Dict{Symbol,Any}(
-            :creds => AWSCredentials(),
-            :region => region
-        )
-    end
-
-    aws_config_in_usage
-end
-
-get_aws_config_region() = get_aws_config()[:region]::String
+get_aws_config_region() = global_aws_config().region
 
 #########################
 # ENVIRONMENT VARIABLES #
@@ -445,7 +395,7 @@ function load_json(path::String)
     elseif startswith(path, "s3://")
         error("S3 path not currently supported")
         # TODO: Maybe support with
-        # `JSON.parsefile(S3Path(path, config=get_aws_config()))` and also down
+        # `JSON.parsefile(S3Path(path, config=global_aws_config()))` and also down
         # in `load_toml`
     elseif startswith(path, "http://") || startswith(path, "https://")
 	    JSON.parse(request_body(path)[2])
@@ -462,7 +412,7 @@ function load_toml(path::String)
         TOML.parsefile(path[8:end])
     elseif startswith(path, "s3://")
         error("S3 path not currently supported")
-        # JSON.parsefile(S3Path(path, config=get_aws_config()))
+        # JSON.parsefile(S3Path(path, config=global_aws_config()))
     elseif startswith(path, "http://") || startswith(path, "https://")
 	    TOML.parse(request_body(path)[2])
     else

@@ -177,7 +177,7 @@ end
     println("s3://$(get_cluster_s3_bucket_name(cluster_name))/$(log_file)")
     @test store_logs_in_s3 == isfile(
         S3Path("s3://$(get_cluster_s3_bucket_name(cluster_name))/$(log_file)",
-        config=Banyan.get_aws_config())
+        config=Banyan.global_aws_config())
     )
 end
 
