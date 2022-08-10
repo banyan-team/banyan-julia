@@ -3,6 +3,7 @@ module BanyanDataFrames
 using Arrow,
     Banyan,
     BanyanArrays,
+    Base64,
     DataFrames,
     Dates,
     Downloads,

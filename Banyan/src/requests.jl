@@ -713,7 +713,7 @@ function offloaded(given_function::Function, args...; distributed::Bool = false)
             num_remaining_chunks = num_chunks - 1
 
             if is_debug_on()
-                printlng("Gathering $num_chunks chunk$(num_chunks > 1 ? "s" : "") to client")
+                println("Gathering $num_chunks chunk$(num_chunks > 1 ? "s" : "") to client")
             end
             
             @show num_chunks
@@ -742,7 +742,7 @@ function offloaded(given_function::Function, args...; distributed::Bool = false)
                 # call to `send_evaluation`
             end
 
-            error_for_main_stuck, error_for_main_stuck_time = check_worker_stuck_error(value_id, contents, error_for_main_stuck, error_for_main_stuck_time)
+            error_for_main_stuck, error_for_main_stuck_time = check_worker_stuck_error(value_id, whole_message_contents, error_for_main_stuck, error_for_main_stuck_time)
         elseif (message_type == "EVALUATION_END")
             if message["end"]::Bool == true
                 return stored_message

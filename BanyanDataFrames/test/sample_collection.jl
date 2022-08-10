@@ -96,8 +96,8 @@ end
 
         invalidate_all_locations()
 
-        p1 = "s3://$(bucket)/iris_large_$format.$format"
-        p2 = "s3://$(bucket)/iris_large_tmp_$format.$format"
+        p1 = "s3://$(bucket)/iris_large.$format"
+        p2 = "s3://$(bucket)/iris_large_tmp.$format"
 
         df = read_table(p1; metadata_invalid=true, invalidate_samples=true)
         sample(df)

@@ -100,6 +100,7 @@ export has_separate_metadata, get_sample, get_metadata, get_sample_and_metadata
 export LocationPath, SamplingConfig
 export has_metadata, has_sample, get_sample_rate, configure_sampling
 export type_to_str, str_to_type
+export banyan_metadata_bucket_name, banyan_samples_bucket_name, get_metadata_path, get_sample_path_prefix, get_sample_path
 
 # Serialization
 export from_jl_string, to_jl_string

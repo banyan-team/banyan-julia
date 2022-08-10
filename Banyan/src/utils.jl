@@ -165,7 +165,7 @@ function configure(user_id, api_key, ec2_key_pair_name, banyanconfig_path)
     end
 
     # Check banyanconfig file
-    banyan_config_has_info = !(isempty(banyan_config) || isempty(banyan_config))
+    banyan_config_has_info = !isnothing(banyan_config) && !isempty(banyan_config)
     if isempty(user_id) && banyan_config_has_info && haskey(banyan_config, "banyan") && haskey(banyan_config["banyan"], "user_id")
         user_id = banyan_config["banyan"]["user_id"]
     end
@@ -204,16 +204,18 @@ organization_ids = Dict{String,String}()
 function get_organization_id()
     global organization_ids
     global sessions
-    user_id = configure()["banyan"]["user_id"]
     session_id = _get_session_id_no_error()
-    if haskey(organization_ids, user_id)
-        organization_ids[user_id]
-    elseif haskey(sessions, session_id)
+    if haskey(sessions, session_id)
         sessions[session_id].organization_id
     else
-        organization_id = send_request_get_response(:describe_users, Dict())["organization_id"]
-        organization_ids[user_id] = organization_id
-        organization_id
+        user_id = configure()["banyan"]["user_id"]
+        if haskey(organization_ids, user_id)
+            organization_ids[user_id]
+        else
+            organization_id = send_request_get_response(:describe_users, Dict())["organization_id"]
+            organization_ids[user_id] = organization_id
+            organization_id
+        end
     end
 end
 

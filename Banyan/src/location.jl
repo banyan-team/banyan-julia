@@ -83,9 +83,9 @@ const NO_LOCATION_PATH = LocationPath("", "", "")
 const DEFAULT_SAMPLING_CONFIG = SamplingConfig(1024, false, parse_bytes("32 MB"), false, true)
 session_sampling_configs = Dict{SessionId,Dict{LocationPath,SamplingConfig}}("" => Dict(NO_LOCATION_PATH => DEFAULT_SAMPLING_CONFIG))
 
-function set_session_sampling_configs(d::Dict{SessionId,Dict{LocationPath,SamplingConfig}})
+function set_sampling_configs(d::Dict{LocationPath,SamplingConfig})
     global session_sampling_configs
-    session_sampling_configs = d
+    session_sampling_configs[_get_session_id_no_error()] = d
 end
 
 get_sampling_config(path=""; kwargs...) = get_sampling_config(get_location_path_with_format(path; kwargs...))

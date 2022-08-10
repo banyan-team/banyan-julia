@@ -8,6 +8,7 @@ function _remote_table_source(lp::LocationPath, loc::Location, sampling_config::
     shuffled, max_num_bytes_exact = sampling_config.assume_shuffled, sampling_config.max_num_bytes_exact
     # TODO: Replace `max_exact_sample_length` with `max_num_bytes_exact`
     is_main = is_main_worker()
+    sample_rate = sampling_config.rate
     
     # Get cached Location and if it has valid parameters and sample, return
     curr_metadata_invalid, curr_sample_invalid = loc.metadata_invalid, loc.sample_invalid
@@ -21,7 +22,7 @@ function _remote_table_source(lp::LocationPath, loc::Location, sampling_config::
 
     # Get paths for writing sample and metadata
     metadata_path = "s3/$(banyan_metadata_bucket_name())/$(get_metadata_path(lp))"
-    sample_path = "s3/$(banyan_samples_bucket_name())/$(get_sample_path_prefix(lp)$sample_rate)"
+    sample_path = "s3/$(banyan_samples_bucket_name())/$(get_sample_path_prefix(lp))$sample_rate"
 
     # Get metadata if it is still valid
     curr_meta::Arrow.Table = if !curr_metadata_invalid
@@ -367,7 +368,7 @@ function _remote_table_source(lp::LocationPath, loc::Location, sampling_config::
 
         # Write the sample to S3 cache if previously invalid
         if curr_sample_invalid
-            write(sample_path, remote_sample.value.data)
+            write(sample_path, remote_sample.value)
         end
 
         if Banyan.INVESTIGATING_BDF_INTERNET_FILE_NOT_FOUND
