@@ -124,6 +124,7 @@ end
 function send_to_client(value_id::ValueId, value, worker_memory_used = 0)
     MAX_MESSAGE_LENGTH = 220_000
     message = to_jl_string(value)::String
+    generated_message_id = generate_message_id()
 
     # Break the message down into chunk ranges
     nmessages = 0
@@ -140,7 +141,7 @@ function send_to_client(value_id::ValueId, value, worker_memory_used = 0)
             message_i += MAX_MESSAGE_LENGTH
             message_length -= MAX_MESSAGE_LENGTH
         end
-        push!(message_ranges, starti:message_i)
+        push!(message_ranges, starti:(message_i-1))
         nmessages += 1
         if is_last_message
             break
@@ -150,6 +151,7 @@ function send_to_client(value_id::ValueId, value, worker_memory_used = 0)
     # Launch asynchronous threads to send SQS messages
     gather_q_url = gather_queue_url()
     num_chunks = length(message_ranges)
+    @show num_chunks
     if num_chunks > 1
         @sync for i = 1:message_ranges
             @async begin
@@ -165,8 +167,13 @@ function send_to_client(value_id::ValueId, value, worker_memory_used = 0)
                 SQS.send_message(
                     msg_json,
                     gather_q_url,
-                    Dict("MessageGroupId" => string(i))
+                    Dict(
+                        "MessageGroupId" => string(i),
+                        "MessageDeduplicationId" => generated_message_id * string(i)
+                    )
                 )
+                @show msg
+                @show i
             end
         end
     else
@@ -179,11 +186,15 @@ function send_to_client(value_id::ValueId, value, worker_memory_used = 0)
             "chunk_idx" => i,
             "num_chunks" => num_chunks
         )
+        @show msg
         msg_json = JSON.json(msg)
         SQS.send_message(
             msg_json,
             gather_q_url,
-            Dict("MessageGroupId" => string(i))
+            Dict(
+                "MessageGroupId" => string(i),
+                "MessageDeduplicationId" => generated_message_id * string(i)
+            )
         )
     end
 end

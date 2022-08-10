@@ -291,6 +291,8 @@ function _partitioned_computation_concrete(fut::Future, destination::Location, n
             if is_debug_on()
                 printlng("Gathering $num_chunks chunk$(num_chunks > 1 ? "s" : "") to client")
             end
+
+            @show num_chunks
             
             whole_message_contents = if num_chunks > 1
                 partial_messages = Vector{String}(undef, num_chunks)
@@ -299,6 +301,7 @@ function _partitioned_computation_concrete(fut::Future, destination::Location, n
                     @async begin
                         partial_message, _ = sqs_receive_next_message(gather_queue, p, nothing, nothing)
                         chunk_idx = partial_message["chunk_idx"]
+                        @show chunk_idx
                         partial_messages[chunk_idx] = message["contents"]
                     end
                 end
@@ -713,6 +716,8 @@ function offloaded(given_function::Function, args...; distributed::Bool = false)
                 printlng("Gathering $num_chunks chunk$(num_chunks > 1 ? "s" : "") to client")
             end
             
+            @show num_chunks
+            
             whole_message_contents = if num_chunks > 1
                 partial_messages = Vector{String}(undef, num_chunks)
                 partial_messages[message["chunk_idx"]] = message["contents"]
@@ -720,6 +725,7 @@ function offloaded(given_function::Function, args...; distributed::Bool = false)
                     @async begin
                         partial_message, _ = sqs_receive_next_message(gather_queue, p, nothing, nothing)
                         chunk_idx = partial_message["chunk_idx"]
+                        @show chunk_idx
                         partial_messages[chunk_idx] = message["contents"]
                     end
                 end
