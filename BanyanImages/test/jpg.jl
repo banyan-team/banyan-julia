@@ -110,7 +110,7 @@ end
         invalidate_metadata(p)
         @test !has_metadata(p)
         @test has_sample(p)
-        innvalidate_location(p)
+        invalidate_location(p)
         @test !has_metadata(p)
         @test !has_sample(p)
 

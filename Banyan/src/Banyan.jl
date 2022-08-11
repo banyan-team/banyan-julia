@@ -98,7 +98,7 @@ export invalidate_all_locations, invalidate_location, invalidate_metadata, inval
 export NOTHING_LOCATION, INVALID_LOCATION, NO_LOCATION_PATH
 export has_separate_metadata, get_sample, get_metadata, get_sample_and_metadata
 export LocationPath, SamplingConfig
-export has_metadata, has_sample, get_sample_rate, configure_sampling
+export has_metadata, has_sample, get_sample_rate, configure_sampling, get_sampling_config, get_sampling_configs, set_sampling_configs
 export type_to_str, str_to_type
 export banyan_metadata_bucket_name, banyan_samples_bucket_name, get_metadata_path, get_sample_path_prefix, get_sample_path
 

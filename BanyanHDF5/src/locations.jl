@@ -186,7 +186,7 @@ function RemoteHDF5Destination(remotepath)::Location
             "path" => remotepath,
             "subpath" => datasetpath,
             "path_and_subpath" => path_and_subpath,
-            "format" => "hdf5"
+            "format" => "hdf5",
         )
     )
 end

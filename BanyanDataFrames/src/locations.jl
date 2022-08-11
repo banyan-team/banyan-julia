@@ -424,6 +424,6 @@ RemoteTableDestination(remotepath)::Location =
         Dict(
             "format" => get_file_ending(remotepath),
             "nrows" => "0",
-            "path" => remotepath,
+            "path" => remotepath
         ),
     )

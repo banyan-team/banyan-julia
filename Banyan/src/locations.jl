@@ -16,7 +16,7 @@ LocationSource(name::String, parameters::Union{Dict{String,Any},Dict{String,Stri
 
 LocationDestination(
     name::String,
-    parameters::LocationParameters
+    parameters::Union{Dict{String,Any},Dict{String,String}}
 )::Location = Location("None", name, LocationParameters(), parameters, -1, Sample(), false, false)
 
 function to_jl(lt::Location)
@@ -316,8 +316,8 @@ function invalidate_samples(p; kwargs...)
 
     # Delete locally
     samples_local_dir = joinpath(homedir(), ".banyan", "samples")
+    sample_path_prefix = get_sample_path_prefix(lp)
     if isdir(samples_local_dir)
-        sample_path_prefix = get_sample_path_prefix(lp)
         for local_sample_path in readdir(samples_local_dir, join=true)
             if startswith(local_sample_path, sample_path_prefix)
                 rm(local_sample_path)
@@ -463,7 +463,7 @@ function RemoteSource(
     # Look at local and S3 caches of metadata and samples to attempt to
     # construct a Location.
     loc, local_metadata_path, local_sample_path = get_location_source(lp)
-    sc = get_sampling_config(lp)
+    sc = deepcopy(get_sampling_config(lp))
     sc.rate = parse_sample_rate(local_sample_path)
 
     if !loc.metadata_invalid && !loc.sample_invalid

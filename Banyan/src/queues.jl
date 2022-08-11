@@ -172,7 +172,6 @@ function send_to_client(value_id::ValueId, value, worker_memory_used = 0)
                         "MessageDeduplicationId" => generated_message_id * string(i)
                     )
                 )
-                @show msg
                 @show i
             end
         end
@@ -186,7 +185,6 @@ function send_to_client(value_id::ValueId, value, worker_memory_used = 0)
             "chunk_idx" => i,
             "num_chunks" => num_chunks
         )
-        @show msg
         msg_json = JSON.json(msg)
         SQS.send_message(
             msg_json,

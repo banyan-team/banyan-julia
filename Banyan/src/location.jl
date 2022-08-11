@@ -128,7 +128,8 @@ function get_sample_rate(l_path::LocationPath)
     banyan_samples_objects = try
         res = S3.list_objects_v2(banyan_samples_bucket_name(), Dict("prefix" => pre))["Contents"]
         res isa Base.Vector ? res : [res]
-    catch
+    catch e
+        @show e
         return desired_sample_rate
     end
     sample_rate = -1
@@ -148,7 +149,10 @@ end
 
 # Checking for having metadata, samples
 
+has_metadata(p::String=""; kwargs...) =
+    has_metadata(get_location_path_with_format(p; kwargs...))
 function has_metadata(l_path:: LocationPath)::Bool
+    println("In has_metadata, checking get_metadata_path(l_path)=$(get_metadata_path(l_path))")
     try
         !isempty(S3.list_objects_v2(banyan_metadata_bucket_name(), Dict("prefix" => get_metadata_path(l_path)))["Contents"])
     catch
@@ -156,6 +160,8 @@ function has_metadata(l_path:: LocationPath)::Bool
     end
 end
 
+has_sample(p::String=""; kwargs...) =
+    has_sample(get_location_path_with_format(p; kwargs...))
 function has_sample(l_path:: LocationPath)::Bool
     sc = get_sampling_config(l_path)
     pre = sc.force_new_sample_rate ? get_sample_path(l_path, sc.rate) : get_sample_path_prefix(l_path)
@@ -186,6 +192,22 @@ struct AWSExceptionInfo
     end
 end
 
+function get_metadata_local_path()
+    p = joinpath(homedir(), ".banyan", "metadata")
+    if !isdir(p)
+        mkpath(p)
+    end
+    p
+end
+
+function get_samples_local_path()
+    p = joinpath(homedir(), ".banyan", "metadata")
+    if !isdir(p)
+        mkpath(p)
+    end
+    p
+end
+
 function get_location_source(lp::LocationPath)::Tuple{Location,String,String}
     global s3
 
@@ -195,7 +217,7 @@ function get_location_source(lp::LocationPath)::Tuple{Location,String,String}
 
     # Load in metadata
     metadata_path = get_metadata_path(lp)
-    metadata_local_path = joinpath(homedir(), ".banyan", "metadata", metadata_path)
+    metadata_local_path = joinpath(get_metadata_local_path(), metadata_path)
     metadata_s3_path = "/$(banyan_metadata_bucket_name())/$metadata_path"
     src_params_not_stored_locally = false
     src_params::Dict{String, String} = if isfile(metadata_local_path)
@@ -252,7 +274,7 @@ function get_location_source(lp::LocationPath)::Tuple{Location,String,String}
     # Find local samples
     found_local_samples = Tuple{String,Int64}[]
     found_local_sample_rate_diffs = Int64[]
-    samples_local_dir = joinpath(homedir(), ".banyan", "samples")
+    samples_local_dir = get_samples_local_path()
     local_sample_paths = isdir(samples_local_dir) ? readdir(samples_local_dir, join=true) : String[]
     for local_sample_path in local_sample_paths
         if startswith(local_sample_path, sample_path_prefix)

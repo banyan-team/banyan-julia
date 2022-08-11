@@ -223,7 +223,7 @@ function ReadBlockHelper(@nospecialize(format_value))
         nworkers = get_nworkers(comm)
         npartitions = nbatches * nworkers
         partition_idx = get_partition_idx(batch_idx, nbatches, comm)
-        nrows::Int64 = meta_nrows
+        nrows::Int64 = length(meta_nrows)
         rows_per_partition = cld(nrows, npartitions)
         sorting_perm = sortperm(meta_nrows, rev=true)
         files_by_partition = Base.Vector{Int64}[]
@@ -335,7 +335,7 @@ function ReadBlockHelper(@nospecialize(format_value))
             dfs = Base.Vector{Any}(undef, ndfs)
 
             if Banyan.INVESTIGATING_BDF_INTERNET_FILE_NOT_FOUND
-                @show (files_to_read, get_worker_idx())
+                @show (filezs_to_read, get_worker_idx())
             end
 
             # Iterate through files and identify which ones correspond to the range of
@@ -484,6 +484,10 @@ function WriteHelper(@nospecialize(format_value))
         # SAMPLE/METADATA COLLECTIOM AND STORAGE #
         ##########################################
 
+        # Get sampling configuration
+        sampling_config = get_sampling_config(lp)
+        sample_rate = sampling_config.rate
+
         # Get paths for reading in metadata and Location
         tmp_suffix = nbatches > 1 ? ".tmp" : ""
         lp_tmp = LocationPath(loc_params_path * tmp_suffix, "arrow", "2")
@@ -525,8 +529,6 @@ function WriteHelper(@nospecialize(format_value))
 
         # Gather # of rows, # of bytes, empty sample, and actual sample
         nbytes = part_res isa Empty ? 0 : Banyan.sample_memory_usage(part_res)
-        sampling_config = get_sampling_config(lp)
-        sample_rate = sampling_config.rate
         sampled_part = (part_res isa Empty || is_disk) ? empty_df : Banyan.get_sample_from_data(part_res, sample_rate, nrows)
         gathered_data =
             gather_across((nrows, nbytes, part_res isa Empty ? part_res : empty(part_res), sampled_part), comm)
@@ -573,6 +575,8 @@ function WriteHelper(@nospecialize(format_value))
                 # on when we need to use this location.
                 sample_invalid = true
             end
+
+            println("In Write with sample_invalid=$sample_invalid and sample_memory_usage=$sample_memory_usage while sampling_config=$sampling_config, writing to $m_path")
 
             # Get the actual sample by concatenating
             if !is_disk && !sample_invalid

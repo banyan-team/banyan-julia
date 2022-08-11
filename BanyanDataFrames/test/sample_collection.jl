@@ -94,6 +94,9 @@ end
 
         bucket = get_cluster_s3_bucket_name()
 
+        configure_sampling(max_num_bytes=max_num_bytes, always_shuffled=shuffled)
+        exact_sample = max_num_bytes > 0
+
         invalidate_all_locations()
 
         p1 = "s3://$(bucket)/iris_large.$format"
@@ -104,24 +107,32 @@ end
         @show get_sample_rate(p1)
 
         configure_sampling(p2; sample_rate=5)
-        write_table(p2, df)
+        @show get_sampling_configs()
+        write_table(df, p2)
+        @show get_sampling_configs()
         @test get_sample_rate(p2) == 5
         @test has_metadata(p2)
-        @test has_sample(p2)
+        @test has_sample(p2) == !exact_sample
         invalidate_metadata(p2)
         @test !has_metadata(p2)
-        @test has_sample(p2)
-        innvalidate_location(p2)
+        @test has_sample(p2) == !exact_sample
+        invalidate_location(p2)
         @test !has_metadata(p2)
         @test !has_sample(p2)
 
+        @show get_sample_rate(p2)
         df2 = read_table(p2)
+        @show Banyan.get_location_path_with_format(p2)
+        @show get_sampling_configs()
+        @show get_sampling_config(p2)
         @show get_sample_rate(p2)
         sample(df2)
         @show get_sample_rate(p2)
         df2 = read_table(p2; samples_invalid=true)
         sample(df2)
+        @test get_sample_rate(p2) == 5
         configure_sampling(sample_rate=7, for_all_locations=true)
+        @test get_sample_rate(p2) == 5
         df2 = read_table(p2; metadata_invalid=true)
         sample(df2)
         @test get_sample_rate(p2) == 5

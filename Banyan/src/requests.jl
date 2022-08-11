@@ -289,7 +289,7 @@ function _partitioned_computation_concrete(fut::Future, destination::Location, n
             num_remaining_chunks = num_chunks - 1
 
             if is_debug_on()
-                printlng("Gathering $num_chunks chunk$(num_chunks > 1 ? "s" : "") to client")
+                println("Gathering $num_chunks chunk$(num_chunks > 1 ? "s" : "") to client")
             end
 
             @show num_chunks
@@ -318,7 +318,7 @@ function _partitioned_computation_concrete(fut::Future, destination::Location, n
                 # call to `send_evaluation`
             end
 
-            error_for_main_stuck, error_for_main_stuck_time = check_worker_stuck_error(value_id, contents, error_for_main_stuck, error_for_main_stuck_time)
+            error_for_main_stuck, error_for_main_stuck_time = check_worker_stuck_error(value_id, whole_message_contents, error_for_main_stuck, error_for_main_stuck_time)
         elseif message_type == "EVALUATION_END"
             if message["end"]::Bool == true
                 break
@@ -700,7 +700,7 @@ function offloaded(given_function::Function, args...; distributed::Bool = false)
     
     session = get_session()
     gather_queue = gather_queue_url()
-    stored_message = nothing
+    stored_res = nothing
     error_for_main_stuck, error_for_main_stuck_time = nothing, nothing
     partial_gathers = Dict{ValueId,String}()
     while true
@@ -734,18 +734,14 @@ function offloaded(given_function::Function, args...; distributed::Bool = false)
                 message["contents"]
             end
 
-            if haskey(session.futures_on_client, value_id)
-                value = from_jl_string(whole_message_contents)
-                f = session.futures_on_client[value_id]::Future
-                f.value = value
-                # TODO: Update stale/mutated here to avoid costly
-                # call to `send_evaluation`
+            if value_id == "-1"
+                stored_res = from_jl_string(whole_message_contents)
             end
 
             error_for_main_stuck, error_for_main_stuck_time = check_worker_stuck_error(value_id, whole_message_contents, error_for_main_stuck, error_for_main_stuck_time)
         elseif (message_type == "EVALUATION_END")
             if message["end"]::Bool == true
-                return stored_message
+                return stored_res
             end
         end
     end
