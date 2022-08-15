@@ -35,13 +35,14 @@ function create_cluster(;
     vpc_id = nothing,
     subnet_id = nothing,
     nowait=false,
+    force_create=false,
     kwargs...,
 )
 
     # Configure using parameters
     c = configure(; kwargs...)
     
-    clusters = get_clusters(; kwargs...)
+    clusters = get_clusters(name; kwargs...)
     if isnothing(name)
         name = "Cluster " * string(length(clusters) + 1)
     end
@@ -52,11 +53,11 @@ function create_cluster(;
     # Check if the configuration for this cluster name already exists
     # If it does, then recreate cluster
     if haskey(clusters, name)
-        if clusters[name].status == :terminated
+        if force_create || clusters[name].status == :terminated
             @info "Started re-creating cluster named $name"
             send_request_get_response(
                 :create_cluster,
-                Dict("cluster_name" => name, "recreate" => true),
+                Dict("cluster_name" => name, "recreate" => true, "force_create" => true),
             )
             if !nowait
                 wait_for_cluster(name; kwargs...)
@@ -139,12 +140,17 @@ function delete_cluster(name::String; kwargs...)
     )
 end
 
-function update_cluster(name::String; nowait=false, kwargs...)
+function update_cluster(name::String; force_update=false, update_linux_packages=true, reinstall_julia=false, nowait=false, kwargs...)
     configure(; kwargs...)
     @info "Updating cluster named $name"
     send_request_get_response(
         :update_cluster,
-        Dict{String, Any}("cluster_name" => name)
+        Dict{String, Any}(
+            "cluster_name" => name,
+            "force_update" => force_update,
+            "update_linux_packages" => update_linux_packages,
+            "reinstall_julia" => reinstall_julia
+        )
     )
     if !nowait
         wait_for_cluster(name)
@@ -189,6 +195,7 @@ function _get_clusters(cluster_name::String)::Dict{String,Cluster}
     if !isempty(cluster_name)
         filters["cluster_name"] = cluster_name
     end
+    @show filters
     response = send_request_get_response(:describe_clusters, Dict{String,Any}("filters"=>filters))
     clusters_dict::Dict{String,Cluster} = Dict{String,Cluster}()
     for (name::String, c::Dict{String,Any}) in response["clusters"]::Dict{String,Any}

@@ -303,6 +303,7 @@ function invalidate_metadata(p; kwargs...)
     end
 
     # Delete from S3
+    println("Deleting get_metadata_path(lp)=$(get_metadata_path(lp))")
     try
         S3.delete_object(banyan_samples_bucket_name(), get_metadata_path(lp))
     catch e
@@ -335,11 +336,17 @@ function invalidate_samples(p; kwargs...)
         end
         []
     end
+    @show banyan_samples_objects
     if !isempty(banyan_samples_objects)
         objects_to_delete = []
         for d in banyan_samples_objects
             push!(objects_to_delete, Dict("Key" => d["Key"]))
         end
+        S3.delete_objects(
+            banyan_samples_bucket_name(),
+            Dict("objects" => objects_to_delete)
+        )
+        @show objects_to_delete
         S3.delete_objects(
             banyan_samples_bucket_name(),
             Dict("Objects" => objects_to_delete)
@@ -349,6 +356,9 @@ end
 function invalidate_location(p; kwargs...)
     invalidate_metadata(p; kwargs...)
     invalidate_samples(p; kwargs...)
+end
+function partition(series, partition_size)
+    (series[i:min(i+(partition_size-1),end)] for i in 1:partition_size:length(series))
 end
 function invalidate_all_locations()
     for subdir in ["samples", "metadata"]
@@ -369,20 +379,23 @@ function invalidate_all_locations()
             end
             []
         end
+        println("Deleting banyan_samples_objects=$banyan_samples_objects from bucket_name=$bucket_name")
         if !isempty(banyan_samples_objects)
             objects_to_delete = []
             for d in banyan_samples_objects
                 push!(objects_to_delete, Dict("Key" => d["Key"]))
             end
             if !isempty(objects_to_delete)
-                try
-                    S3.delete_objects(
-                        banyan_samples_bucket_name(),
-                        Dict("Objects" => objects_to_delete)
-                    )
-                catch e
-                    if is_debug_on()
-                        show(e)
+                for objects_to_delete_partition in partition(objects_to_delete, 1000)
+                    try
+                        S3.delete_objects(
+                            bucket_name,
+                            Dict("Objects" => objects_to_delete_partition)
+                        )
+                    catch e
+                        if is_debug_on()
+                            show(e)
+                        end
                     end
                 end
             end

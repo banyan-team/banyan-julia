@@ -152,8 +152,12 @@ end
 has_metadata(p::String=""; kwargs...) =
     has_metadata(get_location_path_with_format(p; kwargs...))
 function has_metadata(l_path:: LocationPath)::Bool
-    println("In has_metadata, checking get_metadata_path(l_path)=$(get_metadata_path(l_path))")
+    println("In has_metadata, checking get_metadata_path(l_path)=$(get_metadata_path(l_path)) and banyan_metadata_bucket_name()=$(banyan_metadata_bucket_name())")
     try
+        @show propertynames(S3.list_objects_v2(banyan_metadata_bucket_name(), Dict("prefix" => get_metadata_path(l_path))))
+        @show keys(S3.list_objects_v2(banyan_metadata_bucket_name(), Dict("prefix" => get_metadata_path(l_path))))
+        @show S3.list_objects_v2(banyan_metadata_bucket_name(), Dict("prefix" => get_metadata_path(l_path)))["KeyCount"]
+        @show S3.list_objects_v2(banyan_metadata_bucket_name())["Contents"]
         !isempty(S3.list_objects_v2(banyan_metadata_bucket_name(), Dict("prefix" => get_metadata_path(l_path)))["Contents"])
     catch
         false
@@ -166,8 +170,10 @@ function has_sample(l_path:: LocationPath)::Bool
     sc = get_sampling_config(l_path)
     pre = sc.force_new_sample_rate ? get_sample_path(l_path, sc.rate) : get_sample_path_prefix(l_path)
     try
+        @show S3.list_objects_v2(banyan_samples_bucket_name(), Dict("prefix" => pre))
         !isempty(S3.list_objects_v2(banyan_samples_bucket_name(), Dict("prefix" => pre))["Contents"])
-    catch
+    catch e
+        @show e
         false
     end
 end
@@ -333,11 +339,11 @@ function get_location_source(lp::LocationPath)::Tuple{Location,String,String}
     banyan_samples_object_sample_rate = -1
     for banyan_samples_object in banyan_samples_objects
         object_key = banyan_samples_object["Key"]
-        if startswith(object_key, banyan_samples_object_prefix)
+        if startswith(object_key, sample_path_prefix)
             object_sample_rate = parse_sample_rate(object_key)
             object_sample_rate_diff = abs(object_sample_rate - desired_sample_rate)
-            curr_sample_rate_diff = abs(object_sample_rate - sample_rate)
-            if sample_rate == -1 || object_sample_rate_diff < curr_sample_rate_diff
+            curr_sample_rate_diff = abs(object_sample_rate - banyan_samples_object_sample_rate)
+            if banyan_samples_object_sample_rate == -1 || object_sample_rate_diff < curr_sample_rate_diff
                 banyan_samples_object_sample_rate = object_sample_rate
             end
         end
@@ -346,7 +352,7 @@ function get_location_source(lp::LocationPath)::Tuple{Location,String,String}
         sample_path_suffix = "$sample_path_prefix$banyan_samples_object_sample_rate"
         blob = s3("GET", "/$(banyan_samples_bucket_name())/$sample_path_suffix")
         final_local_sample_path = joinpath(samples_local_dir, sample_path_suffix)
-        write(final_local_sample_path, blob)
+        write(final_local_sample_path, seekstart(blob.io))
     end
     
     # Construct and return LocationSource

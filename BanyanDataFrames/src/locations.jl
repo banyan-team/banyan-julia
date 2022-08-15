@@ -3,6 +3,12 @@ get_file_ending(remotepath::String)::String = splitext(remotepath)[2][2:end]
 Arrow_Table_retry = retry(Arrow.Table; delays=Base.ExponentialBackOff(; n=5))
 
 function _remote_table_source(lp::LocationPath, loc::Location, sampling_config::SamplingConfig)::Location
+    metadata_dir = readdir("s3/banyan-metadata-75c0f7151604587a83055278b28db83b")
+    metadata_bucket_dir = let s3_res = Banyan.S3.list_objects_v2("banyan-metadata-75c0f7151604587a83055278b28db83b")
+        haskey(s3_res, "Contents") ? s3_res["Contents"] : []
+    end
+    println("In _remote_table_source at start with metadata_dir=$metadata_dir, metadata_bucket_dir=$metadata_bucket_dir")
+
     # Setup for sampling
     remotepath = lp.path
     shuffled, max_num_bytes_exact = sampling_config.assume_shuffled, sampling_config.max_num_bytes_exact
@@ -337,6 +343,12 @@ function _remote_table_source(lp::LocationPath, loc::Location, sampling_config::
 
     # If a file does not exist, one of the get_metadata/get_sample functions
     # will error.
+
+    metadata_dir = readdir("s3/banyan-metadata-75c0f7151604587a83055278b28db83b")
+    metadata_bucket_dir = let s3_res = Banyan.S3.list_objects_v2("banyan-metadata-75c0f7151604587a83055278b28db83b")
+        haskey(s3_res, "Contents") ? s3_res["Contents"] : []
+    end
+    println("In _remote_table_source at end with metadata_dir=$metadata_dir and metadata_bucket_dir=$metadata_bucket_dir and metadata_path=$metadata_path and curr_metadata_invalid=$curr_metadata_invalid")
 
     # Get source parameters
     src_params =

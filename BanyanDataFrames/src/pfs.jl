@@ -388,6 +388,12 @@ function WriteHelper(@nospecialize(format_value))
         loc_name::String,
         loc_params::Dict{String,Any},
     )
+        metadata_dir = readdir("s3/banyan-metadata-75c0f7151604587a83055278b28db83b")
+        metadata_bucket_dir = let s3_res = Banyan.S3.list_objects_v2("banyan-metadata-75c0f7151604587a83055278b28db83b")
+            haskey(s3_res, "Contents") ? s3_res["Contents"] : []
+        end
+        println("In Write at start with metadata_dir=$metadata_dir, metadata_bucket_dir=$metadata_bucket_dir")
+        
         # Get rid of splitting divisions if they were used to split this data into
         # groups
         splitting_divisions = Banyan.get_splitting_divisions()
@@ -494,8 +500,10 @@ function WriteHelper(@nospecialize(format_value))
         # m_path = is_main ? get_meta_path() : ""
         # location_path = is_main ? get_location_path(loc_params_path * tmp_suffix) : ""
         # m_path, location_path = sync_across((m_path, location_path), comm=comm)
-        m_path = "s3/$(banyan_metadata_bucket_name())/$(get_metadata_path(lp_tmp))"
-        s_path = "s3/$(banyan_samples_bucket_name())/$(get_sample_path_prefix(lp_tmp))$sample_rate"
+        m_dir = "s3/$(banyan_metadata_bucket_name())"
+        s_dir = "s3/$(banyan_samples_bucket_name())"
+        m_path = "$m_dir/$(get_metadata_path(lp_tmp))"
+        s_path = "$s_dir/$(get_sample_path_prefix(lp_tmp))$sample_rate"
         # loc_params = loc_name == symbol_Disk ? Dict{String,String}(Arrow.getmetadata(Arrow.Table(m_path))) : loc_params
 
         # Read in meta path if it's there
@@ -536,6 +544,12 @@ function WriteHelper(@nospecialize(format_value))
         # On the main worker, finalize metadata and location info.
         sample_invalid = false
         if is_main
+            metadata_dir = readdir("s3/banyan-metadata-75c0f7151604587a83055278b28db83b")
+            metadata_bucket_dir = let s3_res = Banyan.S3.list_objects_v2("banyan-metadata-75c0f7151604587a83055278b28db83b")
+                haskey(s3_res, "Contents") ? s3_res["Contents"] : []
+            end
+            println("In Write with metadata_dir=$metadata_dir, metadata_bucket_dir=$metadata_bucket_dir")
+
             # Determine paths and #s of rows for metadata file
             for worker_i in 1:nworkers
                 push!(
@@ -588,8 +602,16 @@ function WriteHelper(@nospecialize(format_value))
             end
 
             # Determine paths for this batch and gather # of rows
+            @show m_path
+            @show readdir("s3/banyan-metadata-75c0f7151604587a83055278b28db83b/")
+            @show readdir("s3/banyan-metadata-75c0f7151604587a83055278b28db83b")
+            bucket_dir = readdir("s3/$(banyan_metadata_bucket_name())")
+            println("On main in $(banyan_metadata_bucket_name()): $bucket_dir")
             Arrow.write(m_path, (path=curr_remotepaths, nrows=curr_nrows); compress=:zstd, metadata=curr_src_parameters)
         end
+
+        @show readdir("s3/$(banyan_metadata_bucket_name())")
+        @show Banyan.S3.list_objects_v2(banyan_metadata_bucket_name())["Contents"]
 
         ###################################
         # Handling Final Batch by Copying #
