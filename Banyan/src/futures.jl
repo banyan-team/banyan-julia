@@ -19,6 +19,7 @@ function create_new_future(source::Location, mutate_from::Future, datatype::Stri
     sourced(new_future, source)
     destined(new_future, None())
 
+
     # TODO: Add Size location here if needed
     # Handle locations that have an associated value
     source_src_name = source.src_name

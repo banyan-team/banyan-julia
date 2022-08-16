@@ -304,12 +304,9 @@ function invalidate_metadata(p; kwargs...)
 
     # Delete from S3
     println("Deleting get_metadata_path(lp)=$(get_metadata_path(lp))")
-    try
-        S3.delete_object(banyan_samples_bucket_name(), get_metadata_path(lp))
-    catch e
-        if is_debug_on()
-            show(e)
-        end
+    s3p = S3Path("s3://$(banyan_metadata_bucket_name())/$(get_metadata_path(lp))")
+    if isfile(s3p)
+        rm(s3p)
     end
 end
 function invalidate_samples(p; kwargs...)
@@ -327,31 +324,17 @@ function invalidate_samples(p; kwargs...)
     end
 
     # Delete from S3
-    banyan_samples_objects = try
-        res = S3.list_objects_v2(banyan_samples_bucket_name(), Dict("prefix" => sample_path_prefix))["Contents"]
-        res isa Base.Vector ? res : [res]
-    catch e
-        if is_debug_on()
-            show(e)
-        end
-        []
+    s3p = S3Path("s3://$(banyan_samples_bucket_name())/$sample_path_prefix")
+    @show readdir_no_error(s3p)
+    @show s3p
+    @show path_as_dir(s3p)
+    @show readdir(S3Path("s3://$(banyan_samples_bucket_name())"))
+    if !isempty(readdir_no_error(s3p))
+        rm(path_as_dir(s3p), recursive=true)
     end
-    @show banyan_samples_objects
-    if !isempty(banyan_samples_objects)
-        objects_to_delete = []
-        for d in banyan_samples_objects
-            push!(objects_to_delete, Dict("Key" => d["Key"]))
-        end
-        S3.delete_objects(
-            banyan_samples_bucket_name(),
-            Dict("objects" => objects_to_delete)
-        )
-        @show objects_to_delete
-        S3.delete_objects(
-            banyan_samples_bucket_name(),
-            Dict("Objects" => objects_to_delete)
-        )
-    end
+    @show readdir_no_error(s3p)
+    @show s3p
+    @show readdir(S3Path("s3://$(banyan_samples_bucket_name())"))
 end
 function invalidate_location(p; kwargs...)
     invalidate_metadata(p; kwargs...)
@@ -370,34 +353,10 @@ function invalidate_all_locations()
 
     # Delete from S3
     for bucket_name in [banyan_samples_bucket_name(), banyan_metadata_bucket_name()]
-        banyan_samples_objects = try
-            res = S3.list_objects_v2(bucket_name)["Contents"]
-            res isa Base.Vector ? res : [res]
-        catch e
-            if is_debug_on()
-                show(e)
-            end
-            []
-        end
-        println("Deleting banyan_samples_objects=$banyan_samples_objects from bucket_name=$bucket_name")
-        if !isempty(banyan_samples_objects)
-            objects_to_delete = []
-            for d in banyan_samples_objects
-                push!(objects_to_delete, Dict("Key" => d["Key"]))
-            end
-            if !isempty(objects_to_delete)
-                for objects_to_delete_partition in partition(objects_to_delete, 1000)
-                    try
-                        S3.delete_objects(
-                            bucket_name,
-                            Dict("Objects" => objects_to_delete_partition)
-                        )
-                    catch e
-                        if is_debug_on()
-                            show(e)
-                        end
-                    end
-                end
+        s3p = S3Path("s3://$bucket_name")
+        if isdir_no_error(s3p)
+            for p in readdir(s3p, join=true)
+                rm(p, force=true, recursive=true)
             end
         end
     end 
@@ -476,24 +435,28 @@ function RemoteSource(
     # Look at local and S3 caches of metadata and samples to attempt to
     # construct a Location.
     loc, local_metadata_path, local_sample_path = get_location_source(lp)
-    sc = deepcopy(get_sampling_config(lp))
-    sc.rate = parse_sample_rate(local_sample_path)
+    @show lp
+    @show get_sampling_configs()
+    @show local_sample_path
 
-    if !loc.metadata_invalid && !loc.sample_invalid
+    res = if !loc.metadata_invalid && !loc.sample_invalid
         # Case where both sample and parameters are valid
         loc.sample.value = load_sample(local_sample_path)
+        loc.sample.rate = parse_sample_rate(local_sample_path)
         loc
     elseif loc.metadata_invalid && !loc.sample_invalid
         # Case where parameters are invalid
-        new_loc = offloaded(_remote_source, lp, loc, sc, args...; distributed=true)
+        new_loc = offloaded(_remote_source, lp, loc, args...; distributed=true)
         Arrow.write(local_metadata_path, Arrow.Table(); metadata=new_loc.src_parameters)
+        @show new_loc
         new_loc.sample.value = load_sample(local_sample_path)
         new_loc
     else
         # Case where sample is invalid
 
         # Get the Location with up-to-date metadata (source parameters) and sample
-        new_loc = offloaded(_remote_source, lp, loc, sc, args...; distributed=true)
+        new_loc = offloaded(_remote_source, lp, loc, args...; distributed=true)
+        @show new_loc
 
         if !loc.metadata_invalid
             # Store the metadata locally. The local copy just has the source
@@ -508,4 +471,5 @@ function RemoteSource(
         
         new_loc
     end
+    res
 end

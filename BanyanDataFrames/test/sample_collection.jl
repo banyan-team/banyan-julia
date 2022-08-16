@@ -79,14 +79,14 @@
     end
 end
 
-@testset "Reading/writing $(shuffled ? "shuffle " : " ")$format data and sampling it with $scheduling_config and a maximum of $max_num_bytes bytes for exact sample" for scheduling_config in
+@testset "Reading/writing $(shuffled ? "shuffled " : "")$format data and sampling it with $scheduling_config and a maximum of $max_num_bytes bytes for exact sample" for scheduling_config in
     [
         "default scheduling",
         "parallelism encouraged",
         "parallelism and batches encouraged",
     ],
     format in ["csv", "parquet"],
-    max_num_bytes in [0, Banyan.parse_bytes("100 GB")],
+    max_num_bytes in [0, 100_000_000_000],
     shuffled in [true, false]
 
     use_session_for_testing(scheduling_config_name = scheduling_config) do
@@ -94,13 +94,14 @@ end
 
         bucket = get_cluster_s3_bucket_name()
 
-        configure_sampling(max_num_bytes_exact=max_num_bytes, always_shuffled=shuffled)
+        configure_sampling(max_num_bytes_exact=max_num_bytes, always_shuffled=shuffled, for_all_locations=true, default=true)
         exact_sample = max_num_bytes > 0
 
         invalidate_all_locations()
 
         p1 = "s3://$(bucket)/iris_large.$format"
         p2 = "s3://$(bucket)/iris_large_tmp.$format"
+        println("has_sample(p2)=$(has_sample(p2)) after invalidation")
 
         df = read_table(p1; metadata_invalid=true, invalidate_samples=true)
         sample(df)
@@ -109,12 +110,11 @@ end
         @show get_sample_rate(p1)
 
         configure_sampling(p2; sample_rate=5)
+        println("Before write_table")
         @show get_sampling_configs()
         write_table(df, p2)
         @show get_sampling_configs()
         @test get_sample_rate(p2) == 5
-        @test has_metadata(p2)
-        sleep(5)
         @test has_metadata(p2)
         @test has_sample(p2) == !exact_sample
         invalidate_metadata(p2)
@@ -135,14 +135,18 @@ end
         df2 = read_table(p2; samples_invalid=true)
         sample(df2)
         @test get_sample_rate(p2) == 5
+        println("After bad get_sample_rate")
         configure_sampling(sample_rate=7, for_all_locations=true)
         @test get_sample_rate(p2) == 5
+        println("After bad get_sample_rate")
         df2 = read_table(p2; metadata_invalid=true)
         sample(df2)
         @test get_sample_rate(p2) == 5
         @test get_sample_rate() == 7
-        configure_sampling(sample_rate=7, force_new_sample_rate=true, for_all_locations=true)
+        configure_sampling(sample_rate=7, for_all_locations=true)
         @test get_sample_rate(p2) == 5
+        configure_sampling(sample_rate=7, force_new_sample_rate=true, for_all_locations=true)
+        @test get_sample_rate(p2) == 7
         @test get_sample_rate() == 7
         df2 = read_table(p2)
         @test get_sample_rate(p2) == 7

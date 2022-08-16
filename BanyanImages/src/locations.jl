@@ -272,7 +272,8 @@ _load_image_and_add_channelview(path_on_worker::String) = load_retry(path_on_wor
 
 _reshape_image(image) = reshape(image, (1, size(image)...))
 
-function _remote_image_source(lp::LocationPath, loc::Location, sc::SamplingConfig, remotepath, add_channelview::Bool)
+function _remote_image_source(lp::LocationPath, loc::Location, remotepath, add_channelview::Bool)
+    sc = get_sampling_config(lp)
     curr_sample_invalid = loc.sample_invalid
     curr_metadata_invalid = loc.metadata_invalid
     
@@ -296,7 +297,9 @@ function _remote_image_source(lp::LocationPath, loc::Location, sc::SamplingConfi
 
     # Get paths to store metadata and sample in
     metadata_path = "s3/$(banyan_metadata_bucket_name())/$(get_metadata_path(lp))"
-    sample_path = "s3/$(banyan_samples_bucket_name())/$(get_sample_path_prefix(lp)$(sc.rate))"
+    sample_dir = "s3/$(banyan_samples_bucket_name())/$(get_sample_path_prefix(lp))"
+    mkpath(sample_dir)
+    sample_path = "$sample_dir/$(sc.rate)"
 
     # Iterable object that iterates over local paths
     localpaths = curr_metadata_invalid ? getpaths(remotepath) : Arrow.Table(metadata_path).path

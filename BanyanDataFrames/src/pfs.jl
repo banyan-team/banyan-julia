@@ -495,15 +495,16 @@ function WriteHelper(@nospecialize(format_value))
         sample_rate = sampling_config.rate
 
         # Get paths for reading in metadata and Location
-        tmp_suffix = nbatches > 1 ? ".tmp" : ""
-        lp_tmp = LocationPath(loc_params_path * tmp_suffix, "arrow", "2")
+        lp_tmp = LocationPath(path, "arrow", "2")
         # m_path = is_main ? get_meta_path() : ""
         # location_path = is_main ? get_location_path(loc_params_path * tmp_suffix) : ""
         # m_path, location_path = sync_across((m_path, location_path), comm=comm)
         m_dir = "s3/$(banyan_metadata_bucket_name())"
         s_dir = "s3/$(banyan_samples_bucket_name())"
         m_path = "$m_dir/$(get_metadata_path(lp_tmp))"
-        s_path = "$s_dir/$(get_sample_path_prefix(lp_tmp))$sample_rate"
+        s_sample_dir = "$s_dir/$(get_sample_path_prefix(lp_tmp))"
+        mkpath(s_sample_dir)
+        s_path = "$s_sample_dir/$sample_rate"
         # loc_params = loc_name == symbol_Disk ? Dict{String,String}(Arrow.getmetadata(Arrow.Table(m_path))) : loc_params
 
         # Read in meta path if it's there
@@ -582,7 +583,7 @@ function WriteHelper(@nospecialize(format_value))
             curr_src_parameters["nrows"] = string(total_nrows)
             curr_src_parameters["sample_memory_usage"] = string(sample_memory_usage)
 
-            if !is_disk && batch_idx == nbatches && sample_memory_usage <= sampling_config.max_num_bytes_exact
+            if is_disk || sample_memory_usage <= sampling_config.max_num_bytes_exact
                 # If the total # of rows turns out to be inexact then we can simply mark it as
                 # stale so that it can be collected more efficiently later on
                 # We should be able to quickly recompute a more useful sample later
@@ -590,15 +591,25 @@ function WriteHelper(@nospecialize(format_value))
                 sample_invalid = true
             end
 
-            println("In Write with sample_invalid=$sample_invalid and sample_memory_usage=$sample_memory_usage while sampling_config=$sampling_config, writing to $m_path")
+            println("In Write with sample_invalid=$sample_invalid (because sample_memory_usage=$sample_memory_usage and sampling_config.max_num_bytes_exact=$(sampling_config.max_num_bytes_exact)) and while sampling_config=$sampling_config, writing to $m_path and $s_path, on batch_idx=$batch_idx with curr_src_parameters=$curr_src_parameters")
+
+            @show get_sampling_configs()
+            @show lp
+            @show get_sampling_config(lp)
+            @show s_path
+            @show s_sample_dir
 
             # Get the actual sample by concatenating
-            if !is_disk && !sample_invalid
+            if !sample_invalid
                 sampled_parts = [gathered[4] for gathered in gathered_data]
                 if batch_idx > 1
-                    push!(sampled_parts, curr_location.sample.value |> seekstart |> Arrow.Table |> DataFrames.DataFrame)
+                    push!(sampled_parts, Arrow.Table(s_path) |> DataFrames.DataFrame)
                 end
+                println("Writing to s_path=$s_path")
                 Arrow.write(s_path, vcat(sampled_parts...), compress=:zstd)
+            else
+                println("Removing s_path=$s_path")
+                rm(s_path, force=true, recursive=true)
             end
 
             # Determine paths for this batch and gather # of rows
@@ -613,6 +624,9 @@ function WriteHelper(@nospecialize(format_value))
         @show readdir("s3/$(banyan_metadata_bucket_name())")
         @show Banyan.S3.list_objects_v2(banyan_metadata_bucket_name())["Contents"]
 
+        println("In Write")
+        @show readdir(Banyan.AWSS3.S3Path("s3://banyan-samples-75c0f7151604587a83055278b28db83b/"))
+
         ###################################
         # Handling Final Batch by Copying #
         ###################################
@@ -620,10 +634,15 @@ function WriteHelper(@nospecialize(format_value))
         if nbatches > 1 && batch_idx == nbatches
             # Copy over location and meta path
             actual_meta_path = "s3/$(banyan_metadata_bucket_name())/$(get_metadata_path(lp))"
-            actual_sample_path = "s3/$(banyan_samples_bucket_name())/$(get_sample_path_prefix(lp))$sample_rate"
-            if worker_idx == 1
+            actual_sample_dir = "s3/$(banyan_samples_bucket_name())/$(get_sample_path_prefix(lp))"
+            actual_sample_path = "$actual_sample_dir/$sample_rate"
+            if is_main
                 cp(m_path, actual_meta_path, force=true)
-                cp(s_path, actual_sample_path, force=true)
+                if !sample_invalid
+                    mkpath(actual_sample_dir)
+                    println("Copying from s_path=$s_path to actual_sample_path=$actual_sample_path")
+                    cp(s_path, actual_sample_path, force=true)
+                end
             end
 
             # Copy over files to actual location

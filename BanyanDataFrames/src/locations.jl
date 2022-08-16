@@ -2,7 +2,8 @@ get_file_ending(remotepath::String)::String = splitext(remotepath)[2][2:end]
 
 Arrow_Table_retry = retry(Arrow.Table; delays=Base.ExponentialBackOff(; n=5))
 
-function _remote_table_source(lp::LocationPath, loc::Location, sampling_config::SamplingConfig)::Location
+function _remote_table_source(lp::LocationPath, loc::Location)::Location
+    sampling_config = get_sampling_config(lp)
     metadata_dir = readdir("s3/banyan-metadata-75c0f7151604587a83055278b28db83b")
     metadata_bucket_dir = let s3_res = Banyan.S3.list_objects_v2("banyan-metadata-75c0f7151604587a83055278b28db83b")
         haskey(s3_res, "Contents") ? s3_res["Contents"] : []
@@ -28,7 +29,11 @@ function _remote_table_source(lp::LocationPath, loc::Location, sampling_config::
 
     # Get paths for writing sample and metadata
     metadata_path = "s3/$(banyan_metadata_bucket_name())/$(get_metadata_path(lp))"
-    sample_path = "s3/$(banyan_samples_bucket_name())/$(get_sample_path_prefix(lp))$sample_rate"
+    sample_dir = "s3/$(banyan_samples_bucket_name())/$(get_sample_path_prefix(lp))"
+    mkpath(sample_dir)
+    sample_path = "$sample_dir/$sample_rate"
+    @show sample_path
+    @show sample_rate
 
     # Get metadata if it is still valid
     curr_meta::Arrow.Table = if !curr_metadata_invalid

@@ -26,7 +26,8 @@ end
 
 HDF5_getindex_retry = retry(HDF5.getindex; delays=Base.ExponentialBackOff(; n=5))
 
-function _remote_hdf5_source(lp::LocationPath, loc::Location, sc::SamplingConfig)
+function _remote_hdf5_source(lp::LocationPath, loc::Location)
+    sc = get_sampling_config(lp)
     path_and_subpath = lp.path
     shuffled = sc.assume_shuffled
     curr_metadata_invalid = loc.metadata_invalid
@@ -154,7 +155,9 @@ function _remote_hdf5_source(lp::LocationPath, loc::Location, sc::SamplingConfig
 
         # Get paths to store metadata and sample in
         metadata_path = "s3/$(banyan_metadata_bucket_name())/$(get_metadata_path(lp))"
-        sample_path = "s3/$(banyan_samples_bucket_name())/$(get_sample_path_prefix(lp)$sample_rate)"
+        sample_dir = "s3/$(banyan_samples_bucket_name())/$(get_sample_path_prefix(lp))"
+        mkpath(sample_dir)
+        sample_path = "$sample_dir/$sample_rate"
 
         # Store metadata and sample in S3
         Arrow.write(metadata_path, Arrow.Table(); metadata=src_params)

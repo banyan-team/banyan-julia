@@ -641,3 +641,28 @@ size_from_str(s) =
         end
         Tuple(res)
     end
+    
+function isdir_no_error(p)
+    try
+        isdir(p)
+    catch e
+        if is_debug_on()
+            print("Failed to check isdir because of e=$e")
+        end
+        false
+    end
+end
+function path_as_dir(p)
+    p_sep = p.separator
+    endswith(string(p), p_sep) ? p : (p * p_sep)
+end
+function readdir_no_error(p)
+    try
+        readdir(path_as_dir(p))
+    catch e
+        if is_debug_on()
+            print("Failed to readdir of p=$p because of e=$e")
+        end
+        String[]
+    end
+end

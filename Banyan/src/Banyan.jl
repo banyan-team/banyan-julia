@@ -42,6 +42,7 @@ AWS.DEFAULT_BACKEND[] = AWS.DownloadsBackend()
 s3 = set_features(AWS.AWSServices.s3; use_response_type=true)
 using AWS.AWSExceptions
 using AWS: @service
+# TODO: Remove @service S3 since we just use AWSS3 and s3
 @service S3 use_response_type = true
 @service SQS use_response_type = true
 using AWSS3
