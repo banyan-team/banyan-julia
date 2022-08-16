@@ -231,7 +231,7 @@ function get_location_source(lp::LocationPath)::Tuple{Location,String,String}
         if_modified_since_string =
             "$(dayabbr(lm)), $(twodigit(day(lm))) $(monthabbr(lm)) $(year(lm)) $(twodigit(hour(lm))):$(twodigit(minute(lm))):$(twodigit(second(lm))) GMT"
         try
-            d = get_src_params_dict_from_arrow(s3("GET", metadata_s3_path, Dict("headers" => Dict("If-Modified-Since" => if_modified_since_string))))
+            d = get_src_params_dict_from_arrow(seekstart(s3("GET", metadata_s3_path, Dict("headers" => Dict("If-Modified-Since" => if_modified_since_string))).io))
             src_params_not_stored_locally = true
             d
         catch e
@@ -251,7 +251,7 @@ function get_location_source(lp::LocationPath)::Tuple{Location,String,String}
         end
     else
         try
-            d = get_src_params_dict_from_arrow(s3("GET", metadata_s3_path))
+            d = get_src_params_dict_from_arrow(seekstart(s3("GET", metadata_s3_path).io))
             src_params_not_stored_locally = true
             d
         catch e
@@ -259,7 +259,7 @@ function get_location_source(lp::LocationPath)::Tuple{Location,String,String}
                 show(e)
             end
             if !AWSExceptionInfo(e).not_found
-                @warn "Assumming metadata isn't copied in the cloud because of following error in attempted access"
+                @warn "Assuming metadata isn't copied in the cloud because of following error in attempted access"
                 show(e)
             end
             Dict{String, String}()
@@ -306,7 +306,7 @@ function get_location_source(lp::LocationPath)::Tuple{Location,String,String}
         sample_s3_path = "/$(banyan_samples_bucket_name())/$sample_path_prefix$sample_rate"
         try
             blob = s3("GET", sample_s3_path, Dict("headers" => Dict("If-Modified-Since" => if_modified_since_string)))
-            write(sample_local_path, blob)  # This overwrites the existing file
+            write(sample_local_path, seekstart(blob.io))  # This overwrites the existing file
             final_local_sample_path = sample_local_path
             break
         catch e
