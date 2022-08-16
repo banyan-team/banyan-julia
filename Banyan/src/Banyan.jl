@@ -21,7 +21,8 @@ global NOT_USING_MODULES = String["ProfileView", "SnoopCompileCore"]
 using FilePathsBase: joinpath, isempty
 using Base: notnothing, env_project_file
 
-using Base64,
+using Arrow,
+    Base64,
     DataStructures,
     Dates,
     Downloads,
