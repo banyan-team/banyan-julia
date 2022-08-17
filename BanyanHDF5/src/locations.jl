@@ -30,8 +30,7 @@ function _remote_hdf5_source(lp::LocationPath, loc::Location)
     sc = get_sampling_config(lp)
     path_and_subpath = lp.path
     shuffled = sc.assume_shuffled
-    curr_metadata_invalid = loc.metadata_invalid
-    curr_sample_invalid = loc.sample_invalid
+    curr_metadata_invalid, curr_sample_invalid = loc.metadata_invalid, loc.sample_invalid
 
     # Get session information
     sample_rate = sc.rate
@@ -144,8 +143,8 @@ function _remote_hdf5_source(lp::LocationPath, loc::Location)
                 "path_and_subpath" => path_and_subpath,
                 "path" => remotepath,
                 "subpath" => datasetpath,
-                "eltype" => Banyan.size_to_str(dataszie),
-                "size" => Banyan.type_to_str(dataeltype),
+                "eltype" => Banyan.type_to_str(dataeltype),
+                "size" => Banyan.size_to_str(datasize),
                 "sample_memory_usage" => string(nbytes),
                 "format" => "hdf5"
             )
@@ -160,8 +159,12 @@ function _remote_hdf5_source(lp::LocationPath, loc::Location)
         sample_path = "$sample_dir/$sample_rate"
 
         # Store metadata and sample in S3
-        Arrow.write(metadata_path, Arrow.Table(); metadata=src_params)
-        serialize(sample_path, dset_sample)
+        if curr_metadata_invalid
+            Arrow.write(metadata_path, Arrow.Table(); metadata=src_params)
+        end
+        if curr_sample_invalid
+            serialize(sample_path, dset_sample)
+        end
 
         # Return Location to client side
         LocationSource("Remote", src_params, nbytes, dset_sample)

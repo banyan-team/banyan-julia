@@ -116,6 +116,7 @@ end
         @show get_sampling_configs()
         @test get_sample_rate(p2) == 5
         @test has_metadata(p2)
+        # NOTE: We don't compute _exact_ samples on writing
         @test has_sample(p2) == !exact_sample
         invalidate_metadata(p2)
         @test !has_metadata(p2)
@@ -126,7 +127,7 @@ end
 
         @show get_sample_rate(p2)
         df2 = read_table(p2)
-        @show Banyan.get_location_path_with_format(p2)
+        @show Banyan.LocationPath(p2)
         @show get_sampling_configs()
         @show get_sampling_config(p2)
         @show get_sample_rate(p2)

@@ -33,19 +33,23 @@ end
 
 # TODO: Add tests here modeled after BDF.jl
 
-@testset "Reading and sampling HDF5 in $src with $scheduling_config with max_num_bytes_exact=$max_num_bytes and shuffled=$shuffled" for scheduling_config in [
-    "default scheduling",
-    "parallelism encouraged",
-    "parallelism and batches encouraged",
-],
-src in ["Internet", "S3"],
-max_num_bytes in [0, Banyan.parse_bytes("100 GB")],
-shuffled in [true, false]
+@testset "Reading $(shuffled ? "shuffled " : "")$src data and sampling it with $scheduling_config and a maximum of $max_num_bytes bytes for exact sample" for
+    scheduling_config in [
+        "default scheduling",
+        "parallelism encouraged",
+        "parallelism and batches encouraged",
+    ],
+    src in ["Internet", "S3"],
+    max_num_bytes in [0, 100_000_000_000],
+    shuffled in [true, false]
+    
     get_organization_id()
-    use_session_for_testing(scheduling_config_name = scheduling_config, sample_rate = 20) do
-        invalidate_all_locations()
+    use_session_for_testing(scheduling_config_name = scheduling_config) do
         use_data()
-        configure_sampling(max_num_bytes_exact=max_num_bytes, assume_shuffled=shuffled)
+        configure_sampling(max_num_bytes_exact=max_num_bytes, always_shuffled=shuffled, for_all_locations=true, default=true)
+        exact_sample = max_num_bytes > 0
+
+        invalidate_all_locations()
 
         p = if src == "S3"
             joinpath("s3://", get_cluster_s3_bucket_name(), "fillval.h5/DS1")
@@ -53,12 +57,16 @@ shuffled in [true, false]
             joinpath("https://github.com/banyan-team/banyan-julia/raw/v0.1.1/BanyanArrays/test/res", "fillval.h5/DS1")
         end
 
-        x = read_hdf5(p)
-        sample(x)
-        @show get_sample_rate(x)
+        df = read_hdf5(p; metadata_invalid=true, invalidate_samples=true)
+        sample(df)
+        @show max_num_bytes
+        @show exact_sample
+        @show get_sample_rate(p)
 
         configure_sampling(p; sample_rate=5)
-        x = read_hdf5(p)
+        @show get_sampling_configs()
+        read_hdf5(p)
+        @show get_sampling_configs()
         @test get_sample_rate(p) == 5
         @test has_metadata(p)
         @test has_sample(p)
@@ -69,30 +77,40 @@ shuffled in [true, false]
         @test !has_metadata(p)
         @test !has_sample(p)
 
-        x = read_hdf5(p)
         @show get_sample_rate(p)
-        sample(x)
+        df2 = read_hdf5(p)
+        @show Banyan.LocationPath(p)
+        @show get_sampling_configs()
+        @show get_sampling_config(p)
         @show get_sample_rate(p)
-        x = read_hdf5(p; samples_invalid=true)
-        sample(x)
+        sample(df2)
+        @show get_sample_rate(p)
+        df2 = read_hdf5(p; samples_invalid=true)
+        sample(df2)
+        @test get_sample_rate(p) == 5
         configure_sampling(sample_rate=7, for_all_locations=true)
-        x = read_hdf5(p; metadata_invalid=true)
-        sample(x)
         @test get_sample_rate(p) == 5
+        df2 = read_hdf5(p; metadata_invalid=true)
+        sample(df2)
+        @test get_sample_rate(p) == 5
+        println("Bad get_sample_rate")
         @test get_sample_rate() == 7
+        configure_sampling(sample_rate=7, for_all_locations=true)
+        @test get_sample_rate(p) == 5
+        println("Bad get_sample_rate")
         configure_sampling(sample_rate=7, force_new_sample_rate=true, for_all_locations=true)
-        @test get_sample_rate(p) == 5
-        @test get_sample_rate() == 7
-        x = read_hdf5(p)
         @test get_sample_rate(p) == 7
         @test get_sample_rate() == 7
-        x = read_hdf5(p; location_invalid=true)
-        sample(x)
+        df2 = read_hdf5(p)
+        @test get_sample_rate(p) == 7
+        @test get_sample_rate() == 7
+        df2 = read_hdf5(p; location_invalid=true)
+        sample(df2)
         @test has_metadata(p)
         @test has_sample(p)
         @show get_sample_rate(p)
         configure_sampling(p; always_exact=true)
-        sample(x)
+        sample(df2)
     end
 end
 

@@ -32,8 +32,7 @@ function _remote_table_source(lp::LocationPath, loc::Location)::Location
     sample_dir = "s3/$(banyan_samples_bucket_name())/$(get_sample_path_prefix(lp))"
     mkpath(sample_dir)
     sample_path = "$sample_dir/$sample_rate"
-    @show sample_path
-    @show sample_rate
+    println("In _remote_table_source at start with readdir_no_error(sample_dir)=$(readdir_no_error(sample_dir))")
 
     # Get metadata if it is still valid
     curr_meta::Arrow.Table = if !curr_metadata_invalid
@@ -383,6 +382,7 @@ function _remote_table_source(lp::LocationPath, loc::Location)::Location
             )
         end
 
+        println("In _remote_table_source with curr_sample_invalid=$curr_sample_invalid for writing to $sample_path and readdir_no_error(sample_dir)=$(readdir_no_error(sample_dir))")
         # Write the sample to S3 cache if previously invalid
         if curr_sample_invalid
             write(sample_path, remote_sample.value)

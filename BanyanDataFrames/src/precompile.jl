@@ -191,7 +191,7 @@ function _precompile_()
     end
 
     # locations.jl
-    precompile(_remote_table_source, (String, Bool, Bool, Bool, Bool, Bool))
+    precompile(_remote_table_source, (LocationPath, Location))
 
     # df.jl
     precompile(Banyan.orderinghashes, (DataFrames.DataFrame, String))
@@ -297,9 +297,6 @@ function _precompile_()
     # Arrow.jl
     precompile(Arrow.write, (String,))
     precompile(Arrow.write, (DataFrames.DataFrame,))
-
-    # locations.jl
-    precompile(_remote_table_source, (String, Bool, Bool, Bool, Bool, Bool, Int64))
 
     # TODO: Maybe run code here to precompile
 

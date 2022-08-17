@@ -21,7 +21,7 @@ function configure_sampling(
     )
 
     session_id = _get_session_id_no_error()
-    lp = get_location_path_with_format(path; kwargs...)
+    lp = LocationPath(path; kwargs...)
     sampling_configs = session_sampling_configs[session_id]
     if for_all_locations
         empty!(sampling_configs)

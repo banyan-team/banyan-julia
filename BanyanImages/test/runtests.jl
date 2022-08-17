@@ -9,7 +9,7 @@ MPI.Init()
 # Create a dummy test session for unit tests
 test_session_id = "test_session_id"
 test_resource_id = "test_resource_id"
-Banyan.sessions[test_session_id] = Session(ENV["BANYAN_CLUSTER_NAME"], test_session_id, test_resource_id, 2, 2)
+Banyan.sessions[test_session_id] = Session(ENV["BANYAN_CLUSTER_NAME"], test_session_id, test_resource_id, 2)
 
 global sessions_for_testing = Dict()
 

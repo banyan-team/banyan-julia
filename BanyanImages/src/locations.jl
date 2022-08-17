@@ -369,18 +369,18 @@ function _remote_image_source(lp::LocationPath, loc::Location, remotepath, add_c
                 "name" => "Remote",
                 "nimages" => string(nimages),
                 "sample_memory_usage" => string(nbytes_res),  # NOTE: We assume all files have same size
-                "size" => size_to_str(datasize_res),
-                "eltype" => type_to_str(dataeltype_res),
+                "size" => Banyan.size_to_str(datasize_res),
+                "eltype" => Banyan.type_to_str(dataeltype_res),
                 "add_channelview" => add_channelview ? "1" : "0",
                 "format" => "image"
             )
         else
-            curr_location.src_parameters
+            Banyan.get_src_params_dict_from_arrow(metadata_path)
         end
 
         # Store metadata and sample in S3
         if curr_metadata_invalid
-            Arrow.write(metadata_path, (path=localpaths,); metadata=src_params)
+            Arrow.write(metadata_path, (path=localpaths,); metadata=src_parameters)
         end
         if curr_sample_invalid
             serialize(sample_path, remote_sample)
@@ -395,11 +395,7 @@ end
 
 RemoteImageSource(remotepath, add_channelview)::Location =
     RemoteSource(
-        LocationPath(
-            remotepath isa String ? remotepath : "lang_jl_$(hash(remotepath))",
-            add_channelview ? "jl_channelview" : "jl",
-            Banyan.get_julia_version()
-        ),
+        LocationPath(remotepath; add_channelview=add_channelview),
         _remote_image_source,
         deserialize,
         identity,

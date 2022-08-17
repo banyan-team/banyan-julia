@@ -610,6 +610,8 @@ TYPE_TO_STR =
 STR_TO_TYPE = invert(TYPE_TO_STR)
 
 function type_to_str(ty::DataType)::String
+    @show ty
+    @show TYPE_TO_STR
     global TYPE_TO_STR
     if haskey(TYPE_TO_STR, ty)
         TYPE_TO_STR[ty]
@@ -619,14 +621,16 @@ function type_to_str(ty::DataType)::String
 end
 
 function type_from_str(s::String)
+    @show s
+    @show STR_TO_TYPE
     if startswith(s, "lang_")
         if startswith(s, "lang_jl_")
-            from_jl_string(s[4:end])
+            from_jl_string(s[9:end])
         else
             error("Cannot parse type $s from non-Julia language")
         end
-    elseif haskey(TYPE_TO_STR, s)
-        TYPE_TO_STR[s]
+    elseif haskey(STR_TO_TYPE, s)
+        STR_TO_TYPE[s]
     else
         error("Type not supported. You may need to update to the latest version of Banyan or declare the data/sample/metadata you are accessing invalid.")
     end

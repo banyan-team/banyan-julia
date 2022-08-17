@@ -50,7 +50,7 @@ using AWSS3
 global BANYAN_API_ENDPOINT
 
 # Account management
-export configure
+export configure, get_organization_id
 
 # Cluster management
 export Cluster,

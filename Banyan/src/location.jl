@@ -14,6 +14,8 @@ mutable struct Location
     sample_invalid::Bool
 end
 
+LOCATION_PATH_KWARG_NAMES = ["add_channelview"]
+
 struct LocationPath
     original_path::String
     path::String
@@ -22,46 +24,60 @@ struct LocationPath
     format_name::String
     format_version::String
 
-    function LocationPath(path, format_name, format_version)
+    function LocationPath(path::Any, format_name::String, format_version::String; kwargs...)
+        LocationPath("lang_jl_$(hash(path))", format_name, format_version; kwargs...)
+    end
+    function LocationPath(path::String, format_name::String, format_version::String; kwargs...)
         # This function is responsible for "normalizing" the path.
         # If there are multiple path strings that are technically equivalent,
         # this function should map them to the same string.
-        path_hash = hash(path)
+
+        # Add the kwargs to the path
+        path_res = deepcopy(path)
+        for (kwarg_name, kwarg_value) in kwargs
+            if kwarg_name in LOCATION_PATH_KWARG_NAMES
+                path_res *= "_$kwarg_name=$kwarg_value"
+            end
+        end
+
+        # Return the LocationPath
+        path_hash = hash(path_res)
         new(
-            path,
-            path,
+            path_res,
+            path_res,
             path_hash,
             string(path_hash),
             format_name,
             format_version
         )
     end
+    
+    LocationPath(p; kwargs...) = LocationPath("lang_jl_$(hash(path))"; kwargs...)
+    function LocationPath(p::String; kwargs...)::LocationPath
+        if isempty(p)
+            return NO_LOCATION_PATH
+        end
+    
+        format_name = get(kwargs, :format, "jl")
+        is_sample_format_arrow = format_name == "arrow"
+        if is_sample_format_arrow
+            return LocationPath(p, "arrow", get(kwargs, :format_version, "2"); kwargs...)
+        else
+            for table_format in TABLE_FORMATS
+                if occursin(table_format, p) || format_name == p
+                    return LocationPath(p, "arrow", "2"; kwargs...)
+                end
+            end
+        end
+        LocationPath(p, "jl", get_julia_version(); kwargs...)
+    end
 
-    LocationPath(path) = LocationPath(path, "jl", get_julia_version())``
+    # TODO: Maybe make 
 end
 
 # Functions with `LocationPath`s`
 
 global TABLE_FORMATS = ["csv", "parquet", "arrow"]
-
-function get_location_path_with_format(p::String; kwargs...)::LocationPath
-    if isempty(p)
-        return NO_LOCATION_PATH
-    end
-
-    format_name = get(kwargs, :format, "jl")
-    is_sample_format_arrow = format_name == "arrow"
-    if is_sample_format_arrow
-        return LocationPath(p, "arrow", get(kwargs, :format_version, "2"))
-    else
-        for table_format in TABLE_FORMATS
-            if occursin(table_format, p) || format_name == p
-                return LocationPath(p, "arrow", "2")
-            end
-        end
-    end
-    LocationPath(p, "jl", get_julia_version())
-end
 
 function get_sample_path_prefix(lp::LocationPath)
     format_name_sep = !isempty(lp.format_name) ? "_" : ""
@@ -85,7 +101,7 @@ function set_sampling_configs(d::Dict{LocationPath,SamplingConfig})
     session_sampling_configs[_get_session_id_no_error()] = d
 end
 
-get_sampling_config(path=""; kwargs...) = get_sampling_config(get_location_path_with_format(path; kwargs...))
+get_sampling_config(path=""; kwargs...) = get_sampling_config(LocationPath(path; kwargs...))
 function get_sampling_configs()
     global session_sampling_configs
     session_sampling_configs[_get_session_id_no_error()]
@@ -97,8 +113,8 @@ get_sampling_config(l_path::LocationPath)::SamplingConfig =
 
 # Getting sample rate
 
-get_sample_rate(p::String=""; kwargs...) =
-    get_sample_rate(get_location_path_with_format(p; kwargs...))
+get_sample_rate(p=""; kwargs...) =
+    get_sample_rate(LocationPath(p; kwargs...))
 function parse_sample_rate(object_key)
     parse(Int64, last(splitpath(object_key)))
 end
@@ -138,15 +154,15 @@ end
 
 # Checking for having metadata, samples
 
-has_metadata(p::String=""; kwargs...) =
-    has_metadata(get_location_path_with_format(p; kwargs...))
+has_metadata(p=""; kwargs...) =
+    has_metadata(LocationPath(p; kwargs...))
 function has_metadata(l_path:: LocationPath)::Bool
     println("In has_metadata, checking get_metadata_path(l_path)=$(get_metadata_path(l_path)) and banyan_metadata_bucket_name()=$(banyan_metadata_bucket_name())")
     isfile(S3Path("s3://$(banyan_metadata_bucket_name())/$(get_metadata_path(l_path))"))
 end
 
-has_sample(p::String=""; kwargs...) =
-    has_sample(get_location_path_with_format(p; kwargs...))
+has_sample(p=""; kwargs...) =
+    has_sample(LocationPath(p; kwargs...))
 function has_sample(l_path:: LocationPath)::Bool
     sc = get_sampling_config(l_path)
     banyan_sample_dir = S3Path("s3://$(banyan_samples_bucket_name())/$(get_sample_path_prefix(l_path))")
@@ -200,7 +216,7 @@ function get_metadata_local_path()
 end
 
 function get_samples_local_path()
-    p = joinpath(homedir(), ".banyan", "metadata")
+    p = joinpath(homedir(), ".banyan", "samples")
     if !isdir(p)
         mkpath(p)
     end
@@ -306,6 +322,8 @@ function get_location_source(lp::LocationPath)::Tuple{Location,String,String}
             "$(dayabbr(lm)), $(twodigit(day(lm))) $(monthabbr(lm)) $(year(lm)) $(twodigit(hour(lm))):$(twodigit(minute(lm))):$(twodigit(second(lm))) GMT"
         sample_s3_path = "/$(banyan_samples_bucket_name())/$sample_path_prefix/$sample_rate"
         try
+            @show sample_local_path
+            @show sample_s3_path
             blob = s3("GET", sample_s3_path, Dict("headers" => Dict("If-Modified-Since" => if_modified_since_string)))
             write(sample_local_path, seekstart(blob.io))  # This overwrites the existing file
             final_local_sample_path = sample_local_path
@@ -330,10 +348,11 @@ function get_location_source(lp::LocationPath)::Tuple{Location,String,String}
     end
 
     # If no such sample is found, search the S3 bucket
+    banyan_samples_bucket = S3Path("s3://$(banyan_samples_bucket_name())")
+    banyan_samples_object_dir = joinpath(banyan_samples_bucket, sample_path_prefix)
     if isempty(final_local_sample_path)
-        banyan_samples_bucket = S3Path("s3://$(banyan_samples_bucket_name())")
         final_sample_rate = -1
-        banyan_samples_object_dir = joinpath(banyan_samples_bucket, sample_path_prefix)
+        @show readdir_no_error(banyan_samples_object_dir)
         for object_key in readdir_no_error(banyan_samples_object_dir)
             object_sample_rate = parse(Int64, object_key)
             object_sample_rate_diff = abs(object_sample_rate - desired_sample_rate)
@@ -353,6 +372,7 @@ function get_location_source(lp::LocationPath)::Tuple{Location,String,String}
                 Path(final_local_sample_path)
             )
         end
+        @show readdir_no_error(banyan_samples_object_dir)
     end
     
     # Construct and return LocationSource
@@ -364,11 +384,15 @@ function get_location_source(lp::LocationPath)::Tuple{Location,String,String}
     )
     res_location.metadata_invalid = isempty(src_params)
     res_location.sample_invalid = isempty(final_local_sample_path)
+    @show res_location
     @show final_sample_rate
     @show final_local_sample_path
     final_sample_rate = isempty(final_local_sample_path) ? desired_sample_rate : final_sample_rate
     @show desired_sample_rate
     @show sample_local_dir
+    @show readdir(sample_local_dir)
+    println("At end of get_location_source with readdir_no_error(banyan_samples_object_dir)=$(readdir_no_error(banyan_samples_object_dir))")
+    
     (
         res_location,
         metadata_local_path,

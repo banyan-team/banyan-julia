@@ -79,65 +79,86 @@ invalid_bool_to_str(metadata_invalid) = metadata_invalid ? "invalid" : "valid"
     end
 end
 
-@testset "Reading and sampling $nimage JPG images on $loc with $format and add_channelview=$add_channelview, max_num_bytes=$max_num_bytes, shuffled=$shuffled" for
+@testset "Reading and sampling $nimages $(shuffled ? "shuffled" : "") JPG images on $loc with $format and add_channelview=$add_channelview with $scheduling_config and a maximum of $max_num_bytes bytes for exact sample" for
+    scheduling_config in [
+        "default scheduling",
+        "parallelism encouraged",
+        "parallelism and batches encouraged",
+    ],
     (loc, format) in [
         ("Internet", "generator"),
         ("S3", "generator"),
         ("S3", "directory")
     ],
-    max_num_bytes in [0, Banyan.parse_bytes("100 GB")],
+    max_num_bytes in [0, 100_000_000_000],
     shuffled in [true, false],
     nimages in [1, 50],
     add_channelview in [true, false]
+
     get_organization_id()
     use_session_for_testing(scheduling_config_name = scheduling_config, sample_rate = 20) do
-        bucket_name = get_cluster_s3_bucket_name()
-        invalidate_all_locations()
-        configure_sampling(max_num_bytes_exact=max_num_bytes, assume_shuffled=shuffled)
+        configure_sampling(max_num_bytes_exact=max_num_bytes, always_shuffled=shuffled, for_all_locations=true, default=true)
+        exact_sample = max_num_bytes > 0
 
+        invalidate_all_locations()
+
+        bucket_name = get_cluster_s3_bucket_name()
         p = get_test_path(loc, "generator", "jpg", nimages, bucket_name)
 
-        x = read_jpg(p; add_channelview=add_channelview)
-        sample(x)
-        @show get_sample_rate(x)
+        df = read_jpg(p; add_channelview=add_channelview, metadata_invalid=true, invalidate_samples=true)
+        sample(df)
+        @show max_num_bytes
+        @show exact_sample
+        @show get_sample_rate(p; add_channelview=add_channelview)
 
-        # TODO: Ensure that this triggers parallel cluster<->client data transfer
-        configure_sampling(p; sample_rate=20)
-        x = read_jpg(p; add_channelview=add_channelview)
-        @test get_sample_rate(p) == 20
-        @test has_metadata(p)
-        @test has_sample(p)
-        invalidate_metadata(p)
-        @test !has_metadata(p)
-        @test has_sample(p)
-        invalidate_location(p)
-        @test !has_metadata(p)
-        @test !has_sample(p)
+        configure_sampling(p; sample_rate=50)
+        @show get_sampling_configs()
+        read_jpg(p; add_channelview=add_channelview)
+        @show get_sampling_configs()
+        @test get_sample_rate(p; add_channelview=add_channelview) == 50
+        @test has_metadata(p; add_channelview=add_channelview)
+        @test has_sample(p; add_channelview=add_channelview)
+        invalidate_metadata(p; add_channelview=add_channelview)
+        @test !has_metadata(p; add_channelview=add_channelview)
+        @test has_sample(p; add_channelview=add_channelview)
+        invalidate_location(p; add_channelview=add_channelview)
+        @test !has_metadata(p; add_channelview=add_channelview)
+        @test !has_sample(p; add_channelview=add_channelview)
 
-        x = read_jpg(p; add_channelview=add_channelview)
-        @show get_sample_rate(p)
-        sample(x)
-        @show get_sample_rate(p)
-        x = read_jpg(p; add_channelview=add_channelview, samples_invalid=true)
-        sample(x)
+        @show get_sample_rate(p; add_channelview=add_channelview)
+        df2 = read_jpg(p; add_channelview=add_channelview)
+        @show Banyan.LocationPath(p; add_channelview=add_channelview)
+        @show get_sampling_configs()
+        @show get_sampling_config(p; add_channelview=add_channelview)
+        @show get_sample_rate(p; add_channelview=add_channelview)
+        sample(df2)
+        @show get_sample_rate(p; add_channelview=add_channelview)
+        df2 = read_jpg(p; add_channelview=add_channelview, samples_invalid=true)
+        sample(df2)
+        @test get_sample_rate(p; add_channelview=add_channelview) == 50
         configure_sampling(sample_rate=75, for_all_locations=true)
-        x = read_jpg(p; add_channelview=add_channelview, metadata_invalid=true)
-        sample(x)
-        @test get_sample_rate(p) == 50
+        @test get_sample_rate(p; add_channelview=add_channelview) == 50
+        df2 = read_jpg(p; add_channelview=add_channelview, metadata_invalid=true)
+        sample(df2)
+        @test get_sample_rate(p; add_channelview=add_channelview) == 50
+        println("Bad get_sample_rate")
         @test get_sample_rate() == 75
+        configure_sampling(sample_rate=75, for_all_locations=true)
+        @test get_sample_rate(p; add_channelview=add_channelview) == 50
+        println("Bad get_sample_rate")
         configure_sampling(sample_rate=75, force_new_sample_rate=true, for_all_locations=true)
-        @test get_sample_rate(p) == 50
+        @test get_sample_rate(p; add_channelview=add_channelview) == 75
         @test get_sample_rate() == 75
-        x = read_jpg(p; add_channelview=add_channelview)
-        @test get_sample_rate(p) == 75
+        df2 = read_jpg(p; add_channelview=add_channelview)
+        @test get_sample_rate(p; add_channelview=add_channelview) == 75
         @test get_sample_rate() == 75
-        x = read_jpg(p; add_channelview=add_channelview, location_invalid=true)
-        sample(x)
-        @test has_metadata(p)
-        @test has_sample(p)
-        @show get_sample_rate(p)
-        configure_sampling(p; always_exact=true)
-        sample(x)
+        df2 = read_jpg(p; add_channelview=add_channelview, location_invalid=true)
+        sample(df2)
+        @test has_metadata(p; add_channelview=add_channelview)
+        @test has_sample(p; add_channelview=add_channelview)
+        @show get_sample_rate(p; add_channelview=add_channelview)
+        configure_sampling(p; add_channelview=add_channelview, always_exact=true)
+        sample(df2)
     end
 end
 
