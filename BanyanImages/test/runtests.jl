@@ -9,7 +9,7 @@ MPI.Init()
 # Create a dummy test session for unit tests
 test_session_id = "test_session_id"
 test_resource_id = "test_resource_id"
-Banyan.sessions[test_session_id] = Session(ENV["BANYAN_CLUSTER_NAME"], test_session_id, test_resource_id, 2, 2)
+Banyan.sessions[test_session_id] = Session(ENV["BANYAN_CLUSTER_NAME"], test_session_id, test_resource_id, 2)
 
 global sessions_for_testing = Dict()
 
@@ -24,7 +24,6 @@ end
 function use_session_for_testing(
     f::Function;
     sample_rate = 2,
-    max_exact_sample_length = 50,
     scheduling_config_name = "default scheduling",
 )
     haskey(ENV, "BANYAN_CLUSTER_NAME") || error(
@@ -79,9 +78,6 @@ function use_session_for_testing(
     # If selected session has already failed, this will throw an error.
     sessions_for_testing[session_config_hash] = get_session_id()
 
-    # Set the maximum exact sample length
-    set_max_exact_sample_length(max_exact_sample_length)
-
     configure_scheduling(name = scheduling_config_name)
 
     try
@@ -111,4 +107,5 @@ finally
     # Destroy jobs to clean up.
     # destroy_all_jobs_for_testing()
     cleanup_s3_test_files(get_cluster_s3_bucket_name(ENV["BANYAN_CLUSTER_NAME"]))
+    end_all_sessions_for_testing()
 end

@@ -35,13 +35,14 @@ function create_cluster(;
     vpc_id = nothing,
     subnet_id = nothing,
     nowait=false,
+    force_create=false,
     kwargs...,
 )
 
     # Configure using parameters
     c = configure(; kwargs...)
     
-    clusters = get_clusters(; kwargs...)
+    clusters = get_clusters(name; kwargs...)
     if isnothing(name)
         name = "Cluster " * string(length(clusters) + 1)
     end
@@ -52,11 +53,11 @@ function create_cluster(;
     # Check if the configuration for this cluster name already exists
     # If it does, then recreate cluster
     if haskey(clusters, name)
-        if clusters[name].status == :terminated
+        if force_create || clusters[name].status == :terminated
             @info "Started re-creating cluster named $name"
             send_request_get_response(
                 :create_cluster,
-                Dict("cluster_name" => name, "recreate" => true),
+                Dict("cluster_name" => name, "recreate" => true, "force_create" => true),
             )
             if !nowait
                 wait_for_cluster(name; kwargs...)
@@ -75,7 +76,7 @@ function create_cluster(;
     end
     if isnothing(s3_bucket_arn)
         s3_bucket_arn = ""
-    elseif !(s3_bucket_name in s3_list_buckets(get_aws_config()))
+    elseif !(s3_bucket_name in s3_list_buckets(global_aws_config()))
         error("Bucket $s3_bucket_name does not exist in the connected AWS account")
     end
 
@@ -139,12 +140,17 @@ function delete_cluster(name::String; kwargs...)
     )
 end
 
-function update_cluster(name::String; nowait=false, kwargs...)
+function update_cluster(name::String; force_update=false, update_linux_packages=true, reinstall_julia=false, nowait=false, kwargs...)
     configure(; kwargs...)
     @info "Updating cluster named $name"
     send_request_get_response(
         :update_cluster,
-        Dict{String, Any}("cluster_name" => name)
+        Dict{String, Any}(
+            "cluster_name" => name,
+            "force_update" => force_update,
+            "update_linux_packages" => update_linux_packages,
+            "reinstall_julia" => reinstall_julia
+        )
     )
     if !nowait
         wait_for_cluster(name)
@@ -294,7 +300,7 @@ end
 function upload_to_s3(src_path; dst_name=basename(src_path), cluster_name=get_cluster_name(), kwargs...)
     configure(; kwargs...)
     bucket_name = get_cluster_s3_bucket_name(cluster_name)
-    s3_dst_path = S3Path("s3://$bucket_name/$dst_name", config=get_aws_config())
+    s3_dst_path = S3Path("s3://$bucket_name/$dst_name", config=global_aws_config())
     if startswith(src_path, "http://") || startswith(src_path, "https://")
         Downloads.download(
             src_path,
@@ -320,7 +326,7 @@ function upload_to_s3(src_path; dst_name=basename(src_path), cluster_name=get_cl
                     Path("$src_path/$f_name"),
                     S3Path(
                         "s3://$bucket_name/$(basename(src_path))/$(f_name)",
-                        config=get_aws_config()
+                        config=global_aws_config()
                     )
                 )
             end

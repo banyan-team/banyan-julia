@@ -21,9 +21,7 @@ global NOT_USING_MODULES = String["ProfileView", "SnoopCompileCore"]
 using FilePathsBase: joinpath, isempty
 using Base: notnothing, env_project_file
 
-using AWSCore,
-    AWSS3,
-    AWSSQS,
+using Arrow,
     Base64,
     DataStructures,
     Dates,
@@ -32,7 +30,6 @@ using AWSCore,
     FilePathsBase,
     HTTP,
     JSON,
-    IniFile,
     LibGit2,
     MPI,
     ProgressMeter,
@@ -40,10 +37,20 @@ using AWSCore,
     Serialization,
     TOML
 
+using AWS
+AWS.DEFAULT_BACKEND[] = AWS.DownloadsBackend()
+s3 = set_features(AWS.AWSServices.s3; use_response_type=true)
+using AWS.AWSExceptions
+using AWS: @service
+# TODO: Remove @service S3 since we just use AWSS3 and s3
+@service S3 use_response_type = true
+@service SQS use_response_type = true
+using AWSS3
+
 global BANYAN_API_ENDPOINT
 
 # Account management
-export configure
+export configure, get_organization_id
 
 # Cluster management
 export Cluster,
@@ -82,25 +89,23 @@ export AbstractFuture, Future, partitioned_computation, compute_inplace, compute
 
 # Samples
 export Sample, ExactSample, sample, sample_for_grouping, SampleForGrouping, setsample!
-export sample_memory_usage, total_memory_usage, sample_axes, sample_keys, sample_by_key
+export sample_memory_usage, sample_memory_usage, sample_axes, sample_keys, sample_by_key
 export NOTHING_SAMPLE
+export SamplingConfig
 
 # Locations
 export Location, LocationSource, LocationDestination, located, sourced, destined
-export Value, Size, Client, Disk, None
-export invalidate_all_locations, invalidate_metadata, invalidate_sample
-export NOTHING_LOCATION, INVALID_LOCATION
+export Value, Size, Client, Disk, None, RemoteSource
+export invalidate_all_locations, invalidate_location, invalidate_metadata, invalidate_samples, invalidate
+export NOTHING_LOCATION, INVALID_LOCATION, NO_LOCATION_PATH
 export has_separate_metadata, get_sample, get_metadata, get_sample_and_metadata
-export get_remotepath_id,
-    get_meta_path,
-    get_location_path,
-    get_cached_location,
-    cache_location,
-    get_max_exact_sample_length,
-    set_max_exact_sample_length
+export LocationPath, SamplingConfig
+export has_metadata, has_sample, get_sample_rate, configure_sampling, get_sampling_config, get_sampling_configs, set_sampling_configs
+export type_to_str, str_to_type
+export banyan_metadata_bucket_name, banyan_samples_bucket_name, get_metadata_path, get_sample_path_prefix, get_sample_path
 
 # Serialization
-export from_jl_value_contents, to_jl_value_contents
+export from_jl_string, to_jl_string
 
 # Queues
 export receive_from_client, send_to_client, get_sqs_dict_from_url
@@ -165,8 +170,8 @@ export is_debug_on,
     get_partition_idx_from_divisions,
     isoverlapping,
     to_jl_value,
-    to_jl_value_contents,
-    from_jl_value_contents,
+    to_jl_string,
+    from_jl_string,
     get_divisions,
     getpath,
     buftovbuf,
@@ -189,7 +194,7 @@ export is_debug_on,
 export Empty, EMPTY, nonemptytype, disallowempty, empty_handler
 
 # Utilities for location constructors
-export get_cached_location, cache_location, get_sample_from_data, sample_from_range
+export get_sample_from_data, sample_from_range
 
 # Partitioning functions for usage in sessions that run on the cluster; dispatched
 # based on `res/pf_dispatch_table.json`.

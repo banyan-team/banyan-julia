@@ -17,6 +17,13 @@
         @test res_size == (120, 2, 3)
         all_incremented = all(res .== 2)
         @test all_incremented
+
+        model_sample = sample(model)
+        res_sample = model_sample(Dict("input" => sample(data)))["output"]
+        res_size = size(res_sample)
+        @test res_size == (120, 2, 3)
+        all_incremented = all(res_sample .== 2)
+        @test all_incremented
     end
 end
 

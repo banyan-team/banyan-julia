@@ -19,7 +19,6 @@
     reusing in ["nothing", "sample", "location", "sample and location"]
 
     # Use session with appropriate sample collection configuration
-    max_exact_sample_length = exact_or_inexact == "Exact" ? 1_024_000 : 0
     use_session_for_testing(sample_rate = 2) do
 
         # Use data to collect a sample from
@@ -30,13 +29,17 @@
             RemoteHDF5Source(src_name, invalidate_metadata = true, invalidate_sample = true)
             RemoteHDF5Source(src_name, metadata_invalid = true, sample_invalid = true)
         end
-        remote_source = RemoteHDF5Source(
-            src_name,
-            metadata_invalid = (reusing == "nothing" || reusing == "sample"),
-            sample_invalid = (reusing == "nothing" || reusing == "location"),
-            shuffled = with_or_without_shuffled == "with",
-            max_exact_sample_length = max_exact_sample_length
+        configure_sampling(
+            always_exact = exact_or_inexact == "Exact",
+            assume_shuffled = with_or_without_shuffled == "with"
         )
+        if (reusing == "nothing" || reusing == "sample")
+            invalidate_metadata(src_name)
+        end
+        if (reusing == "nothing" || reusing == "location")
+            invalidate_locations(src_name)
+        end
+        remote_source = RemoteHDF5Source(src_name)
 
         # Verify the location
         if contains(src_name, "h5")

@@ -1,8 +1,42 @@
+function configure_sampling(
+    path="";
+    sample_rate=nothing,
+    always_exact=nothing,
+    max_num_bytes_exact=nothing,
+    force_new_sample_rate=nothing,
+    assume_shuffled=nothing,
+    for_all_locations=false,
+    default=false,
+    kwargs...
+)
+    global session_sampling_configs
+
+    sc = default ? DEFAULT_SAMPLING_CONFIG : get_sampling_config(path; kwargs...)
+    nsc = SamplingConfig(
+        (!isnothing(sample_rate)) ? sample_rate : sc.rate,
+        (!isnothing(always_exact)) ? always_exact : sc.always_exact,
+        (!isnothing(max_num_bytes_exact)) ? max_num_bytes_exact : sc.max_num_bytes_exact,
+        (!isnothing(force_new_sample_rate)) ? force_new_sample_rate : sc.force_new_sample_rate,
+        (!isnothing(assume_shuffled)) ? assume_shuffled : sc.assume_shuffled,
+    )
+
+    session_id = _get_session_id_no_error()
+    lp = LocationPath(path; kwargs...)
+    sampling_configs = session_sampling_configs[session_id]
+    if for_all_locations
+        empty!(sampling_configs)
+        sampling_configs[NO_LOCATION_PATH] = nsc
+    else
+        sampling_configs[lp] = nsc
+    end
+    
+end
+
 ###############################################################
 # Sample that caches properties returned by an AbstractSample #
 ###############################################################
 
-ExactSample(value::Any) = Sample(value, sample_memory_usage(value), 1)
+ExactSample(value::Any) = Sample(value, 1)
 ExactSample(value::Any, memory_usage::Int64) = Sample(value, memory_usage, 1)
 
 function setsample!(fut::Future, value::Any)
@@ -34,7 +68,6 @@ impl_error(fn_name, as) = error("$fn_name not implemented for $(typeof(as))")
 sample_by_key(as::Any, key::Any) = impl_error("sample_by_key", as)
 sample_axes(as::Any)::Vector{Int64} = impl_error("sample_axes", as)
 sample_keys(as::Any) = impl_error("sample_keys", as)
-sample_memory_usage(as::Any)::Int64 = total_memory_usage(as)
 
 # Sample computation functions
 
@@ -165,10 +198,6 @@ end
 function sample_max(A::T, key::K) where {T,K}
     isempty(A) ? nothing : _maximum(orderinghashes(A, key))
 end
-
-const NOTHING_SAMPLE = Sample(nothing, -1, -1)
-
-Base.isnothing(s::Sample) = s.rate == -1
 
 # Caching samples with same statistics
 

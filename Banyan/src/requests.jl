@@ -18,13 +18,13 @@
 #############################
 
  function check_worker_stuck_error(
-    message::Dict{String,Any},
+    value_id::ValueId,
+    contents::String,
     error_for_main_stuck::Union{Nothing,String},
     error_for_main_stuck_time::Union{Nothing,DateTime}
 )::Tuple{Union{Nothing,String},Union{Nothing,DateTime}}
-    value_id = message["value_id"]::ValueId
     if value_id == "-2" && isnothing(error_for_main_stuck_time)
-        error_for_main_stuck_msg::String = from_jl_value_contents(message["contents"]::String)
+        error_for_main_stuck_msg::String = from_jl_string(contents)
         if contains(error_for_main_stuck_msg, "session $(get_session_id())")
             error_for_main_stuck = error_for_main_stuck_msg
             error_for_main_stuck_time = Dates.now()
@@ -230,8 +230,8 @@ function _partitioned_computation_concrete(fut::Future, destination::Location, n
     end
 
     # Get queues for moving data between client and cluster
-    scatter_queue = get_scatter_queue()
-    gather_queue = get_gather_queue()
+    scatter_queue = scatter_queue_url()
+    gather_queue = gather_queue_url()
 
     # There are two cases: either we
     # TODO: Maybe we don't need to wait_For_session
@@ -261,10 +261,9 @@ function _partitioned_computation_concrete(fut::Future, destination::Location, n
     p = ProgressUnknown("Computing value with ID $(fut.value_id)", spinner=true)
     error_for_main_stuck::Union{Nothing,String} = nothing
     error_for_main_stuck_time::Union{Nothing,DateTime} = nothing
-    partial_gathers = Dict{ValueId,String}()
     while true
         # TODO: Use to_jl_value and from_jl_value to support Client
-        message, error_for_main_stuck = receive_next_message(gather_queue, p, error_for_main_stuck, error_for_main_stuck_time)
+        message, error_for_main_stuck = sqs_receive_next_message(gather_queue, p, error_for_main_stuck, error_for_main_stuck_time)
         message_type::String = message["kind"]
         if message_type == "SCATTER_REQUEST"
             # Send scatter
@@ -272,12 +271,12 @@ function _partitioned_computation_concrete(fut::Future, destination::Location, n
             haskey(session.futures_on_client, value_id) || error("Expected future to be stored on client side")
             f = session.futures_on_client[value_id]::Future
             # @debug "Received scatter request for value with ID $value_id and value $(f.value) with location $(get_location(f))"
-            send_message(
+            sqs_send_message(
                 scatter_queue,
                 JSON.json(
                     Dict{String,Any}(
                         "value_id" => value_id,
-                        "contents" => to_jl_value_contents(f.value)
+                        "contents" => to_jl_string(f.value)
                     ),
                 ),
             )
@@ -286,23 +285,37 @@ function _partitioned_computation_concrete(fut::Future, destination::Location, n
         elseif message_type == "GATHER"
             # Receive gather
             value_id = message["value_id"]::ValueId
-            if !haskey(partial_gathers, value_id)
-                partial_gathers[value_id] = message["contents"]::String
-            else
-                partial_gathers[value_id] *= message["contents"]::String
+            num_chunks = message["num_chunks"]::Int64
+            num_remaining_chunks = num_chunks - 1
+
+            if is_debug_on()
+                println("Gathering $num_chunks chunk$(num_chunks > 1 ? "s" : "") to client")
             end
-        elseif message_type == "GATHER_END"
-            value_id = message["value_id"]::ValueId
-            contents = get(partial_gathers, value_id, "") * message["contents"]::String
-            # @debug "Received gather request for $value_id"
+            
+            whole_message_contents = if num_chunks > 1
+                partial_messages = Vector{String}(undef, num_chunks)
+                partial_messages[message["chunk_idx"]] = message["contents"]
+                @sync for i = 1:num_remaining_chunks
+                    @async begin
+                        partial_message, _ = sqs_receive_next_message(gather_queue, p, nothing, nothing)
+                        chunk_idx = partial_message["chunk_idx"]
+                        partial_messages[chunk_idx] = partial_message["contents"]
+                    end
+                end
+                join(partial_messages)
+            else
+                message["contents"]
+            end
+
             if haskey(session.futures_on_client, value_id)
-                value = from_jl_value_contents(contents)
+                value = from_jl_string(whole_message_contents)
                 f = session.futures_on_client[value_id]::Future
                 f.value = value
                 # TODO: Update stale/mutated here to avoid costly
                 # call to `send_evaluation`
             end
-            error_for_main_stuck, error_for_main_stuck_time = check_worker_stuck_error(message, error_for_main_stuck, error_for_main_stuck_time)
+
+            error_for_main_stuck, error_for_main_stuck_time = check_worker_stuck_error(value_id, whole_message_contents, error_for_main_stuck, error_for_main_stuck_time)
         elseif message_type == "EVALUATION_END"
             if message["end"]::Bool == true
                 break
@@ -361,8 +374,8 @@ function partitioned_computation_concrete(
     # require the last value to be merged simply because it is being evaluated.
 
     sessions = get_sessions_dict()
-    session_id = get_session_id()
     session = get_session()
+    session_id = get_session_id()
     resource_id = session.resource_id
 
 
@@ -566,6 +579,7 @@ function send_evaluation(value_id::ValueId, session_id::SessionId)
             "organization_id" => get_session().organization_id,
             "cluster_instance_id" => get_session().cluster_instance_id,
             "cluster_name" => get_session().cluster_name,
+            "sampling_configs" => sampling_configs_to_jl(get_sampling_configs())
         ),
     )
     if isnothing(response)
@@ -622,11 +636,11 @@ end
 # Make the `offloaded` function on the client side keep looping and 
 #     (1) checking receive_next_message and 
 #     (2) checking for message[“kind”] == "GATHER" and 
-#     (3) `break`ing and `return`ing the value (using `from_jl_value_contents(message["contents"])`) 
+#     (3) `break`ing and `return`ing the value (using `from_jl_string(message["contents"])`) 
 #         if value_id == -1
 # Make `offloaded` function in Banyan.jl 
 #   which calls evaluate passing in a string of bytes 
-#   by serializing the given function (just call to_jl_value_contents on it) 
+#   by serializing the given function (just call to_jl_string on it) 
 #   and passing it in with the parameter offloaded_function_code
 #
 # Make `offloaded` function specify 
@@ -641,7 +655,7 @@ function offloaded(given_function::Function, args...; distributed::Bool = false)
     # doesn't need information about memory usage from intiial package loading.
 
     # Get serialized function
-    serialized::String = to_jl_value_contents((given_function, args))
+    serialized::String = to_jl_string((given_function, args))
 
     # Submit evaluation request
     !isempty(get_session().organization_id) || error("Organization ID not stored locally for this session")
@@ -667,6 +681,7 @@ function offloaded(given_function::Function, args...; distributed::Bool = false)
             "organization_id" => get_session().organization_id,
             "cluster_instance_id" => get_session().cluster_instance_id,
             "cluster_name" => get_session().cluster_name,
+            "sampling_configs" => sampling_configs_to_jl(get_sampling_configs())
         ),
     )
     if isnothing(response)
@@ -681,42 +696,47 @@ function offloaded(given_function::Function, args...; distributed::Bool = false)
     p = ProgressUnknown("Running offloaded code", spinner=true)
     
     session = get_session()
-    gather_queue = get_gather_queue()
-    stored_message = nothing
+    gather_queue = gather_queue_url()
+    stored_res = nothing
     error_for_main_stuck, error_for_main_stuck_time = nothing, nothing
     partial_gathers = Dict{ValueId,String}()
     while true
-        message, error_for_main_stuck = receive_next_message(gather_queue, p, error_for_main_stuck, error_for_main_stuck_time)
+        message, error_for_main_stuck = sqs_receive_next_message(gather_queue, p, error_for_main_stuck, error_for_main_stuck_time)
         message_type = message["kind"]::String
         if message_type == "GATHER"
             # Receive gather
             value_id = message["value_id"]::ValueId
-            contents = message["contents"]::String
-            if !haskey(partial_gathers, value_id)
-                partial_gathers[value_id] = contents
-            else
-                partial_gathers[value_id] *= contents
+            num_chunks = message["num_chunks"]::Int64
+            num_remaining_chunks = num_chunks - 1
+
+            if is_debug_on()
+                println("Gathering $num_chunks chunk$(num_chunks > 1 ? "s" : "") to client")
             end
-        elseif message_type == "GATHER_END"
-            value_id = message["value_id"]::ValueId
-            contents = get(partial_gathers, value_id, "") * message["contents"]::String
-            if (value_id == "-1")
-                memory_used = message["worker_memory_used"]::Int64
-                if Banyan.INVESTIGATING_MEMORY_USAGE
-                    @show get_session().worker_memory_used
-                    @show memory_used
+            
+            whole_message_contents = if num_chunks > 1
+                partial_messages = fill("", num_chunks)
+                partial_messages[message["chunk_idx"]] = message["contents"]
+                @sync for _ = 1:num_remaining_chunks
+                    @async begin
+                        let partial_message = sqs_receive_next_message(gather_queue, p, nothing, nothing)[1]
+                            chunk_idx = partial_message["chunk_idx"]
+                            partial_messages[chunk_idx] = partial_message["contents"]
+                        end
+                    end
                 end
-                # Note that while the memory usage from offloaded computation does get
-                # reset with each session even if it reuses the same job, we do
-                # recompute the initial available memory every time we start a session
-                # and this should presumably include the offloaded memory usage.
-                get_session().worker_memory_used = get_session().worker_memory_used + memory_used
-                stored_message = from_jl_value_contents(contents)
+                join(partial_messages)
+            else
+                message["contents"]
             end
-            error_for_main_stuck, error_for_main_stuck_time = check_worker_stuck_error(message, error_for_main_stuck, error_for_main_stuck_time) 
+
+            if value_id == "-1"
+                stored_res = from_jl_string(whole_message_contents)
+            end
+
+            error_for_main_stuck, error_for_main_stuck_time = check_worker_stuck_error(value_id, whole_message_contents, error_for_main_stuck, error_for_main_stuck_time)
         elseif (message_type == "EVALUATION_END")
             if message["end"]::Bool == true
-                return stored_message
+                return stored_res
             end
         end
     end

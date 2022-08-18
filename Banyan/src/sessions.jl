@@ -86,7 +86,6 @@ function _start_session(
     store_logs_in_s3::Bool,
     store_logs_on_cluster::Bool,
     log_initialization::Bool,
-    sample_rate::Int64,
     session_name::String,
     files::Vector{String},
     code_files::Vector{String},
@@ -109,7 +108,10 @@ function _start_session(
     no_email::Bool,
     for_running::Bool,
     sessions::Dict{String,Session},
+    sampling_configs::Dict{LocationPath,SamplingConfig}
 )
+    global session_sampling_configs
+
     # Construct parameters for starting session
     cluster_name = if cluster_name == NOTHING_STRING
         running_clusters = get_running_clusters()
@@ -129,7 +131,6 @@ function _start_session(
     session_configuration = Dict{String,Any}(
         "cluster_name" => cluster_name,
         "num_workers" => nworkers,
-        "sample_rate" => sample_rate,
         "release_resources_after" => release_resources_after == -1 ? nothing : release_resources_after,
         "return_logs" => print_logs,
         "store_logs_in_s3" => store_logs_in_s3,
@@ -141,7 +142,8 @@ function _start_session(
         "using_modules" => using_modules,
         "reuse_resources" => !force_update_files,
         "estimate_available_memory" => estimate_available_memory,
-        "language" => "jl"
+        "language" => "jl",
+        "sampling_configs" => sampling_configs_to_jl(sampling_configs)
     )
     if session_name != NOTHING_STRING
         session_configuration["session_name"] = session_name
@@ -173,15 +175,15 @@ function _start_session(
         environment_hash = get_hash(project_toml * manifest_toml * version)
         environment_info["environment_hash"] = environment_hash
         environment_info["project_toml"] = "$(environment_hash)/Project.toml"
-        file_already_in_s3 = isfile(S3Path("s3://$(s3_bucket_name)/$(environment_hash)/Project.toml", config=get_aws_config()))
+        file_already_in_s3 = isfile(S3Path("s3://$(s3_bucket_name)/$(environment_hash)/Project.toml", config=global_aws_config()))
         if !file_already_in_s3
-            s3_put(get_aws_config(), s3_bucket_name, "$(environment_hash)/Project.toml", project_toml)
+            s3_put(global_aws_config(), s3_bucket_name, "$(environment_hash)/Project.toml", project_toml)
         end
         if manifest_toml != ""
             environment_info["manifest_toml"] = "$(environment_hash)/Manifest.toml"
-            file_already_in_s3 = isfile(S3Path("s3://$(s3_bucket_name)/$(environment_hash)/Manifest.toml", config=get_aws_config()))
+            file_already_in_s3 = isfile(S3Path("s3://$(s3_bucket_name)/$(environment_hash)/Manifest.toml", config=global_aws_config()))
             if !file_already_in_s3
-                s3_put(get_aws_config(), s3_bucket_name, "$(environment_hash)/Manifest.toml", manifest_toml)
+                s3_put(global_aws_config(), s3_bucket_name, "$(environment_hash)/Manifest.toml", manifest_toml)
             end
         end
     else
@@ -206,9 +208,9 @@ function _start_session(
 
     # Upload files to S3
     for f in vcat(files, code_files)
-        s3_path = S3Path("s3://$(s3_bucket_name)/$(basename(f))", config=get_aws_config())
+        s3_path = S3Path("s3://$(s3_bucket_name)/$(basename(f))", config=global_aws_config())
         if !isfile(s3_path) || force_update_files
-            s3_put(get_aws_config(), s3_bucket_name, basename(f), load_file(f))
+            s3_put(global_aws_config(), s3_bucket_name, basename(f), load_file(f))
         end
     end
     # TODO: Optimize so that we only upload (and download onto cluster) the files if the filename doesn't already exist
@@ -269,7 +271,6 @@ function _start_session(
         session_id,
         resource_id,
         nworkers,
-        sample_rate,
         organization_id,
         cluster_instance_id,
         not_using_modules,
@@ -279,6 +280,7 @@ function _start_session(
         gather_queue_url=gather_queue_url,
         execution_queue_url=execution_queue_url
     )
+    session_sampling_configs[session_id] = sampling_configs
 
     if !nowait
         wait_for_session(session_id)
@@ -298,7 +300,6 @@ function start_session(;
     store_logs_in_s3::Bool = true,
     store_logs_on_cluster::Bool = false,
     log_initialization::Bool = false,
-    sample_rate::Int64 = nworkers,
     session_name::String = NOTHING_STRING,
     files::Vector{String} = String[],
     code_files::Vector{String} = String[],
@@ -331,6 +332,7 @@ function start_session(;
 
     # Configure
     configure(; kwargs...)
+    configure_sampling(; kwargs...)
     
     current_session_id = _start_session(
         cluster_name,
@@ -340,7 +342,6 @@ function start_session(;
         store_logs_in_s3,
         store_logs_on_cluster,
         log_initialization,
-        sample_rate,
         session_name,
         files,
         code_files,
@@ -362,7 +363,8 @@ function start_session(;
         isnothing(email_when_ready) ? false : email_when_ready,
         isnothing(email_when_ready),
         for_running,
-        sessions
+        sessions,
+        get_sampling_configs()
     )
     current_session_id
 end
@@ -486,7 +488,7 @@ function download_session_logs(session_id::SessionId, cluster_name::String, file
         mkdir(joinpath(homedir(), ".banyan", "logs"))
     end
     filename = !isnothing(filename) ? filename : joinpath(homedir(), ".banyan", "logs", log_file_name)
-    s3_get_file(get_aws_config(), s3_bucket_name, log_file_name, filename)
+    s3_get_file(global_aws_config(), s3_bucket_name, log_file_name, filename)
     @info "Downloaded logs for session with ID $session_id to $filename"
     return filename
 end
@@ -494,10 +496,10 @@ end
 function print_session_logs(session_id, cluster_name, delete_file=true)
     s3_bucket_name = get_cluster_s3_bucket_name(cluster_name)
     log_file_name = "banyan-log-for-session-$(session_id)"
-    logs = s3_get(get_aws_config(), s3_bucket_name, log_file_name)
+    logs = s3_get(global_aws_config(), s3_bucket_name, log_file_name)
     println(String(logs))
     if delete_file
-        s3_delete(get_aws_config(), s3_bucket_name, log_file_name)
+        s3_delete(global_aws_config(), s3_bucket_name, log_file_name)
     end
 end
 
@@ -531,7 +533,7 @@ function get_session_status(session_id::String=get_session_id(); kwargs...)::Str
     end
     response = send_request_get_response(:describe_sessions, params)
     if !haskey(response["sessions"], session_id)
-        @warn "Session with ID $session_id is assumed to still be creating"
+        @warn "Session with ID $session_id is assumed to have just started creating"
         return "creating"
     end
     session_status = response["sessions"][session_id]["status"]
@@ -547,7 +549,7 @@ function get_session_status(session_id::String=get_session_id(); kwargs...)::Str
     session_status
 end
 
-function _wait_for_session(session_id::SessionId=get_session_id(), kwargs...)
+function _wait_for_session(session_id::SessionId=get_session_id(); kwargs...)
     sessions_dict = get_sessions_dict()
     session_status = get_session_status(session_id; kwargs...)
     p = ProgressUnknown("Preparing session with ID $session_id", spinner=true)
@@ -578,7 +580,7 @@ function _wait_for_session(session_id::SessionId=get_session_id(), kwargs...)
     end
 end
 
-function wait_for_session(session_id::SessionId=get_session_id(), kwargs...)
+function wait_for_session(session_id::SessionId=get_session_id(); kwargs...)
     sessions_dict = get_sessions_dict()
     is_session_ready = if haskey(sessions_dict, session_id)
         session_info::Session = sessions_dict[session_id]
@@ -590,7 +592,7 @@ function wait_for_session(session_id::SessionId=get_session_id(), kwargs...)
         false
     end
     if !is_session_ready
-        _wait_for_session(session_id, kwargs...)
+        _wait_for_session(session_id; kwargs...)
     end
 end
 

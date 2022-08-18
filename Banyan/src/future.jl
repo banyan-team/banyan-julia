@@ -4,7 +4,7 @@ mutable struct Future <: AbstractFuture
     value_id::ValueId
     mutated::Bool
     stale::Bool
-    total_memory_usage::Int64
+    sample_memory_usage::Int64
 end
 
 const NOTHING_FUTURE = Future("", nothing, "", false, false, -1)
@@ -12,7 +12,7 @@ Base.isnothing(f::Future) = isempty(f.value_id)
 
 Base.hash(f::Future) = hash(f.value_id)
 
-is_total_memory_usage_known(f::Future) = f.total_memory_usage != -1
+is_sample_memory_usage_known(f::Future) = f.sample_memory_usage != -1
 
 isview(f::AbstractFuture) = false
 

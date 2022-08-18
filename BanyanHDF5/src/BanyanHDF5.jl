@@ -1,6 +1,7 @@
 module BanyanHDF5
 
-using Banyan,
+using Arrow,
+    Banyan,
     BanyanArrays,
     HDF5,
     MPI,

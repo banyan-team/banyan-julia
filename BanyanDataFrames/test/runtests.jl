@@ -74,7 +74,7 @@ function use_data(file_extension, remote_kind, single_file)
             ".$file_extension"
         testing_dataset_s3_path = S3Path(
             "s3://$(get_cluster_s3_bucket_name())/$testing_dataset_s3_name",
-            config = Banyan.get_aws_config(),
+            config = Banyan.global_aws_config(),
         )
 
         # Create the file if not already created

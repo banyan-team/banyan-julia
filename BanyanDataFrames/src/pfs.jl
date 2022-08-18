@@ -196,13 +196,15 @@ function ReadBlockHelper(@nospecialize(format_value))
         end
         
         loc_params_path = loc_params[symbol_path]::String
+        lp = LocationPath(loc_params_path, "arrow", "2")
         balanced = params[symbol_balanced]
-        m_path = loc_name == symbol_Disk ? sync_across(is_main_worker(comm) ? get_meta_path(loc_params_path) : "", comm=comm) : loc_params["meta_path"]::String
-        loc_params = loc_name == symbol_Disk ? (Banyan.deserialize_retry(get_location_path(loc_params_path))::Location).src_parameters : loc_params
+        m_path = "s3/$(banyan_metadata_bucket_name())/$(Banyan.get_metadata_path(lp))"
+        m_tbl = Arrow_Table_retry(m_path)
+        loc_params = loc_name == symbol_Disk ? Dict{String,String}(Arrow.getmetadata(m_tbl)) : loc_params
         if Banyan.INVESTIGATING_BDF_INTERNET_FILE_NOT_FOUND
             @show (m_path, loc_params, get_worker_idx())
         end
-        meta = Arrow_Table_retry(m_path)
+        # meta = Arrow_Table_retry(m_path)
         filtering_op = get(params, symbol_filtering_op, identity)
 
         # Handle multi-file tabular datasets
@@ -216,12 +218,12 @@ function ReadBlockHelper(@nospecialize(format_value))
         # [1] https://en.wikipedia.org/wiki/First-fit-decreasing_bin_packing
 
         # Initialize
-        meta_nrows = meta.nrows
-        meta_path = meta.path
+        meta_nrows = m_tbl.nrows
+        meta_path = m_tbl.path
         nworkers = get_nworkers(comm)
         npartitions = nbatches * nworkers
         partition_idx = get_partition_idx(batch_idx, nbatches, comm)
-        nrows::Int64 = loc_params[symbol_nrows]::Int64
+        nrows::Int64 = length(meta_nrows)
         rows_per_partition = cld(nrows, npartitions)
         sorting_perm = sortperm(meta_nrows, rev=true)
         files_by_partition = Base.Vector{Int64}[]
@@ -311,7 +313,7 @@ function ReadBlockHelper(@nospecialize(format_value))
             ndfs = 0
             rowsscanned = 0
             files_to_read = []
-            for file in Tables.rows(meta)
+            for file in Tables.rows(m_tbl)
                 path = file[1]
                 path_nrows = file[2]
                 newrowsscanned = rowsscanned + path_nrows
@@ -359,7 +361,7 @@ function ReadBlockHelper(@nospecialize(format_value))
         res = if isempty(dfs)
             # When we construct the location, we store an empty data frame with The
             # correct schema.
-            from_jl_value_contents(loc_params["empty_sample"])
+            from_arrow_string(loc_params["empty_sample"])
         elseif length(dfs) == 1
             dfs[1]
         else
@@ -385,7 +387,7 @@ function WriteHelper(@nospecialize(format_value))
         comm::MPI.Comm,
         loc_name::String,
         loc_params::Dict{String,Any},
-    )
+    )   
         # Get rid of splitting divisions if they were used to split this data into
         # groups
         splitting_divisions = Banyan.get_splitting_divisions()
@@ -398,6 +400,7 @@ function WriteHelper(@nospecialize(format_value))
         # Get path of directory to write to
         is_disk = loc_name == "Disk"
         loc_params_path = loc_params["path"]::String
+        lp = LocationPath(loc_params_path, "arrow", "2")
         path::String = loc_params_path
         if startswith(path, "http://") || startswith(path, "https://")
             error("Writing to http(s):// is not supported")
@@ -481,11 +484,22 @@ function WriteHelper(@nospecialize(format_value))
         # SAMPLE/METADATA COLLECTIOM AND STORAGE #
         ##########################################
 
+        # Get sampling configuration
+        sampling_config = get_sampling_config(lp)
+        sample_rate = sampling_config.rate
+
         # Get paths for reading in metadata and Location
-        tmp_suffix = nbatches > 1 ? ".tmp" : ""
-        m_path = is_main ? get_meta_path(loc_params_path * tmp_suffix) : ""
-        location_path = is_main ? get_location_path(loc_params_path * tmp_suffix) : ""
-        m_path, location_path = sync_across((m_path, location_path), comm=comm)
+        lp_tmp = LocationPath(path, "arrow", "2")
+        # m_path = is_main ? get_meta_path() : ""
+        # location_path = is_main ? get_location_path(loc_params_path * tmp_suffix) : ""
+        # m_path, location_path = sync_across((m_path, location_path), comm=comm)
+        m_dir = "s3/$(banyan_metadata_bucket_name())"
+        s_dir = "s3/$(banyan_samples_bucket_name())"
+        m_path = "$m_dir/$(get_metadata_path(lp_tmp))"
+        s_sample_dir = "$s_dir/$(get_sample_path_prefix(lp_tmp))"
+        mkpath(s_sample_dir)
+        s_path = "$s_sample_dir/$sample_rate"
+        # loc_params = loc_name == symbol_Disk ? Dict{String,String}(Arrow.getmetadata(Arrow.Table(m_path))) : loc_params
 
         # Read in meta path if it's there
         curr_remotepaths, curr_nrows = if nbatches > 1 && batch_idx > 1
@@ -498,31 +512,32 @@ function WriteHelper(@nospecialize(format_value))
 
         # Read in the current location if it's there
         empty_df = DataFrames.DataFrame()
-        curr_location::Location = if nbatches > 1 && batch_idx > 1
-            Banyan.deserialize_retry(location_path)
+        curr_metadata_tbl = if nbatches > 1 && batch_idx > 1
+            Arrow.Table(m_path)
         else
-            LocationSource(
-                "Remote",
-                Dict(
-                    "format" => format_string,
-                    "nrows" => 0,
-                    "path" => loc_params_path,
-                    "meta_path" => m_path,
-                    "empty_sample" => to_jl_value_contents(empty_df)
-                ),
-                0,
-                ExactSample(empty_df, 0)
+            Arrow.Table()
+        end
+        curr_src_parameters = if nbatches > 1 && batch_idx > 1
+            Dict{String,String}(Arrow.getmetadata(curr_metadata_tbl))
+        else
+            Dict(
+                "name" => "Remote",
+                "sample_memory_usage" => "0",
+                "format" => format_string,
+                "nrows" => "0",
+                "path" => loc_params_path,
+                "empty_sample" => to_arrow_string(empty_df),
             )
         end
 
         # Gather # of rows, # of bytes, empty sample, and actual sample
-        nbytes = part_res isa Empty ? 0 : Banyan.total_memory_usage(part_res)
-        sample_rate = get_session().sample_rate
+        nbytes = part_res isa Empty ? 0 : Banyan.sample_memory_usage(part_res)
         sampled_part = (part_res isa Empty || is_disk) ? empty_df : Banyan.get_sample_from_data(part_res, sample_rate, nrows)
         gathered_data =
             gather_across((nrows, nbytes, part_res isa Empty ? part_res : empty(part_res), sampled_part), comm)
         
         # On the main worker, finalize metadata and location info.
+        sample_invalid = false
         if is_main
             # Determine paths and #s of rows for metadata file
             for worker_i in 1:nworkers
@@ -538,48 +553,45 @@ function WriteHelper(@nospecialize(format_value))
             end
 
             # Update the # of bytes
-            total_nrows::Int64 = curr_location.src_parameters["nrows"]
+            total_nrows::Int64 = parse(Int64, curr_src_parameters["nrows"])
+            sample_memory_usage::Int64 = parse(Int64, curr_src_parameters["sample_memory_usage"])
             empty_sample_found = false
             for (new_nrows::Int64, new_nbytes::Int64, empty_part, sampled_part) in gathered_data
                 # Update the total # of rows and the total # of bytes
                 total_nrows += sum(new_nrows)
                 push!(curr_nrows, new_nrows)
-                curr_location.total_memory_usage += new_nbytes
+                sample_memory_usage += new_nbytes
 
                 # Get the empty sample
                 if !empty_sample_found && !(empty_part isa Empty)
-                    curr_location.src_parameters["empty_sample"] = to_jl_value_contents(empty_part)
+                    curr_src_parameters["empty_sample"] = to_arrow_string(empty_part)
                     empty_sample_found = true
                 end
             end
-            curr_location.src_parameters["nrows"] = total_nrows
+            curr_src_parameters["nrows"] = string(total_nrows)
+            curr_src_parameters["sample_memory_usage"] = string(sample_memory_usage)
 
-            # Get the actual sample by concatenating
-            curr_location.sample = if is_disk
-                Sample()
-            else
-                sampled_parts = [gathered[4] for gathered in gathered_data]
-                if batch_idx > 1
-                    push!(sampled_parts, curr_location.sample.value |> seekstart |> Arrow.Table |> DataFrames.DataFrame)
-                end
-                new_sample_value_arrow = IOBuffer()
-                Arrow.write(new_sample_value_arrow, vcat(sampled_parts...), compress=:zstd)
-                Sample(new_sample_value_arrow, curr_location.total_memory_usage)
-            end
-
-            # Determine paths for this batch and gather # of rows
-            Arrow.write(m_path, (path=curr_remotepaths, nrows=curr_nrows), compress=:zstd)
-
-            if !is_disk && batch_idx == nbatches && total_nrows <= get_max_exact_sample_length()
+            if is_disk || sample_memory_usage <= sampling_config.max_num_bytes_exact
                 # If the total # of rows turns out to be inexact then we can simply mark it as
                 # stale so that it can be collected more efficiently later on
                 # We should be able to quickly recompute a more useful sample later
                 # on when we need to use this location.
-                curr_location.sample_invalid = true
+                sample_invalid = true
             end
 
-            # Write out the updated `Location`
-            serialize(location_path, curr_location)
+            # Get the actual sample by concatenating
+            if !sample_invalid
+                sampled_parts = [gathered[4] for gathered in gathered_data]
+                if batch_idx > 1
+                    push!(sampled_parts, Arrow.Table(s_path) |> DataFrames.DataFrame)
+                end
+                Arrow.write(s_path, vcat(sampled_parts...), compress=:zstd)
+            else
+                rm(s_path, force=true, recursive=true)
+            end
+
+            # Determine paths for this batch and gather # of rows
+            Arrow.write(m_path, (path=curr_remotepaths, nrows=curr_nrows); compress=:zstd, metadata=curr_src_parameters)
         end
 
         ###################################
@@ -588,11 +600,15 @@ function WriteHelper(@nospecialize(format_value))
 
         if nbatches > 1 && batch_idx == nbatches
             # Copy over location and meta path
-            actual_meta_path = get_meta_path(loc_params_path)
-            actual_location_path = get_location_path(loc_params_path)
-            if worker_idx == 1
+            actual_meta_path = "s3/$(banyan_metadata_bucket_name())/$(get_metadata_path(lp))"
+            actual_sample_dir = "s3/$(banyan_samples_bucket_name())/$(get_sample_path_prefix(lp))"
+            actual_sample_path = "$actual_sample_dir/$sample_rate"
+            if is_main
                 cp(m_path, actual_meta_path, force=true)
-                cp(location_path, actual_location_path, force=true)
+                if !sample_invalid
+                    mkpath(actual_sample_dir)
+                    cp(s_path, actual_sample_path, force=true)
+                end
             end
 
             # Copy over files to actual location
