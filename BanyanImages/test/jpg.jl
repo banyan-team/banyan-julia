@@ -90,10 +90,12 @@ end
         ("S3", "generator"),
         ("S3", "directory")
     ],
-    max_num_bytes in [0, 100_000_000_000],
-    shuffled in [true, false],
-    nimages in [1, 50],
-    add_channelview in [true, false]
+    (max_num_bytes, nimages, add_channelview) in [
+        (0, 1, false),
+        (0, 50, true),
+        (100_000_000_000, 1, true)
+    ],
+    shuffled in [true, false]
 
     get_organization_id()
     use_session_for_testing(scheduling_config_name = scheduling_config, sample_rate = 20) do

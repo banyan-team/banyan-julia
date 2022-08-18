@@ -90,7 +90,7 @@ function _remote_hdf5_source(lp::LocationPath, loc::Location)
         # aggregate and concatenate it on the main worker
         rand_indices_range = split_len(datalength, worker_idx, nworkers)
         rand_indices = sample_from_range(rand_indices_range, sample_rate)
-        exact_sample_needed = nbytes < sc.max_num_bytes_exact
+        exact_sample_needed = nbytes < sc.max_num_bytes_exact || sc.always_exact
         remaining_colons = Base.fill(Colon(), datandims-1)
         dset_sample_value = if !exact_sample_needed
             samples_on_workers = gather_across(

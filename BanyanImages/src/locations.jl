@@ -308,9 +308,13 @@ function _remote_image_source(lp::LocationPath, loc::Location, remotepath, add_c
     # Read in images on each worker. We need to read in at least one image
     # regardless of whether we want to get the sample or the metadata
     _load_img = add_channelview ? _load_image_and_add_channelview : _load_image
-    first_img = is_main ? (localpaths[1] |> _load_img |> _reshape_image) : nothing
-    exact_sample_needed = is_main ? ((sample_memory_usage(first_img) * length(localpaths)) < sc.max_num_bytes_exact) : false
-    exact_sample_needed = sync_across(exact_sample_needed)
+    first_img = is_main ? (localpaths[1] |> getpath |> _load_img |> _reshape_image) : nothing
+    exact_sample_needed = if sc.always_exact
+        true
+    else
+        esn = is_main ? ((sample_memory_usage(first_img) * length(localpaths)) < sc.max_num_bytes_exact) : false
+        sync_across(esn)
+    end
     need_to_parallelize = nimages >= 10
     total_num_images_to_read_in = if curr_sample_invalid
         exact_sample_needed ? nimages : cld(nimages, sc.rate)
