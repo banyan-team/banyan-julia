@@ -59,14 +59,9 @@ end
 
         df = read_hdf5(p; metadata_invalid=true, invalidate_samples=true)
         sample(df)
-        @show max_num_bytes
-        @show exact_sample
-        @show get_sample_rate(p)
 
         configure_sampling(p; sample_rate=5)
-        @show get_sampling_configs()
         read_hdf5(p)
-        @show get_sampling_configs()
         @test get_sample_rate(p) == 5
         @test has_metadata(p)
         @test has_sample(p)
@@ -77,14 +72,8 @@ end
         @test !has_metadata(p)
         @test !has_sample(p)
 
-        @show get_sample_rate(p)
         df2 = read_hdf5(p)
-        @show Banyan.LocationPath(p)
-        @show get_sampling_configs()
-        @show get_sampling_config(p)
-        @show get_sample_rate(p)
         sample(df2)
-        @show get_sample_rate(p)
         df2 = read_hdf5(p; samples_invalid=true)
         sample(df2)
         @test get_sample_rate(p) == 5
@@ -93,11 +82,9 @@ end
         df2 = read_hdf5(p; metadata_invalid=true)
         sample(df2)
         @test get_sample_rate(p) == 5
-        println("Bad get_sample_rate")
         @test get_sample_rate() == 7
         configure_sampling(sample_rate=7, for_all_locations=true)
         @test get_sample_rate(p) == 5
-        println("Bad get_sample_rate")
         configure_sampling(sample_rate=7, force_new_sample_rate=true, for_all_locations=true)
         @test get_sample_rate(p) == 7
         @test get_sample_rate() == 7
@@ -108,7 +95,6 @@ end
         sample(df2)
         @test has_metadata(p)
         @test has_sample(p)
-        @show get_sample_rate(p)
         configure_sampling(p; always_exact=true)
         sample(df2)
     end

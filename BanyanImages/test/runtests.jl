@@ -107,4 +107,5 @@ finally
     # Destroy jobs to clean up.
     # destroy_all_jobs_for_testing()
     cleanup_s3_test_files(get_cluster_s3_bucket_name(ENV["BANYAN_CLUSTER_NAME"]))
+    end_all_sessions_for_testing()
 end

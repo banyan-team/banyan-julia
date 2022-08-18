@@ -291,8 +291,6 @@ function _partitioned_computation_concrete(fut::Future, destination::Location, n
             if is_debug_on()
                 println("Gathering $num_chunks chunk$(num_chunks > 1 ? "s" : "") to client")
             end
-
-            @show num_chunks
             
             whole_message_contents = if num_chunks > 1
                 partial_messages = Vector{String}(undef, num_chunks)
@@ -301,11 +299,9 @@ function _partitioned_computation_concrete(fut::Future, destination::Location, n
                     @async begin
                         partial_message, _ = sqs_receive_next_message(gather_queue, p, nothing, nothing)
                         chunk_idx = partial_message["chunk_idx"]
-                        @show chunk_idx
                         partial_messages[chunk_idx] = partial_message["contents"]
                     end
                 end
-                @show length.(partial_messages)
                 join(partial_messages)
             else
                 message["contents"]
@@ -717,32 +713,15 @@ function offloaded(given_function::Function, args...; distributed::Bool = false)
                 println("Gathering $num_chunks chunk$(num_chunks > 1 ? "s" : "") to client")
             end
             
-            @show num_chunks
-            
             whole_message_contents = if num_chunks > 1
                 partial_messages = fill("", num_chunks)
                 partial_messages[message["chunk_idx"]] = message["contents"]
-                @show message["chunk_idx"]
                 @sync for _ = 1:num_remaining_chunks
                     @async begin
                         let partial_message = sqs_receive_next_message(gather_queue, p, nothing, nothing)[1]
                             chunk_idx = partial_message["chunk_idx"]
                             partial_messages[chunk_idx] = partial_message["contents"]
-                            @show chunk_idx
-                            @show length(partial_message["contents"])
-                            @show partial_message["contents_length"]
-                            @show length(partial_messages[chunk_idx])
-                            @show last(partial_message["contents"], 20)
-                            @show last(partial_messages[chunk_idx], 20)
-                            @show length.(partial_messages)
                         end
-                    end
-                end
-                # TODO: Fix this so that it gets the partial messages which are different lengths
-                @show length.(partial_messages)
-                for (i, pm) in enumerate(partial_messages)
-                    if i > 1
-                        println("pm == partial_messages[i-1] = $(pm == partial_messages[i-1])")
                     end
                 end
                 join(partial_messages)

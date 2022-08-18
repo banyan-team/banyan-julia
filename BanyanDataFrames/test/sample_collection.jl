@@ -101,19 +101,12 @@ end
 
         p1 = "s3://$(bucket)/iris_large.$format"
         p2 = "s3://$(bucket)/iris_large_tmp.$format"
-        println("has_sample(p2)=$(has_sample(p2)) after invalidation")
 
         df = read_table(p1; metadata_invalid=true, invalidate_samples=true)
         sample(df)
-        @show max_num_bytes
-        @show exact_sample
-        @show get_sample_rate(p1)
 
         configure_sampling(p2; sample_rate=5)
-        println("Before write_table")
-        @show get_sampling_configs()
         write_table(df, p2)
-        @show get_sampling_configs()
         @test get_sample_rate(p2) == 5
         @test has_metadata(p2)
         # NOTE: We don't compute _exact_ samples on writing
@@ -125,21 +118,13 @@ end
         @test !has_metadata(p2)
         @test !has_sample(p2)
 
-        @show get_sample_rate(p2)
         df2 = read_table(p2)
-        @show Banyan.LocationPath(p2)
-        @show get_sampling_configs()
-        @show get_sampling_config(p2)
-        @show get_sample_rate(p2)
         sample(df2)
-        @show get_sample_rate(p2)
         df2 = read_table(p2; samples_invalid=true)
         sample(df2)
         @test get_sample_rate(p2) == 5
-        println("After bad get_sample_rate")
         configure_sampling(sample_rate=7, for_all_locations=true)
         @test get_sample_rate(p2) == 5
-        println("After bad get_sample_rate")
         df2 = read_table(p2; metadata_invalid=true)
         sample(df2)
         @test get_sample_rate(p2) == 5
@@ -156,7 +141,6 @@ end
         sample(df2)
         @test has_metadata(p2)
         @test has_sample(p2)
-        @show get_sample_rate(p2)
         configure_sampling(p2; always_exact=true)
         sample(df2)
     end

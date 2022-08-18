@@ -303,7 +303,6 @@ function invalidate_metadata(p; kwargs...)
     end
 
     # Delete from S3
-    println("Deleting get_metadata_path(lp)=$(get_metadata_path(lp))")
     s3p = S3Path("s3://$(banyan_metadata_bucket_name())/$(get_metadata_path(lp))")
     if isfile(s3p)
         rm(s3p)
@@ -325,16 +324,9 @@ function invalidate_samples(p; kwargs...)
 
     # Delete from S3
     s3p = S3Path("s3://$(banyan_samples_bucket_name())/$sample_path_prefix")
-    @show readdir_no_error(s3p)
-    @show s3p
-    @show path_as_dir(s3p)
-    @show readdir(S3Path("s3://$(banyan_samples_bucket_name())"))
     if !isempty(readdir_no_error(s3p))
         rm(path_as_dir(s3p), recursive=true)
     end
-    @show readdir_no_error(s3p)
-    @show s3p
-    @show readdir(S3Path("s3://$(banyan_samples_bucket_name())"))
 end
 function invalidate_location(p; kwargs...)
     invalidate_metadata(p; kwargs...)
@@ -432,13 +424,6 @@ function RemoteSource(
     # Look at local and S3 caches of metadata and samples to attempt to
     # construct a Location.
     loc, local_metadata_path, local_sample_path = get_location_source(lp)
-    let banyan_samples_object_dir = S3Path("s3://banyan-samples-75c0f7151604587a83055278b28db83b/15117355623592221474_jl_1.8.0-beta3")
-        println("Before get_location_source with readdir_no_error(banyan_samples_object_dir)=$(readdir_no_error(banyan_samples_object_dir)) and loc.metadata_invalid=$(loc.metadata_invalid) and loc.sample_invalid=$(loc.sample_invalid)")
-    end
-    @show lp
-    @show get_sampling_configs()
-    @show local_sample_path
-    @show loc
 
     res = if !loc.metadata_invalid && !loc.sample_invalid
         # Case where both sample and parameters are valid
@@ -447,21 +432,8 @@ function RemoteSource(
         loc
     elseif loc.metadata_invalid && !loc.sample_invalid
         # Case where parameters are invalid
-        let banyan_samples_object_dir = S3Path("s3://banyan-samples-75c0f7151604587a83055278b28db83b/15117355623592221474_jl_1.8.0-beta3")
-            println("Before offloaded with readdir_no_error(banyan_samples_object_dir)=$(readdir_no_error(banyan_samples_object_dir))")
-        end
-        let banyan_samples_bucket = S3Path("s3://banyan-samples-75c0f7151604587a83055278b28db83b")
-            println("Before offloaded with readdir_no_error(banyan_samples_bucket)=$(readdir_no_error(banyan_samples_bucket))")
-        end
         new_loc = offloaded(_remote_source, lp, loc, args...; distributed=true)
-        let banyan_samples_object_dir = S3Path("s3://banyan-samples-75c0f7151604587a83055278b28db83b/15117355623592221474_jl_1.8.0-beta3")
-            println("After offloaded with readdir_no_error(banyan_samples_object_dir)=$(readdir_no_error(banyan_samples_object_dir))")
-        end
-        let banyan_samples_bucket = S3Path("s3://banyan-samples-75c0f7151604587a83055278b28db83b")
-            println("After offloaded with readdir_no_error(banyan_samples_bucket)=$(readdir_no_error(banyan_samples_bucket))")
-        end
         Arrow.write(local_metadata_path, Arrow.Table(); metadata=new_loc.src_parameters)
-        @show new_loc
         new_loc.sample.value = load_sample(local_sample_path)
         new_loc
     else
@@ -469,7 +441,6 @@ function RemoteSource(
 
         # Get the Location with up-to-date metadata (source parameters) and sample
         new_loc = offloaded(_remote_source, lp, loc, args...; distributed=true)
-        @show new_loc
 
         if !loc.metadata_invalid
             # Store the metadata locally. The local copy just has the source
@@ -483,9 +454,6 @@ function RemoteSource(
         new_loc.sample.value = load_sample_after_offloaded(new_loc.sample.value)
         
         new_loc
-    end
-    let banyan_samples_object_dir = S3Path("s3://banyan-samples-75c0f7151604587a83055278b28db83b/15117355623592221474_jl_1.8.0-beta3")
-        println("At end of RemoteSource with readdir_no_error(banyan_samples_object_dir)=$(readdir_no_error(banyan_samples_object_dir))")
     end
     res
 end

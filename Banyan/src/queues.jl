@@ -32,8 +32,6 @@ function get_next_message(
         end
     end
     m_dict = m["ReceiveMessageResult"]["Message"]
-    @show m_dict["MessageId"]
-    @show m_dict["ReceiptHandle"]
     if delete
         SQS.delete_message(queue_url, m_dict["ReceiptHandle"]::String)
     end
@@ -150,16 +148,9 @@ function send_to_client(value_id::ValueId, value, worker_memory_used = 0)
         end
     end
 
-    for (i, pm) in enumerate(message_ranges)
-        if i > 1
-            println("pm == partial_messages[i-1] = $(message[pm] == message[message_ranges[i-1]])")
-        end
-    end
-
     # Launch asynchronous threads to send SQS messages
     gather_q_url = gather_queue_url()
     num_chunks = length(message_ranges)
-    @show num_chunks
     if num_chunks > 1
         @sync for i = 1:num_chunks
             @async begin
@@ -181,9 +172,6 @@ function send_to_client(value_id::ValueId, value, worker_memory_used = 0)
                         "MessageDeduplicationId" => generated_message_id * string(i)
                     )
                 )
-                @show i
-                @show message_ranges[i]
-                @show length(message[message_ranges[i]])
             end
         end
     else

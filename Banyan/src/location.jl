@@ -120,7 +120,6 @@ function parse_sample_rate(object_key)
 end
 function get_sample_rate(l_path::LocationPath)
     sc = get_sampling_config(l_path)
-    @show sc
 
     # Get the desired sample rate
     desired_sample_rate = sc.rate
@@ -138,9 +137,6 @@ function get_sample_rate(l_path::LocationPath)
     banyan_samples_bucket = S3Path("s3://$(banyan_samples_bucket_name())")
     banyan_samples_object_dir = joinpath(banyan_samples_bucket, get_sample_path_prefix(l_path))
     sample_rate = -1
-    @show banyan_samples_object_dir
-    @show readdir(banyan_samples_bucket)
-    @show readdir_no_error(banyan_samples_object_dir)
     for object_key in readdir_no_error(banyan_samples_object_dir)
         object_sample_rate = parse(Int64, object_key)
         object_sample_rate_diff = abs(object_sample_rate - desired_sample_rate)
@@ -157,7 +153,6 @@ end
 has_metadata(p=""; kwargs...) =
     has_metadata(LocationPath(p; kwargs...))
 function has_metadata(l_path:: LocationPath)::Bool
-    println("In has_metadata, checking get_metadata_path(l_path)=$(get_metadata_path(l_path)) and banyan_metadata_bucket_name()=$(banyan_metadata_bucket_name())")
     isfile(S3Path("s3://$(banyan_metadata_bucket_name())/$(get_metadata_path(l_path))"))
 end
 
@@ -166,20 +161,6 @@ has_sample(p=""; kwargs...) =
 function has_sample(l_path:: LocationPath)::Bool
     sc = get_sampling_config(l_path)
     banyan_sample_dir = S3Path("s3://$(banyan_samples_bucket_name())/$(get_sample_path_prefix(l_path))")
-    println("In has_sample")
-    @show sc
-    @show sc.force_new_sample_rate
-    @show joinpath(banyan_sample_dir, string(sc.rate))
-    @show isdir_no_error(banyan_sample_dir)
-    @show isdir_no_error(banyan_sample_dir) && !isempty(readdir(banyan_sample_dir))
-    @show readdir(Banyan.AWSS3.S3Path("s3://banyan-samples-75c0f7151604587a83055278b28db83b/"))
-    @show isdir(Banyan.AWSS3.S3Path("s3://banyan-samples-75c0f7151604587a83055278b28db83b/17268367127015750092_arrow_2"))
-    @show isdir(Banyan.AWSS3.S3Path("s3://banyan-samples-75c0f7151604587a83055278b28db83b/17268367127015750092_arrow_2/"))
-    @show isdir_no_error(Banyan.AWSS3.S3Path("s3://banyan-samples-75c0f7151604587a83055278b28db83b/17268367127015750092_arrow_2"))
-    @show isdir_no_error(Banyan.AWSS3.S3Path("s3://banyan-samples-75c0f7151604587a83055278b28db83b/17268367127015750092_arr/"))
-    @show isdir_no_error(Banyan.AWSS3.S3Path("s3://banyan-samples-75c0f7151604587a83055278b28db83b/17268367127015750092_arrow_200/"))
-    @show banyan_sample_dir
-    @show readdir_no_error(banyan_sample_dir)
     if sc.force_new_sample_rate
         isfile(joinpath(banyan_sample_dir, string(sc.rate)))
     else
@@ -322,8 +303,6 @@ function get_location_source(lp::LocationPath)::Tuple{Location,String,String}
             "$(dayabbr(lm)), $(twodigit(day(lm))) $(monthabbr(lm)) $(year(lm)) $(twodigit(hour(lm))):$(twodigit(minute(lm))):$(twodigit(second(lm))) GMT"
         sample_s3_path = "/$(banyan_samples_bucket_name())/$sample_path_prefix/$sample_rate"
         try
-            @show sample_local_path
-            @show sample_s3_path
             blob = s3("GET", sample_s3_path, Dict("headers" => Dict("If-Modified-Since" => if_modified_since_string)))
             write(sample_local_path, seekstart(blob.io))  # This overwrites the existing file
             final_local_sample_path = sample_local_path
@@ -352,7 +331,6 @@ function get_location_source(lp::LocationPath)::Tuple{Location,String,String}
     banyan_samples_object_dir = joinpath(banyan_samples_bucket, sample_path_prefix)
     if isempty(final_local_sample_path)
         final_sample_rate = -1
-        @show readdir_no_error(banyan_samples_object_dir)
         for object_key in readdir_no_error(banyan_samples_object_dir)
             object_sample_rate = parse(Int64, object_key)
             object_sample_rate_diff = abs(object_sample_rate - desired_sample_rate)
@@ -372,7 +350,6 @@ function get_location_source(lp::LocationPath)::Tuple{Location,String,String}
                 Path(final_local_sample_path)
             )
         end
-        @show readdir_no_error(banyan_samples_object_dir)
     end
     
     # Construct and return LocationSource
@@ -384,15 +361,7 @@ function get_location_source(lp::LocationPath)::Tuple{Location,String,String}
     )
     res_location.metadata_invalid = isempty(src_params)
     res_location.sample_invalid = isempty(final_local_sample_path)
-    @show res_location
-    @show final_sample_rate
-    @show final_local_sample_path
     final_sample_rate = isempty(final_local_sample_path) ? desired_sample_rate : final_sample_rate
-    @show desired_sample_rate
-    @show sample_local_dir
-    @show readdir(sample_local_dir)
-    println("At end of get_location_source with readdir_no_error(banyan_samples_object_dir)=$(readdir_no_error(banyan_samples_object_dir))")
-    
     (
         res_location,
         metadata_local_path,

@@ -195,7 +195,6 @@ function _get_clusters(cluster_name::String)::Dict{String,Cluster}
     if !isempty(cluster_name)
         filters["cluster_name"] = cluster_name
     end
-    @show filters
     response = send_request_get_response(:describe_clusters, Dict{String,Any}("filters"=>filters))
     clusters_dict::Dict{String,Cluster} = Dict{String,Cluster}()
     for (name::String, c::Dict{String,Any}) in response["clusters"]::Dict{String,Any}

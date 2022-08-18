@@ -85,15 +85,14 @@ end
         "parallelism encouraged",
         "parallelism and batches encouraged",
     ],
-    (loc, format) in [
-        ("Internet", "generator"),
-        ("S3", "generator"),
-        ("S3", "directory")
-    ],
-    (max_num_bytes, nimages, add_channelview) in [
-        (0, 1, false),
-        (0, 50, true),
-        (100_000_000_000, 1, true)
+    (loc, format, max_num_bytes, nimages, add_channelview) in [
+        ("Internet", "generator", 0, 1, false),
+        ("Internet", "generator", 0, 50, true),
+        ("Internet", "generator", 100_000_000_000, 1, true),
+        ("S3", "generator", 100_000_000_000, 1, true),
+        ("S3", "directory", 0, 1, false),
+        ("S3", "directory", 0, 50, true),
+        ("S3", "directory", 100_000_000_000, 1, true)
     ],
     shuffled in [true, false]
 
@@ -109,14 +108,9 @@ end
 
         df = read_jpg(p; add_channelview=add_channelview, metadata_invalid=true, invalidate_samples=true)
         sample(df)
-        @show max_num_bytes
-        @show exact_sample
-        @show get_sample_rate(p; add_channelview=add_channelview)
 
         configure_sampling(p; sample_rate=50)
-        @show get_sampling_configs()
         read_jpg(p; add_channelview=add_channelview)
-        @show get_sampling_configs()
         @test get_sample_rate(p; add_channelview=add_channelview) == 50
         @test has_metadata(p; add_channelview=add_channelview)
         @test has_sample(p; add_channelview=add_channelview)
@@ -127,14 +121,8 @@ end
         @test !has_metadata(p; add_channelview=add_channelview)
         @test !has_sample(p; add_channelview=add_channelview)
 
-        @show get_sample_rate(p; add_channelview=add_channelview)
         df2 = read_jpg(p; add_channelview=add_channelview)
-        @show Banyan.LocationPath(p; add_channelview=add_channelview)
-        @show get_sampling_configs()
-        @show get_sampling_config(p; add_channelview=add_channelview)
-        @show get_sample_rate(p; add_channelview=add_channelview)
         sample(df2)
-        @show get_sample_rate(p; add_channelview=add_channelview)
         df2 = read_jpg(p; add_channelview=add_channelview, samples_invalid=true)
         sample(df2)
         @test get_sample_rate(p; add_channelview=add_channelview) == 50
@@ -143,11 +131,9 @@ end
         df2 = read_jpg(p; add_channelview=add_channelview, metadata_invalid=true)
         sample(df2)
         @test get_sample_rate(p; add_channelview=add_channelview) == 50
-        println("Bad get_sample_rate")
         @test get_sample_rate() == 75
         configure_sampling(sample_rate=75, for_all_locations=true)
         @test get_sample_rate(p; add_channelview=add_channelview) == 50
-        println("Bad get_sample_rate")
         configure_sampling(sample_rate=75, force_new_sample_rate=true, for_all_locations=true)
         @test get_sample_rate(p; add_channelview=add_channelview) == 75
         @test get_sample_rate() == 75
@@ -158,7 +144,6 @@ end
         sample(df2)
         @test has_metadata(p; add_channelview=add_channelview)
         @test has_sample(p; add_channelview=add_channelview)
-        @show get_sample_rate(p; add_channelview=add_channelview)
         configure_sampling(p; add_channelview=add_channelview, always_exact=true)
         sample(df2)
     end

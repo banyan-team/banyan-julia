@@ -4,11 +4,6 @@ Arrow_Table_retry = retry(Arrow.Table; delays=Base.ExponentialBackOff(; n=5))
 
 function _remote_table_source(lp::LocationPath, loc::Location)::Location
     sampling_config = get_sampling_config(lp)
-    metadata_dir = readdir("s3/banyan-metadata-75c0f7151604587a83055278b28db83b")
-    metadata_bucket_dir = let s3_res = Banyan.S3.list_objects_v2("banyan-metadata-75c0f7151604587a83055278b28db83b")
-        haskey(s3_res, "Contents") ? s3_res["Contents"] : []
-    end
-    println("In _remote_table_source at start with metadata_dir=$metadata_dir, metadata_bucket_dir=$metadata_bucket_dir")
 
     # Setup for sampling
     remotepath = lp.path
@@ -32,7 +27,6 @@ function _remote_table_source(lp::LocationPath, loc::Location)::Location
     sample_dir = "s3/$(banyan_samples_bucket_name())/$(get_sample_path_prefix(lp))"
     mkpath(sample_dir)
     sample_path = "$sample_dir/$sample_rate"
-    println("In _remote_table_source at start with readdir_no_error(sample_dir)=$(readdir_no_error(sample_dir))")
 
     # Get metadata if it is still valid
     curr_meta::Arrow.Table = if !curr_metadata_invalid
@@ -348,12 +342,6 @@ function _remote_table_source(lp::LocationPath, loc::Location)::Location
     # If a file does not exist, one of the get_metadata/get_sample functions
     # will error.
 
-    metadata_dir = readdir("s3/banyan-metadata-75c0f7151604587a83055278b28db83b")
-    metadata_bucket_dir = let s3_res = Banyan.S3.list_objects_v2("banyan-metadata-75c0f7151604587a83055278b28db83b")
-        haskey(s3_res, "Contents") ? s3_res["Contents"] : []
-    end
-    println("In _remote_table_source at end with metadata_dir=$metadata_dir and metadata_bucket_dir=$metadata_bucket_dir and metadata_path=$metadata_path and curr_metadata_invalid=$curr_metadata_invalid")
-
     # Get source parameters
     src_params =
         Dict(
@@ -382,7 +370,6 @@ function _remote_table_source(lp::LocationPath, loc::Location)::Location
             )
         end
 
-        println("In _remote_table_source with curr_sample_invalid=$curr_sample_invalid for writing to $sample_path and readdir_no_error(sample_dir)=$(readdir_no_error(sample_dir))")
         # Write the sample to S3 cache if previously invalid
         if curr_sample_invalid
             write(sample_path, remote_sample.value)
@@ -391,8 +378,6 @@ function _remote_table_source(lp::LocationPath, loc::Location)::Location
         if Banyan.INVESTIGATING_BDF_INTERNET_FILE_NOT_FOUND
             @show (remotepath, meta_path)
         end
-
-        # println("At end of _remote_table_source on get_worker_idx()=$(MPI.Initialized() ? get_worker_idx() : -1)")
 
         # Return LocationSource to client specified
 

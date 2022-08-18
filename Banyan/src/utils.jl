@@ -610,8 +610,6 @@ TYPE_TO_STR =
 STR_TO_TYPE = invert(TYPE_TO_STR)
 
 function type_to_str(ty::DataType)::String
-    @show ty
-    @show TYPE_TO_STR
     global TYPE_TO_STR
     if haskey(TYPE_TO_STR, ty)
         TYPE_TO_STR[ty]
@@ -621,8 +619,6 @@ function type_to_str(ty::DataType)::String
 end
 
 function type_from_str(s::String)
-    @show s
-    @show STR_TO_TYPE
     if startswith(s, "lang_")
         if startswith(s, "lang_jl_")
             from_jl_string(s[9:end])
