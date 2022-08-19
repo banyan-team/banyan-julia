@@ -319,9 +319,12 @@ function start_session_with_cluster(
     cluster_name::String, c::Cluster = if cluster_name == NOTHING_STRING
         running_clusters = get_running_clusters()
         if isempty(running_clusters)
+            # If the user is not separately creating a cluster, we should
+            # by default destroy it after 12 hours.
             new_c = create_cluster(;
                 nowait=false,
                 initial_num_workers=nworkers,
+                destroy_after=(12 * 60)
                 kwargs...
             )
             new_c.cluster_name, new_c
@@ -337,6 +340,7 @@ function start_session_with_cluster(
                 cluster_name=cluster_name,
                 nowait=false,
                 initial_num_workers=nworkers,
+                destroy_after=(12 * 60),
                 kwargs...
             )
         end

@@ -36,6 +36,7 @@ function create_cluster(;
     subnet_id = nothing,
     nowait=false,
     force_create=false,
+    destroy_cluster_after = -1,
     kwargs...,
 )
 
@@ -95,7 +96,8 @@ function create_cluster(;
         # by size of 1 GiB and then round up. Then the backend will determine how to adjust the
         # disk capacity to an allowable increment (e.g., 1200 GiB or an increment of 2400 GiB
         # for AWS FSx Lustre filesystems)
-        "disk_capacity" => disk_capacity == "auto" ? -1 : ceil(Int64, parse_bytes(disk_capacity) / 1.073741824e7)
+        "disk_capacity" => disk_capacity == "auto" ? -1 : ceil(Int64, parse_bytes(disk_capacity) / 1.073741824e7),
+        "destroy_cluster_after" => destroy_cluster_after
     )
     if haskey(c["aws"], "ec2_key_pair_name")
         cluster_config["ec2_key_pair"] = c["aws"]["ec2_key_pair_name"]
