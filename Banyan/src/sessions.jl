@@ -80,6 +80,7 @@ const NOTHING_STRING = "NOTHING_STRING"
 
 function _start_session(
     cluster_name::String,
+    c::Cluster,
     nworkers::Int64,
     release_resources_after::Integer,
     print_logs::Bool,
@@ -112,17 +113,6 @@ function _start_session(
 )
     global session_sampling_configs
 
-    # Construct parameters for starting session
-    cluster_name = if cluster_name == NOTHING_STRING
-        running_clusters = get_running_clusters()
-        if length(running_clusters) == 0
-            error("Failed to start session: you don't have any clusters created")
-        end
-        first(keys(running_clusters))
-    else
-        cluster_name
-    end
-
     version = get_julia_version()
 
     not_in_modules = m -> !(m in not_using_modules)
@@ -151,7 +141,7 @@ function _start_session(
     if !no_email
         session_configuration["email_when_ready"] = email_when_ready
     end
-    c::Cluster = get_cluster(cluster_name)
+    
     s3_bucket_name = s3_bucket_arn_to_name(c.s3_bucket_arn)
     organization_id = c.organization_id
     curr_cluster_instance_id = c.curr_cluster_instance_id
@@ -292,9 +282,105 @@ function _start_session(
     session_id
 end
 
+function start_session_with_cluster(
+    cluster_name::String,
+    nworkers::Int64,
+    release_resources_after::Integer,
+    print_logs::Bool,
+    store_logs_in_s3::Bool,
+    store_logs_on_cluster::Bool,
+    log_initialization::Bool,
+    session_name::String,
+    files::Vector{String},
+    code_files::Vector{String},
+    force_update_files::Bool,
+    pf_dispatch_table::Vector{String},
+    no_pf_dispatch_table::Bool,
+    using_modules::Vector{String},
+    # We currently can't use modules that require GUI
+    not_using_modules::Vector{String},
+    url::String,
+    branch::String,
+    directory::String,
+    dev_paths::Vector{String},
+    force_sync::Bool,
+    force_pull::Bool,
+    force_install::Bool,
+    estimate_available_memory::Bool,
+    nowait::Bool,
+    email_when_ready::Bool,
+    no_email::Bool,
+    for_running::Bool,
+    sessions::Dict{String,Session},
+    sampling_configs::Dict{LocationPath,SamplingConfig},
+    kwargs...
+)
+    # Construct parameters for starting session
+    cluster_name::String, c::Cluster = if cluster_name == NOTHING_STRING
+        running_clusters = get_running_clusters()
+        if isempty(running_clusters)
+            new_c = create_cluster(;
+                nowait=false,
+                initial_num_workers=nworkers,
+                kwargs...
+            )
+            new_c.cluster_name, new_c
+        else
+            first(running_clusters)
+        end
+    else
+        c_dict::Dict{String,Cluster} = get_running_clusters(cluster_name)
+        cluster_name, if haskey(c_dict, cluster_name)
+            c_dict[cluster_name]
+        else
+            create_cluster(;
+                cluster_name=cluster_name,
+                nowait=false,
+                initial_num_workers=nworkers,
+                kwargs...
+            )
+        end
+    end
+
+    _start_session(
+        cluster_name::String,
+        c::Cluster,
+        nworkers::Int64,
+        release_resources_after::Integer,
+        print_logs::Bool,
+        store_logs_in_s3::Bool,
+        store_logs_on_cluster::Bool,
+        log_initialization::Bool,
+        session_name::String,
+        files::Vector{String},
+        code_files::Vector{String},
+        force_update_files::Bool,
+        pf_dispatch_table::Vector{String},
+        no_pf_dispatch_table::Bool,
+        using_modules::Vector{String},
+        # We currently can't use modules that require GUI
+        not_using_modules::Vector{String},
+        url::String,
+        branch::String,
+        directory::String,
+        dev_paths::Vector{String},
+        force_sync::Bool,
+        force_pull::Bool,
+        force_install::Bool,
+        estimate_available_memory::Bool,
+        nowait::Bool,
+        email_when_ready::Bool,
+        no_email::Bool,
+        for_running::Bool,
+        sessions::Dict{String,Session},
+        sampling_configs::Dict{LocationPath,SamplingConfig}
+    )
+end
+
 function start_session(;
     cluster_name::String = NOTHING_STRING,
-    nworkers::Int64 = 16,
+    # Default 100x speedup
+    nworkers::Int64 = 150,
     release_resources_after::Union{Integer,Nothing} = 20,
     print_logs::Bool = false,
     store_logs_in_s3::Bool = true,
@@ -334,7 +420,7 @@ function start_session(;
     configure(; kwargs...)
     configure_sampling(; kwargs...)
     
-    current_session_id = _start_session(
+    current_session_id = start_session_with_cluster(
         cluster_name,
         nworkers,
         isnothing(release_resources_after) ? -1 : release_resources_after,
@@ -364,7 +450,8 @@ function start_session(;
         isnothing(email_when_ready),
         for_running,
         sessions,
-        get_sampling_configs()
+        get_sampling_configs(),
+        kwargs...
     )
     current_session_id
 end
