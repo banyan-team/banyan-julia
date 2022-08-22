@@ -854,7 +854,6 @@ end
 function wait_for_session(session_id::SessionId=get_session_id(), show_progress=true; kwargs...)
     global start_session_tasks
     sessions_dict = get_sessions_dict()
-
     if haskey(start_session_tasks, session_id)
         get_session(session_id, show_progress)
     else
