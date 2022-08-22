@@ -236,7 +236,7 @@ function _partitioned_computation_concrete(fut::Future, destination::Location, n
     # There are two cases: either we
     # TODO: Maybe we don't need to wait_For_session
 
-    # There is a problem where we start a session with nowait=true and then it
+    # There is a problem where we start a session with wait_now=false and then it
     # reuses a resource that is in a creating state. Since the session is still
     # creating and we have not yet waited for it to start, if we have
     # `estimate_available_memory=false` then we will end up with job info not
@@ -524,7 +524,7 @@ end
 function send_evaluation(value_id::ValueId, session_id::SessionId)
     # First we ensure that the session is ready. This way, we can get a good
     # estimate of available worker memory before calling evaluate.
-    wait_for_session(session_id)
+    session = get_session(session_id)
 
     encourage_parallelism = get_encourage_parallelism()
     encourage_parallelism_with_batches = get_encourage_parallelism_with_batches()
@@ -690,12 +690,11 @@ function offloaded(given_function::Function, args...; distributed::Bool = false)
 
     # We must wait for session because otherwise we will slurp up the session
     # ready message on the gather queue.
-    wait_for_session(session_id)
+    session = get_session(session_id)
 
     # job_id = Banyan.get_job_id()
     p = ProgressUnknown("Running offloaded code", spinner=true)
     
-    session = get_session()
     gather_queue = gather_queue_url()
     stored_res = nothing
     error_for_main_stuck, error_for_main_stuck_time = nothing, nothing

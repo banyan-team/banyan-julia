@@ -1,5 +1,6 @@
 function configure_sampling(
     path="";
+    nworkers=nothing,
     sample_rate=nothing,
     always_exact=nothing,
     max_num_bytes_exact=nothing,
@@ -13,7 +14,7 @@ function configure_sampling(
 
     sc = default ? DEFAULT_SAMPLING_CONFIG : get_sampling_config(path; kwargs...)
     nsc = SamplingConfig(
-        (!isnothing(sample_rate)) ? sample_rate : sc.rate,
+        (!isnothing(sample_rate)) ? sample_rate : (!isnothing(nworkers) ? (nworkers * 8) : sc.rate),
         (!isnothing(always_exact)) ? always_exact : sc.always_exact,
         (!isnothing(max_num_bytes_exact)) ? max_num_bytes_exact : sc.max_num_bytes_exact,
         (!isnothing(force_new_sample_rate)) ? force_new_sample_rate : sc.force_new_sample_rate,

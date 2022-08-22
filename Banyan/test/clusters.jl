@@ -63,7 +63,7 @@ end
         name=cluster_name,
         instance_type="t3.large",
         s3_bucket_name=s3_bucket,
-        nowait=true
+        wait_now=false
     )
     sleep(30) # Just to ensure that cluster creation has initiated
     s3_bucket_name = get_cluster_s3_bucket_name(cluster_name)
@@ -85,7 +85,7 @@ end
     end
     c_r = create_cluster(
         name=cluster_name,
-        nowait=true
+        wait_now=false
     )
     s3_bucket_name_r = get_cluster_s3_bucket_name(cluster_name)
     s3_bucket_exists = bucket_exists(s3_bucket_name_r)
@@ -99,7 +99,7 @@ end
     @test !s3_bucket_exists
 
     # Check that the cluster cannot be created again
-    @test_throws ErrorException create_cluster(name=cluster_name, nowait=true)
+    @test_throws ErrorException create_cluster(name=cluster_name, wait_now=false)
 end
 
 @testset "Benchmark create_cluster with $instance_type instance type" for instance_type in [

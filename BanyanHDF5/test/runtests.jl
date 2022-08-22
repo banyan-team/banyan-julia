@@ -30,6 +30,7 @@ function use_session_for_testing(
 
     # Set the session and create a new one if needed
     global sessions_for_testing
+    println("sessions_for_testing=$(sessions_for_testing)")
     set_session(
         if haskey(sessions_for_testing, session_config_hash)
             sessions_for_testing[session_config_hash]
@@ -69,6 +70,7 @@ function use_session_for_testing(
     )
     # If selected session has already failed, this will throw an error.
     sessions_for_testing[session_config_hash] = get_session_id()
+    println("Set sessions_for_testing[session_config_hash] to get_session_id() for $(sessions_for_testing[session_config_hash])")
 
     configure_scheduling(name = scheduling_config_name)
 

@@ -16,8 +16,6 @@ end
 function use_session_for_testing(
     f::Function;
     nworkers = parse(Int64, get(ENV, "BANYAN_NWORKERS", "2")),
-    sample_rate = 2,
-    nworkers = 2,
     scheduling_config_name = "default scheduling",
 )
     haskey(ENV, "BANYAN_CLUSTER_NAME") || error(

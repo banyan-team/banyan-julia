@@ -34,9 +34,10 @@ function create_cluster(;
     region = nothing,
     vpc_id = nothing,
     subnet_id = nothing,
-    nowait=false,
+    wait_now=true,
     force_create=false,
     destroy_cluster_after = -1,
+    show_progress = true,
     kwargs...,
 )
 
@@ -55,17 +56,24 @@ function create_cluster(;
     # If it does, then recreate cluster
     if haskey(clusters, cluster_name)
         if force_create || clusters[cluster_name].status == :terminated
-            @info "Started re-creating cluster named $cluster_name"
+            if show_progress
+                @info "Started re-creating cluster named $cluster_name"
+            end
             send_request_get_response(
                 :create_cluster,
                 Dict("cluster_name" => cluster_name, "recreate" => true, "force_create" => true),
             )
-            if !nowait
+            if wait_now
+                wait_for_cluster(cluster_name; kwargs...)
+            end
+            return get_cluster(cluster_name; kwargs...)
+        elseif clusters[cluster_name].status == :creating
+            if wait_now
                 wait_for_cluster(cluster_name; kwargs...)
             end
             return get_cluster(cluster_name; kwargs...)
         else
-            error("Cluster with cluster_name $cluster_name already exists and its current status is $(string(clusters[cluster_name].status))")
+            error("Cluster with name $cluster_name already exists and its current status is $(string(clusters[cluster_name].status))")
         end
     end
 
@@ -112,12 +120,14 @@ function create_cluster(;
         cluster_config["subnet_id"] = subnet_id
     end
 
-    @info "Started creating cluster named $cluster_name"
+    if show_progress
+        @info "Started creating cluster named $cluster_name"
+    end
 
     # Send request to create cluster
     send_request_get_response(:create_cluster, cluster_config)
 
-    if !nowait
+    if wait_now
         wait_for_cluster(cluster_name; kwargs...)
     end
 
@@ -131,6 +141,7 @@ function destroy_cluster(cluster_name::String; kwargs...)
     configure(; kwargs...)
     @info "Destroying cluster named $cluster_name"
     send_request_get_response(:destroy_cluster, Dict{String,Any}("cluster_name" => cluster_name))
+    ;
 end
 
 function delete_cluster(cluster_name::String; kwargs...)
@@ -140,9 +151,10 @@ function delete_cluster(cluster_name::String; kwargs...)
         :destroy_cluster,
         Dict{String,Any}("cluster_name" => cluster_name, "permanently_delete" => true),
     )
+    ;
 end
 
-function update_cluster(cluster_name::String; force_update=false, update_linux_packages=true, reinstall_julia=false, nowait=false, kwargs...)
+function update_cluster(cluster_name::String; force_update=false, update_linux_packages=true, reinstall_julia=false, wait_now=true, kwargs...)
     configure(; kwargs...)
     @info "Updating cluster named $cluster_name"
     send_request_get_response(
@@ -154,9 +166,10 @@ function update_cluster(cluster_name::String; force_update=false, update_linux_p
             "reinstall_julia" => reinstall_julia
         )
     )
-    if !nowait
+    if wait_now
         wait_for_cluster(cluster_name)
     end
+    ;
 end
 
 function assert_cluster_is_ready(cluster_name::String; kwargs...)
@@ -166,6 +179,7 @@ function assert_cluster_is_ready(cluster_name::String; kwargs...)
     configure(; kwargs...)
 
     send_request_get_response(:set_cluster_ready, Dict{String,Any}("cluster_name" => cluster_name))
+    ;
 end
 
 parsestatus(status::String)::Symbol =
@@ -258,26 +272,28 @@ function get_cluster_status(cluster_name::String)::Symbol
 end
 get_cluster_status() = get_cluster_status(get_cluster_name())
 
-function _wait_for_cluster(cluster_name::String)
+function _wait_for_cluster(cluster_name::String, show_progress::Bool)
     t::Int64 = 5
     cluster_status::Symbol = get_cluster_status(cluster_name)
-    p::ProgressUnknown = ProgressUnknown("Finding status of cluster $cluster_name", enabled=false)
+    p::ProgressUnknown =  ProgressUnknown("Finding status of cluster $cluster_name", enabled=show_progress)
     while (cluster_status == :creating || cluster_status == :updating)
-        if !p.enabled
+        if show_progress && !p.enabled
             if cluster_status == :creating
-                p = ProgressUnknown("Setting up cluster $cluster_name", spinner=true)
+                p = ProgressUnknown("Setting up cluster $cluster_name", spinner=true, enabled=show_progress)
             else
-                p = ProgressUnknown("Updating cluster $cluster_name", spinner=true)
+                p = ProgressUnknown("Updating cluster $cluster_name", spinner=true, enabled=show_progress)
             end
         end
         sleep(t)
-        next!(p)
+        if show_progress
+            next!(p)
+        end
         if t < 80
             t *= 2
         end
         cluster_status = get_cluster_status(cluster_name)
     end
-    if p.enabled
+    if show_progress
         finish!(p, spinner = (cluster_status == :running ? '✓' : '✗'))
     end
     if cluster_status == :running
@@ -290,13 +306,13 @@ function _wait_for_cluster(cluster_name::String)
         error("Cluster $cluster_name has unexpected status: $cluster_status")
     end
 end
-function wait_for_cluster(;kwargs...)
+function wait_for_cluster(show_progress=true; kwargs...)
     configure(;kwargs...)
-    _wait_for_cluster(get_cluster_name())
+    _wait_for_cluster(get_cluster_name(), show_progress)
 end
-function wait_for_cluster(cluster_name::String; kwargs...)
+function wait_for_cluster(cluster_name::String, show_progress=true; kwargs...)
     configure(;kwargs...)
-    _wait_for_cluster(cluster_name)
+    _wait_for_cluster(cluster_name, show_progress)
 end
 
 function upload_to_s3(src_path; dst_name=basename(src_path), cluster_name=get_cluster_name(), kwargs...)
