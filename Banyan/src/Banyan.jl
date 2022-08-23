@@ -67,6 +67,10 @@ export Cluster,
     wait_for_cluster,
     upload_to_s3
 
+# Process 
+export create_process,
+    destroy_process
+
 # Session management
 export Session,
     start_session,

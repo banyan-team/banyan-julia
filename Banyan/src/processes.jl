@@ -1,5 +1,5 @@
 
-function create_process(process_name, script; cron_schedule = "", creation_kwargs...)
+function create_process(process_name, script; cron_schedule = "rate(24 hours)", creation_kwargs...)
 
     if startswith(script, "http://") || startswith(script, "https://")
         script = Downloads.download(script)
@@ -277,16 +277,32 @@ function run_process(process_name, args)
     get_session_results(session_id)
 end
 
-function start_process(process_name, "rate(24 hours)")
-    aws_config = get_aws_config()
-    aws_region = aws_config["region"]
+function start_process(process_name, cron_schedule="daily")
+
+    aws_region = get_aws_config_region()
+
+    schedule = dict(
+        "yearly" => "0 0 1 1 *",
+        "annually" => "0 0 1 1 *",
+        "monthly" => "0 0 1 * *",
+        "weekly" => "0 0 * * 0",
+        "daily" => "0 0 * * *",
+        "midnight" => "0 0 * * *",
+        "hourly" => "0 * * * *"
+    )
+    cron_string = ""
+    if haskey(schedule, cron_schedule)
+        cron_string = schedule[cron_schedule]
+    else 
+        cron_string = cron_schedule
+    end
 
     response = send_request_get_response(
         :create_process,
         Dict{String,Any}(
             "process_name" => process_name,
             "creation_kwargs" => args,
-            "cron_string" => schedule,
+            "cron_string" => cron_string,
             "aws_region" => aws_region
         ),
     )
