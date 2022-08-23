@@ -1,9 +1,12 @@
 get_file_ending(remotepath::String)::String = splitext(remotepath)[2][2:end]
 
 Arrow_Table_retry = retry(Arrow.Table; delays=Base.ExponentialBackOff(; n=5))
+write_retry = retry(write; delays=Base.ExponentialBackOff(; n=5))
 
 function _remote_table_source(lp::LocationPath, loc::Location)::Location
     sampling_config = get_sampling_config(lp)
+
+    @time "_remote_table_source on get_worker_idx()=$(get_worker_idx())" begin
 
     # Setup for sampling
     remotepath = lp.path
@@ -29,10 +32,12 @@ function _remote_table_source(lp::LocationPath, loc::Location)::Location
     sample_path = "$sample_dir/$sample_rate"
 
     # Get metadata if it is still valid
+    @time "Arrow.Table" begin
     curr_meta::Arrow.Table = if !curr_metadata_invalid
         Arrow_Table_retry(metadata_path)
     else
         Arrow.Table()
+    end
     end
 
     # Metadata file structure
@@ -161,6 +166,7 @@ function _remote_table_source(lp::LocationPath, loc::Location)::Location
 
             # Get local sample
             for (i, local_path_on_curr_worker) in zip(1:nfiles_on_worker, local_paths_on_curr_worker[shuffling_perm])
+                @time "get_sample" begin
                 push!(
                     local_samples,
                     let df = get_sample(
@@ -179,6 +185,7 @@ function _remote_table_source(lp::LocationPath, loc::Location)::Location
                         end
                     end
                 )
+                end
             end
 
             if Banyan.INVESTIGATING_COLLECTING_SAMPLES
@@ -197,11 +204,13 @@ function _remote_table_source(lp::LocationPath, loc::Location)::Location
                 local_nbytes = 0
                 for (i, local_path_on_curr_worker) in enumerate(local_paths_on_curr_worker)
                     path_sample_rate = exact_sample_needed_res ? 1.0 : sample_rate
+                    @time "get_sample_and_metadata" begin
                     path_sample, path_nrows = get_sample_and_metadata(
                         format_value,
                         local_path_on_curr_worker,
                         path_sample_rate
                     )
+                    end
                     meta_nrows_on_worker[i] = path_nrows
                     push!(local_samples, path_sample)
                     local_nrows += path_nrows
@@ -226,6 +235,7 @@ function _remote_table_source(lp::LocationPath, loc::Location)::Location
         local_sample::DataFrames.DataFrame = isempty(local_samples) ? DataFrames.DataFrame() : vcat(local_samples...)
 
         # Concatenate local samples and nrows together
+        @time "Concatenate samples on get_worker_idx()=$(get_worker_idx())" begin
         remote_sample_value::DataFrames.DataFrame, meta_nrows_on_workers::Base.Vector{Int64} = if curr_metadata_invalid
             sample_and_meta_nrows_per_worker::Base.Vector{Tuple{DataFrames.DataFrame,Base.Vector{Int64}}} =
                 gather_across((local_sample, meta_nrows_on_worker))
@@ -248,6 +258,7 @@ function _remote_table_source(lp::LocationPath, loc::Location)::Location
             else
                 DataFrames.DataFrame(), Int64[]
             end
+        end
         end
 
         # At this point the metadata is valid regardless of whether this
@@ -292,7 +303,7 @@ function _remote_table_source(lp::LocationPath, loc::Location)::Location
             end
             meta_nrows_on_workers, total_nrows_res, total_nbytes_res, remote_sample_res, empty_sample_value_serialized
         else
-            Base.zeros(length(localpaths)), -1, -1, NOTHING_SAMPLE, to_arrow_string(DataFrames.DataFrame())
+            Base.zeros(length(localpaths)), -1, -1, deepcopy(NOTHING_SAMPLE), to_arrow_string(DataFrames.DataFrame())
         end
     else
         # This case is entered if we the format has metadata stored
@@ -331,11 +342,11 @@ function _remote_table_source(lp::LocationPath, loc::Location)::Location
             remote_sample_value_nbytes = sample_memory_usage(cached_remote_sample_value)
             remote_sample_value_nrows = DataFrames.nrow(cached_remote_sample_value)
             total_nbytes_res = ceil(Int64, remote_sample_value_nbytes * total_nrows_res / remote_sample_value_nrows)
-            cached_remote_sample_res = NOTHING_SAMPLE
+            cached_remote_sample_res = deepcopy(NOTHING_SAMPLE)
 
             meta_nrows_res, total_nrows_res, total_nbytes_res, cached_remote_sample_res, loc.src_parameters["empty_sample"]
         else
-            Base.zeros(length(localpaths)), -1, -1, NOTHING_SAMPLE, to_arrow_string(DataFrames.DataFrame())
+            Base.zeros(length(localpaths)), -1, -1, deepcopy(NOTHING_SAMPLE), to_arrow_string(DataFrames.DataFrame())
         end
     end
 
@@ -357,10 +368,12 @@ function _remote_table_source(lp::LocationPath, loc::Location)::Location
             # TODO
             "empty_sample" => empty_sample
         )
+    end
 
     if is_main
         # Write the metadata to S3 cache if previously invalid
         if curr_metadata_invalid
+            @time "Arrow.write" begin
             # Write `NamedTuple` with metadata to `meta_path` with `Arrow.write`
             Arrow.write(
                 metadata_path,
@@ -368,11 +381,15 @@ function _remote_table_source(lp::LocationPath, loc::Location)::Location
                 compress=:zstd,
                 metadata=src_params
             )
+            end
         end
 
         # Write the sample to S3 cache if previously invalid
         if curr_sample_invalid
-            write(sample_path, remote_sample.value)
+            @time "write sample" begin
+            mkpath(sample_dir)
+            write_retry(sample_path, remote_sample.value)
+            end
         end
 
         if Banyan.INVESTIGATING_BDF_INTERNET_FILE_NOT_FOUND

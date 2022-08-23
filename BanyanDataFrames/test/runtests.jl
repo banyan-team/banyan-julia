@@ -1,15 +1,14 @@
 using Banyan
 using BanyanArrays
-using FilePathsBase, AWSS3, DataFrames, Downloads, CSV, Parquet, Arrow
+using CSV, Parquet, Arrow
+using FilePathsBase, AWSS3, DataFrames, Downloads
 using BanyanDataFrames
 using ReTest
 using Random
 using Statistics
 
 include("utils_sessions.jl")
-
-include("utils_data.jl")#
-include("groupby_filter_indexing.jl")
+include("utils_data.jl")
 # include("test_jobs.jl")
 
 function use_data(file_extension, remote_kind, single_file)

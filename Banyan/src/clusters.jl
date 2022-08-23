@@ -44,10 +44,10 @@ function create_cluster(;
     # Configure using parameters
     c = configure(; kwargs...)
     
-    clusters = get_clusters(cluster_name; kwargs...)
     if isnothing(cluster_name)
         cluster_name = "cluster-" * string(length(clusters) + 1)
     end
+    clusters = get_clusters(cluster_name; kwargs...)
     if isnothing(region)
         region = get_aws_config_region()
     end
@@ -61,7 +61,12 @@ function create_cluster(;
             end
             send_request_get_response(
                 :create_cluster,
-                Dict("cluster_name" => cluster_name, "recreate" => true, "force_create" => true),
+                Dict(
+                    "cluster_name" => cluster_name,
+                    "recreate" => true,
+                    "force_create" => true,
+                    "destroy_cluster_after" => destroy_cluster_after
+                ),
             )
             if wait_now
                 wait_for_cluster(cluster_name; kwargs...)
@@ -90,6 +95,7 @@ function create_cluster(;
     end
 
     # Construct cluster creation
+    @show destroy_cluster_after
     cluster_config = Dict{String,Any}(
         "cluster_name" => cluster_name,
         "instance_type" => instance_type,
@@ -137,11 +143,14 @@ function create_cluster(;
     return get_clusters_dict()[cluster_name]
 end
 
-function destroy_cluster(cluster_name::String; kwargs...)
+function destroy_cluster(cluster_name::String; destroy_cluster_after = 0, kwargs...)
     configure(; kwargs...)
     @info "Destroying cluster named $cluster_name"
-    send_request_get_response(:destroy_cluster, Dict{String,Any}("cluster_name" => cluster_name))
-    ;
+    send_request_get_response(
+        :destroy_cluster,
+        Dict{String,Any}("cluster_name" => cluster_name, "destroy_cluster_after" => destroy_cluster_after)
+    )
+    nothing
 end
 
 function delete_cluster(cluster_name::String; kwargs...)
@@ -151,7 +160,7 @@ function delete_cluster(cluster_name::String; kwargs...)
         :destroy_cluster,
         Dict{String,Any}("cluster_name" => cluster_name, "permanently_delete" => true),
     )
-    ;
+    nothing
 end
 
 function update_cluster(cluster_name::String; force_update=false, update_linux_packages=true, reinstall_julia=false, wait_now=true, kwargs...)
@@ -169,7 +178,7 @@ function update_cluster(cluster_name::String; force_update=false, update_linux_p
     if wait_now
         wait_for_cluster(cluster_name)
     end
-    ;
+    nothing
 end
 
 function assert_cluster_is_ready(cluster_name::String; kwargs...)
@@ -179,7 +188,7 @@ function assert_cluster_is_ready(cluster_name::String; kwargs...)
     configure(; kwargs...)
 
     send_request_get_response(:set_cluster_ready, Dict{String,Any}("cluster_name" => cluster_name))
-    ;
+    nothing
 end
 
 parsestatus(status::String)::Symbol =
@@ -273,23 +282,31 @@ end
 get_cluster_status() = get_cluster_status(get_cluster_name())
 
 function _wait_for_cluster(cluster_name::String, show_progress::Bool)
-    t::Int64 = 5
+    start_time = time()
     cluster_status::Symbol = get_cluster_status(cluster_name)
-    p::ProgressUnknown =  ProgressUnknown("Finding status of cluster $cluster_name", enabled=show_progress)
+    p::ProgressUnknown =  ProgressUnknown("Waiting for cluster $cluster_name", enabled=show_progress)
     while (cluster_status == :creating || cluster_status == :updating)
-        if show_progress && !p.enabled
-            if cluster_status == :creating
-                p = ProgressUnknown("Setting up cluster $cluster_name", spinner=true, enabled=show_progress)
+        # if show_progress && !p.enabled
+        #     if cluster_status == :creating
+        #         p = ProgressUnknown("Setting up cluster $cluster_name", spinner=true, enabled=show_progress)
+        #     else
+        #         p = ProgressUnknown("Updating cluster $cluster_name", spinner=true, enabled=show_progress)
+        #     end
+        # end
+        elapsed_time = time() - start_time
+        sleep(
+            if elapsed_time > 60 * 10
+                16
+            elseif elapsed_time > 60 * 8
+                32
+            elseif elapsed_time > 60 * 1
+                64
             else
-                p = ProgressUnknown("Updating cluster $cluster_name", spinner=true, enabled=show_progress)
+                12
             end
-        end
-        sleep(t)
+        )
         if show_progress
             next!(p)
-        end
-        if t < 80
-            t *= 2
         end
         cluster_status = get_cluster_status(cluster_name)
     end

@@ -306,6 +306,7 @@ function _get_factor(
     # divisions_filtered_from = sample(ff, :statistics, key, :divisions)
     frt_percentile = sample_percentile(frt_sample, frtkey, min_frt, max_frt)::Float64
     frtfactor::Float64 = 1 / frt_percentile
+    # Note that frt_percentile could be Inf and frtfactor would be 0
     max(factor, frtfactor)
 end
 

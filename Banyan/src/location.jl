@@ -357,7 +357,7 @@ function get_location_source(lp::LocationPath)::Tuple{Location,String,String}
         get(src_params, "name", "Remote"),
         src_params,
         parse(Int64, get(src_params, "sample_memory_usage", "0")),
-        NOTHING_SAMPLE
+        deepcopy(NOTHING_SAMPLE)
     )
     res_location.metadata_invalid = isempty(src_params)
     res_location.sample_invalid = isempty(final_local_sample_path)

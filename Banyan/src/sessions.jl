@@ -167,6 +167,7 @@ function _start_session(
     force_sync::Bool,
     force_pull::Bool,
     force_install::Bool,
+    force_new_pf_dispatch_table::Bool,
     estimate_available_memory::Bool,
     email_when_ready::Bool,
     no_email::Bool,
@@ -196,7 +197,9 @@ function _start_session(
         "reuse_resources" => !force_update_files,
         "estimate_available_memory" => estimate_available_memory,
         "language" => "jl",
-        "sampling_configs" => sampling_configs_to_jl(sampling_configs)
+        "sampling_configs" => sampling_configs_to_jl(sampling_configs),
+        "assume_cluster_is_running" => true,
+        "force_new_pf_dispatch_table" => force_new_pf_dispatch_table,
     )
     if session_name != NOTHING_STRING
         session_configuration["session_name"] = session_name
@@ -277,8 +280,7 @@ function _start_session(
             push!(pf_dispatch_table, "https://raw.githubusercontent.com/banyan-team/banyan-julia/$branch_to_use/$dir/res/pf_dispatch_table.toml")
         end
     end
-    pf_dispatch_table_loaded = load_toml(pf_dispatch_table)
-    session_configuration["pf_dispatch_table"] = pf_dispatch_table_loaded
+    session_configuration["pf_dispatch_tables"] = pf_dispatch_table
 
     # Start the session
     @debug "Sending request for start_session"
@@ -368,6 +370,7 @@ function start_session_with_cluster(
     force_sync::Bool,
     force_pull::Bool,
     force_install::Bool,
+    force_new_pf_dispatch_table::Bool,
     estimate_available_memory::Bool,
     email_when_ready::Bool,
     no_email::Bool,
@@ -434,6 +437,7 @@ function start_session_with_cluster(
         force_sync::Bool,
         force_pull::Bool,
         force_install::Bool,
+        force_new_pf_dispatch_table::Bool,
         estimate_available_memory::Bool,
         email_when_ready::Bool,
         no_email::Bool,
@@ -467,6 +471,7 @@ function start_session(;
     force_sync::Bool = false,
     force_pull::Bool = false,
     force_install::Bool = false,
+    force_new_pf_dispatch_table = false,
     estimate_available_memory::Bool = true,
     email_when_ready::Union{Bool,Nothing} = nothing,
     for_running::Bool = false,
@@ -517,6 +522,7 @@ function start_session(;
                     force_sync,
                     force_pull,
                     force_install,
+                    force_new_pf_dispatch_table,
                     estimate_available_memory,
                     isnothing(email_when_ready) ? false : email_when_ready,
                     isnothing(email_when_ready),
@@ -530,6 +536,7 @@ function start_session(;
                 (e, bt)
             end
         )
+    new_start_session_task.sticky = false
     start_session_tasks[new_start_session_task_id] = new_start_session_task
     set_session(new_start_session_task_id)
 
@@ -557,11 +564,17 @@ function end_session(session_id::SessionId = get_session_id(); failed = false, r
     # TODO: Get the session ID before the task begins wait_for_session
     # so that it can be ended sooner. (maybe use local storage of the task)
     if haskey(start_session_tasks, session_id)
-        @warn "Session with ID $session_id must be started before it can be destroyed"
+        if !istaskdone(start_session_tasks[session_id])
+            @warn "Session with ID $session_id must be started before it can be destroyed"
+        end
         session_id = get_session(session_id).id
     end
 
-    request_params = Dict{String,Any}("session_id" => session_id, "failed" => failed, "release_resources_now" => release_resources_now)
+    request_params = Dict{String,Any}(
+        "session_id" => session_id,
+        "failed" => failed,
+        "release_resources_now" => release_resources_now,
+    )
     if !isnothing(release_resources_after)
         request_params["release_resources_after"] = release_resources_after
     end
@@ -761,8 +774,10 @@ function _wait_for_session(session_id::SessionId, show_progress; kwargs...)
         sleep(t)
         t = if time() - st < 90
             0
+        elseif time() - st > 60 * 10
+            4
         else
-            7
+            9
         end
         if p.enabled
             next!(p)
@@ -789,6 +804,8 @@ end
 function wait_for_session(session_id::SessionId=get_session_id(), show_progress=true; kwargs...)
     global start_session_tasks
     sessions_dict = get_sessions_dict()
+
+    @show haskey(start_session_tasks, session_id)
 
     if haskey(start_session_tasks, session_id)
         get_session(session_id, show_progress)

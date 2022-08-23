@@ -7,8 +7,10 @@ mutable struct Future <: AbstractFuture
     sample_memory_usage::Int64
 end
 
-const NOTHING_FUTURE = Future("", nothing, "", false, false, -1)
+NothingFuture() = Future("", nothing, "", false, false, -1)
 Base.isnothing(f::Future) = isempty(f.value_id)
+
+# Base.deepcopy(f::Future) = Future(f.datatype, deepcopy(f.value), f.value_id)
 
 Base.hash(f::Future) = hash(f.value_id)
 

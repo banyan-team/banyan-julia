@@ -114,6 +114,10 @@ function get_all_divisions(data::Base.Vector{OHT}, ngroups::Int64)::Base.Vector{
     all_divisions
 end
 
+lt_maybe_missing(a,b) = let lt_res = a <= b
+    ismissing(lt_res) ? false : lt_res
+end
+
 function sample_divisions(df::T, key::K) where {T,K}
     cache = get_sample_computation_cache()
     cache_key = hash((:sample_divisions, objectid(df), key))
@@ -130,7 +134,7 @@ function sample_divisions(df::T, key::K) where {T,K}
     max_ngroups = sample_max_ngroups(df, key)
     ngroups = min(max_ngroups, 512)
     data_unsorted = orderinghashes(df, key)
-    data = sort(data_unsorted, lt=(<=))
+    data = sort(data_unsorted, lt=lt_maybe_missing)
     all_divisions = get_all_divisions(data, ngroups)
     cache.computation[cache_key] = all_divisions
     all_divisions
@@ -155,7 +159,9 @@ function sample_percentile(df::T, key::K, minvalue, maxvalue)::Float64 where {T,
     num_rows::Int64 = 0
     ohs = orderinghashes(df, key)
     for oh in ohs
-        if minvalue <= oh && oh <= maxvalue
+        greater_than_min = minvalue <= oh 
+        lesser_than_max = oh <= maxvalue
+        if ismissing(greater_than_min) || ismissing(lesser_than_max) || (greater_than_min && lesser_than_max)
             c += 1
         end
         num_rows += 1
@@ -177,7 +183,8 @@ end
 function _minimum(ohs::Vector{OHT})::OHT where {OHT}
     oh_min = ohs[1]
     for oh in ohs
-        oh_min = oh <= oh_min ? oh : oh_min
+        greater_than_min = oh <= oh_min
+        oh_min = (ismissing(greater_than_min) || greater_than_min) ? oh : oh_min
     end
     oh_min
 end
@@ -185,7 +192,8 @@ end
 function _maximum(ohs::Vector{OHT})::OHT where {OHT}
     oh_max = ohs[1]
     for oh in ohs
-        oh_max = oh_max <= oh ? oh : oh_max
+        lesser_than_max = oh_max <= oh
+        oh_max = (ismissing(lesser_than_max) || lesser_than_max) ? oh : oh_max
     end
     oh_max
 end

@@ -10,20 +10,29 @@ execution_queue_url()::String = get_session().execution_queue_url
 # RECEIVE MESSAGE #
 ###################
 
+SQS_receive_message_retry = retry(SQS.receive_message; delays=exponential_backoff_1s)
+SQS_send_message_retry = retry(SQS.send_message; delays=exponential_backoff_1s)
+SQS_delete_message_retry = retry(SQS.delete_message; delays=exponential_backoff_1s)
+
 function get_next_message(
     queue_url,
     p::Union{Nothing,ProgressMeter.ProgressUnknown} = nothing;
     delete::Bool = true,
     error_for_main_stuck::Union{Nothing,String} = nothing,
-    error_for_main_stuck_time::Union{Nothing,DateTime} = nothing
+    error_for_main_stuck_time::Union{Nothing,DateTime} = nothing,
+    value_id = ""
 )::Tuple{String,Union{Nothing,String}}
     error_for_main_stuck = check_worker_stuck(error_for_main_stuck, error_for_main_stuck_time)
-    m = SQS.receive_message(queue_url, Dict("MaxNumberOfMessages" => "1"))
+    m = SQS_receive_message_retry(queue_url)#, Dict("MaxNumberOfMessages" => "1"))
     i = 1
     j = 1
-    while (!haskey(m, "ReceiveMessageResult") || !haskey(m["ReceiveMessageResult"], "Message"))
+    while
+        (!haskey(m, "ReceiveMessageResult") ||
+        !haskey(m["ReceiveMessageResult"], "Message")) ||
+        (!isempty(value_id) && !contains(m["ReceiveMessageResult"]["Message"]["Body"], "\"value_id\":\"$value_id\""))
+
         error_for_main_stuck = check_worker_stuck(error_for_main_stuck, error_for_main_stuck_time)
-        m = SQS.receive_message(queue_url, Dict("MaxNumberOfMessages" => "1"))
+        m = SQS_receive_message_retry(queue_url)#, Dict("MaxNumberOfMessages" => "1"))
         i += 1
         if !isnothing(p)
             p::ProgressMeter.ProgressUnknown
@@ -31,9 +40,10 @@ function get_next_message(
             j += 1
         end
     end
+    # @show m["ReceiveMessageResult"]
     m_dict = m["ReceiveMessageResult"]["Message"]
     if delete
-        SQS.delete_message(queue_url, m_dict["ReceiptHandle"]::String)
+        SQS_delete_message_retry(queue_url, m_dict["ReceiptHandle"]::String)
     end
     return m_dict["Body"]::String, error_for_main_stuck
 end
@@ -42,11 +52,16 @@ function sqs_receive_next_message(
     queue_name,
     p=nothing,
     error_for_main_stuck=nothing,
-    error_for_main_stuck_time=nothing
+    error_for_main_stuck_time=nothing,
+    value_id = ""
 )::Tuple{Dict{String,Any},Union{Nothing,String}}
+    @time "get_next_message" begin
     content::String, error_for_main_stuck::Union{Nothing,String} =
-        get_next_message(queue_name, p; error_for_main_stuck=error_for_main_stuck, error_for_main_stuck_time=error_for_main_stuck_time)
+        get_next_message(queue_name, p; error_for_main_stuck=error_for_main_stuck, error_for_main_stuck_time=error_for_main_stuck_time, value_id=value_id)
+    end
+    
     res::Dict{String,Any} = if startswith(content, "JOB_READY") || startswith(content, "SESSION_READY")
+        @show startswith(content, "JOB_READY")
         Dict{String,Any}(
             "kind" => "SESSION_READY"
         )
@@ -111,7 +126,7 @@ end
 
 function sqs_send_message(queue_url, message)
     generated_message_id = generate_message_id()
-    SQS.send_message(
+    SQS_send_message_retry(
         message,
         queue_url,
         Dict(
@@ -122,6 +137,7 @@ function sqs_send_message(queue_url, message)
 end
 
 function send_to_client(value_id::ValueId, value, worker_memory_used = 0)
+    @time "send_to_client" begin
     MAX_MESSAGE_LENGTH = 220_000
     message = to_jl_string(value)::String
     generated_message_id = generate_message_id()
@@ -152,9 +168,9 @@ function send_to_client(value_id::ValueId, value, worker_memory_used = 0)
     gather_q_url = gather_queue_url()
     num_chunks = length(message_ranges)
     if num_chunks > 1
-        @sync for i = 1:num_chunks
-            @async begin
-                SQS.send_message(
+        Threads.@threads for i = 1:num_chunks
+            try
+                SQS_send_message_retry(
                     JSON.json(
                         Dict{String,Any}(
                             "kind" => "GATHER",
@@ -172,6 +188,8 @@ function send_to_client(value_id::ValueId, value, worker_memory_used = 0)
                         "MessageDeduplicationId" => generated_message_id * string(i)
                     )
                 )
+            catch e
+                showerror(stderr, e, catch_backtrace())
             end
         end
     else
@@ -185,7 +203,7 @@ function send_to_client(value_id::ValueId, value, worker_memory_used = 0)
             "num_chunks" => num_chunks
         )
         msg_json = JSON.json(msg)
-        SQS.send_message(
+        SQS_send_message_retry(
             msg_json,
             gather_q_url,
             Dict(
@@ -193,5 +211,6 @@ function send_to_client(value_id::ValueId, value, worker_memory_used = 0)
                 "MessageDeduplicationId" => generated_message_id * string(i)
             )
         )
+    end
     end
 end

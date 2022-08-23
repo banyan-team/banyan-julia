@@ -230,6 +230,7 @@ include("investigating.jl")
 # Helpers
 include("id.jl")
 include("utils_queues.jl")
+include("utils.jl")
 include("queues.jl")
 
 # Banyan.jl is intended both for usage as a client library and also for
@@ -240,7 +241,6 @@ include("queues.jl")
 # and functions get dispatched based on the `pf_dispatch_table.json`
 # (originally called `pt_lib_info.json`) which is used by the scheduler behind
 # the scenes.
-include("utils.jl")
 include("utils_pfs.jl")
 include("pfs.jl")
 include("utils_abstract_types.jl")

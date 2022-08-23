@@ -312,14 +312,10 @@ function invalidate_samples(p; kwargs...)
     lp = LocationPath(p; kwargs...)
 
     # Delete locally
-    samples_local_dir = joinpath(homedir(), ".banyan", "samples")
     sample_path_prefix = get_sample_path_prefix(lp)
+    samples_local_dir = joinpath(homedir(), ".banyan", "samples", sample_path_prefix)
     if isdir(samples_local_dir)
-        for local_sample_path in readdir(samples_local_dir, join=true)
-            if startswith(local_sample_path, sample_path_prefix)
-                rm(local_sample_path)
-            end
-        end
+        rm(samples_local_dir, recursive=true, force=true)
     end
 
     # Delete from S3
@@ -356,10 +352,13 @@ function invalidate(p; after=false, kwargs...)
         invalidate_all_location()
     elseif get(kwargs, after ? :invalidate_location : :location_invalid, false)
         invalidate_location(p; kwargs...)
-    elseif get(kwargs, after ? :invalidate_metadata : :metadata_invalid, false)
-        invalidate_metadata(p; kwargs...)
-    elseif get(kwargs, after ? :invalidate_samples : :samples_invalid, false)
-        invalidate_samples(p; kwargs...)
+    else
+        if get(kwargs, after ? :invalidate_metadata : :metadata_invalid, false)
+            invalidate_metadata(p; kwargs...)
+        end
+        if get(kwargs, after ? :invalidate_samples : :samples_invalid, false)
+            invalidate_samples(p; kwargs...)
+        end
     end
 end
 
@@ -441,6 +440,7 @@ function RemoteSource(
 
         # Get the Location with up-to-date metadata (source parameters) and sample
         new_loc = offloaded(_remote_source, lp, loc, args...; distributed=true)
+        # @show new_loc
 
         if !loc.metadata_invalid
             # Store the metadata locally. The local copy just has the source

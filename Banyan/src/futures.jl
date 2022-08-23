@@ -55,7 +55,7 @@ function create_future_from_sample(value::T, datatype::String)::Future where T
     end
 
     # Create future, store value, and return
-    create_new_future(location, NOTHING_FUTURE, datatype)
+    create_new_future(location, NothingFuture(), datatype)
 end
 
 # Constructs a future from a future that was already created.
@@ -88,7 +88,7 @@ function create_future_from_existing(fut::Future, @nospecialize(mutation::Functi
 
         new_future
     else
-        create_new_future(None(), NOTHING_FUTURE, fut.datatype)
+        create_new_future(None(), NothingFuture(), fut.datatype)
     end
 end
 
@@ -103,7 +103,7 @@ function Future(
     if !isnothing(from)
         create_future_from_existing(convert(Future, from)::Future, mutation)
     elseif value isa NothingValue
-        create_new_future(source, isnothing(mutate_from) ? NOTHING_FUTURE : mutate_from, datatype)
+        create_new_future(source, isnothing(mutate_from) ? NothingFuture() : mutate_from, datatype)
     else
         create_future_from_sample(value, datatype)
     end

@@ -291,8 +291,8 @@ function _precompile_()
     precompile(sample_from_range, (UnitRange{Int64}, Int64))
 
     # utils.jl, utils_s3fs.jl
-    precompile(load_toml, (String,))
-    precompile(load_toml, (Vector{String},))
+    # precompile(load_toml, (String,))
+    # precompile(load_toml, (Vector{String},))
     precompile(load_file, (String,))
     precompile(download_remote_path, (String,))
     precompile(download_remote_s3_path, (String,))

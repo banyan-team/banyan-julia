@@ -8,7 +8,13 @@ end
 Base.convert(::Type{DataFrame}, df::DataFrames.DataFrame) = DataFrame(Future(df; datatype="DataFrame"), Future(nrow(df)))
 
 Banyan.convert(::Type{Future}, df::DataFrame) = df.data
-Banyan.sample(df::DataFrame)::DataFrames.DataFrame = sample(df.data)
+Banyan.sample(df::DataFrame)::DataFrames.DataFrame = begin
+    @show typeof(sample(df.data))
+    @show sample(df.nrows) == sample(df.data)
+    @show sample(df.nrows) === sample(df.data)
+    @show sample(df.nrows)
+    sample(df.data)
+end
 
 const DFSampleForGrouping = SampleForGrouping{DataFrames.DataFrame,String}
 

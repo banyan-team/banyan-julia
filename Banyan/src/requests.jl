@@ -159,7 +159,7 @@ function _partitioned_computation_concrete(fut::Future, destination::Location, n
         end
 
         # Destroy all closures so that all references to `Future`s are dropped
-        t.partitioned_using_func = NOTHING_PARTITIONED_USING_FUNC
+        t.partitioned_using_func = deepcopy(NOTHING_PARTITIONED_USING_FUNC)
         t.partitioned_with_func = identity
         empty!(t.futures)
 
@@ -263,8 +263,11 @@ function _partitioned_computation_concrete(fut::Future, destination::Location, n
     error_for_main_stuck_time::Union{Nothing,DateTime} = nothing
     while true
         # TODO: Use to_jl_value and from_jl_value to support Client
+        @time "sqs_receive_next_message for evaluate" begin
         message, error_for_main_stuck = sqs_receive_next_message(gather_queue, p, error_for_main_stuck, error_for_main_stuck_time)
+        end
         message_type::String = message["kind"]
+        @show message_type
         if message_type == "SCATTER_REQUEST"
             # Send scatter
             value_id = message["value_id"]::ValueId
@@ -288,19 +291,17 @@ function _partitioned_computation_concrete(fut::Future, destination::Location, n
             num_chunks = message["num_chunks"]::Int64
             num_remaining_chunks = num_chunks - 1
 
-            if is_debug_on()
-                println("Gathering $num_chunks chunk$(num_chunks > 1 ? "s" : "") to client")
-            end
+            # if is_debug_on()
+            #     println("Gathering $num_chunks chunk$(num_chunks > 1 ? "s" : "") to client")
+            # end
             
             whole_message_contents = if num_chunks > 1
                 partial_messages = Vector{String}(undef, num_chunks)
                 partial_messages[message["chunk_idx"]] = message["contents"]
-                @sync for i = 1:num_remaining_chunks
-                    @async begin
-                        partial_message, _ = sqs_receive_next_message(gather_queue, p, nothing, nothing)
-                        chunk_idx = partial_message["chunk_idx"]
-                        partial_messages[chunk_idx] = partial_message["contents"]
-                    end
+                Threads.@threads for i = 1:num_remaining_chunks
+                    partial_message, _ = sqs_receive_next_message(gather_queue, p, nothing, nothing, value_id)
+                    chunk_idx = partial_message["chunk_idx"]
+                    partial_messages[chunk_idx] = partial_message["contents"]
                 end
                 join(partial_messages)
             else
@@ -556,6 +557,7 @@ function send_evaluation(value_id::ValueId, session_id::SessionId)
     not_using_modules = get_session().not_using_modules
     main_modules = setdiff(get_loaded_packages(),  not_using_modules)
     using_modules = setdiff(used_packages, not_using_modules)
+    @time "send_request_get_response for evaluate" begin
     response = send_request_get_response(
         :evaluate,
         Dict{String,Any}(
@@ -582,6 +584,7 @@ function send_evaluation(value_id::ValueId, session_id::SessionId)
             "sampling_configs" => sampling_configs_to_jl(get_sampling_configs())
         ),
     )
+    end
     if isnothing(response)
         throw(ErrorException("The evaluation request has failed. Please contact support"))
     end
@@ -663,6 +666,7 @@ function offloaded(given_function::Function, args...; distributed::Bool = false)
     not_using_modules = get_session().not_using_modules
     main_modules = [m for m in get_loaded_packages() if !(m in not_using_modules)]
     session_id = Banyan.get_session_id()
+    @time "send_request_get_response in offloaded" begin
     response = send_request_get_response(
         :evaluate,
         Dict{String,Any}(
@@ -684,6 +688,7 @@ function offloaded(given_function::Function, args...; distributed::Bool = false)
             "sampling_configs" => sampling_configs_to_jl(get_sampling_configs())
         ),
     )
+    end
     if isnothing(response)
         throw(ErrorException("The evaluation request has failed. Please contact support"))
     end
@@ -699,8 +704,11 @@ function offloaded(given_function::Function, args...; distributed::Bool = false)
     stored_res = nothing
     error_for_main_stuck, error_for_main_stuck_time = nothing, nothing
     partial_gathers = Dict{ValueId,String}()
+    @time "waiting for response" begin
     while true
+        @time "Reading in first message for offloaded" begin
         message, error_for_main_stuck = sqs_receive_next_message(gather_queue, p, error_for_main_stuck, error_for_main_stuck_time)
+        end
         message_type = message["kind"]::String
         if message_type == "GATHER"
             # Receive gather
@@ -708,20 +716,20 @@ function offloaded(given_function::Function, args...; distributed::Bool = false)
             num_chunks = message["num_chunks"]::Int64
             num_remaining_chunks = num_chunks - 1
 
-            if is_debug_on()
-                println("Gathering $num_chunks chunk$(num_chunks > 1 ? "s" : "") to client")
-            end
+            # if is_debug_on()
+            #     println("Gathering $num_chunks chunk$(num_chunks > 1 ? "s" : "") to client")
+            # end
             
             whole_message_contents = if num_chunks > 1
                 partial_messages = fill("", num_chunks)
                 partial_messages[message["chunk_idx"]] = message["contents"]
-                @sync for _ = 1:num_remaining_chunks
-                    @async begin
-                        let partial_message = sqs_receive_next_message(gather_queue, p, nothing, nothing)[1]
-                            chunk_idx = partial_message["chunk_idx"]
-                            partial_messages[chunk_idx] = partial_message["contents"]
-                        end
+                @time "Reading in remaining message for offloaded" begin
+                Threads.@threads for i = 1:num_remaining_chunks
+                    let partial_message = sqs_receive_next_message(gather_queue, p, nothing, nothing, value_id)[1]
+                        chunk_idx = partial_message["chunk_idx"]
+                        partial_messages[chunk_idx] = partial_message["contents"]
                     end
+                end
                 end
                 join(partial_messages)
             else
@@ -738,6 +746,7 @@ function offloaded(given_function::Function, args...; distributed::Bool = false)
                 return stored_res
             end
         end
+    end
     end
 end
     

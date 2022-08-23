@@ -365,7 +365,7 @@ function _remote_image_source(lp::LocationPath, loc::Location, remotepath, add_c
                 Sample(remote_sample_value, nbytes_res, sc.rate)
             end
         else
-            NOTHING_SAMPLE
+            deepcopy(NOTHING_SAMPLE)
         end
 
         src_parameters = if curr_metadata_invalid

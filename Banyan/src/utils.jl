@@ -406,22 +406,22 @@ function load_json(path::String)
     end
 end
 
-function load_toml(path::String)
-    res = if startswith(path, "file://")
-        if !isfile(path[8:end])
-            error("File $path does not exist")
-        end
-        TOML.parsefile(path[8:end])
-    elseif startswith(path, "s3://")
-        error("S3 path not currently supported")
-        # JSON.parsefile(S3Path(path, config=global_aws_config()))
-    elseif startswith(path, "http://") || startswith(path, "https://")
-	    TOML.parse(request_body(path)[2])
-    else
-        error("Path $path must start with \"file://\", \"s3://\", or \"http(s)://\"")
-    end
-    res
-end
+# function load_toml(path::String)
+#     res = if startswith(path, "file://")
+#         if !isfile(path[8:end])
+#             error("File $path does not exist")
+#         end
+#         TOML.parsefile(path[8:end])
+#     elseif startswith(path, "s3://")
+#         error("S3 path not currently supported")
+#         # JSON.parsefile(S3Path(path, config=global_aws_config()))
+#     elseif startswith(path, "http://") || startswith(path, "https://")
+# 	    TOML.parse(request_body(path)[2])
+#     else
+#         error("Path $path must start with \"file://\", \"s3://\", or \"http(s)://\"")
+#     end
+#     res
+# end
 
 function load_json(paths::Vector{String})
     # Each file should have merges, splits, and casts. So we need to take those
@@ -429,20 +429,20 @@ function load_json(paths::Vector{String})
     mergewith(merge, map(load_json, paths)...)
 end
 
-function load_toml(paths::Vector{String})
-    npaths = length(paths)
-    loaded_dir = mktempdir()
-    @sync for i = 1:npaths
-        @async Downloads.download(paths[i], joinpath(loaded_dir, "part" * string(i)))
-    end
-    loaded = Vector{String}(undef, npaths)
-    for i = 1:npaths
-        loaded[i] = "file://" * joinpath(loaded_dir, "part$i")
-    end
-    res = mergewith(merge, map(load_toml, loaded)...)
-    rm(loaded_dir, recursive=true)
-    res
-end
+# function load_toml(paths::Vector{String})
+#     npaths = length(paths)
+#     loaded_dir = mktempdir()
+#     Threads.@threads for i = 1:npaths
+#         Downloads.download(paths[i], joinpath(loaded_dir, "part" * string(i)))
+#     end
+#     loaded = Vector{String}(undef, npaths)
+#     for i = 1:npaths
+#         loaded[i] = "file://" * joinpath(loaded_dir, "part$i")
+#     end
+#     res = mergewith(merge, map(load_toml, loaded)...)
+#     rm(loaded_dir, recursive=true)
+#     res
+# end
 
 # Loads file into String and returns
 function load_file(path::String)

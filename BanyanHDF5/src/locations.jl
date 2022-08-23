@@ -126,10 +126,10 @@ function _remote_hdf5_source(lp::LocationPath, loc::Location)
                 Sample(dset_sample_value, nbytes, sample_rate)
             end
         else
-            NOTHING_SAMPLE
+            deepcopy(NOTHING_SAMPLE)
         end
     else
-        NOTHING_SAMPLE
+        deepcopy(NOTHING_SAMPLE)
     end
 
     # Close HDF5 file
