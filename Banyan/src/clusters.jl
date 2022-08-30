@@ -31,7 +31,7 @@ function create_cluster(;
     s3_bucket_name::Union{String,Nothing} = nothing,
     disk_capacity = "1200 GiB", # some # of GBs or "auto" to use Amazon EFS
     scaledown_time = 25,
-    region = nothing,
+    region = "",
     vpc_id = nothing,
     subnet_id = nothing,
     wait_now=true,
@@ -48,7 +48,7 @@ function create_cluster(;
         cluster_name = "cluster-" * string(length(clusters) + 1)
     end
     clusters = get_clusters(cluster_name; kwargs...)
-    if isnothing(region)
+    if isempty(region)
         region = get_aws_config_region()
     end
 
@@ -213,13 +213,13 @@ parsestatus(status::String)::Symbol =
         error("Unexpected status ", status)
     end
 
-function _get_clusters(cluster_name::String)::Dict{String,Cluster}
+function _get_clusters(cluster_name::String, s3_bucket_name::String)::Dict{String,Cluster}
     @debug "Downloading description of clusters"
     filters = Dict()
     if !isempty(cluster_name)
         filters["cluster_name"] = cluster_name
     end
-    response = send_request_get_response(:describe_clusters, Dict{String,Any}("filters"=>filters))
+    response = send_request_get_response(:describe_clusters, Dict{String,Any}("filters"=>filters, "s3_bucket_name"=>s3_bucket_name))
     clusters_dict::Dict{String,Cluster} = Dict{String,Cluster}()
     for (name::String, c::Dict{String,Any}) in response["clusters"]::Dict{String,Any}
         clusters_dict[name] = Cluster(
@@ -243,10 +243,9 @@ function _get_clusters(cluster_name::String)::Dict{String,Cluster}
     clusters_dict
 end
 
-function get_clusters(cluster_name=""; kwargs...)::Dict{String,Cluster}
+function get_clusters(cluster_name=""; s3_bucket_name="", kwargs...)::Dict{String,Cluster}
     configure(; kwargs...)
-    res = _get_clusters(cluster_name)
-    res
+    _get_clusters(cluster_name, s3_bucket_name)
 end
 
 function get_cluster_s3_bucket_arn(cluster_name=""; kwargs...)
@@ -264,7 +263,7 @@ end
 get_cluster_s3_bucket_name(cluster_name=""; kwargs...) =
     s3_bucket_arn_to_name(get_cluster_s3_bucket_arn(cluster_name; kwargs...))
 
-get_cluster(cluster_name::String=get_cluster_name(); kwargs...)::Cluster = get_clusters(cluster_name; kwargs...)[cluster_name]
+get_cluster(cluster_name::String=get_cluster_name(); s3_bucket_name="", kwargs...)::Cluster = get_clusters(cluster_name; s3_bucket_name=s3_bucket_name, kwargs...)[cluster_name]
 
 get_running_clusters(args...; kwargs...) = filter(entry -> entry[2].status == :running, get_clusters(args...; kwargs...))
 

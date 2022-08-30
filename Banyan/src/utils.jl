@@ -75,16 +75,7 @@ function s3_bucket_arn_to_name(s3_bucket_arn::String)::String
 end
 
 function s3_bucket_name_to_arn(s3_bucket_name::String)::String
-    # Get s3 bucket arn from name
-    s3_bucket_arn = s3_bucket_name
-    if endswith(s3_bucket_arn, "/")
-        s3_bucket_arn = s3_bucket_arn[1:end-1]
-    elseif endswith(s3_bucket_arn, "/*")
-        s3_bucket_arn = s3_bucket_arn[1:end-2]
-    elseif endswith(s3_bucket_arn, "*")
-        s3_bucket_arn = s3_bucket_arn[1:end-1]
-    end
-    return s3_bucket_arn
+    "arn:aws:s3:::$s3_bucket_name*"
 end
 
 ##################
@@ -212,7 +203,7 @@ function get_organization_id()
         if haskey(organization_ids, user_id)
             organization_ids[user_id]
         else
-            organization_id = send_request_get_response(:describe_users, Dict())["organization_id"]
+            organization_id = send_request_get_response(:describe_users, Dict{String,Any}())["organization_id"]
             organization_ids[user_id] = organization_id
             organization_id
         end

@@ -788,7 +788,7 @@ function end_all_sessions(cluster_name::String; release_resources_now = false, r
     end
 end
 
-function get_session_state(session_id::String=_get_session_id_no_error(); kwargs...)::String
+function get_session_state(session_id::String=_get_session_id_no_error(); kwargs...)::Tuple{String,String}
     global start_session_tasks
     sessions = get_sessions_dict()
     if !haskey(sessions, session_id) && haskey(start_session_tasks, session_id) && !istaskdone(start_session_tasks[session_id])
@@ -810,6 +810,7 @@ function get_session_state(session_id::String=_get_session_id_no_error(); kwargs
     if haskey(sessions, session_id)
         sessions[session_id].resource_id = resource_id
     end
+    @show response
     if session_status == "failed"
         # We don't immediately fail - we're just explaining. It's only later on
         # where it's like we're actually using this session do we set the status.
@@ -831,7 +832,8 @@ function _wait_for_session(session_id::SessionId, show_progress; kwargs...)
     p = ProgressUnknown("Preparing session with ID $session_id", spinner=true, enabled=show_progress)
     t = 0
     st = time()
-    while session_status == "creating"
+    @show session_status
+    while session_status == "creating" || session_status == "creating cluster"
         sleep(t)
         t = if time() - st < 90
             0
@@ -868,8 +870,10 @@ function wait_for_session(session_id::SessionId=get_session_id(), show_progress=
     if haskey(start_session_tasks, session_id)
         get_session(session_id, show_progress)
     else
+        @show haskey(sessions_dict, session_id)
         is_session_ready = if haskey(sessions_dict, session_id)
             session_info::Session = sessions_dict[session_id]
+            @show session_info
             if !session_info.is_cluster_ready
                 wait_for_cluster(session_info.cluster_name, show_progress, kwargs...)
             end
@@ -877,6 +881,7 @@ function wait_for_session(session_id::SessionId=get_session_id(), show_progress=
         else
             false
         end
+        @show is_session_ready
         if !is_session_ready
             _wait_for_session(session_id, show_progress; kwargs...)
         end
