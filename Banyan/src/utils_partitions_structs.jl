@@ -20,7 +20,7 @@ PartitioningConstraintOverGroup(type, args::Vector{PartitionTypeReference}) =
 PartitioningConstraintOverGroups(type, co_args::Vector{Vector{PartitionTypeReference}}) =
     PartitioningConstraint(type, PartitionTypeReference[], co_args, identity)
 PartitioningConstraintFunction(@nospecialize(func::Function)) =
-    PartitioningConstraint("FUNCTION", [PartitionTypeReference[],] Vector{PartitionTypeReference}[], func)
+    PartitioningConstraint("FUNCTION", PartitionTypeReference[], Vector{PartitionTypeReference}[], func)
 
 mutable struct PartitioningConstraints
     constraints::Vector{}
@@ -79,7 +79,7 @@ end
 
 struct PartitionedUsingFunc{K}
     # Memory usage, sampling
-::Bool
+    keep_same_sample_rate::Bool
     # Keys (not relevant if you never use grouped partitioning).
     grouped::Vector{Future}
     keep_same_keys::Bool

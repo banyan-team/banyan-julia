@@ -312,6 +312,7 @@ function send_request_get_response(method, content::Dict)
     # Prepare request
     configuration = load_config(get_banyanconfig_path())
     user_id = configuration["banyan"]["user_id"]
+    @show user_id
     api_key = configuration["banyan"]["api_key"]
     content["debug"] = is_debug_on()
     url = string(BANYAN_API_ENDPOINT, method_to_string(method))
@@ -319,6 +320,7 @@ function send_request_get_response(method, content::Dict)
         "content-type" => "application/json",
         "Username-APIKey" => "$user_id-$api_key",
     ]
+    @show headers
     # Look for BANYAN_GITHUB_TOKEN environment variable if we are starting a session
     # Should be in the form https://<username>:<private_access_token>@github.com
     # Also, look for BANYAN_SSH_KEY_PATH environment variable if we are starting as session.

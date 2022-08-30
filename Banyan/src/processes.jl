@@ -1,5 +1,6 @@
 
 function create_process(process_name, script; cron_schedule = "rate(24 hours)", creation_kwargs...)
+    config = configure(; creation_kwargs...)
 
     if startswith(script, "http://") || startswith(script, "https://")
         script = Downloads.download(script)
@@ -8,14 +9,18 @@ function create_process(process_name, script; cron_schedule = "rate(24 hours)", 
     global BANYAN_JULIA_BRANCH_NAME
     global BANYAN_JULIA_PACKAGES
 
+    nworkers = get(creation_kwargs, :num_workers, 150)
+    not_in_modules = m -> !(m in get(creation_kwargs, :not_using_modules, false))
+    cluster_name = get(creation_kwargs, :cluster_name, NOTHING_STRING)
+
     session_configuration = Dict{String,Any}(
-        "cluster_name" => get(creation_kwargs, :cluster_name, NOTHING_STRING),
-        "num_workers" => get(creation_kwargs, :num_workers, 150),
+        "cluster_name" => cluster_name,
+        "num_workers" => nworkers,
         "sample_rate" => get(creation_kwargs, :sample_rate, nworkers * 10),
         "release_resources_after" => get(creation_kwargs, :release_resources_after, 20),
         "return_logs" => get(creation_kwargs, :return_logs, false),
         "store_logs_in_s3" => get(creation_kwargs, :store_logs_in_s3, false),
-        "store_logs_on_cluster" => store_logs_on_cluster,
+        "store_logs_on_cluster" => get(creation_kwargs, :store_logs_on_cluster, false),
         "log_initialization" => get(creation_kwargs, :log_initialization, false),
         "version" => get_julia_version(),
         "benchmark" => get(ENV, "BANYAN_BENCHMARK", "0")::String == "1",
@@ -26,9 +31,9 @@ function create_process(process_name, script; cron_schedule = "rate(24 hours)", 
         "language" => "jl"
     )
 
-    session_name = get(creation_kwargs, :session_name, String)
-    no_email = get(creation_kwargs, :no_email, Bool)
-    email_when_ready = get(creation_kwargs, :email_when_ready, Bool)
+    session_name = get(creation_kwargs, :session_name, "")
+    no_email = isnothing(get(creation_kwargs, :email_when_ready, nothing))
+    email_when_ready = no_email ? false : get(creation_kwargs, :email_when_ready, false)
 
 
     if session_name != NOTHING_STRING
@@ -46,6 +51,9 @@ function create_process(process_name, script; cron_schedule = "rate(24 hours)", 
     session_configuration["curr_cluster_instance_id"] = curr_cluster_instance_id
 
     environment_info = Dict{String,Any}()
+    url = get(creation_kwargs, :url, NOTHING_STRING)
+    version = get_julia_version()
+
     # If a url is not provided, then use the local environment
     if url == NOTHING_STRING
         
@@ -61,15 +69,15 @@ function create_process(process_name, script; cron_schedule = "rate(24 hours)", 
         environment_hash = get_hash(project_toml * manifest_toml * version)
         environment_info["environment_hash"] = environment_hash
         environment_info["project_toml"] = "$(environment_hash)/Project.toml"
-        file_already_in_s3 = isfile(S3Path("s3://$(s3_bucket_name)/$(environment_hash)/Project.toml", config=get_aws_config()))
+        file_already_in_s3 = isfile(S3Path("s3://$(s3_bucket_name)/$(environment_hash)/Project.toml", config=global_aws_config()))
         if !file_already_in_s3
-            s3_put(get_aws_config(), s3_bucket_name, "$(environment_hash)/Project.toml", project_toml)
+            s3_put(global_aws_config(), s3_bucket_name, "$(environment_hash)/Project.toml", project_toml)
         end
         if manifest_toml != ""
             environment_info["manifest_toml"] = "$(environment_hash)/Manifest.toml"
-            file_already_in_s3 = isfile(S3Path("s3://$(s3_bucket_name)/$(environment_hash)/Manifest.toml", config=get_aws_config()))
+            file_already_in_s3 = isfile(S3Path("s3://$(s3_bucket_name)/$(environment_hash)/Manifest.toml", config=global_aws_config()))
             if !file_already_in_s3
-                s3_put(get_aws_config(), s3_bucket_name, "$(environment_hash)/Manifest.toml", manifest_toml)
+                s3_put(global_aws_config(), s3_bucket_name, "$(environment_hash)/Manifest.toml", manifest_toml)
             end
         end
     else
@@ -91,39 +99,46 @@ function create_process(process_name, script; cron_schedule = "rate(24 hours)", 
     end
     environment_info["force_sync"] = get(creation_kwargs, :force_sync, false)
     session_configuration["environment_info"] = environment_info
+    files = get(creation_kwargs, :files, String[])
+    code_files = get(creation_kwargs, :code_files, String[])
+    force_update_files = get(creation_kwargs, :force_update_files, false)
+
 
     # Upload files to S3
     for f in vcat(files, code_files)
-        s3_path = S3Path("s3://$(s3_bucket_name)/$(basename(f))", config=get_aws_config())
+        s3_path = S3Path("s3://$(s3_bucket_name)/$(basename(f))", config=global_aws_config())
         if !isfile(s3_path) || force_update_files
-            s3_put(get_aws_config(), s3_bucket_name, basename(f), load_file(f))
+            s3_put(global_aws_config(), s3_bucket_name, basename(f), load_file(f))
         end
     end
     # TODO: Optimize so that we only upload (and download onto cluster) the files if the filename doesn't already exist
     session_configuration["files"] = map(basename, files)
     session_configuration["code_files"] = map(basename, code_files)
 
-    if get(creation_kwargs, :no_pf_dispatch_table, false)
+    no_pf_dispatch_table = !haskey(creation_kwargs, :pf_dispatch_table)
+    pf_dispatch_table = get(creation_kwargs, :pf_dispatch_table, String[])
+    if no_pf_dispatch_table
         branch_to_use::String = get(ENV, "BANYAN_TESTING", "0")::String == "1" ? get_branch_name() : BANYAN_JULIA_BRANCH_NAME
         pf_dispatch_table = String[]
         for dir in BANYAN_JULIA_PACKAGES
             push!(pf_dispatch_table, "https://raw.githubusercontent.com/banyan-team/banyan-julia/$branch_to_use/$dir/res/pf_dispatch_table.toml")
         end
     end
-    pf_dispatch_table_loaded = load_toml(get(creation_kwargs, :pf_dispatch_table, nothing))
+    pf_dispatch_table_loaded = load_toml(pf_dispatch_table)
     session_configuration["pf_dispatch_table"] = pf_dispatch_table_loaded
 
-    
+    disk_capacity = get(creation_kwargs, :disk_capacity, "1200 GiB")
+
     # Construct cluster creation
     cluster_config = Dict{String,Any}(
-        "cluster_name" => get(creation_kwargs, :name, nothing),
+        "cluster_name" => get(creation_kwargs, :cluster_name, NOTHING_STRING),
         "instance_type" => get(creation_kwargs, :instance_type, "m4.4xlarge"),
         "max_num_workers" => get(creation_kwargs, :max_num_workers, 2048),
         "initial_num_workers" => get(creation_kwargs, :initial_num_workers, 16),
         "min_num_workers" => get(creation_kwargs, :instance_type, 0),
         "aws_region" => get(creation_kwargs, :aws_region, nothing),
         "s3_read_write_resource" => get(creation_kwargs, :s3_read_write_resource, String),
-        "scaledown_time" => scaledown_time,
+        "scaledown_time" => get(creation_kwargs, :scaledown_time, 25),
         "recreate" => false,
         # We need to pass in the disk capacity in # of GiB and we do this by dividing the input
         # by size of 1 GiB and then round up. Then the backend will determine how to adjust the
@@ -136,8 +151,8 @@ function create_process(process_name, script; cron_schedule = "rate(24 hours)", 
     vpc_id = get(creation_kwargs, :vpc_id, nothing)
     subnet_id = get(creation_kwargs, :subnet_id, nothing)
 
-    if haskey(c["aws"], "ec2_key_pair_name")
-        cluster_config["ec2_key_pair"] = c["aws"]["ec2_key_pair_name"]
+    if haskey(config["aws"], "ec2_key_pair_name")
+        cluster_config["ec2_key_pair"] = config["aws"]["ec2_key_pair_name"]
     end
     if !isnothing(iam_policy_arn)
         cluster_config["additional_policy"] = iam_policy_arn
@@ -151,14 +166,14 @@ function create_process(process_name, script; cron_schedule = "rate(24 hours)", 
 
     creation_kwargs_dict = merge(session_configuration, cluster_config)
 
-    creation_kwargs_dict["initial_num_workers"] = num_workers
+    creation_kwargs_dict["initial_num_workers"] = nworkers
 
     if !haskey(creation_kwargs_dict, "cluster_name")
         error("Cluster name is not specified")
     end
 
-    for c in process_name
-        if (isspace(c)) || !(isletter(c)) || !(isnum(c)) || !("_") || !("-")
+    for pnc in process_name
+        if (isspace(pnc)) && !(isletter(pnc)) && !(isdigit(pnc)) && (pnc != '_') && (pnc != "-")
             error("Process name must not include any white space and only alphanumeric characters, hyphens, or underscores.")
         end
     end
@@ -177,7 +192,7 @@ function create_process(process_name, script; cron_schedule = "rate(24 hours)", 
     api_key = config["banyan"]["api_key"]
     res_code = res_code * "configure(user_id=" * user_id * ", api_key=" * api_key * ")\n"
 
-    creation_kwargs_str = Banyan.to_jl_value_contents(creation_kwargs)
+    creation_kwargs_str = Banyan.to_jl_string(creation_kwargs)
     res_code = res_code * "start_session(; Banyan.from_jl_value_contents$(creation_kwargs_str)...)\n" 
 
     res_code = res_code * "try\n"
@@ -189,25 +204,24 @@ function create_process(process_name, script; cron_schedule = "rate(24 hours)", 
     res_code = res_code * "end\n"
     res_code = res_code * "end_session(self_session_id)\n"
 
-    bucket_name = "banyan-scripts-$(get_session().organization_id)"
+    bucket_name = "banyan-scripts-$(get_organization_id())"
     # 1. Call list_buckets to check if the bucket_name exists
     # 2. If it doesn't, call create_bucket to create the bucket
     # 3. Convert String res_code to Vector{UInt8} (an array of bytes)
     # 4. Call put_object and pass in the bytes as the body and use the process name as the key
 
-    # Create bucket if it does not exist
-    buckets = S3.list_buckets()
-    if !(bucket_name in buckets)
-        S3.create_bucket(bucket_name)
-    end 
+    # # Create bucket if it does not exist
+    # buckets = S3.list_buckets()
+    # if !(bucket_name in buckets)
+    #     S3.create_bucket(bucket_name)
+    # end 
 
     res_code_blob = Vector{UInt8}(res_code)
-    params = Dict("Body" => res_code_blob)
-    S3.put_object(bucket_name, process_name, params)
+    write(S3Path("s3://$bucket_name/$process_name"), res_code_blob)
 
-    aws_config = get_aws_config()
-    aws_region = aws_config["region"]
-    
+    aws_config = global_aws_config()
+    aws_region = get_aws_config_region()
+
     response = send_request_get_response(
         :create_process,
         Dict{String,Any}(
@@ -296,6 +310,7 @@ function start_process(process_name, cron_schedule="daily")
     else 
         cron_string = cron_schedule
     end
+
 
     response = send_request_get_response(
         :create_process,

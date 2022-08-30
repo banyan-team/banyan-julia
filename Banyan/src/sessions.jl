@@ -270,9 +270,9 @@ function _start_session(
     # Upload files to S3
     scripts_bucket_name = "banyan-scripts-$(get_organization_id())"
     for f in vcat(files, code_files)
-        s3_path = S3Path("s3://$(scripts_bucket_name)/$(basename(f))", config=get_aws_config())
+        s3_path = S3Path("s3://$(scripts_bucket_name)/$(basename(f))", config=global_aws_config())
         if !isfile(s3_path) || force_update_files
-            s3_put(get_aws_config(), scripts_bucket_name, basename(f), load_file(f))
+            s3_put(global_aws_config(), scripts_bucket_name, basename(f), load_file(f))
         end
     end
     # TODO: Optimize so that we only upload (and download onto cluster) the files if the filename doesn't already exist
