@@ -44,7 +44,7 @@ function test_csv_from_s3_latency()
         cluster_name = ENV["BANYAN_CLUSTER_NAME"],
         nworkers = parse(Int64, get(ENV, "BANYAN_NWORKERS", "2")),
         # sample_rate = 4096,
-        print_logs = true,
+        # print_logs = true,
         url = "https://github.com/banyan-team/banyan-julia.git",
         branch = get(ENV, "BANYAN_JULIA_BRANCH", Banyan.get_branch_name()),
         directory = "banyan-julia/BanyanDataFrames/test",
@@ -113,16 +113,18 @@ function test_csv_from_s3_latency()
 
                     trip_means = @time "combine" combine(gdf, :trip_distance => mean)
 
-                    trip_means = @time "compute" compute(trip_means)
+                    trip_means_result = @time "compute" compute(trip_means, destroy=[gdf, long_trips, df])
+
+                    @show trip_means_result
                 end
             end
         end
     catch
         @time "end_session" begin
-        end_session(s)
+        end_session(s, print_logs=true)
         end
         rethrow()
     finally
-        end_session(s)
+        end_session(s, print_logs=true)
     end
 end

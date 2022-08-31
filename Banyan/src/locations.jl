@@ -431,7 +431,7 @@ function RemoteSource(
         loc
     elseif loc.metadata_invalid && !loc.sample_invalid
         # Case where parameters are invalid
-        new_loc = offloaded(_remote_source, lp, loc, args...; distributed=true)
+        new_loc = offloaded(_remote_source, lp, loc, args...; distributed=true, print_logs=false)
         Arrow.write(local_metadata_path, Arrow.Table(); metadata=new_loc.src_parameters)
         new_loc.sample.value = load_sample(local_sample_path)
         new_loc
@@ -439,7 +439,7 @@ function RemoteSource(
         # Case where sample is invalid
 
         # Get the Location with up-to-date metadata (source parameters) and sample
-        new_loc = offloaded(_remote_source, lp, loc, args...; distributed=true)
+        new_loc = offloaded(_remote_source, lp, loc, args...; distributed=true, print_logs=false)
         # @show new_loc
 
         if !loc.metadata_invalid

@@ -279,9 +279,9 @@
 #     @test resource_id_2 == resource_id_1
 # end
 
-@testset "Running session with print_logs=$print_logs and store_logs_in_s3=$store_logs_in_s3" for
+@testset "Running session with print_logs=$print_logs and store_logs_in_s3=$store_logs_in_s3 and log_initialization=$log_initialization" for
     print_logs in [true, false],
-    store_logs_in_s3 in [true, false]
+    (store_logs_in_s3, log_initialization) in [(false, false), (true, false), (true, true)]
 
     println("Before run_session")
     run_session(
@@ -296,12 +296,15 @@
         ],
         print_logs = print_logs,
         store_logs_in_s3 = store_logs_in_s3,
+        store_logs_on_cluster=true,
         instance_type="t3.large",
-        disk_capacity="auto"
+        disk_capacity="auto",
+        log_initialization=log_initialization,
+        force_pull=true
     )
 end
 
-@testset "Starting session" begin
+@testset "Starting session with print_logs=$print_logs" for print_logs in [true, false]
     s = start_session(
         cluster_name = ENV["BANYAN_CLUSTER_NAME"],
         nworkers=1,
@@ -312,9 +315,27 @@ end
             "banyan-julia/Banyan",
         ],
         instance_type="t3.large",
-        disk_capacity="auto"
+        disk_capacity="auto",
+        print_logs=print_logs,
+        store_logs_on_cluster=true,
+        force_pull=true
     )
     @test get_session().id == get_session_id()
+    offloaded() do
+        @debug "This is a test debug statement"
+        @info "This is a test info statement"
+        @info "This is a test println statement"
+    end
+    offloaded(print_logs=true) do
+        @debug "This is a test debug statement with print_logs=true"
+        @info "This is a test info statement with print_logs=true"
+        @info "This is a test println statement with print_logs=true"
+    end
+    offloaded(print_logs=false) do
+        @debug "This is a test debug statement with print_logs=false"
+        @info "This is a test info statement with print_logs=false"
+        @info "This is a test println statement with print_logs=false"
+    end
     end_session(s)
 
     s = start_session(
@@ -328,10 +349,26 @@ end
         ],
         start_now=true,
         instance_type="t3.large",
-        disk_capacity="auto"
+        disk_capacity="auto",
+        print_logs=print_logs
     )
     @test get_session().id == get_session_id()
-    end_session(s)
+    offloaded() do
+        @debug "This is a test debug statement"
+        @info "This is a test info statement"
+        @info "This is a test println statement"
+    end
+    offloaded(print_logs=true) do
+        @debug "This is a test debug statement with print_logs=true"
+        @info "This is a test info statement with print_logs=true"
+        @info "This is a test println statement with print_logs=true"
+    end
+    offloaded(print_logs=false) do
+        @debug "This is a test debug statement with print_logs=false"
+        @info "This is a test info statement with print_logs=false"
+        @info "This is a test println statement with print_logs=false"
+    end
+    end_session(s, print_logs=true)
 
     s = start_session(
         cluster_name = ENV["BANYAN_CLUSTER_NAME"],
@@ -344,7 +381,8 @@ end
         ],
         wait_now=true,
         instance_type="t3.large",
-        disk_capacity="auto" 
+        disk_capacity="auto",
+        print_logs=print_logs 
     )
     @test get_session().id == get_session_id()
     end_session(s)

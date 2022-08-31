@@ -22,6 +22,7 @@ mutable struct Session
     scatter_queue_url::String
     gather_queue_url::String
     execution_queue_url::String
+    print_logs::Bool
 
     # This struct just stores local state for the session.
     function Session(
@@ -36,7 +37,8 @@ mutable struct Session
         is_session_ready::Bool = false;
         scatter_queue_url::String = "",
         gather_queue_url::String = "",
-        execution_queue_url::String = ""
+        execution_queue_url::String = "",
+        print_logs = false
     )::Session
         new(
             session_id,
@@ -55,7 +57,8 @@ mutable struct Session
             is_session_ready,
             scatter_queue_url,
             gather_queue_url,
-            execution_queue_url
+            execution_queue_url,
+            print_logs
         )
     end
 end

@@ -30,6 +30,8 @@ function _get_session_id_no_error()::SessionId
     !haskey(sessions, current_session_id) ? "" : current_session_id
 end
 
+has_session_id() = !isempty(_get_session_id_no_error())
+
 function get_session_id(session_id="")::SessionId
     global current_session_id
     global sessions
@@ -107,8 +109,11 @@ function get_session(session_id=get_session_id(), show_progress=true)::Session
             finish!(p, spinner = '✓')
         end
         get_sessions_dict()[get_session_id(session_id)]
+    # elseif startswith(session_id, "start-session-")
     else
-        error("The current session ID $session_id is not stored as a session starting task in progress or a running session")
+        error("The session ID $session_id is not stored as a session starting task in progress or a running session")
+    # else
+    #     get_sessions(;session_id=session_id)[session_id]
     end
 end
 
@@ -130,7 +135,7 @@ function get_loaded_packages()
             catch
                 nothing
             end
-            if is_used isa Module && !(m in [:Main, :Base, :Core, :InteractiveUtils, :IJulia, :VSCodeServer])
+            if is_used isa Module && !(m in [:Main, :Base, :Core, :InteractiveUtils, :IJulia, :VSCodeServer, :S3, :SQS])
                 push!(res, m_string)
             end
         end
@@ -333,7 +338,8 @@ function _start_session(
         false;
         scatter_queue_url=scatter_queue_url,
         gather_queue_url=gather_queue_url,
-        execution_queue_url=execution_queue_url
+        execution_queue_url=execution_queue_url,
+        print_logs=print_logs
     )
 
     # if !nowait
@@ -540,6 +546,8 @@ function start_session(;
     start_session_tasks[new_start_session_task_id] = new_start_session_task
     set_session(new_start_session_task_id)
 
+    @info (for_running ? "Running" : "Starting") * " session with ID $new_start_session_task_id"
+
     # Start now or wait now if requested
     if start_now || wait_now
         yield(new_start_session_task)
@@ -552,13 +560,21 @@ function start_session(;
     get_session_id()
 end
 
-function end_session(session_id::SessionId = get_session_id(); failed = false, release_resources_now = false, release_resources_after = nothing, destroy_cluster=false, kwargs...)
+function end_session(session_id::SessionId = ""; print_logs=nothing, failed = false, for_running = false, release_resources_now = false, release_resources_after = nothing, destroy_cluster=false, kwargs...)
     sessions = get_sessions_dict()
     global current_session_id
     global start_session_tasks
 
     # Configure using parameters
     configure(; kwargs...)
+
+    if isempty(session_id)
+        if has_session_id()
+            session_id = get_session_id()
+        else
+            error("No session to end")
+        end
+    end
 
     # Ensure that the session ID is not of a creating task
     # TODO: Get the session ID before the task begins wait_for_session
@@ -567,7 +583,12 @@ function end_session(session_id::SessionId = get_session_id(); failed = false, r
         if !istaskdone(start_session_tasks[session_id])
             @warn "Session with ID $session_id must be started before it can be destroyed"
         end
-        session_id = get_session(session_id).id
+    end
+    session_id, print_logs, cluster_name = if haskey(start_session_tasks, session_id) || haskey(sessions, session_id)
+        session = get_session(session_id)
+        session.id, (isnothing(print_logs) ? session.print_logs : print_logs), session.cluster_name
+    else
+        session_id, false, ""
     end
 
     request_params = Dict{String,Any}(
@@ -582,7 +603,14 @@ function end_session(session_id::SessionId = get_session_id(); failed = false, r
         :end_session,
         request_params,
     )
+    if !for_running
     @info "Ending session with ID $session_id"
+    end
+
+    # Print logs if needed
+    if print_logs
+        print_session_logs(session_id, cluster_name, wait=true)
+    end
 
     # Remove from global state
     set_session("")
@@ -600,7 +628,7 @@ function end_session(session_id::SessionId = get_session_id(); failed = false, r
     session_id
 end
 
-function get_sessions(cluster_name = nothing; status = nothing, limit = -1, kwargs...)
+function get_sessions(cluster_name = nothing; session_id=nothing, status = nothing, limit = -1, kwargs...)
     if isnothing(cluster_name)
         @debug "Downloading description of all sessions"
     else
@@ -613,6 +641,9 @@ function get_sessions(cluster_name = nothing; status = nothing, limit = -1, kwar
     end
     if !isnothing(status)
         filters["status"] = status
+    end
+    if !isnothing(session_id)
+        filters["session_id"] = session_id
     end
 
     if limit > 0
@@ -640,7 +671,7 @@ function get_sessions(cluster_name = nothing; status = nothing, limit = -1, kwar
         sessions[id]["start_time"] = parse_time(sessions[id]["start_time"])
     end
     sessions
-end
+end 
 
 # TODO: Make get_resources, get_running_resources, destroy_resource
 # and then make end_all_sessions call these functions to end all running jobs
@@ -702,14 +733,33 @@ function download_session_logs(session_id::SessionId, cluster_name::String, file
     return filename
 end
 
-function print_session_logs(session_id, cluster_name, delete_file=true; kwargs...)
+function print_session_logs(session_id, cluster_name; delete_from_s3=false, wait=false, kwargs...)
     configure(; kwargs...)
     session_id = get_session_id(session_id)
     s3_bucket_name = get_cluster_s3_bucket_name(cluster_name)
     log_file_name = "banyan-log-for-session-$(session_id)"
-    logs = s3_get(global_aws_config(), s3_bucket_name, log_file_name)
-    println(String(logs))
-    if delete_file
+    logs::String = ""
+    p::ProgressUnknown =  ProgressUnknown("Waiting for logs for session with ID $session_id")
+    while true
+        try
+            logs = String(s3_get(global_aws_config(), s3_bucket_name, log_file_name))
+            break
+        catch e
+            if wait && AWSException(e).not_found
+                continue
+            else
+                @warn "No logs found for session with ID $session_id"
+                logs = ""
+                break
+            end
+        end
+        next!(p)
+    end
+    finish!(p, spinner = '✓')  # ✗
+    if !isempty(logs)
+        print(logs)
+    end
+    if delete_from_s3
         s3_delete(global_aws_config(), s3_bucket_name, log_file_name)
     end
 end
@@ -805,8 +855,6 @@ function wait_for_session(session_id::SessionId=get_session_id(), show_progress=
     global start_session_tasks
     sessions_dict = get_sessions_dict()
 
-    @show haskey(start_session_tasks, session_id)
-
     if haskey(start_session_tasks, session_id)
         get_session(session_id, show_progress)
     else
@@ -862,7 +910,7 @@ function run_session(code_files::Union{String,Vector{String}};
 
     store_logs_in_s3_orig = store_logs_in_s3
     cluster_name = ""
-    try
+    session_id = try
         if print_logs
             # If logs need to be printed, ensure that we save logs in S3. If
             # store_logs_in_s3==False, then delete logs in S3 later
@@ -879,12 +927,12 @@ function run_session(code_files::Union{String,Vector{String}};
         )
         cluster_name = get_session().cluster_name
         s
-    catch
+    catch e
         session_id = _get_session_id_no_error()
         if !isempty(session_id)
-            end_session(session_id, failed=true, release_resources_now=true)
+            end_session(session_id, failed=true, release_resources_now=true, for_running=true, print_logs=false)
             if print_logs && !isempty(cluster_name)
-                print_session_logs(session_id, cluster_name, !store_logs_in_s3_orig)
+                print_session_logs(session_id, cluster_name, delete_from_s3=!store_logs_in_s3_orig)
             end
         end
         rethrow()
@@ -892,9 +940,9 @@ function run_session(code_files::Union{String,Vector{String}};
     finally
         session_id = _get_session_id_no_error()
         if !isempty(session_id)
-            end_session(session_id, failed=false, release_resources_now=true)
+            end_session(session_id, failed=false, release_resources_now=true, for_running=true, print_logs=false)
             if print_logs && !isempty(cluster_name)
-                print_session_logs(session_id, cluster_name, !store_logs_in_s3_orig)
+                print_session_logs(session_id, cluster_name, delete_from_s3=!store_logs_in_s3_orig)
             end
         end
         session_id
@@ -902,3 +950,14 @@ function run_session(code_files::Union{String,Vector{String}};
 end
 
 @specialize
+
+# How we handle logs
+# - start_session - Accept paramters for store_logs_in_s3, store_logs_on_cluster
+# - run_session - logs get printed out for the whole session
+# - offloaded - logs get printed out immediately if print_logs is true
+# - evaluation - logs get printed out immediately if this is a writing computation where there isn't a value returned to client side
+# - end_session - logs get printed out for whole session if print_logs is true (some logs will be redundant if there was writing or offloaded)
+# 
+# How to specify print_logs
+# - For the whole session when you call `start_session`
+# - For a particular call to `offloaded` or `end_session`

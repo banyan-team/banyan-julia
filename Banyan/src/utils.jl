@@ -341,7 +341,7 @@ function send_request_get_response(method, content::Dict)
     elseif resp.status == 500 || resp.status == 504
         error(data)
     elseif resp.status == 502
-        error("Sorry there has been an error. Please contact support.")
+        error("Sorry, an error has occurred. Please contact us at support@banyancomputing.com or use the Banyan Users Slack for assistance.")
     end
     return data
 
@@ -664,5 +664,16 @@ function readdir_no_error(p)
             print("Failed to readdir of p=$p because of e=$e")
         end
         String[]
+    end
+end
+
+struct AWSExceptionInfo
+    is_aws::Bool
+    unmodified_since::Bool
+    not_found::Bool
+
+    function AWSExceptionInfo(e)
+        is_aws = e isa AWSException && e.cause isa AWS.HTTP.ExceptionRequest.StatusError
+        new(is_aws, is_aws && e.cause.status == 304, is_aws && e.cause.status == 404)
     end
 end

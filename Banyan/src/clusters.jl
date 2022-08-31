@@ -95,7 +95,6 @@ function create_cluster(;
     end
 
     # Construct cluster creation
-    @show destroy_cluster_after
     cluster_config = Dict{String,Any}(
         "cluster_name" => cluster_name,
         "instance_type" => instance_type,
@@ -246,19 +245,23 @@ end
 
 function get_clusters(cluster_name=""; kwargs...)::Dict{String,Cluster}
     configure(; kwargs...)
-    _get_clusters(cluster_name)
+    res = _get_clusters(cluster_name)
+    res
 end
 
-function get_cluster_s3_bucket_arn(cluster_name=get_cluster_name(); kwargs...)
+function get_cluster_s3_bucket_arn(cluster_name=""; kwargs...)
     clusters_dict = get_clusters_dict()
     # Check if cached, sine this property is immutable
+    if isempty(cluster_name)
+        cluster_name = get_cluster_name()
+    end
     if !haskey(clusters_dict, cluster_name)
         get_cluster(cluster_name; kwargs...)
     end
     return clusters_dict[cluster_name].s3_bucket_arn
 end
 
-get_cluster_s3_bucket_name(cluster_name=get_cluster_name(); kwargs...) =
+get_cluster_s3_bucket_name(cluster_name=""; kwargs...) =
     s3_bucket_arn_to_name(get_cluster_s3_bucket_arn(cluster_name; kwargs...))
 
 get_cluster(cluster_name::String=get_cluster_name(); kwargs...)::Cluster = get_clusters(cluster_name; kwargs...)[cluster_name]

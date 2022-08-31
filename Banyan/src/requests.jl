@@ -221,9 +221,11 @@ function _partitioned_computation_concrete(fut::Future, destination::Location, n
 
     # Send evaluation request
     is_merged_to_disk::Bool = false
+    num_merges_to_client::Int64 = 0
     try
         response = send_evaluation(fut.value_id, session_id)
         is_merged_to_disk = response["is_merged_to_disk"]::Bool
+        num_merges_to_client = response["num_merges_to_client"]::Int64
     catch
         end_session(failed=true)
         rethrow()
@@ -263,11 +265,8 @@ function _partitioned_computation_concrete(fut::Future, destination::Location, n
     error_for_main_stuck_time::Union{Nothing,DateTime} = nothing
     while true
         # TODO: Use to_jl_value and from_jl_value to support Client
-        @time "sqs_receive_next_message for evaluate" begin
         message, error_for_main_stuck = sqs_receive_next_message(gather_queue, p, error_for_main_stuck, error_for_main_stuck_time)
-        end
         message_type::String = message["kind"]
-        @show message_type
         if message_type == "SCATTER_REQUEST"
             # Send scatter
             value_id = message["value_id"]::ValueId
@@ -314,6 +313,22 @@ function _partitioned_computation_concrete(fut::Future, destination::Location, n
                 f.value = value
                 # TODO: Update stale/mutated here to avoid costly
                 # call to `send_evaluation`
+
+                # Stop if we have received all the merges
+                num_merges_to_client -= 1
+                if num_merges_to_client <= 0
+                    if !isnothing(p) && !p.done
+                        finish!(p, spinner = '✓')
+                    end
+                    break
+                end
+
+                # NOTE: Now, logs only get returned if errors happen. That's not good.
+                # We need to modify end_session to return all logs
+
+                # TODO: Don't send EVALUATION_END
+                # TODO: Make evaluate tell executor to not send evaluation_end if num_merges_to_client > 0
+                # TODO: Modify executor and client side to send logs back as well
             end
 
             error_for_main_stuck, error_for_main_stuck_time = check_worker_stuck_error(value_id, whole_message_contents, error_for_main_stuck, error_for_main_stuck_time)
@@ -557,7 +572,6 @@ function send_evaluation(value_id::ValueId, session_id::SessionId)
     not_using_modules = get_session().not_using_modules
     main_modules = setdiff(get_loaded_packages(),  not_using_modules)
     using_modules = setdiff(used_packages, not_using_modules)
-    @time "send_request_get_response for evaluate" begin
     response = send_request_get_response(
         :evaluate,
         Dict{String,Any}(
@@ -584,7 +598,6 @@ function send_evaluation(value_id::ValueId, session_id::SessionId)
             "sampling_configs" => sampling_configs_to_jl(get_sampling_configs())
         ),
     )
-    end
     if isnothing(response)
         throw(ErrorException("The evaluation request has failed. Please contact support"))
     end
@@ -651,7 +664,7 @@ end
 #     when calling evaluate (see send_evaluate) and value_id -1
 # offloaded(some_func; distributed=true)
 # offloaded(some_func, a, b; distributed=true)
-function offloaded(given_function::Function, args...; distributed::Bool = false)
+function offloaded(given_function::Function, args...; distributed::Bool = false, print_logs=nothing)
     @nospecialize
 
     # NOTE: no need for wait_for_session here because evaluate for offloaded
@@ -661,12 +674,13 @@ function offloaded(given_function::Function, args...; distributed::Bool = false)
     serialized::String = to_jl_string((given_function, args))
 
     # Submit evaluation request
-    !isempty(get_session().organization_id) || error("Organization ID not stored locally for this session")
-    !isempty(get_session().cluster_instance_id) || error("Cluster instance ID not stored locally for this session")
-    not_using_modules = get_session().not_using_modules
+    session = get_session()
+    !isempty(session.organization_id) || error("Organization ID not stored locally for this session")
+    !isempty(session.cluster_instance_id) || error("Cluster instance ID not stored locally for this session")
+    print_logs = (isnothing(print_logs) ? session.print_logs : print_logs)
+    not_using_modules = session.not_using_modules
     main_modules = [m for m in get_loaded_packages() if !(m in not_using_modules)]
     session_id = Banyan.get_session_id()
-    @time "send_request_get_response in offloaded" begin
     response = send_request_get_response(
         :evaluate,
         Dict{String,Any}(
@@ -680,17 +694,17 @@ function offloaded(given_function::Function, args...; distributed::Bool = false)
             "benchmark" => get(ENV, "BANYAN_BENCHMARK", "0") == "1",
             "offloaded_function_code" => serialized,
             "distributed" => distributed,
-            "worker_memory_used" => get_session().worker_memory_used,
-            "resource_id" => get_session().resource_id,
-            "organization_id" => get_session().organization_id,
-            "cluster_instance_id" => get_session().cluster_instance_id,
-            "cluster_name" => get_session().cluster_name,
-            "sampling_configs" => sampling_configs_to_jl(get_sampling_configs())
+            "worker_memory_used" => session.worker_memory_used,
+            "resource_id" => session.resource_id,
+            "organization_id" => session.organization_id,
+            "cluster_instance_id" => session.cluster_instance_id,
+            "cluster_name" => session.cluster_name,
+            "sampling_configs" => sampling_configs_to_jl(get_sampling_configs()),
+            "print_logs" => print_logs,
         ),
     )
-    end
     if isnothing(response)
-        throw(ErrorException("The evaluation request has failed. Please contact support"))
+        throw(ErrorException("The evaluation request has failed. Please contact us at support@banyancomputing.com or use the Banyan Users Slack for assistance."))
     end
 
     # We must wait for session because otherwise we will slurp up the session
@@ -704,11 +718,8 @@ function offloaded(given_function::Function, args...; distributed::Bool = false)
     stored_res = nothing
     error_for_main_stuck, error_for_main_stuck_time = nothing, nothing
     partial_gathers = Dict{ValueId,String}()
-    @time "waiting for response" begin
     while true
-        @time "Reading in first message for offloaded" begin
         message, error_for_main_stuck = sqs_receive_next_message(gather_queue, p, error_for_main_stuck, error_for_main_stuck_time)
-        end
         message_type = message["kind"]::String
         if message_type == "GATHER"
             # Receive gather
@@ -723,13 +734,11 @@ function offloaded(given_function::Function, args...; distributed::Bool = false)
             whole_message_contents = if num_chunks > 1
                 partial_messages = fill("", num_chunks)
                 partial_messages[message["chunk_idx"]] = message["contents"]
-                @time "Reading in remaining message for offloaded" begin
                 Threads.@threads for i = 1:num_remaining_chunks
                     let partial_message = sqs_receive_next_message(gather_queue, p, nothing, nothing, value_id)[1]
                         chunk_idx = partial_message["chunk_idx"]
                         partial_messages[chunk_idx] = partial_message["contents"]
                     end
-                end
                 end
                 join(partial_messages)
             else
@@ -740,13 +749,19 @@ function offloaded(given_function::Function, args...; distributed::Bool = false)
                 stored_res = from_jl_string(whole_message_contents)
             end
 
+            if !print_logs
+                if !isnothing(p) && !p.done
+                    finish!(p, spinner = '✓')
+                end
+                return stored_res
+            end
+
             error_for_main_stuck, error_for_main_stuck_time = check_worker_stuck_error(value_id, whole_message_contents, error_for_main_stuck, error_for_main_stuck_time)
         elseif (message_type == "EVALUATION_END")
             if message["end"]::Bool == true
                 return stored_res
             end
         end
-    end
     end
 end
     

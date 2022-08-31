@@ -769,8 +769,8 @@ end
         if filetype == "directory"
             # Create empty directory
             path = "s3://$(bucket)/empty_dir.parquet"
-            if !ispath(S3Path(path * "/", config = Banyan.get_aws_config()))
-                mkpath(S3Path(path * "/", config = Banyan.get_aws_config()))
+            if !ispath(S3Path(path * "/", config = Banyan.global_aws_config()))
+                mkpath(S3Path(path * "/", config = Banyan.global_aws_config()))
             end
             headertype = "no header"
         else
@@ -908,6 +908,19 @@ end
                     )
                 )
 
+                data = read_csv(p)
+                filtered = filter(row -> row.trip_distance < 1.0, data)
+                grouped = groupby(filtered, :PULocationID)
+                combined =
+                    combine(
+                        grouped,
+                        :total_amount => mean_func,
+                        :tip_amount => mean_func,
+                        :trip_distance => mean_func
+                    )
+                trip_means = compute(combined, destroy=[data, filtered, grouped])
+                # compute(filtered)
+
                 # data = @time "read_csv" read_csv(p)
                 # filtered = @time "filter" filter(row -> row.trip_distance < 1.0, data)
                 # grouped = @time "groupby" groupby(filtered, :PULocationID)
@@ -931,4 +944,101 @@ end
 
 @testset "CSV from S3 Latency" begin
     test_csv_from_s3_latency()
+end
+
+@testset "Slow writing to disk" begin
+    use_session_for_testing(sample_rate=1024) do
+        for _ in 1:2
+            @time begin
+            s3_bucket_name = get_cluster_s3_bucket_name()
+            df = BanyanDataFrames.read_parquet(
+                "s3://$s3_bucket_name/nyc_tripdata.parquet",
+            )
+
+            long_trips = filter(
+                row -> row.trip_distance > 1.0,
+                df
+            )
+            @show size(long_trips)
+            gdf = groupby(long_trips, :passenger_count)
+            trip_means = combine(gdf, :trip_distance => mean)
+
+            trip_means = compute(trip_means)
+            end
+        end
+    end
+end
+
+@testset "Sessions and logging" for
+    (print_logs, force_new_pf_dispatch_table) in [(true, false), (false, true)]
+
+    s = start_session(
+        cluster_name = ENV["BANYAN_CLUSTER_NAME"],
+        nworkers = parse(Int64, get(ENV, "BANYAN_NWORKERS", "2")),
+        # sample_rate = 4096,
+        # print_logs = true,
+        url = "https://github.com/banyan-team/banyan-julia.git",
+        branch = get(ENV, "BANYAN_JULIA_BRANCH", Banyan.get_branch_name()),
+        directory = "banyan-julia/BanyanDataFrames/test",
+        dev_paths = [
+            "banyan-julia/Banyan",
+            "banyan-julia/BanyanArrays",
+            "banyan-julia/BanyanDataFrames"
+        ],
+        # BANYAN_REUSE_RESOURCES should be 1 when the compute resources
+        # for sessions being run can be reused; i.e., there is no
+        # forced pulling, cloning, or installation going on. When it is
+        # set to 1, we will reuse the same job for each session. When
+        # set to 0, we will use a different job for each session but
+        # each session will immediately release its resources so that
+        # it can be used for the next session instead of giving up
+        # TODO: Make it so that sessions that can't reuse existing jobs
+        # will instead destroy jobs so that when it creates a new job
+        # it can reuse the existing underlying resources.
+        release_resources_after = get(ENV, "BANYAN_REUSE_RESOURCES", "0") == "1" ? 20 : 0,
+        force_pull = get(ENV, "BANYAN_FORCE_PULL", "0") == "1",
+        force_sync = get(ENV, "BANYAN_FORCE_SYNC", "0") == "1",
+        force_install = get(ENV, "BANYAN_FORCE_INSTALL", "0") == "1",
+        store_logs_on_cluster=get(ENV, "BANYAN_STORE_LOGS_ON_CLUSTER", "0") == "1",
+        force_new_pf_dispatch_table = force_new_pf_dispatch_table,
+        print_logs = print_logs
+        # estimate_available_memory=true
+        # log_initialization=true
+    )
+
+    try
+        s3_bucket_name = get_cluster_s3_bucket_name()
+        if !s3_exists(Banyan.global_aws_config(), s3_bucket_name, "nyc_tripdata_small.parquet")
+            data_path = "https://d37ci6vzurychx.cloudfront.net/trip-data/yellow_tripdata_2022-01.parquet"
+            offloaded(s3_bucket_name, data_path) do s3_bucket_name, data_path
+                temp_path = Downloads.download(data_path)
+                cp(
+                    Path(temp_path),
+                    S3Path("s3://$s3_bucket_name/nyc_tripdata_small.parquet", config=Banyan.global_aws_config())
+                )
+            end
+        end
+
+        df = BanyanDataFrames.read_parquet(
+            "s3://$s3_bucket_name/nyc_tripdata_small.parquet",
+            shuffled=true
+        )
+        long_trips = filter(
+            row -> row.trip_distance > 2.0,
+            df
+        )
+        gdf = groupby(long_trips, :passenger_count)
+        trip_means = combine(gdf, :trip_distance => mean)
+        trip_means_result = compute(trip_means, destroy=[gdf, long_trips])
+
+        BanyanDataFrames.write_parquet(
+            df,
+            "s3://$s3_bucket_name/nyc_tripdata_small_copy.parquet",
+        )
+    catch
+        end_session(s, print_logs=true)
+        rethrow()
+    finally
+        end_session(s, print_logs=true)
+    end
 end

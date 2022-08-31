@@ -55,13 +55,10 @@ function sqs_receive_next_message(
     error_for_main_stuck_time=nothing,
     value_id = ""
 )::Tuple{Dict{String,Any},Union{Nothing,String}}
-    @time "get_next_message" begin
     content::String, error_for_main_stuck::Union{Nothing,String} =
         get_next_message(queue_name, p; error_for_main_stuck=error_for_main_stuck, error_for_main_stuck_time=error_for_main_stuck_time, value_id=value_id)
-    end
     
     res::Dict{String,Any} = if startswith(content, "JOB_READY") || startswith(content, "SESSION_READY")
-        @show startswith(content, "JOB_READY")
         Dict{String,Any}(
             "kind" => "SESSION_READY"
         )
@@ -71,7 +68,7 @@ function sqs_receive_next_message(
         # `print_logs=false` for the session. Remove "EVALUATION_END" at start and
         #  chop off "MESSAGE_END" at the end
         if !isnothing(p) && !p.done
-            finish!(p)
+            finish!(p, spinner = '✓')
         end
         tail = endswith(content, "MESSAGE_END") ? 11 : 0
         print(chop(content, head=14, tail=tail))
@@ -137,7 +134,6 @@ function sqs_send_message(queue_url, message)
 end
 
 function send_to_client(value_id::ValueId, value, worker_memory_used = 0)
-    @time "send_to_client" begin
     MAX_MESSAGE_LENGTH = 220_000
     message = to_jl_string(value)::String
     generated_message_id = generate_message_id()
@@ -211,6 +207,5 @@ function send_to_client(value_id::ValueId, value, worker_memory_used = 0)
                 "MessageDeduplicationId" => generated_message_id * string(i)
             )
         )
-    end
     end
 end

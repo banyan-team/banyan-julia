@@ -9,10 +9,10 @@ Base.convert(::Type{DataFrame}, df::DataFrames.DataFrame) = DataFrame(Future(df;
 
 Banyan.convert(::Type{Future}, df::DataFrame) = df.data
 Banyan.sample(df::DataFrame)::DataFrames.DataFrame = begin
-    @show typeof(sample(df.data))
-    @show sample(df.nrows) == sample(df.data)
-    @show sample(df.nrows) === sample(df.data)
-    @show sample(df.nrows)
+    # @show typeof(sample(df.data))
+    # @show sample(df.nrows) == sample(df.data)
+    # @show sample(df.nrows) === sample(df.data)
+    # @show sample(df.nrows)
     sample(df.data)
 end
 

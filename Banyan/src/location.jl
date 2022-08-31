@@ -177,17 +177,6 @@ get_src_params_dict(d::Union{Nothing,Base.ImmutableDict{String, String}}) =
 
 get_src_params_dict_from_arrow(p) = Arrow.Table(p) |> Arrow.getmetadata |> get_src_params_dict
 
-struct AWSExceptionInfo
-    is_aws::Bool
-    unmodified_since::Bool
-    not_found::Bool
-
-    function AWSExceptionInfo(e)
-        is_aws = e isa AWSException && e.cause isa AWS.HTTP.ExceptionRequest.StatusError
-        new(is_aws, is_aws && e.cause.status == 304, is_aws && e.cause.status == 404)
-    end
-end
-
 function get_metadata_local_path()
     p = joinpath(homedir(), ".banyan", "metadata")
     if !isdir(p)
