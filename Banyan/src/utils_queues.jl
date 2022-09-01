@@ -1,5 +1,4 @@
 using Dates
-using AWSSQS
 
 @nospecialize
 
@@ -33,7 +32,7 @@ function run_with_retries(
 end
 
 sqs_get_queue_with_retries(args...; kwargs...) = run_with_retries(
-    sqs_get_queue,
+    SQS.get_queue_url,
     args...;
     failure_message = "Queue for communicating results is nonexistent",
     kwargs...

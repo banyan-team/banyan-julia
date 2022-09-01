@@ -6,7 +6,7 @@
 src in ["Internet", "S3"]
     use_session_for_testing(scheduling_config_name = scheduling_config, sample_rate = 20) do
         use_data()
-        set_max_exact_sample_length(128)
+        configure_sampling(max_num_bytes_exact=0)
 
         for _ in 1:2
             src_is_s3 = src == "S3"
@@ -27,7 +27,76 @@ src in ["Internet", "S3"]
             @test x_sum_collect == (src_is_s3 ? 12840 : 32100000)
         end
 
-        set_max_exact_sample_length(2048)
+        configure_sampling(default=true)
+    end
+end
+
+# TODO: Add tests here modeled after BDF.jl
+
+@testset "Reading $(shuffled ? "shuffled " : "")$src data and sampling it with $scheduling_config and a maximum of $max_num_bytes bytes for exact sample" for
+    scheduling_config in [
+        "default scheduling",
+        "parallelism encouraged",
+        "parallelism and batches encouraged",
+    ],
+    src in ["Internet", "S3"],
+    max_num_bytes in [0, 100_000_000_000],
+    shuffled in [true, false]
+    
+    get_organization_id()
+    use_session_for_testing(scheduling_config_name = scheduling_config) do
+        use_data()
+        configure_sampling(max_num_bytes_exact=max_num_bytes, always_shuffled=shuffled, for_all_locations=true, default=true)
+        exact_sample = max_num_bytes > 0
+
+        invalidate_all_locations()
+
+        p = if src == "S3"
+            joinpath("s3://", get_cluster_s3_bucket_name(), "fillval.h5/DS1")
+        else
+            joinpath("https://github.com/banyan-team/banyan-julia/raw/v0.1.1/BanyanArrays/test/res", "fillval.h5/DS1")
+        end
+
+        df = read_hdf5(p; metadata_invalid=true, invalidate_samples=true)
+        sample(df)
+
+        configure_sampling(p; sample_rate=5)
+        read_hdf5(p)
+        @test get_sample_rate(p) == 5
+        @test has_metadata(p)
+        @test has_sample(p)
+        invalidate_metadata(p)
+        @test !has_metadata(p)
+        @test has_sample(p)
+        invalidate_location(p)
+        @test !has_metadata(p)
+        @test !has_sample(p)
+
+        df2 = read_hdf5(p)
+        sample(df2)
+        df2 = read_hdf5(p; samples_invalid=true)
+        sample(df2)
+        @test get_sample_rate(p) == 5
+        configure_sampling(sample_rate=7, for_all_locations=true)
+        @test get_sample_rate(p) == 5
+        df2 = read_hdf5(p; metadata_invalid=true)
+        sample(df2)
+        @test get_sample_rate(p) == 5
+        @test get_sample_rate() == 7
+        configure_sampling(sample_rate=7, for_all_locations=true)
+        @test get_sample_rate(p) == 5
+        configure_sampling(sample_rate=7, force_new_sample_rate=true, for_all_locations=true)
+        @test get_sample_rate(p) == 7
+        @test get_sample_rate() == 7
+        df2 = read_hdf5(p)
+        @test get_sample_rate(p) == 7
+        @test get_sample_rate() == 7
+        df2 = read_hdf5(p; location_invalid=true)
+        sample(df2)
+        @test has_metadata(p)
+        @test has_sample(p)
+        configure_sampling(p; always_exact=true)
+        sample(df2)
     end
 end
 
@@ -41,7 +110,7 @@ end
 
     use_session_for_testing(scheduling_config_name = scheduling_config, sample_rate = 20) do
         use_data(src)
-        set_max_exact_sample_length(128)
+        configure_sampling(max_num_bytes_exact=0)
 
         # Determine where to read from
 
@@ -169,6 +238,6 @@ end
         #     end
         # end
 
-        set_max_exact_sample_length(2048)
+        configure_sampling(default=true)
     end
 end

@@ -55,7 +55,7 @@ function download_remote_s3_path(path::String)
     global failed_to_use_s3fs
 
     # Get information about requested object
-    s3path = S3Path(path, config = get_aws_config())
+    s3path = S3Path(path, config = global_aws_config())
     bucket = s3path.bucket
     key = s3path.key
     # bucket = "banyan-cluster-data-myfirstcluster"
@@ -96,8 +96,8 @@ function download_remote_s3_path(path::String)
 
             # TODO: Store buckets from different accounts/IAMs/etc. seperately
             try
-                ACCESS_KEY_ID = get_aws_config()[:creds].access_key_id
-                SECRET_ACCESS_KEY = get_aws_config()[:creds].secret_key
+                ACCESS_KEY_ID = global_aws_config()[:creds].access_key_id
+                SECRET_ACCESS_KEY = global_aws_config()[:creds].secret_key
                 passwd_s3fs_contents = ACCESS_KEY_ID * ":" * SECRET_ACCESS_KEY
                 HOME = homedir()
                 region = get_aws_config_region()

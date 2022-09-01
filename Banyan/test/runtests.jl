@@ -16,9 +16,6 @@ end
 function use_session_for_testing(
     f::Function;
     nworkers = parse(Int64, get(ENV, "BANYAN_NWORKERS", "2")),
-    sample_rate = 2,
-    nworkers = 2,
-    max_exact_sample_length = 50,
     scheduling_config_name = "default scheduling",
 )
     haskey(ENV, "BANYAN_CLUSTER_NAME") || error(
@@ -67,10 +64,7 @@ function use_session_for_testing(
         end
     )
     # If selected session has already failed, this will throw an error.
-    sessions_for_testing[session_config_hash] = get_session_id()
-
-    # Set the maximum exact sample length
-    set_max_exact_sample_length(max_exact_sample_length)
+    sessions_for_testing[session_config_hash] = get_session_id()(max_exact_sample_length)
 
     configure_scheduling(name = scheduling_config_name)
 

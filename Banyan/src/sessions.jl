@@ -16,6 +16,9 @@ global sessions = Dict{SessionId,Session}()
 # ergonomic.
 global current_session_id = ""
 
+# Tasks for starting sessions
+global start_session_tasks = Dict{SessionId,Task}()
+
 function set_session(session_id::SessionId)
     global current_session_id
     current_session_id = session_id
@@ -23,17 +26,49 @@ end
 
 function _get_session_id_no_error()::SessionId
     global current_session_id
-    current_session_id
+    global sessions
+    !haskey(sessions, current_session_id) ? "" : current_session_id
 end
 
-function get_session_id()::SessionId
+function get_session_id(session_id="")::SessionId
     global current_session_id
-    if isempty(current_session_id)
-        error(
-            "No session started or selected using `start_session` or `with_session` or `set_session`. The current session may have been destroyed or no session started yet.",
-        )
+    global sessions
+    global start_session_tasks
+    global session_sampling_configs
+
+    if isempty(session_id)
+        session_id = current_session_id
     end
-    current_session_id
+
+    if haskey(sessions, session_id)
+        session_id
+    elseif haskey(start_session_tasks, session_id)
+        start_session_task = start_session_tasks[session_id]
+        if istaskdone(start_session_task) && length(start_session_task.result) == 2
+            e, bt = start_session_task.result
+            showerror(stderr, e, bt)
+            error("Failed to start session with ID $session_id")
+            session_id
+        elseif istaskdone(start_session_task) && length(start_session_task.result) == 3
+            new_session_id, session, sampling_configs = start_session_task.result
+            sessions[new_session_id] = session
+            session_sampling_configs[new_session_id] = sampling_configs
+            if session_id == current_session_id
+                current_session_id = new_session_id
+            end
+            new_session_id
+        else
+            # Otherwise, the task is still running or hasn't yet been started
+            # in which case we will just return the ID of the start_session task
+            session_id
+        end
+    elseif isempty(session_id)
+        start_session()
+    elseif startswith(session_id, "start-session-")
+        error("The session with ID $session_id was not created in this Julia session")
+    else
+        session_id
+    end
 end
 
 function get_sessions_dict()::Dict{SessionId,Session}
@@ -41,19 +76,46 @@ function get_sessions_dict()::Dict{SessionId,Session}
     sessions
 end
 
-function get_session()::Session
-    session_id = get_session_id()
+function get_session(session_id=get_session_id(), show_progress=true)::Session
     sessions_dict = get_sessions_dict()
-    if !haskey(sessions_dict, session_id)
-        error("The selected session does not have any information; if it was started by this process, it has either failed or been destroyed.")
+    global start_session_tasks
+    if haskey(sessions_dict, session_id)
+        sessions_dict[session_id]
+    elseif haskey(start_session_tasks, session_id)
+        # Schedule the task if not yet scheduled
+        start_session_task = start_session_tasks[session_id]
+        if !istaskstarted(start_session_task)
+            yield(start_session_task)
+        end
+
+        # Keep looping till the task is created
+        
+        p = ProgressUnknown("Preparing session with ID $session_id", spinner=true, enabled=show_progress)
+        try
+            while !haskey(get_sessions_dict(), get_session_id(session_id))
+                if p.enabled
+                    next!(p)
+                end
+            end
+        catch e
+            if p.enabled
+                finish!(p, spinner = '✗')
+            end
+            rethrow()
+        end
+        if p.enabled
+            finish!(p, spinner = '✓')
+        end
+        get_sessions_dict()[get_session_id(session_id)]
+    else
+        error("The current session ID $session_id is not stored as a session starting task in progress or a running session")
     end
-    sessions_dict[session_id]
 end
 
 get_cluster_name()::String = get_session().cluster_name
 
 function get_loaded_packages()
-    global current_session_id
+    current_session_id = _get_session_id_no_error()
     loaded_packages::Set{String} = if !isempty(current_session_id)
         get_sessions_dict()[current_session_id].loaded_packages
     else
@@ -78,15 +140,17 @@ end
 
 const NOTHING_STRING = "NOTHING_STRING"
 
+const StartSessionResult = Tuple{SessionId,Session,Dict{LocationPath,SamplingConfig}}
+
 function _start_session(
     cluster_name::String,
+    c::Cluster,
     nworkers::Int64,
     release_resources_after::Integer,
     print_logs::Bool,
     store_logs_in_s3::Bool,
     store_logs_on_cluster::Bool,
     log_initialization::Bool,
-    sample_rate::Int64,
     session_name::String,
     files::Vector{String},
     code_files::Vector{String},
@@ -104,22 +168,13 @@ function _start_session(
     force_pull::Bool,
     force_install::Bool,
     estimate_available_memory::Bool,
-    nowait::Bool,
     email_when_ready::Bool,
     no_email::Bool,
     for_running::Bool,
     sessions::Dict{String,Session},
-)
-    # Construct parameters for starting session
-    cluster_name = if cluster_name == NOTHING_STRING
-        running_clusters = get_running_clusters()
-        if length(running_clusters) == 0
-            error("Failed to start session: you don't have any clusters created")
-        end
-        first(keys(running_clusters))
-    else
-        cluster_name
-    end
+    sampling_configs::Dict{LocationPath,SamplingConfig}
+)::StartSessionResult
+    global session_sampling_configs
 
     version = get_julia_version()
 
@@ -129,7 +184,6 @@ function _start_session(
     session_configuration = Dict{String,Any}(
         "cluster_name" => cluster_name,
         "num_workers" => nworkers,
-        "sample_rate" => sample_rate,
         "release_resources_after" => release_resources_after == -1 ? nothing : release_resources_after,
         "return_logs" => print_logs,
         "store_logs_in_s3" => store_logs_in_s3,
@@ -141,7 +195,8 @@ function _start_session(
         "using_modules" => using_modules,
         "reuse_resources" => !force_update_files,
         "estimate_available_memory" => estimate_available_memory,
-        "language" => "jl"
+        "language" => "jl",
+        "sampling_configs" => sampling_configs_to_jl(sampling_configs)
     )
     if session_name != NOTHING_STRING
         session_configuration["session_name"] = session_name
@@ -149,7 +204,7 @@ function _start_session(
     if !no_email
         session_configuration["email_when_ready"] = email_when_ready
     end
-    c::Cluster = get_cluster(cluster_name)
+    
     s3_bucket_name = s3_bucket_arn_to_name(c.s3_bucket_arn)
     organization_id = c.organization_id
     curr_cluster_instance_id = c.curr_cluster_instance_id
@@ -173,15 +228,15 @@ function _start_session(
         environment_hash = get_hash(project_toml * manifest_toml * version)
         environment_info["environment_hash"] = environment_hash
         environment_info["project_toml"] = "$(environment_hash)/Project.toml"
-        file_already_in_s3 = isfile(S3Path("s3://$(s3_bucket_name)/$(environment_hash)/Project.toml", config=get_aws_config()))
+        file_already_in_s3 = isfile(S3Path("s3://$(s3_bucket_name)/$(environment_hash)/Project.toml", config=global_aws_config()))
         if !file_already_in_s3
-            s3_put(get_aws_config(), s3_bucket_name, "$(environment_hash)/Project.toml", project_toml)
+            s3_put(global_aws_config(), s3_bucket_name, "$(environment_hash)/Project.toml", project_toml)
         end
         if manifest_toml != ""
             environment_info["manifest_toml"] = "$(environment_hash)/Manifest.toml"
-            file_already_in_s3 = isfile(S3Path("s3://$(s3_bucket_name)/$(environment_hash)/Manifest.toml", config=get_aws_config()))
+            file_already_in_s3 = isfile(S3Path("s3://$(s3_bucket_name)/$(environment_hash)/Manifest.toml", config=global_aws_config()))
             if !file_already_in_s3
-                s3_put(get_aws_config(), s3_bucket_name, "$(environment_hash)/Manifest.toml", manifest_toml)
+                s3_put(global_aws_config(), s3_bucket_name, "$(environment_hash)/Manifest.toml", manifest_toml)
             end
         end
     else
@@ -206,9 +261,9 @@ function _start_session(
 
     # Upload files to S3
     for f in vcat(files, code_files)
-        s3_path = S3Path("s3://$(s3_bucket_name)/$(basename(f))", config=get_aws_config())
+        s3_path = S3Path("s3://$(s3_bucket_name)/$(basename(f))", config=global_aws_config())
         if !isfile(s3_path) || force_update_files
-            s3_put(get_aws_config(), s3_bucket_name, basename(f), load_file(f))
+            s3_put(global_aws_config(), s3_bucket_name, basename(f), load_file(f))
         end
     end
     # TODO: Optimize so that we only upload (and download onto cluster) the files if the filename doesn't already exist
@@ -262,14 +317,13 @@ function _start_session(
         end
         message
     end
-    @info msg
+    # @info msg
     # Store in global state
-    sessions[session_id] = Session(
+    new_session = Session(
         cluster_name,
         session_id,
         resource_id,
         nworkers,
-        sample_rate,
         organization_id,
         cluster_instance_id,
         not_using_modules,
@@ -280,25 +334,124 @@ function _start_session(
         execution_queue_url=execution_queue_url
     )
 
-    if !nowait
-        wait_for_session(session_id)
-    elseif !reusing_resources
-        @warn "Starting this session requires creating new cloud computing resources which will take 10-30 minutes for the first computation."
-    end
+    # if !nowait
+    wait_for_session(session_id, false)
+    # elseif !reusing_resources
+    #     @warn "Starting this session requires creating new cloud computing resources which will take 10-30 minutes for the first computation."
+    # end
 
     @debug "Finished call to start_session with ID $session_id"
-    session_id
+    session_id, new_session, sampling_configs
+end
+
+function start_session_with_cluster(
+    cluster_name::String,
+    nworkers::Int64,
+    release_resources_after::Integer,
+    print_logs::Bool,
+    store_logs_in_s3::Bool,
+    store_logs_on_cluster::Bool,
+    log_initialization::Bool,
+    session_name::String,
+    files::Vector{String},
+    code_files::Vector{String},
+    force_update_files::Bool,
+    pf_dispatch_table::Vector{String},
+    no_pf_dispatch_table::Bool,
+    using_modules::Vector{String},
+    # We currently can't use modules that require GUI
+    not_using_modules::Vector{String},
+    url::String,
+    branch::String,
+    directory::String,
+    dev_paths::Vector{String},
+    force_sync::Bool,
+    force_pull::Bool,
+    force_install::Bool,
+    estimate_available_memory::Bool,
+    email_when_ready::Bool,
+    no_email::Bool,
+    for_running::Bool,
+    sessions::Dict{String,Session},
+    sampling_configs::Dict{LocationPath,SamplingConfig},
+    kwargs...
+)::StartSessionResult
+    # Construct parameters for starting session
+    cluster_name::String, c::Cluster = if cluster_name == NOTHING_STRING
+        running_clusters = get_running_clusters()
+        if isempty(running_clusters)
+            # If the user is not separately creating a cluster, we should
+            # by default destroy it after 12 hours.
+            new_c = create_cluster(;
+                wait_now=true,
+                initial_num_workers=nworkers,
+                destroy_after=(12 * 60),
+                show_progress=false,
+                kwargs...
+            )
+            new_c.cluster_name, new_c
+        else
+            first(running_clusters)
+        end
+    else
+        c_dict::Dict{String,Cluster} = get_running_clusters(cluster_name)
+        cluster_name, if haskey(c_dict, cluster_name)
+            c_dict[cluster_name]
+        else
+            create_cluster(;
+                cluster_name=cluster_name,
+                wait_now=true,
+                initial_num_workers=nworkers,
+                destroy_after=(12 * 60),
+                show_progress=false,
+                kwargs...
+            )
+        end
+    end
+
+    _start_session(
+        cluster_name::String,
+        c::Cluster,
+        nworkers::Int64,
+        release_resources_after::Integer,
+        print_logs::Bool,
+        store_logs_in_s3::Bool,
+        store_logs_on_cluster::Bool,
+        log_initialization::Bool,
+        session_name::String,
+        files::Vector{String},
+        code_files::Vector{String},
+        force_update_files::Bool,
+        pf_dispatch_table::Vector{String},
+        no_pf_dispatch_table::Bool,
+        using_modules::Vector{String},
+        # We currently can't use modules that require GUI
+        not_using_modules::Vector{String},
+        url::String,
+        branch::String,
+        directory::String,
+        dev_paths::Vector{String},
+        force_sync::Bool,
+        force_pull::Bool,
+        force_install::Bool,
+        estimate_available_memory::Bool,
+        email_when_ready::Bool,
+        no_email::Bool,
+        for_running::Bool,
+        sessions::Dict{String,Session},
+        sampling_configs::Dict{LocationPath,SamplingConfig}
+    )
 end
 
 function start_session(;
     cluster_name::String = NOTHING_STRING,
-    nworkers::Int64 = 16,
+    # Default 100x speedup
+    nworkers::Int64 = -1,
     release_resources_after::Union{Integer,Nothing} = 20,
     print_logs::Bool = false,
     store_logs_in_s3::Bool = true,
     store_logs_on_cluster::Bool = false,
     log_initialization::Bool = false,
-    sample_rate::Int64 = nworkers,
     session_name::String = NOTHING_STRING,
     files::Vector{String} = String[],
     code_files::Vector{String} = String[],
@@ -315,9 +468,10 @@ function start_session(;
     force_pull::Bool = false,
     force_install::Bool = false,
     estimate_available_memory::Bool = true,
-    nowait::Bool = true,
     email_when_ready::Union{Bool,Nothing} = nothing,
     for_running::Bool = false,
+    start_now::Bool = false,
+    wait_now::Bool = false,
     kwargs...,
 )::SessionId
     # Should save 5ms of overhead
@@ -327,58 +481,91 @@ function start_session(;
     global BANYAN_JULIA_PACKAGES
 
     sessions = get_sessions_dict()
-    global current_session_id
+    global start_session_tasks
 
     # Configure
     configure(; kwargs...)
+    nworkers = nworkers == -1 ? (is_debug_on() ? 2 : 150) : nworkers
+    configure_sampling(; nworkers=nworkers, kwargs...)
     
-    current_session_id = _start_session(
-        cluster_name,
-        nworkers,
-        isnothing(release_resources_after) ? -1 : release_resources_after,
-        print_logs,
-        store_logs_in_s3,
-        store_logs_on_cluster,
-        log_initialization,
-        sample_rate,
-        session_name,
-        files,
-        code_files,
-        force_update_files,
-        isnothing(pf_dispatch_table) ? String[] : pf_dispatch_table,
-        isnothing(pf_dispatch_table),
-        using_modules,
-        # We currently can't use modules that require GUI
-        not_using_modules,
-        url,
-        branch,
-        directory,
-        dev_paths,
-        force_sync,
-        force_pull,
-        force_install,
-        estimate_available_memory,
-        nowait,
-        isnothing(email_when_ready) ? false : email_when_ready,
-        isnothing(email_when_ready),
-        for_running,
-        sessions
-    )
-    current_session_id
+    # Create task for starting session
+    new_start_session_task_id = "start-session-$(length(start_session_tasks) + 1)"
+    new_start_session_task =
+        Task(
+            () -> try
+                start_session_with_cluster(
+                    cluster_name,
+                    nworkers,
+                    isnothing(release_resources_after) ? -1 : release_resources_after,
+                    print_logs,
+                    store_logs_in_s3,
+                    store_logs_on_cluster,
+                    log_initialization,
+                    session_name,
+                    files,
+                    code_files,
+                    force_update_files,
+                    isnothing(pf_dispatch_table) ? String[] : pf_dispatch_table,
+                    isnothing(pf_dispatch_table),
+                    using_modules,
+                    # We currently can't use modules that require GUI
+                    not_using_modules,
+                    url,
+                    branch,
+                    directory,
+                    dev_paths,
+                    force_sync,
+                    force_pull,
+                    force_install,
+                    estimate_available_memory,
+                    isnothing(email_when_ready) ? false : email_when_ready,
+                    isnothing(email_when_ready),
+                    for_running,
+                    sessions,
+                    get_sampling_configs(),
+                    kwargs...
+                )
+            catch e
+                bt = catch_backtrace()
+                (e, bt)
+            end
+        )
+    start_session_tasks[new_start_session_task_id] = new_start_session_task
+    set_session(new_start_session_task_id)
+
+    # Start now or wait now if requested
+    if start_now || wait_now
+        yield(new_start_session_task)
+    end
+    if wait_now
+        get_session(new_start_session_task_id)
+    end
+
+    # Return the current session ID
+    get_session_id()
 end
 
-function end_session(session_id::SessionId = get_session_id(); failed = false, release_resources_now = false, release_resources_after = nothing, kwargs...)
+function end_session(session_id::SessionId = get_session_id(); failed = false, release_resources_now = false, release_resources_after = nothing, destroy_cluster=false, kwargs...)
     sessions = get_sessions_dict()
     global current_session_id
+    global start_session_tasks
 
     # Configure using parameters
     configure(; kwargs...)
+
+    # Ensure that the session ID is not of a creating task
+    # TODO: Get the session ID before the task begins wait_for_session
+    # so that it can be ended sooner. (maybe use local storage of the task)
+    if haskey(start_session_tasks, session_id)
+        @warn "Session with ID $session_id must be started before it can be destroyed"
+        session_id = get_session(session_id).id
+    end
 
     request_params = Dict{String,Any}("session_id" => session_id, "failed" => failed, "release_resources_now" => release_resources_now)
     if !isnothing(release_resources_after)
         request_params["release_resources_after"] = release_resources_after
     end
-    send_request_get_response(
+    resp = send_request_get_response(
         :end_session,
         request_params,
     )
@@ -387,6 +574,16 @@ function end_session(session_id::SessionId = get_session_id(); failed = false, r
     # Remove from global state
     set_session("")
     delete!(sessions, session_id)
+
+    # Destroy cluster if desired
+    if destroy_cluster
+        if isnothing(resp) || !haskey(resp, "cluster_name")
+            @warn "Unable to destroy cluster for session with ID $session_id"
+        else
+            destroy_cluster(resp["cluster_name"])
+        end
+    end
+
     session_id
 end
 
@@ -480,24 +677,27 @@ get_running_sessions(args...; kwargs...) = get_sessions(args...; status="running
 function download_session_logs(session_id::SessionId, cluster_name::String, filename::Union{String,Nothing}=nothing; kwargs...)
     @debug "Downloading logs for session"
     configure(; kwargs...)
+    session_id = get_session_id(session_id)
     s3_bucket_name = get_cluster_s3_bucket_name(cluster_name; kwargs...)
     log_file_name = "banyan-log-for-session-$(session_id)"
     if isnothing(filename) & !isdir(joinpath(homedir(), ".banyan", "logs"))
         mkdir(joinpath(homedir(), ".banyan", "logs"))
     end
     filename = !isnothing(filename) ? filename : joinpath(homedir(), ".banyan", "logs", log_file_name)
-    s3_get_file(get_aws_config(), s3_bucket_name, log_file_name, filename)
+    s3_get_file(global_aws_config(), s3_bucket_name, log_file_name, filename)
     @info "Downloaded logs for session with ID $session_id to $filename"
     return filename
 end
 
-function print_session_logs(session_id, cluster_name, delete_file=true)
+function print_session_logs(session_id, cluster_name, delete_file=true; kwargs...)
+    configure(; kwargs...)
+    session_id = get_session_id(session_id)
     s3_bucket_name = get_cluster_s3_bucket_name(cluster_name)
     log_file_name = "banyan-log-for-session-$(session_id)"
-    logs = s3_get(get_aws_config(), s3_bucket_name, log_file_name)
+    logs = s3_get(global_aws_config(), s3_bucket_name, log_file_name)
     println(String(logs))
     if delete_file
-        s3_delete(get_aws_config(), s3_bucket_name, log_file_name)
+        s3_delete(global_aws_config(), s3_bucket_name, log_file_name)
     end
 end
 
@@ -521,8 +721,12 @@ function end_all_sessions(cluster_name::String; release_resources_now = false, r
     end
 end
 
-function get_session_status(session_id::String=get_session_id(); kwargs...)::String
+function get_session_status(session_id::String=_get_session_id_no_error(); kwargs...)::String
+    global start_session_tasks
     sessions = get_sessions_dict()
+    if !haskey(sessions, session_id) && haskey(start_session_tasks, session_id) && !istaskdone(start_session_tasks[session_id])
+        return :creating
+    end
     configure(; kwargs...)
     filters = Dict{String,Any}("session_id" => session_id)
     params = Dict{String,Any}("filters"=>filters)
@@ -531,7 +735,7 @@ function get_session_status(session_id::String=get_session_id(); kwargs...)::Str
     end
     response = send_request_get_response(:describe_sessions, params)
     if !haskey(response["sessions"], session_id)
-        @warn "Session with ID $session_id is assumed to still be creating"
+        @warn "Session with ID $session_id is assumed to have just started creating"
         return "creating"
     end
     session_status = response["sessions"][session_id]["status"]
@@ -547,10 +751,10 @@ function get_session_status(session_id::String=get_session_id(); kwargs...)::Str
     session_status
 end
 
-function _wait_for_session(session_id::SessionId=get_session_id(), kwargs...)
+function _wait_for_session(session_id::SessionId, show_progress; kwargs...)
     sessions_dict = get_sessions_dict()
     session_status = get_session_status(session_id; kwargs...)
-    p = ProgressUnknown("Preparing session with ID $session_id", spinner=true)
+    p = ProgressUnknown("Preparing session with ID $session_id", spinner=true, enabled=show_progress)
     t = 0
     st = time()
     while session_status == "creating"
@@ -560,10 +764,14 @@ function _wait_for_session(session_id::SessionId=get_session_id(), kwargs...)
         else
             7
         end
-        next!(p)
+        if p.enabled
+            next!(p)
+        end
         session_status = get_session_status(session_id; kwargs...)
     end
-    finish!(p, spinner = session_status == "running" ? '✓' : '✗')
+    if p.enabled
+        finish!(p, spinner = session_status == "running" ? '✓' : '✗')
+    end
     if session_status == "running"
         @debug "Session with ID $session_id is ready"
         if haskey(sessions_dict, session_id)
@@ -578,26 +786,33 @@ function _wait_for_session(session_id::SessionId=get_session_id(), kwargs...)
     end
 end
 
-function wait_for_session(session_id::SessionId=get_session_id(), kwargs...)
+function wait_for_session(session_id::SessionId=get_session_id(), show_progress=true; kwargs...)
+    global start_session_tasks
     sessions_dict = get_sessions_dict()
-    is_session_ready = if haskey(sessions_dict, session_id)
-        session_info::Session = sessions_dict[session_id]
-        if !session_info.is_cluster_ready
-            wait_for_cluster(session_info.cluster_name, kwargs...)
-        end
-        session_info.is_session_ready
+
+    if haskey(start_session_tasks, session_id)
+        get_session(session_id, show_progress)
     else
-        false
+        is_session_ready = if haskey(sessions_dict, session_id)
+            session_info::Session = sessions_dict[session_id]
+            if !session_info.is_cluster_ready
+                wait_for_cluster(session_info.cluster_name, show_progress, kwargs...)
+            end
+            session_info.is_session_ready
+        else
+            false
+        end
+        if !is_session_ready
+            _wait_for_session(session_id, show_progress; kwargs...)
+        end
     end
-    if !is_session_ready
-        _wait_for_session(session_id, kwargs...)
-    end
+    ;
 end
 
 function with_session(f::Function; kwargs...)
     # This is not a constructor; this is just a function that ensures that
     # every session is always destroyed even in the case of an error
-    use_existing_session = :session in keys(kwargs)
+    use_existing_session = haskey(kwargs, :session)
     end_session_on_error = get(kwargs, :end_session_on_error, true)::Bool
     end_session_on_exit = get(kwargs, :end_session_on_exit, true)::Bool
     j = use_existing_session ? kwargs[:session] : start_session(; kwargs...)
@@ -623,71 +838,49 @@ function with_session(f::Function; kwargs...)
     end
 end
 
-
-function run_session(;
-    cluster_name::String = NOTHING_STRING,
-    nworkers::Int64 = 16,
-    release_resources_after::Union{Integer,Nothing} = 20,
+function run_session(code_files::Union{String,Vector{String}};
     print_logs::Bool = false,
     store_logs_in_s3::Bool = true,
-    store_logs_on_cluster::Bool = false,
-    sample_rate::Int64 = nworkers,
-    session_name::String = NOTHING_STRING,
-    files::Vector{String} = String[],
-    code_files::Vector{String} = String[],
-    force_update_files::Bool = true,
-    pf_dispatch_table::Union{Vector{String},Nothing} = nothing,
-    using_modules::Vector{String} = String[],
-    url::String = NOTHING_STRING,
-    branch::String = NOTHING_STRING,
-    directory::String = NOTHING_STRING,
-    dev_paths::Vector{String} = String[],
-    force_sync::Bool = false,
-    force_pull::Bool = false,
-    force_install::Bool = false,
-    estimate_available_memory::Bool = true,
-    email_when_ready::Union{Bool,Nothing}=nothing,
     kwargs...,)::SessionId
 
-    force_update_files = true
     store_logs_in_s3_orig = store_logs_in_s3
+    cluster_name = ""
     try
         if print_logs
             # If logs need to be printed, ensure that we save logs in S3. If
             # store_logs_in_s3==False, then delete logs in S3 later
             store_logs_in_s3 = true
         end
-        start_session(;cluster_name = cluster_name, nworkers = nworkers, release_resources_after = release_resources_after, 
-                    print_logs = print_logs, store_logs_in_s3 = store_logs_in_s3, store_logs_on_cluster = store_logs_on_cluster, 
-                    sample_rate = sample_rate, session_name = session_name, files = files, code_files = code_files, force_update_files = force_update_files,
-                    pf_dispatch_table = pf_dispatch_table, using_modules = using_modules, url = url, branch = branch,
-                    directory = directory, dev_paths = dev_paths, force_sync = force_sync, force_pull = force_pull, force_install = force_install, 
-                    estimate_available_memory = estimate_available_memory, nowait = false, email_when_ready = email_when_ready, for_running = true)
+        s = start_session(;
+            print_logs = print_logs,
+            store_logs_in_s3 = store_logs_in_s3,
+            wait_now = true,
+            for_running = true,
+            force_update_files = true,
+            code_files = code_files isa String ? String[code_files] : code_files,
+            kwargs...
+        )
+        cluster_name = get_session().cluster_name
+        s
     catch
-        session_id = try
-            get_session_id()
-        catch
-            nothing
-        end
-        if !isnothing(session_id)
+        session_id = _get_session_id_no_error()
+        if !isempty(session_id)
             end_session(session_id, failed=true, release_resources_now=true)
-            if print_logs
+            if print_logs && !isempty(cluster_name)
                 print_session_logs(session_id, cluster_name, !store_logs_in_s3_orig)
             end
         end
         rethrow()
+        session_id
     finally
-        session_id = try
-            get_session_id()
-        catch
-            nothing
-        end
-        if !isnothing(session_id)
+        session_id = _get_session_id_no_error()
+        if !isempty(session_id)
             end_session(session_id, failed=false, release_resources_now=true)
-            if print_logs
+            if print_logs && !isempty(cluster_name)
                 print_session_logs(session_id, cluster_name, !store_logs_in_s3_orig)
             end
-        end    
+        end
+        session_id
     end
 end
 

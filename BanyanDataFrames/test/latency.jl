@@ -41,13 +41,13 @@ end
 function test_csv_from_s3_latency()
     use_session_for_testing(scheduling_config_name = "default scheduling", sample_rate=2048*4) do
         s3_bucket_name = get_cluster_s3_bucket_name()
-        if !s3_exists(Banyan.get_aws_config(), s3_bucket_name, "nyc_tripdata_small.csv")
+        if !s3_exists(Banyan.global_aws_config(), s3_bucket_name, "nyc_tripdata_small.csv")
             data_path = "https://s3.amazonaws.com/nyc-tlc/trip+data/yellow_tripdata_2016-01.csv"
             offloaded(s3_bucket_name, data_path) do s3_bucket_name, data_path
                 temp_path = Downloads.download(data_path)
                 cp(
                     Path(temp_path),
-                    S3Path("s3://$s3_bucket_name/nyc_tripdata_small.csv", config=Banyan.get_aws_config())
+                    S3Path("s3://$s3_bucket_name/nyc_tripdata_small.csv", config=Banyan.global_aws_config())
                 )
             end
         end

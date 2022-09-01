@@ -285,8 +285,9 @@ function _precompile_()
     end
 
     # locations.jl
-    precompile(get_cached_location, (String, Bool, Bool))
-    precompile(cache_location, (String, Location, Bool, Bool))
+    for lp_func in [get_sample_rate, get_location_source, has_metadata, has_sample]
+        precompile(lp_func, (LocationPath,))
+    end
     precompile(sample_from_range, (UnitRange{Int64}, Int64))
 
     # utils.jl, utils_s3fs.jl
@@ -296,7 +297,7 @@ function _precompile_()
     precompile(download_remote_path, (String,))
     precompile(download_remote_s3_path, (String,))
     Base.precompile(Tuple{typeof(sqs_get_queue_with_retries),Dict{Symbol, Any},Vararg{Any}})   # time: 0.24037404
-    precompile(to_jl_value_contents, (Function,))
+    precompile(to_jl_string, (Function,))
 
     # futures.jl
     precompile(create_new_future, (Location, Future, String))

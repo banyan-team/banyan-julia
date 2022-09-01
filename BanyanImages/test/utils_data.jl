@@ -7,7 +7,7 @@ img_len = 100
 function write_png_files_to_s3(bucket_name=get_cluster_s3_bucket_name(), nimages=1)
     global s3_dirs
     s3_dir_png = s3_dirs["png"]
-    if length(readdir(S3Path("s3://$bucket_name/$s3_dir_png/", config=Banyan.get_aws_config()))) < nimages
+    if length(readdir(S3Path("s3://$bucket_name/$s3_dir_png/", config=Banyan.global_aws_config()))) < nimages
         for i in 1:nimages
             println("Writing image $i to S3")
             rand_image = rand(ImageCore.RGB, img_len, img_len)
@@ -20,7 +20,7 @@ end
 function write_jpg_files_to_s3(bucket_name=get_cluster_s3_bucket_name(), nimages=1)
     global s3_dirs
     s3_dir_jpg = s3_dirs["jpg"]
-    if length(readdir(S3Path("s3://$bucket_name/$s3_dir_jpg/", config=Banyan.get_aws_config()))) < nimages
+    if length(readdir(S3Path("s3://$bucket_name/$s3_dir_jpg/", config=Banyan.global_aws_config()))) < nimages
         for i in 1:nimages
             println("Writing image $i to S3")
             rand_image = rand(ImageCore.RGB, img_len, img_len)
@@ -34,8 +34,8 @@ function cleanup_s3_test_files(bucket_name=get_cluster_s3_bucket_name())
     global s3_dirs
     # Delete all files in test_images
     for (filetype, s3_dir) in s3_dirs
-        for p in s3_list_keys(Banyan.get_aws_config(), bucket_name, "$s3_dir")
-            rm(S3Path("s3://$bucket_name/$p", config=Banyan.get_aws_config()), recursive=true)
+        for p in s3_list_keys(Banyan.global_aws_config(), bucket_name, "$s3_dir")
+            rm(S3Path("s3://$bucket_name/$p", config=Banyan.global_aws_config()), recursive=true)
         end
     end
 end
@@ -79,7 +79,7 @@ function get_test_path(src, format, filetype, nimages, bucket_name)
         if format == "path"
             "s3://$bucket_name/$s3_dir/test_image_1.$filetype"
         elseif format == "directory" || format == "generator"
-            p = S3Path("s3://$bucket_name/earthdata_jpg_$nimages/", config=Banyan.get_aws_config())
+            p = S3Path("s3://$bucket_name/earthdata_jpg_$nimages/", config=Banyan.global_aws_config())
             if !isdir(p)
                 mkdir(p)
             end
