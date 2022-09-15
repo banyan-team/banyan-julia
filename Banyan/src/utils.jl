@@ -307,6 +307,8 @@ function send_request_get_response(method, content::Dict)
     api_key = configuration["banyan"]["api_key"]
     content["debug"] = is_debug_on()
     url = string(BANYAN_API_ENDPOINT, method_to_string(method))
+    @show url
+    @show content
     headers = [
         "content-type" => "application/json",
         "Username-APIKey" => "$user_id-$api_key",

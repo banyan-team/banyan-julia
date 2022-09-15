@@ -224,24 +224,24 @@ function create_process(process_name, script; cron_schedule = "rate(24 hours)", 
 
     # res_code is the code we are generating
     # Generate code to get session ID initially
+    res_code = "ENV[\"JULIA_DEBUG\"] = $(is_debug_on())\n"
     res_code = "self_session_id = get_session_id()\n"
 
     # Generate code to configure with Banyan credentials
     config = configure()
     user_id = config["banyan"]["user_id"]
     api_key = config["banyan"]["api_key"]
-    res_code = res_code * "configure(user_id=" * user_id * ", api_key=" * api_key * ")\n"
+    res_code = res_code * "configure(user_id=\"" * user_id * "\", api_key=\"" * api_key * "\")\n"
 
     creation_kwargs_str = Banyan.to_jl_string(creation_kwargs)
-    res_code = res_code * "start_session(; Banyan.from_jl_value_contents(\"$creation_kwargs_str\")...)\n" 
-
+    res_code = res_code * "start_session(; Banyan.from_jl_string(\"$creation_kwargs_str\")...)\n"
     res_code = res_code * "try\n"
-    res_code *= code    
-
-    res_code = res_code * "catch e \n"
+    res_code *= code * "\n"
+    res_code = res_code * "catch e\n"
     res_code = res_code * "end_session()\n"
     res_code = res_code * "rethrow(e)\n"
     res_code = res_code * "end\n"
+    res_code = res_code * "end_session()\n"
     res_code = res_code * "end_session(self_session_id)\n"
 
     # 1. Call list_buckets to check if the bucket_name exists
