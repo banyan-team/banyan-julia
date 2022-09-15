@@ -18,6 +18,13 @@ global BANYAN_JULIA_PACKAGES = String[
 ]
 global NOT_USING_MODULES = String["ProfileView", "SnoopCompileCore"]
 
+global BANYAN_API_ENDPOINT = ""
+function set_banyan_api_endpoint(url)
+    global BANYAN_API_ENDPOINT
+    BANYAN_API_ENDPOINT = url
+    ENV["BANYAN_API_ENDPOINT"] = url
+end
+
 using FilePathsBase: joinpath, isempty
 using Base: notnothing, env_project_file
 
@@ -47,10 +54,8 @@ using AWS: @service
 @service SQS use_response_type = true
 using AWSS3
 
-global BANYAN_API_ENDPOINT
-
 # Account management
-export configure, get_organization_id
+export configure, get_organization_id, set_banyan_api_endpoint
 
 # Cluster management
 export Cluster,
@@ -290,11 +295,12 @@ function __init__()
     # - AWS credentials
     # - SSH key pair (used in cluster creation, not for auth)
 
-    global BANYAN_API_ENDPOINT
-    BANYAN_API_ENDPOINT = get(
-        ENV,
-        "BANYAN_API_ENDPOINT",
-        "https://4whje7txc2.execute-api.us-west-2.amazonaws.com/prod/",
+    set_banyan_api_endpoint(
+        get(
+            ENV,
+            "BANYAN_API_ENDPOINT",
+            "https://4whje7txc2.execute-api.us-west-2.amazonaws.com/prod/",
+        )
     )
 
     # Downloads settings

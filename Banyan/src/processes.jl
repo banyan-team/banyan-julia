@@ -8,6 +8,7 @@ function create_process(process_name, script; cron_schedule = "rate(24 hours)", 
 
     global BANYAN_JULIA_BRANCH_NAME
     global BANYAN_JULIA_PACKAGES
+    global BANYAN_API_ENDPOINT
 
     nworkers = 1
     not_in_modules = m -> !(m in get(creation_kwargs, :not_using_modules, false))
@@ -224,8 +225,12 @@ function create_process(process_name, script; cron_schedule = "rate(24 hours)", 
 
     # res_code is the code we are generating
     # Generate code to get session ID initially
-    res_code = "ENV[\"JULIA_DEBUG\"] = $(is_debug_on())\n"
-    res_code = "self_session_id = get_session_id()\n"
+    res_code = "using Banyan\n"
+    if is_debug_on()
+        res_code = res_code * "set_banyan_api_endpoint(\"$(BANYAN_API_ENDPOINT)\")\n"
+    end
+    res_code = res_code * "ENV[\"JULIA_DEBUG\"] = $(is_debug_on())\n"
+    res_code = res_code * "self_session_id = get_session_id()\n"
 
     # Generate code to configure with Banyan credentials
     config = configure()
