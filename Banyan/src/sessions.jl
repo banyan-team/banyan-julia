@@ -30,7 +30,11 @@ function _get_session_id_no_error()::SessionId
     !haskey(sessions, current_session_id) ? "" : current_session_id
 end
 
-has_session_id() = !isempty(_get_session_id_no_error())
+function has_session_id(session_id=_get_session_id_no_error())
+    global sessions
+    global start_session_tasks
+    !isempty(session_id) && (haskey(sessions, session_id) || haskey(start_session_tasks, session_id))
+end
 
 function get_session_id(session_id="")::SessionId
     global current_session_id
@@ -499,6 +503,8 @@ function start_session(;
     configure(; kwargs...)
     nworkers = nworkers == -1 ? (is_debug_on() ? 2 : 150) : nworkers
     configure_sampling(; nworkers=nworkers, kwargs...)
+
+    @show stacktrace()
     
     # Create task for starting session
     new_start_session_task_id = "start-session-$(length(start_session_tasks) + 1)"
@@ -612,22 +618,28 @@ function end_session(session_id::SessionId = ""; print_logs=nothing, failed = fa
     end
 
     # Print logs if needed
+    @show print_logs
     if print_logs
         print_session_logs(session_id, cluster_name, wait=true)
     end
 
     # Remove from global state
     set_session("")
+    @show session_id
     delete!(sessions, session_id)
+    @show destroy_cluster
 
     # Destroy cluster if desired
     if destroy_cluster
+        @show resp
         if isnothing(resp) || !haskey(resp, "cluster_name")
             @warn "Unable to destroy cluster for session with ID $session_id"
         else
             destroy_cluster(resp["cluster_name"])
         end
     end
+
+    @show session_id
 
     session_id
 end
@@ -739,8 +751,11 @@ end
 
 function print_session_logs(session_id, cluster_name; delete_from_s3=false, wait=false, kwargs...)
     configure(; kwargs...)
+    @show session_id
     session_id = get_session_id(session_id)
+    @show cluster_name
     s3_bucket_name = get_cluster_s3_bucket_name(cluster_name)
+    @show s3_bucket_name
     log_file_name = "banyan-log-for-session-$(session_id)"
     logs::String = ""
     p::ProgressUnknown =  ProgressUnknown("Waiting for logs for session with ID $session_id")
@@ -848,7 +863,7 @@ function _wait_for_session(session_id::SessionId, show_progress; kwargs...)
         session_status = get_session_status(session_id; kwargs...)
     end
     if p.enabled
-        finish!(p, spinner = session_status == "running" ? '✓' : '✗')
+        finish!(p, spinner = (session_status == "running" || session_status == "completed") ? '✓' : '✗')
     end
     if session_status == "running"
         @debug "Session with ID $session_id is ready"
@@ -856,7 +871,8 @@ function _wait_for_session(session_id::SessionId, show_progress; kwargs...)
             sessions_dict[session_id].is_session_ready = true
         end
     elseif session_status == "completed"
-        error("Session with ID $session_id has already completed")
+        # error("Session with ID $session_id has already completed")
+        session_status_tuple[2]
     elseif session_status == "failed"
         error("Session with ID $session_id has failed.")
     else

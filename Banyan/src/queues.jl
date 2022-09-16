@@ -133,7 +133,7 @@ function sqs_send_message(queue_url, message)
     )
 end
 
-function send_to_client(value_id::ValueId, value, worker_memory_used = 0)
+function send_to_client(value_id::ValueId, value, worker_memory_used = 0; gather_q_url="")
     MAX_MESSAGE_LENGTH = 220_000
     message = to_jl_string(value)::String
     generated_message_id = generate_message_id()
@@ -161,7 +161,7 @@ function send_to_client(value_id::ValueId, value, worker_memory_used = 0)
     end
 
     # Launch asynchronous threads to send SQS messages
-    gather_q_url = gather_queue_url()
+    gather_q_url = isempty(gather_q_url) ? gather_queue_url() : gather_q_url
     num_chunks = length(message_ranges)
     if num_chunks > 1
         Threads.@threads for i = 1:num_chunks

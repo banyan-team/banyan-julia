@@ -229,7 +229,8 @@ function create_process(process_name, script; cron_schedule = "rate(24 hours)", 
     if is_debug_on()
         res_code = res_code * "set_banyan_api_endpoint(\"$(BANYAN_API_ENDPOINT)\")\n"
     end
-    res_code = res_code * "ENV[\"JULIA_DEBUG\"] = $(is_debug_on())\n"
+    julia_debug = get(ENV, "JULIA_DEBUG", "")
+    res_code = res_code * "ENV[\"JULIA_DEBUG\"] = $julia_debug\n"
     res_code = res_code * "self_session_id = get_session_id()\n"
 
     # Generate code to configure with Banyan credentials
@@ -275,7 +276,7 @@ function create_process(process_name, script; cron_schedule = "rate(24 hours)", 
             "aws_region" => aws_region
         ),
     )
-
+    nothing
 end
 
 
@@ -331,8 +332,15 @@ function run_process(process_name, args)
         ),
     )
     session_id = response["session_id"]
-    wait_for_session(session_id)
-    get_session_results(session_id)
+    try
+        wait_for_session(session_id)
+        get_session_results(session_id)
+    catch
+        # If an error happens while trying to wait for the session, we need to end the session
+        end_session(session_id)
+        @warn "Please check the dashboard in case this process started a session that has not ended."
+        rethrow()
+    end
 end
 
 function start_process(process_name, cron_schedule="daily")

@@ -264,11 +264,9 @@ method_to_string(method::Symbol)::String = begin
     elseif method == :describe_processes
         "describe-processes"
     elseif method == :run_process
-        "run_process"
+        "run-process"
     elseif method == :stop_process
-        "stop_process"
-
-
+        "stop-process"
     end
 end
 
