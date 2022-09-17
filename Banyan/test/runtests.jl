@@ -89,6 +89,7 @@ include("clusters.jl")
 include("sessions.jl")
 include("offloaded.jl")
 include("private_git.jl")
+include("processes.jl")
 
 try
     runtests(Regex.(ARGS)...)

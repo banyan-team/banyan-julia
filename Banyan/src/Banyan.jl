@@ -75,9 +75,11 @@ export Cluster,
 # Process 
 export create_process,
     destroy_process,
+    get_processes,
+    get_process,
     run_process,
-    stop_process,
-    start_process
+    start_process,
+    end_process
 
 # Session management
 export Session,

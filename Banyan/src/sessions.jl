@@ -503,8 +503,6 @@ function start_session(;
     configure(; kwargs...)
     nworkers = nworkers == -1 ? (is_debug_on() ? 2 : 150) : nworkers
     configure_sampling(; nworkers=nworkers, kwargs...)
-
-    @show stacktrace()
     
     # Create task for starting session
     new_start_session_task_id = "start-session-$(length(start_session_tasks) + 1)"
@@ -618,28 +616,22 @@ function end_session(session_id::SessionId = ""; print_logs=nothing, failed = fa
     end
 
     # Print logs if needed
-    @show print_logs
     if print_logs
         print_session_logs(session_id, cluster_name, wait=true)
     end
 
     # Remove from global state
     set_session("")
-    @show session_id
     delete!(sessions, session_id)
-    @show destroy_cluster
 
     # Destroy cluster if desired
     if destroy_cluster
-        @show resp
         if isnothing(resp) || !haskey(resp, "cluster_name")
             @warn "Unable to destroy cluster for session with ID $session_id"
         else
             destroy_cluster(resp["cluster_name"])
         end
     end
-
-    @show session_id
 
     session_id
 end
@@ -751,11 +743,8 @@ end
 
 function print_session_logs(session_id, cluster_name; delete_from_s3=false, wait=false, kwargs...)
     configure(; kwargs...)
-    @show session_id
     session_id = get_session_id(session_id)
-    @show cluster_name
     s3_bucket_name = get_cluster_s3_bucket_name(cluster_name)
-    @show s3_bucket_name
     log_file_name = "banyan-log-for-session-$(session_id)"
     logs::String = ""
     p::ProgressUnknown =  ProgressUnknown("Waiting for logs for session with ID $session_id")
@@ -825,7 +814,6 @@ function get_session_state(session_id::String=_get_session_id_no_error(); kwargs
     if haskey(sessions, session_id)
         sessions[session_id].resource_id = resource_id
     end
-    @show response
     if session_status == "failed"
         # We don't immediately fail - we're just explaining. It's only later on
         # where it's like we're actually using this session do we set the status.
@@ -847,7 +835,6 @@ function _wait_for_session(session_id::SessionId, show_progress; kwargs...)
     p = ProgressUnknown("Preparing session with ID $session_id", spinner=true, enabled=show_progress)
     t = 0
     st = time()
-    @show session_status
     while session_status == "creating" || session_status == "creating cluster"
         sleep(t)
         t = if time() - st < 90
@@ -886,10 +873,8 @@ function wait_for_session(session_id::SessionId=get_session_id(), show_progress=
     if haskey(start_session_tasks, session_id)
         get_session(session_id, show_progress)
     else
-        @show haskey(sessions_dict, session_id)
         is_session_ready = if haskey(sessions_dict, session_id)
             session_info::Session = sessions_dict[session_id]
-            @show session_info
             if !session_info.is_cluster_ready
                 wait_for_cluster(session_info.cluster_name, show_progress, kwargs...)
             end
@@ -897,7 +882,6 @@ function wait_for_session(session_id::SessionId=get_session_id(), show_progress=
         else
             false
         end
-        @show is_session_ready
         if !is_session_ready
             _wait_for_session(session_id, show_progress; kwargs...)
         end

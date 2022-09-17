@@ -33,7 +33,13 @@ function create_process(process_name, script; cron_schedule = "rate(24 hours)", 
             if is_debug_on()
                 @show e
             end
-            new_s3_bucket_name
+            if e isa KeyError
+                # This is the case where the bucket successfully created but didn't get returned and so we get an error with getting the cluster from get_clusters (which gave an empty result)
+                
+                new_s3_bucket_name
+            else
+                rethrow()
+            end
         end
         s3_bucket_arn = s3_bucket_name_to_arn(s3_bucket_name)
     end
@@ -53,7 +59,7 @@ function create_process(process_name, script; cron_schedule = "rate(24 hours)", 
         "sample_rate" => get(creation_kwargs, :sample_rate, nworkers * 10),
         "release_resources_after" => get(creation_kwargs, :release_resources_after, 20),
         "return_logs" => get(creation_kwargs, :return_logs, false),
-        "store_logs_in_s3" => get(creation_kwargs, :store_logs_in_s3, false),
+        "store_logs_in_s3" => get(creation_kwargs, :store_logs_in_s3, true),
         "store_logs_on_cluster" => get(creation_kwargs, :store_logs_on_cluster, false),
         "log_initialization" => get(creation_kwargs, :log_initialization, false),
         "version" => get_julia_version(),
@@ -106,7 +112,6 @@ function create_process(process_name, script; cron_schedule = "rate(24 hours)", 
         environment_info["environment_hash"] = environment_hash
         environment_info["project_toml"] = "$(environment_hash)/Project.toml"
         s3_path = S3Path("s3://$(s3_bucket_name)/$(environment_hash)/Project.toml", config=global_aws_config())
-        @show s3_path
         file_already_in_s3 = isfile(s3_path)
         if !file_already_in_s3
             s3_put(global_aws_config(), s3_bucket_name, "$(environment_hash)/Project.toml", project_toml)
@@ -209,7 +214,7 @@ function create_process(process_name, script; cron_schedule = "rate(24 hours)", 
 
     creation_kwargs_dict = merge(session_configuration, cluster_config)
 
-    creation_kwargs_dict["initial_num_workers"] = nworkers
+    creation_kwargs_dict["initial_num_workers"] =1 + get(creation_kwargs, :nworkers, (is_debug_on() ? 2 : 150))
 
     if !haskey(creation_kwargs_dict, "cluster_name")
         error("Cluster name is not specified")
@@ -302,7 +307,7 @@ function get_processes()
 end
 
 function get_process(process_name)
-    filters = ("process_name" => process_name)
+    filters = Dict("process_name" => process_name)
     response = send_request_get_response(
         :describe_processes,
         Dict{String,Any}(
@@ -310,16 +315,6 @@ function get_process(process_name)
         ),
     )
     return response["processes"]
-end
-
-function end_process(process_name)
-    response = send_request_get_response(
-        :stop_process,
-        Dict{String,Any}(
-            "process_name" => process_name
-        ),
-    )
-    return response
 end
 
 function run_process(process_name, args)
@@ -343,34 +338,24 @@ function run_process(process_name, args)
     end
 end
 
-function start_process(process_name, cron_schedule="daily")
-
-    aws_region = get_aws_config_region()
-
-    schedule = dict(
-        "yearly" => "0 0 1 1 *",
-        "annually" => "0 0 1 1 *",
-        "monthly" => "0 0 1 * *",
-        "weekly" => "0 0 * * 0",
-        "daily" => "0 0 * * *",
-        "midnight" => "0 0 * * *",
-        "hourly" => "0 * * * *"
-    )
-    cron_string = ""
-    if haskey(schedule, cron_schedule)
-        cron_string = schedule[cron_schedule]
-    else 
-        cron_string = cron_schedule
-    end
-
-
+function start_process(process_name, cron_schedule="")
     response = send_request_get_response(
-        :create_process,
+        :start_process,
         Dict{String,Any}(
             "process_name" => process_name,
-            "creation_kwargs" => args,
-            "cron_string" => cron_string,
-            "aws_region" => aws_region
+            "cron_string" => cron_schedule,
         ),
     )
+
+    nothing
+end
+
+function end_process(process_name)
+    response = send_request_get_response(
+        :stop_process,
+        Dict{String,Any}(
+            "process_name" => process_name
+        ),
+    )
+    nothing
 end
