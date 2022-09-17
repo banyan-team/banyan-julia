@@ -6,17 +6,17 @@ const NOTHING_LOCATION = Location("None", "None", LocationParameters(), Location
 
 const INVALID_LOCATION = Location("None", "None", LocationParameters(), LocationParameters(), Int64(-1), NOTHING_SAMPLE, true, true)
 
-Location(name::String, parameters::LocationParameters, total_memory_usage::Int64 = -1, sample::Sample = Sample())::Location =
-    Location(name, name, parameters, parameters, total_memory_usage, sample, false, false)
+Location(name::String, parameters::LocationParameters, sample_memory_usage::Int64 = -1, sample::Sample = Sample())::Location =
+    Location(name, name, parameters, parameters, sample_memory_usage, sample, false, false)
 
 Base.isnothing(l::Location) = isnothing(l.sample)
 
-LocationSource(name::String, parameters::LocationParameters, total_memory_usage::Int64 = -1, sample::Sample = Sample())::Location =
-    Location(name, "None", parameters, LocationParameters(), total_memory_usage, sample, false, false)
+LocationSource(name::String, parameters::Union{Dict{String,Any},Dict{String,String}}, sample_memory_usage::Int64 = -1, sample::Sample = Sample())::Location =
+    Location(name, "None", parameters, LocationParameters(), sample_memory_usage, sample, false, false)
 
 LocationDestination(
     name::String,
-    parameters::LocationParameters
+    parameters::Union{Dict{String,Any},Dict{String,String}}
 )::Location = Location("None", name, LocationParameters(), parameters, -1, Sample(), false, false)
 
 function to_jl(lt::Location)
@@ -31,7 +31,7 @@ function to_jl(lt::Location)
         # TODO: Instead of computing the total memory usage here, compute it
         # at the end of each `@partitioned`. That way we will count twice for
         # mutation
-        "total_memory_usage" => lt.total_memory_usage == -1 ? nothing : lt.total_memory_usage,
+        "sample_memory_usage" => lt.sample_memory_usage == -1 ? nothing : lt.sample_memory_usage,
     )
 end
 
@@ -59,7 +59,7 @@ function sourced(fut::Future, loc::Location)
                 "None",
                 loc.src_parameters,
                 Dict{String,Any}(),
-                loc.total_memory_usage,
+                loc.sample_memory_usage,
                 if !isnothing(loc.sample.value)
                     # If this location is like some remote location, then we need
                     # a sample from it.
@@ -68,7 +68,7 @@ function sourced(fut::Future, loc::Location)
                     # Otherwise just make a fresh new sample.
                     Sample()
                 end,
-                loc.parameters_invalid,
+                loc.metadata_invalid,
                 loc.sample_invalid
             ),
         )
@@ -81,7 +81,7 @@ function sourced(fut::Future, loc::Location)
                 fut_location.dst_name,
                 loc.src_parameters,
                 fut_location.dst_parameters,
-                loc.total_memory_usage,
+                loc.sample_memory_usage,
                 if !isnothing(loc.sample.value)
                     # If this location is like some remote location, then we need
                     # a sample from it.
@@ -92,7 +92,7 @@ function sourced(fut::Future, loc::Location)
                     # location if there is one.
                     fut_location.sample
                 end,
-                loc.parameters_invalid,
+                loc.metadata_invalid,
                 loc.sample_invalid
             ),
         )
@@ -114,9 +114,9 @@ function destined(fut::Future, loc::Location)
                 loc.dst_name,
                 EMPTY_DICT,
                 loc.dst_parameters,
-                fut_location.total_memory_usage,
+                fut_location.sample_memory_usage,
                 Sample(),
-                loc.parameters_invalid,
+                loc.metadata_invalid,
                 loc.sample_invalid
             ),
         )
@@ -129,9 +129,9 @@ function destined(fut::Future, loc::Location)
                 loc.dst_name,
                 fut_location.src_parameters,
                 loc.dst_parameters,
-                fut_location.total_memory_usage,
+                fut_location.sample_memory_usage,
                 fut_location.sample,
-                fut_location.parameters_invalid,
+                fut_location.metadata_invalid,
                 fut_location.sample_invalid
             ),
         )
@@ -211,7 +211,7 @@ get_dst_parameters(fut)::LocationParameters = get_location(fut).dst_parameters
 ####################
 
 function Value(val::T)::Location where {T}
-    LocationSource("Value", Dict{String,Any}("value" => to_jl_value(val)), total_memory_usage(val), ExactSample(val))
+    LocationSource("Value", Dict{String,Any}("value" => to_jl_value(val)), sample_memory_usage(val), ExactSample(val))
 end
 
 # TODO: Implement Size
@@ -219,11 +219,11 @@ Size(val)::Location = LocationSource(
     "Value",
     Dict{String,Any}("value" => to_jl_value(val)),
     0,
-    Sample(indexapply(getsamplenrows, val, 1)),
+    Sample(indexapply(getsamplenrows, val, 1), 1),
 )
 
 function Client(val::T)::Location where {T}
-    LocationSource("Client", Dict{String,Any}(), total_memory_usage(val), ExactSample(val))
+    LocationSource("Client", Dict{String,Any}(), sample_memory_usage(val), ExactSample(val))
 end
 const CLIENT = Location("None", "Client", LocationParameters(), LocationParameters(), Int64(0), Sample(nothing, Int64(0), Int64(1)), false, false)
 Client()::Location = deepcopy(CLIENT)
@@ -279,21 +279,10 @@ Disk()::Location = deepcopy(DISK)
 # - You might have lots of huge images
 # - You might have lots of workers so your sample rate is really large
 
-MAX_EXACT_SAMPLE_LENGTH = parse(Int64, get(ENV, "BANYAN_MAX_EXACT_SAMPLE_LENGTH", "1024")::String)
-get_max_exact_sample_length()::Int64 = MAX_EXACT_SAMPLE_LENGTH
-function set_max_exact_sample_length(val)
-    global MAX_EXACT_SAMPLE_LENGTH
-    MAX_EXACT_SAMPLE_LENGTH = val
-end
-
-getsamplenrows(totalnrows::Int64)::Int64 =
-    if totalnrows <= get_max_exact_sample_length()
-        # NOTE: This includes the case where the dataset is empty
-        # (totalnrows == 0)
-        totalnrows
-    else
+getsamplenrows(totalnrows::Int64)::Int64 = begin
+        sc = get_sampling_config()
         # Must have at least 1 row
-        cld(totalnrows, get_session().sample_rate)
+        cld(totalnrows, sc.always_exact ? 1 : sc.rate)
     end
 
 # We maintain a cache of locations and a cache of samples. Locations contain
@@ -304,88 +293,76 @@ getsamplenrows(totalnrows::Int64)::Int64 =
 # Banyan is not aware of mutates the location. Locations should be
 # eventually stored and updated in S3 on each write.
 
-_invalidate_all_locations() = begin
-    for dir_name in ["banyan_locations", "banyan_meta"]
-        rm("s3/$(get_cluster_s3_bucket_name())/$dir_name/", force=true, recursive=true)
+function invalidate_metadata(p; kwargs...)
+    lp = LocationPath(p; kwargs...)
+
+    # Delete locally
+    p = joinpath(homedir(), ".banyan", "metadata", get_metadata_path(lp))
+    if isfile(p)
+        rm(p)
+    end
+
+    # Delete from S3
+    s3p = S3Path("s3://$(banyan_metadata_bucket_name())/$(get_metadata_path(lp))")
+    if isfile(s3p)
+        rm(s3p)
     end
 end
-_invalidate_metadata(remotepath) =
-    let p = get_location_path(remotepath)
-        if isfile(p)
-            loc = deserialize_retry(p)
-            loc.parameters_invalid = true
-            serialize(p, loc)
+function invalidate_samples(p; kwargs...)
+    lp = LocationPath(p; kwargs...)
+
+    # Delete locally
+    sample_path_prefix = get_sample_path_prefix(lp)
+    samples_local_dir = joinpath(homedir(), ".banyan", "samples", sample_path_prefix)
+    if isdir(samples_local_dir)
+        rm(samples_local_dir, recursive=true, force=true)
+    end
+
+    # Delete from S3
+    s3p = S3Path("s3://$(banyan_samples_bucket_name())/$sample_path_prefix")
+    if !isempty(readdir_no_error(s3p))
+        rm(path_as_dir(s3p), recursive=true)
+    end
+end
+function invalidate_location(p; kwargs...)
+    invalidate_metadata(p; kwargs...)
+    invalidate_samples(p; kwargs...)
+end
+function partition(series, partition_size)
+    (series[i:min(i+(partition_size-1),end)] for i in 1:partition_size:length(series))
+end
+function invalidate_all_locations()
+    for local_dir in [get_samples_local_path(), get_metadata_local_path()]
+        rm(local_dir; force=true, recursive=true)
+    end
+
+    # Delete from S3
+    for bucket_name in [banyan_samples_bucket_name(), banyan_metadata_bucket_name()]
+        s3p = S3Path("s3://$bucket_name")
+        if isdir_no_error(s3p)
+            for p in readdir(s3p, join=true)
+                rm(p, force=true, recursive=true)
+            end
+        end
+    end 
+end
+
+function invalidate(p; after=false, kwargs...)
+    if get(kwargs, after ? :invalidate_all_locations : :all_locations_invalid, false)
+        invalidate_all_location()
+    elseif get(kwargs, after ? :invalidate_location : :location_invalid, false)
+        invalidate_location(p; kwargs...)
+    else
+        if get(kwargs, after ? :invalidate_metadata : :metadata_invalid, false)
+            invalidate_metadata(p; kwargs...)
+        end
+        if get(kwargs, after ? :invalidate_samples : :samples_invalid, false)
+            invalidate_samples(p; kwargs...)
         end
     end
-_invalidate_sample(remotepath) =
-    let p = get_location_path(remotepath)
-        if isfile(p)
-            loc = deserialize_retry(p)
-            loc.sample_invalid = true
-            serialize(p, loc)
-        end
-    end
-invalidate_all_locations() = offloaded(_invalidate_all_locations)
-invalidate_metadata(p) = offloaded(_invalidate_metadata, p)
-invalidate_sample(p) = offloaded(_invalidate_sample, p)
+end
 
 @specialize
-
-# Helper functions for location constructors; these should only be called from the main worker
-
-# TODO: Hash in a more general way so equivalent paths hash to same value
-# This hashes such that an extra slash at the end won't make a difference``
-get_remotepath_id(remotepath::String) =
-    (get_julia_version(), (remotepath |> splitpath |> joinpath)) |> hash
-get_remotepath_id(remotepath) = (get_julia_version(), remotepath) |> hash
-function get_location_path(remotepath, remotepath_id)
-    session_s3_bucket_name = get_cluster_s3_bucket_name()
-    if !isdir("s3/$session_s3_bucket_name/banyan_locations/")
-        mkdir("s3/$session_s3_bucket_name/banyan_locations/")
-    end
-    "s3/$session_s3_bucket_name/banyan_locations/$(remotepath_id)"
-end
-function get_meta_path(remotepath, remotepath_id)
-    session_s3_bucket_name = get_cluster_s3_bucket_name()
-    if !isdir("s3/$session_s3_bucket_name/banyan_meta/")
-        mkdir("s3/$session_s3_bucket_name/banyan_meta/")
-    end
-    "s3/$session_s3_bucket_name/banyan_meta/$remotepath_id"
-end
-get_location_path(remotepath) =
-    get_location_path(remotepath, get_remotepath_id(remotepath))
-get_meta_path(remotepath) =
-    get_meta_path(remotepath, get_remotepath_id(remotepath))
-
-function get_cached_location(remotepath, remotepath_id, metadata_invalid, sample_invalid)
-    Random.seed!(hash((get_session_id(), remotepath_id)))
-    session_s3_bucket_name = get_cluster_s3_bucket_name()
-    location_path = "s3/$session_s3_bucket_name/banyan_locations/$remotepath_id"
-
-    curr_location::Location = try
-        deserialize_retry(location_path)
-    catch
-        INVALID_LOCATION
-    end
-    curr_location.sample_invalid = curr_location.sample_invalid || sample_invalid
-    curr_location.parameters_invalid = curr_location.parameters_invalid || metadata_invalid
-    curr_sample_invalid = curr_location.sample_invalid
-    curr_parameters_invalid = curr_location.parameters_invalid
-    curr_location, curr_sample_invalid, curr_parameters_invalid
-end
-
-get_cached_location(remotepath, metadata_invalid, sample_invalid) =
-    get_cached_location(remotepath, get_remotepath_id(remotepath), metadata_invalid, sample_invalid)
-
-function cache_location(remotepath, remotepath_id, location_res::Location, invalidate_sample, invalidate_metadata)
-    location_path = get_location_path(remotepath, remotepath_id)
-    location_to_write = deepcopy(location_res)
-    location_to_write.sample_invalid = location_to_write.sample_invalid || invalidate_sample
-    location_to_write.parameters_invalid = location_to_write.parameters_invalid || invalidate_metadata
-    serialize(location_path, location_to_write)
-end
-cache_location(remotepath, location_res::Location, invalidate_sample, invalidate_metadata) =
-    cache_location(remotepath, get_remotepath_id(remotepath), location_res, invalidate_sample, invalidate_metadata)
 
 # Functions to be extended for different data formats
 
@@ -427,4 +404,56 @@ end
 function get_sample_and_metadata(::Val{:jl}, p, sample_rate)
     data = deserialize_retry(p)
     get_sample_from_data(data, sample_rate, size(data, 1)), size(data, 1)
+end
+
+function RemoteSource(
+    lp::LocationPath,
+    _remote_source::Function,
+    load_sample::Function,
+    load_sample_after_offloaded::Function,
+    write_sample::Function,
+    args...
+)::Location
+    # _remote_table_source(lp::LocationPath, loc::Location, sample_rate::Int64)::Location
+    # load_sample accepts a file path
+    # load_sample_after_offloaded accepts the sampled value returned by the offloaded function
+    # (for BDF.jl, this is an Arrow blob of bytes that needs to be converted into an actual
+    # dataframe once sent to the client side)
+    
+    # Look at local and S3 caches of metadata and samples to attempt to
+    # construct a Location.
+    loc, local_metadata_path, local_sample_path = get_location_source(lp)
+
+    res = if !loc.metadata_invalid && !loc.sample_invalid
+        # Case where both sample and parameters are valid
+        loc.sample.value = load_sample(local_sample_path)
+        loc.sample.rate = parse_sample_rate(local_sample_path)
+        loc
+    elseif loc.metadata_invalid && !loc.sample_invalid
+        # Case where parameters are invalid
+        new_loc = offloaded(_remote_source, lp, loc, args...; distributed=true, print_logs=false)
+        Arrow.write(local_metadata_path, Arrow.Table(); metadata=new_loc.src_parameters)
+        new_loc.sample.value = load_sample(local_sample_path)
+        new_loc
+    else
+        # Case where sample is invalid
+
+        # Get the Location with up-to-date metadata (source parameters) and sample
+        new_loc = offloaded(_remote_source, lp, loc, args...; distributed=true, print_logs=false)
+        # @show new_loc
+
+        if !loc.metadata_invalid
+            # Store the metadata locally. The local copy just has the source
+            # parameters but PFs can still access the S3 copy which will have the
+            # table of file names and #s of rows.
+            Arrow.write(local_metadata_path, Arrow.Table(); metadata=new_loc.src_parameters)
+        end
+
+        # Store the Arrow sample locally and update the returned Sample
+        write_sample(local_sample_path, new_loc.sample.value)
+        new_loc.sample.value = load_sample_after_offloaded(new_loc.sample.value)
+        
+        new_loc
+    end
+    res
 end

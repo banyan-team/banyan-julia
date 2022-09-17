@@ -26,7 +26,6 @@
     reusing in ["nothing", "sample", "location", "sample and location"]
 
     # Use session with appropriate sample collection configuration
-    max_exact_sample_length = exact_or_inexact == "Exact" ? 1_024_000 : 0
     use_session_for_testing(sample_rate = 2) do
 
         # Use data to collect a sample from
@@ -34,23 +33,28 @@
 
         # Construct location
         if reusing != "nothing"
-            RemoteTableSource(src_name, invalidate_metadata = true, invalidate_sample = true)
-            RemoteTableSource(src_name, metadata_invalid = true, sample_invalid = true)
+            RemoteTableSource(src_name)
+            invalidate_location(src_name)
+            RemoteTableSource(src_name)
         end
-        remote_source = RemoteTableSource(
-            src_name,
-            metadata_invalid = (reusing == "nothing" || reusing == "sample"),
-            sample_invalid = (reusing == "nothing" || reusing == "location"),
-            shuffled = with_or_without_shuffled == "with",
-            max_exact_sample_length = max_exact_sample_length
+        if (reusing == "nothing" || reusing == "sample")
+            invalidate_metadata(src_name)
+        end
+        if (reusing == "nothing" || reusing == "location")
+            invalidate_sample(src_name)
+        end
+        configure_sampling(
+            always_exact = exact_or_inexact,
+            assume_shuffled = with_or_without_shuffled == "with",
         )
+        remote_source = RemoteTableSource(src_name)
 
         # Verify the location
         
-        @test remote_source.total_memory_usage > 0
-        @test !remote_source.parameters_invalid
+        @test remote_source.sample_memory_usage > 0
+        @test !remote_source.metadata_invalid
         @test !remote_source.sample_invalid
-        @test remote_source.src_parameters["nrows"] == src_nrows
+        @test remote_source.src_parameters["nrows"] == string(src_nrows)
         # if contains(src_name, "dir")
         #     @test length(remote_source.files) == 10
         #     for f in remote_source.files
@@ -72,5 +76,72 @@
                 @test sample_nrows == cld(src_nrows, 2)
             end
         end
+    end
+end
+
+@testset "Reading/writing $(shuffled ? "shuffled " : "")$format data and sampling it with $scheduling_config and a maximum of $max_num_bytes bytes for exact sample" for scheduling_config in
+    [
+        "default scheduling",
+        "parallelism encouraged",
+        "parallelism and batches encouraged",
+    ],
+    format in ["csv", "parquet"],
+    max_num_bytes in [0, 100_000_000_000],
+    shuffled in [true, false]
+
+    use_session_for_testing(scheduling_config_name = scheduling_config) do
+        use_basic_data()
+
+        bucket = get_cluster_s3_bucket_name()
+
+        configure_sampling(max_num_bytes_exact=max_num_bytes, always_shuffled=shuffled, for_all_locations=true, default=true)
+        exact_sample = max_num_bytes > 0
+
+        invalidate_all_locations()
+
+        p1 = "s3://$(bucket)/iris_large.$format"
+        p2 = "s3://$(bucket)/iris_large_tmp.$format"
+
+        df = read_table(p1; metadata_invalid=true, invalidate_samples=true)
+        sample(df)
+
+        configure_sampling(p2; sample_rate=5)
+        write_table(df, p2)
+        @test get_sample_rate(p2) == 5
+        @test has_metadata(p2)
+        # NOTE: We don't compute _exact_ samples on writing
+        @test has_sample(p2) == !exact_sample
+        invalidate_metadata(p2)
+        @test !has_metadata(p2)
+        @test has_sample(p2) == !exact_sample
+        invalidate_location(p2)
+        @test !has_metadata(p2)
+        @test !has_sample(p2)
+
+        df2 = read_table(p2)
+        sample(df2)
+        df2 = read_table(p2; samples_invalid=true)
+        sample(df2)
+        @test get_sample_rate(p2) == 5
+        configure_sampling(sample_rate=7, for_all_locations=true)
+        @test get_sample_rate(p2) == 5
+        df2 = read_table(p2; metadata_invalid=true)
+        sample(df2)
+        @test get_sample_rate(p2) == 5
+        @test get_sample_rate() == 7
+        configure_sampling(sample_rate=7, for_all_locations=true)
+        @test get_sample_rate(p2) == 5
+        configure_sampling(sample_rate=7, force_new_sample_rate=true, for_all_locations=true)
+        @test get_sample_rate(p2) == 7
+        @test get_sample_rate() == 7
+        df2 = read_table(p2)
+        @test get_sample_rate(p2) == 7
+        @test get_sample_rate() == 7
+        df2 = read_table(p2; location_invalid=true)
+        sample(df2)
+        @test has_metadata(p2)
+        @test has_sample(p2)
+        configure_sampling(p2; always_exact=true)
+        sample(df2)
     end
 end

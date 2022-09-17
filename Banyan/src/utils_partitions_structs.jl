@@ -23,7 +23,7 @@ PartitioningConstraintFunction(@nospecialize(func::Function)) =
     PartitioningConstraint("FUNCTION", PartitionTypeReference[], Vector{PartitionTypeReference}[], func)
 
 mutable struct PartitioningConstraints
-    constraints::Vector{PartitioningConstraint}
+    constraints::Vector{}
 end
 
 PartitioningConstraints() = PartitioningConstraints(PartitioningConstraint[])

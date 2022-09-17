@@ -194,10 +194,10 @@ isoverlapping(a::AbstractRange, b::AbstractRange) = a.start ≤ b.stop && b.star
 
 @nospecialize
 
-to_jl_value(jl) = Dict{String,Any}("is_banyan_value" => true, "contents" => to_jl_value_contents(jl))
+to_jl_value(jl) = Dict{String,Any}("is_banyan_value" => true, "contents" => to_jl_string(jl))
 
 # NOTE: This function is shared between the client library and the PT library
-function to_jl_value_contents(jl)::String
+function to_jl_string(jl)::String
     # Handle functions defined in a module
     # TODO: Document this special case
     # if jl isa Function && !(isdefined(Base, jl) || isdefined(Core, jl) || isdefined(Main, jl))
@@ -211,7 +211,7 @@ function to_jl_value_contents(jl)::String
 end
 
 # NOTE: This function is shared between the client library and the PT library
-function from_jl_value_contents(jl_value_contents::String)
+function from_jl_string(jl_value_contents::String)
     # Converty string to Julia object
     io = IOBuffer()
     iob64_decode = Base64DecodePipe(io)
@@ -510,7 +510,7 @@ function getpath(path::String)::String
         # disk if it doesn't fit in free memory
         # TODO: Add option for Internet locations as to whether or not to
         # cache on disk
-        hashed_path = get_remotepath_id(path)
+        hashed_path = LocationPath(path).path_hash
         joined_path = "efs/job_$(Banyan.get_session().resource_id)_dataset_$(hashed_path)_$(MPI.Comm_rank(MPI.COMM_WORLD))"
         # @info "Downloading $path to $joined_path"
         # if MPI.Comm_rank(comm) == 0

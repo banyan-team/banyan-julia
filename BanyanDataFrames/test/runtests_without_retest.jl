@@ -112,11 +112,11 @@ end
 # path - path to write file to in bucket
 # download_path - either http(s) link to a file or a local Path indicating the source of the file
 function verify_file_in_s3(bucket, path, download_path)
-     if !s3_exists(Banyan.get_aws_config(), bucket, path)
+     if !s3_exists(Banyan.global_aws_config(), bucket, path)
         if typeof(download_path) == String && (startswith(download_path, "https://") || startswith(download_path, "http://"))
-            Downloads.download(download_path, S3Path("s3://$(bucket)/$(path)", config=Banyan.get_aws_config()))
+            Downloads.download(download_path, S3Path("s3://$(bucket)/$(path)", config=Banyan.global_aws_config()))
         else  # upload local file
-            cp(Path(download_path), S3Path("s3://$(bucket)/$(path)", config=Banyan.get_aws_config()))
+            cp(Path(download_path), S3Path("s3://$(bucket)/$(path)", config=Banyan.global_aws_config()))
         end
     end
 end

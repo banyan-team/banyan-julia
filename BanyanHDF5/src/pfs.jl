@@ -154,10 +154,11 @@ function WriteHelperHDF5(
     is_main = worker_idx == 1
     if is_main
         # We invalidate both the location and the metadata in this case
-        serialize(
-            Banyan.get_location_path(path_and_subpath),
-            INVALID_LOCATION
-        )
+        invalidate_location(loc_params_path)
+        # serialize(
+        #     Banyan.get_location_path(path_and_subpath),
+        #     INVALID_LOCATION
+        # )
     end
     
     # Invalidate location if 
@@ -601,10 +602,6 @@ function WriteHelperHDF5(
         MPI.Barrier(comm)
         fsync_file(path)
         MPI.Barrier(comm)
-    end
-    if true#is_main
-        f = h5open("/home/ec2-user/s3/banyan-cluster-data-test-lustre-0ce21f27/fillval.h5", "r+", comm, info)
-        close(f)
     end
     nothing
 end

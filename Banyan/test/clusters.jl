@@ -28,7 +28,7 @@ end
 end
 
 function bucket_exists(s3_bucket_name)
-    ispath(S3Path("s3://$(s3_bucket_name)", config=Banyan.get_aws_config()))
+    ispath(S3Path("s3://$(s3_bucket_name)", config=Banyan.global_aws_config()))
 end
 
 @testset "Create clusters" begin
@@ -55,15 +55,15 @@ end
         s3_bucket = nothing
     elseif s3_bucket == "user-provided"
         s3_bucket = Random.randstring(['a':'z'; '0':'9'], 6)
-        s3_create_bucket(Banyan.get_aws_config(), s3_bucket)
+        s3_create_bucket(Banyan.global_aws_config(), s3_bucket)
     end
 
     # Create a cluster (at least initiate) and check that S3 bucket exists
     c = create_cluster(
-        name=cluster_name,
+        cluster_name=cluster_name,
         instance_type="t3.large",
         s3_bucket_name=s3_bucket,
-        nowait=true
+        wait_now=false
     )
     sleep(30) # Just to ensure that cluster creation has initiated
     s3_bucket_name = get_cluster_s3_bucket_name(cluster_name)
@@ -84,8 +84,8 @@ end
         sleep(15)
     end
     c_r = create_cluster(
-        name=cluster_name,
-        nowait=true
+        cluster_name=cluster_name,
+        wait_now=false
     )
     s3_bucket_name_r = get_cluster_s3_bucket_name(cluster_name)
     s3_bucket_exists = bucket_exists(s3_bucket_name_r)
@@ -99,7 +99,7 @@ end
     @test !s3_bucket_exists
 
     # Check that the cluster cannot be created again
-    @test_throws ErrorException create_cluster(name=cluster_name, nowait=true)
+    @test_throws ErrorException create_cluster(name=cluster_name, wait_now=false)
 end
 
 @testset "Benchmark create_cluster with $instance_type instance type" for instance_type in [
@@ -109,7 +109,7 @@ end
     cluster_name = "cluster-$(Random.randstring(['a':'z'; '0':'9'], 6))"
     t = @elapsed begin
         c = create_cluster(
-            name=cluster_name,
+            cluster_name=cluster_name,
             instance_type=instance_type,
             max_num_workers=16,
             initial_num_workers=1
@@ -142,8 +142,8 @@ end
         dst_name = "data_from_s3"
         src_path = "s3://$s3_bucket/$dst_name"
         # Create a bucket and upload data
-        s3_create_bucket(Banyan.get_aws_config(), s3_bucket)
-        s3_put(Banyan.get_aws_config(), s3_bucket, dst_name, "some file contents")
+        s3_create_bucket(Banyan.global_aws_config(), s3_bucket)
+        s3_put(Banyan.global_aws_config(), s3_bucket, dst_name, "some file contents")
     end
 
     cluster_name = ENV["BANYAN_CLUSTER_NAME"]
@@ -153,10 +153,10 @@ end
     @test ispath(S3Path("s3://$cluster_s3_bucket/$dst_name"))
 
     # Cleanup
-    s3_delete(Banyan.get_aws_config(), cluster_s3_bucket, dst_name)
+    s3_delete(Banyan.global_aws_config(), cluster_s3_bucket, dst_name)
     if src_type == "s3"
-        s3_delete(Banyan.get_aws_config(), s3_bucket, dst_name)
-        s3_delete_bucket(Banyan.get_aws_config(), s3_bucket)
+        s3_delete(Banyan.global_aws_config(), s3_bucket, dst_name)
+        s3_delete_bucket(Banyan.global_aws_config(), s3_bucket)
     end
 end
 
@@ -178,6 +178,6 @@ end
 
     # Cleanup
     for f_name in readdir(src_path)
-        s3_delete(Banyan.get_aws_config(), cluster_s3_bucket, "$dst_name/$f_name")
+        s3_delete(Banyan.global_aws_config(), cluster_s3_bucket, "$dst_name/$f_name")
     end
 end

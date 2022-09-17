@@ -8,7 +8,13 @@ end
 Base.convert(::Type{DataFrame}, df::DataFrames.DataFrame) = DataFrame(Future(df; datatype="DataFrame"), Future(nrow(df)))
 
 Banyan.convert(::Type{Future}, df::DataFrame) = df.data
-Banyan.sample(df::DataFrame)::DataFrames.DataFrame = sample(df.data)
+Banyan.sample(df::DataFrame)::DataFrames.DataFrame = begin
+    # @show typeof(sample(df.data))
+    # @show sample(df.nrows) == sample(df.data)
+    # @show sample(df.nrows) === sample(df.data)
+    # @show sample(df.nrows)
+    sample(df.data)
+end
 
 const DFSampleForGrouping = SampleForGrouping{DataFrames.DataFrame,String}
 
@@ -49,11 +55,14 @@ Base.propertynames(df::DataFrame) = propertynames(sample(df)::DataFrames.DataFra
 
 function read_table(path::String; kwargs...)
     @nospecialize
-    df_loc = RemoteTableSource(path; kwargs...)
+    invalidate(path; kwargs...)
+    df_loc = RemoteTableSource(path)
     df_loc.src_name == "Remote" || error("$path does not exist")
-    df_loc_nrows::Int64 = df_loc.src_parameters["nrows"]
+    invalidate(path; after=true, kwargs...)
+    df_loc_nrows::Int64 = parse(Int64, df_loc.src_parameters["nrows"])
     df_nrows = Future(df_loc_nrows)
-    DataFrame(Future(datatype="DataFrame", source=df_loc), df_nrows)
+    res = DataFrame(Future(datatype="DataFrame", source=df_loc), df_nrows)
+    res
 end
 
 # TODO: For writing functions, if a file is specified, enforce Replicated

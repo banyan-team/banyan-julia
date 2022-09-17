@@ -1,3 +1,12 @@
+function to_arrow_string(df::DataFrames.DataFrame)::String
+    io = IOBuffer()
+    Arrow.write(io, df)
+    base64encode(seekstart(io))
+end
+
+from_arrow_string(s::String)::DataFrames.DataFrame =
+    s |> base64decode |> Arrow.Table |> DataFrames.DataFrame
+
 const AnyDataFrame = Union{
     DataFrames.DataFrame,
     SubDataFrame{DataFrames.DataFrame, DataFrames.Index, Base.Vector{Int64}},
