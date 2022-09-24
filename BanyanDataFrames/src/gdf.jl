@@ -9,7 +9,7 @@ end
 Banyan.convert(::Type{Future}, gdf::GroupedDataFrame) = gdf.data
 Banyan.isview(gdf::GroupedDataFrame) = true
 Banyan.sample_memory_usage(gdf::DataFrames.GroupedDataFrame)::Int64 =
-    total_memory_usage(gdf) - total_memory_usage(parent(gdf))
+    Base.summarysize(gdf) - Base.summarysize(parent(gdf))
 
 Base.length(gdf::GroupedDataFrame) = compute(gdf.length)
 Base.size(gdf::GroupedDataFrame) = Tuple(length(gdf))

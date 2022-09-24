@@ -611,8 +611,8 @@ function apply_mutation(old::Future, new::Future)
     new.mutated,
     old.stale,
     new.stale,
-    old.total_memory_usage,
-    new.total_memory_usage,
+    old.sample_memory_usage,
+    new.sample_memory_usage,
     session_locations[old.value_id],
     session_locations[new.value_id] =
     new.value,
@@ -623,8 +623,8 @@ function apply_mutation(old::Future, new::Future)
     old.mutated,
     new.stale,
     old.stale,
-    new.total_memory_usage,
-    old.total_memory_usage,
+    new.sample_memory_usage,
+    old.sample_memory_usage,
     session_locations[new.value_id],
     session_locations[old.value_id]
 end
@@ -675,11 +675,11 @@ function finish_partitioned_code_region(splatted_futures::Vector{Future})
 
     # Get the initial memory usage
     for fut in splatted_futures
-        fut_initial_memory_usage::Int64 = if is_total_memory_usage_known(fut)
-            fut.total_memory_usage
+        fut_initial_memory_usage::Int64 = if is_sample_memory_usage_known(fut)
+            fut.sample_memory_usage
         else
             tmu::Int64 = try
-                get_location(fut).total_memory_usage
+                get_location(fut).sample_memory_usage
             catch e
                 if e isa MethodError
                     error("Future with value ID $(fut.value_id) has no initial memory usage even in location with source name $(get_location(fut).src_name)")
@@ -877,7 +877,7 @@ function finish_partitioned_code_region(splatted_futures::Vector{Future})
 
     # Destroy value IDs that are no longer needed because of mutation
     for fut in splatted_futures
-        fut.total_memory_usage = task.memory_usage[fut.value_id]["final"]
+        fut.sample_memory_usage = task.memory_usage[fut.value_id]["final"]
 
         # Issue destroy request for mutated futures that are no longer
         # going to be used
@@ -1038,6 +1038,7 @@ function partitioned_code_region(
 
         # Fill in task with code and value names pulled using the macror
         unsplatted_variable_names::Vector{String} = String[$(variable_names...)]
+        
         
         code::String = $code_string
         prepare_task_for_partitioned_code_region(

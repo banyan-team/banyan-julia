@@ -1,8 +1,43 @@
+function configure_sampling(
+    path="";
+    nworkers=nothing,
+    sample_rate=nothing,
+    always_exact=nothing,
+    max_num_bytes_exact=nothing,
+    force_new_sample_rate=nothing,
+    assume_shuffled=nothing,
+    for_all_locations=false,
+    default=false,
+    kwargs...
+)
+    global session_sampling_configs
+
+    sc = default ? DEFAULT_SAMPLING_CONFIG : get_sampling_config(path; kwargs...)
+    nsc = SamplingConfig(
+        (!isnothing(sample_rate)) ? sample_rate : (!isnothing(nworkers) ? (nworkers * 8) : sc.rate),
+        (!isnothing(always_exact)) ? always_exact : sc.always_exact,
+        (!isnothing(max_num_bytes_exact)) ? max_num_bytes_exact : sc.max_num_bytes_exact,
+        (!isnothing(force_new_sample_rate)) ? force_new_sample_rate : sc.force_new_sample_rate,
+        (!isnothing(assume_shuffled)) ? assume_shuffled : sc.assume_shuffled,
+    )
+
+    session_id = _get_session_id_no_error()
+    lp = LocationPath(path; kwargs...)
+    sampling_configs = session_sampling_configs[session_id]
+    if for_all_locations
+        empty!(sampling_configs)
+        sampling_configs[NO_LOCATION_PATH] = nsc
+    else
+        sampling_configs[lp] = nsc
+    end
+    
+end
+
 ###############################################################
 # Sample that caches properties returned by an AbstractSample #
 ###############################################################
 
-ExactSample(value::Any) = Sample(value, sample_memory_usage(value), 1)
+ExactSample(value::Any) = Sample(value, 1)
 ExactSample(value::Any, memory_usage::Int64) = Sample(value, memory_usage, 1)
 
 function setsample!(fut::Future, value::Any)
@@ -34,7 +69,6 @@ impl_error(fn_name, as) = error("$fn_name not implemented for $(typeof(as))")
 sample_by_key(as::Any, key::Any) = impl_error("sample_by_key", as)
 sample_axes(as::Any)::Vector{Int64} = impl_error("sample_axes", as)
 sample_keys(as::Any) = impl_error("sample_keys", as)
-sample_memory_usage(as::Any)::Int64 = total_memory_usage(as)
 
 # Sample computation functions
 
@@ -80,6 +114,10 @@ function get_all_divisions(data::Base.Vector{OHT}, ngroups::Int64)::Base.Vector{
     all_divisions
 end
 
+lt_maybe_missing(a,b) = let lt_res = a <= b
+    ismissing(lt_res) ? false : lt_res
+end
+
 function sample_divisions(df::T, key::K) where {T,K}
     cache = get_sample_computation_cache()
     cache_key = hash((:sample_divisions, objectid(df), key))
@@ -96,7 +134,7 @@ function sample_divisions(df::T, key::K) where {T,K}
     max_ngroups = sample_max_ngroups(df, key)
     ngroups = min(max_ngroups, 512)
     data_unsorted = orderinghashes(df, key)
-    data = sort(data_unsorted, lt=(<=))
+    data = sort(data_unsorted, lt=lt_maybe_missing)
     all_divisions = get_all_divisions(data, ngroups)
     cache.computation[cache_key] = all_divisions
     all_divisions
@@ -121,7 +159,9 @@ function sample_percentile(df::T, key::K, minvalue, maxvalue)::Float64 where {T,
     num_rows::Int64 = 0
     ohs = orderinghashes(df, key)
     for oh in ohs
-        if minvalue <= oh && oh <= maxvalue
+        greater_than_min = minvalue <= oh 
+        lesser_than_max = oh <= maxvalue
+        if ismissing(greater_than_min) || ismissing(lesser_than_max) || (greater_than_min && lesser_than_max)
             c += 1
         end
         num_rows += 1
@@ -143,7 +183,8 @@ end
 function _minimum(ohs::Vector{OHT})::OHT where {OHT}
     oh_min = ohs[1]
     for oh in ohs
-        oh_min = oh <= oh_min ? oh : oh_min
+        greater_than_min = oh <= oh_min
+        oh_min = (ismissing(greater_than_min) || greater_than_min) ? oh : oh_min
     end
     oh_min
 end
@@ -151,7 +192,8 @@ end
 function _maximum(ohs::Vector{OHT})::OHT where {OHT}
     oh_max = ohs[1]
     for oh in ohs
-        oh_max = oh_max <= oh ? oh : oh_max
+        lesser_than_max = oh_max <= oh
+        oh_max = (ismissing(lesser_than_max) || lesser_than_max) ? oh : oh_max
     end
     oh_max
 end
@@ -165,10 +207,6 @@ end
 function sample_max(A::T, key::K) where {T,K}
     isempty(A) ? nothing : _maximum(orderinghashes(A, key))
 end
-
-const NOTHING_SAMPLE = Sample(nothing, -1, -1)
-
-Base.isnothing(s::Sample) = s.rate == -1
 
 # Caching samples with same statistics
 

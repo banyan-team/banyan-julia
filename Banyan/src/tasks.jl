@@ -9,7 +9,7 @@ DelayedTask() = DelayedTask(
     Dict{ValueId,String}(),
     PartitionAnnotation[PartitionAnnotation()],
     Dict{ValueId,Dict{String,Int64}}(),
-    NOTHING_PARTITIONED_USING_FUNC,
+    deepcopy(NOTHING_PARTITIONED_USING_FUNC),
     identity,
     Future[],
     IdDict{Future,Future}(),

@@ -19,6 +19,7 @@ function create_new_future(source::Location, mutate_from::Future, datatype::Stri
     sourced(new_future, source)
     destined(new_future, None())
 
+
     # TODO: Add Size location here if needed
     # Handle locations that have an associated value
     source_src_name = source.src_name
@@ -46,7 +47,7 @@ function create_new_future(source::Location, mutate_from::Future, datatype::Stri
 end
 
 function create_future_from_sample(value::T, datatype::String)::Future where T
-    location::Location = if total_memory_usage(value) ≤ 4 * 1024
+    location::Location = if sample_memory_usage(value) ≤ 4 * 1024
         Value(value)
     else
         # TODO: Store values in S3 instead so that we can read from there
@@ -54,7 +55,7 @@ function create_future_from_sample(value::T, datatype::String)::Future where T
     end
 
     # Create future, store value, and return
-    create_new_future(location, NOTHING_FUTURE, datatype)
+    create_new_future(location, NothingFuture(), datatype)
 end
 
 # Constructs a future from a future that was already created.
@@ -87,7 +88,7 @@ function create_future_from_existing(fut::Future, @nospecialize(mutation::Functi
 
         new_future
     else
-        create_new_future(None(), NOTHING_FUTURE, fut.datatype)
+        create_new_future(None(), NothingFuture(), fut.datatype)
     end
 end
 
@@ -102,7 +103,7 @@ function Future(
     if !isnothing(from)
         create_future_from_existing(convert(Future, from)::Future, mutation)
     elseif value isa NothingValue
-        create_new_future(source, isnothing(mutate_from) ? NOTHING_FUTURE : mutate_from, datatype)
+        create_new_future(source, isnothing(mutate_from) ? NothingFuture() : mutate_from, datatype)
     else
         create_future_from_sample(value, datatype)
     end

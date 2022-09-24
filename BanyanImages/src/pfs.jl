@@ -12,8 +12,7 @@ function ReadBlockImageHelper(
     meta_path::String,
     nimages::Int64,
     datasize,
-    empty_sample,
-    add_channelview::Bool
+    add_channelview::Int64
 )
     # path = Banyan.getpath(loc_params["path"]) ? isa(loc_params["path"], String) : path
     # ndims = loc_params["ndims"]
@@ -31,13 +30,13 @@ function ReadBlockImageHelper(
     files_sub = meta_table.path[filerange]
 
     part_size = (length(files_sub), (datasize)[2:end]...)
-    empty_sample_eltype = eltype(empty_sample)
-    images = Base.Array{empty_sample_eltype}(undef, part_size)
+    elty = Banyan.type_from_str(loc_params["eltype"])
+    images = Base.Array{elty}(undef, part_size)
     # TODO: Make it so that the Arrow file only contains the paths and the local paths are computed here
     for (i, f) in enumerate(files_sub)
         filepath = Banyan.getpath(f)
         image = load_retry(filepath)
-        if add_channelview
+        if add_channelview == 1
             image = ImageCore.channelview(image)
             images[i, :, :, :] = image
         else
@@ -64,10 +63,9 @@ ReadBlockImage(
     loc_name,
     loc_params,
     loc_params["meta_path"]::String,
-    loc_params["nimages"]::Int64,
-    loc_params["size"],
-    Banyan.from_jl_value_contents(loc_params["empty_sample"]::String),
-    loc_params["add_channelview"]
+    parse(Int64, loc_params["nimages"]),
+    Banyan.size_from_str(loc_params["size"]),
+    parse(Int64, loc_params["add_channelview"])
 )
 
 # function WriteImage(

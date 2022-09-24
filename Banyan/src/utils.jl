@@ -21,7 +21,7 @@ json_to_jl(j) = JSON.parse(j)
 key_to_jl(key) = reinterpret(UInt8, hash(string(key))) |> String
 axis_to_jl(axis) = reinterpret(UInt8, hash(string(key))) |> String
 
-total_memory_usage(val)::Int64 =
+sample_memory_usage(val::Any)::Int64 =
     begin
         size = Base.summarysize(val)
         # TODO: Maybe make this larger
@@ -97,7 +97,6 @@ end
 # Banyan.jl may be being used). However, wrapping this in a mutex to ensure
 # synchronized mutation in this module would be a good TODO.
 global banyan_config = nothing
-global aws_config_in_usage = nothing
 
 @nospecialize
 
@@ -124,7 +123,7 @@ end
 
 get_banyanconfig_path()::String = joinpath(homedir(), ".banyan", "banyanconfig.toml")
 
-configure(; user_id=nothing, api_key=nothing, ec2_key_pair_name=nothing, banyanconfig_path=nothing) =
+configure(; user_id=nothing, api_key=nothing, ec2_key_pair_name=nothing, banyanconfig_path=nothing, kwargs...) =
     configure(
         isnothing(user_id) ? "" : user_id,
         isnothing(api_key) ? "" : api_key,
@@ -166,7 +165,7 @@ function configure(user_id, api_key, ec2_key_pair_name, banyanconfig_path)
     end
 
     # Check banyanconfig file
-    banyan_config_has_info = !(isempty(banyan_config) || isempty(banyan_config))
+    banyan_config_has_info = !isnothing(banyan_config) && !isempty(banyan_config)
     if isempty(user_id) && banyan_config_has_info && haskey(banyan_config, "banyan") && haskey(banyan_config["banyan"], "user_id")
         user_id = banyan_config["banyan"]["user_id"]
     end
@@ -199,58 +198,30 @@ function configure(user_id, api_key, ec2_key_pair_name, banyanconfig_path)
     return banyan_config
 end
 
+# Getting organization IDs
+
+organization_ids = Dict{String,String}()
+function get_organization_id()
+    global organization_ids
+    global sessions
+    session_id = _get_session_id_no_error()
+    if haskey(sessions, session_id)
+        sessions[session_id].organization_id
+    else
+        user_id = configure()["banyan"]["user_id"]
+        if haskey(organization_ids, user_id)
+            organization_ids[user_id]
+        else
+            organization_id = send_request_get_response(:describe_users, Dict())["organization_id"]
+            organization_ids[user_id] = organization_id
+            organization_id
+        end
+    end
+end
+
 @specialize
 
-"""
-Get the value for `key` in the `ini` file for a given `profile`.
-"""
-function _get_ini_value(
-    ini::Inifile, profile::String, key::String; default_value=nothing
-)
-    value = get(ini, "profile $profile", key)
-    value === :notfound && (value = get(ini, profile, key))
-    value === :notfound && (value = default_value)
-
-    return value
-end
-
-function get_aws_config()::Dict{Symbol,Any}
-    global aws_config_in_usage
-
-    # Get AWS configuration
-    if isnothing(aws_config_in_usage)
-        # Get region according to ENV, then credentials, then config files
-        profile = get(ENV, "AWS_DEFAULT_PROFILE", get(ENV, "AWS_DEFAULT_PROFILE", "default"))
-        region::String = get(ENV, "AWS_DEFAULT_REGION", "")
-        if region == ""
-            try
-                configfile = read(Inifile(), joinpath(homedir(), ".aws", "config"))
-                region = convert(String, _get_ini_value(configfile, profile, "region", default_value=""))::String
-            catch
-            end
-        end
-        if region == ""
-            try
-                credentialsfile = read(Inifile(), joinpath(homedir(), ".aws", "credentials"))
-                region = convert(String, _get_ini_value(credentialsfile, profile, "region", default_value=""))::String
-            catch
-            end
-        end
-
-        if region == ""
-            throw(ErrorException("Could not discover AWS region to use from looking at AWS_PROFILE, AWS_DEFAULT_PROFILE, AWS_DEFAULT_REGION, HOME/.aws/credentials, and HOME/.aws/config"))
-        end
-
-        aws_config_in_usage = Dict{Symbol,Any}(
-            :creds => AWSCredentials(),
-            :region => region
-        )
-    end
-
-    aws_config_in_usage
-end
-
-get_aws_config_region() = get_aws_config()[:region]::String
+get_aws_config_region() = global_aws_config().region
 
 #########################
 # ENVIRONMENT VARIABLES #
@@ -293,6 +264,8 @@ method_to_string(method::Symbol)::String = begin
         "update-cluster"
     elseif method == :set_cluster_ready
         "set-cluster-ready"
+    elseif method == :describe_users
+        "describe-users"
     end
 end
 
@@ -368,7 +341,7 @@ function send_request_get_response(method, content::Dict)
     elseif resp.status == 500 || resp.status == 504
         error(data)
     elseif resp.status == 502
-        error("Sorry there has been an error. Please contact support.")
+        error("Sorry, an error has occurred. Please contact us at support@banyancomputing.com or use the Banyan Users Slack for assistance.")
     end
     return data
 
@@ -424,7 +397,7 @@ function load_json(path::String)
     elseif startswith(path, "s3://")
         error("S3 path not currently supported")
         # TODO: Maybe support with
-        # `JSON.parsefile(S3Path(path, config=get_aws_config()))` and also down
+        # `JSON.parsefile(S3Path(path, config=global_aws_config()))` and also down
         # in `load_toml`
     elseif startswith(path, "http://") || startswith(path, "https://")
 	    JSON.parse(request_body(path)[2])
@@ -433,22 +406,22 @@ function load_json(path::String)
     end
 end
 
-function load_toml(path::String)
-    res = if startswith(path, "file://")
-        if !isfile(path[8:end])
-            error("File $path does not exist")
-        end
-        TOML.parsefile(path[8:end])
-    elseif startswith(path, "s3://")
-        error("S3 path not currently supported")
-        # JSON.parsefile(S3Path(path, config=get_aws_config()))
-    elseif startswith(path, "http://") || startswith(path, "https://")
-	    TOML.parse(request_body(path)[2])
-    else
-        error("Path $path must start with \"file://\", \"s3://\", or \"http(s)://\"")
-    end
-    res
-end
+# function load_toml(path::String)
+#     res = if startswith(path, "file://")
+#         if !isfile(path[8:end])
+#             error("File $path does not exist")
+#         end
+#         TOML.parsefile(path[8:end])
+#     elseif startswith(path, "s3://")
+#         error("S3 path not currently supported")
+#         # JSON.parsefile(S3Path(path, config=global_aws_config()))
+#     elseif startswith(path, "http://") || startswith(path, "https://")
+# 	    TOML.parse(request_body(path)[2])
+#     else
+#         error("Path $path must start with \"file://\", \"s3://\", or \"http(s)://\"")
+#     end
+#     res
+# end
 
 function load_json(paths::Vector{String})
     # Each file should have merges, splits, and casts. So we need to take those
@@ -456,20 +429,20 @@ function load_json(paths::Vector{String})
     mergewith(merge, map(load_json, paths)...)
 end
 
-function load_toml(paths::Vector{String})
-    npaths = length(paths)
-    loaded_dir = mktempdir()
-    @sync for i = 1:npaths
-        @async Downloads.download(paths[i], joinpath(loaded_dir, "part" * string(i)))
-    end
-    loaded = Vector{String}(undef, npaths)
-    for i = 1:npaths
-        loaded[i] = "file://" * joinpath(loaded_dir, "part$i")
-    end
-    res = mergewith(merge, map(load_toml, loaded)...)
-    rm(loaded_dir, recursive=true)
-    res
-end
+# function load_toml(paths::Vector{String})
+#     npaths = length(paths)
+#     loaded_dir = mktempdir()
+#     Threads.@threads for i = 1:npaths
+#         Downloads.download(paths[i], joinpath(loaded_dir, "part" * string(i)))
+#     end
+#     loaded = Vector{String}(undef, npaths)
+#     for i = 1:npaths
+#         loaded[i] = "file://" * joinpath(loaded_dir, "part$i")
+#     end
+#     res = mergewith(merge, map(load_toml, loaded)...)
+#     rm(loaded_dir, recursive=true)
+#     res
+# end
 
 # Loads file into String and returns
 function load_file(path::String)
@@ -616,4 +589,91 @@ exponential_backoff_1s =
 # 0.20068919503553564
 # 0.29422854986603664
 # 0.4414150248213825
-# ```
+# ````
+
+invert(my_dict::AbstractDict) = Dict(value => key for (key, value) in my_dict)
+
+TYPE_TO_STR =
+    Dict{DataType,String}(
+        Int8 => "int8",
+        Int16 => "int16",
+        Int32 => "int32",
+        Int64 => "int64",
+        Int128 => "int128",
+        Float16 => "float16",
+        Float32 => "float32",
+        Float64 => "float64",
+        String => "str",
+        Bool => "bool",
+    )
+
+STR_TO_TYPE = invert(TYPE_TO_STR)
+
+function type_to_str(ty::DataType)::String
+    global TYPE_TO_STR
+    if haskey(TYPE_TO_STR, ty)
+        TYPE_TO_STR[ty]
+    else
+        "lang_jl_" * to_jl_string(ty)
+    end
+end
+
+function type_from_str(s::String)
+    if startswith(s, "lang_")
+        if startswith(s, "lang_jl_")
+            from_jl_string(s[9:end])
+        else
+            error("Cannot parse type $s from non-Julia language")
+        end
+    elseif haskey(STR_TO_TYPE, s)
+        STR_TO_TYPE[s]
+    else
+        error("Type not supported. You may need to update to the latest version of Banyan or declare the data/sample/metadata you are accessing invalid.")
+    end
+end
+
+size_to_str(sz) = join(map(string, sz), ",")
+size_from_str(s) =
+    let sz_strs = split(s, ",")
+        res = Vector{Int64}(undef, length(sz_strs))
+        for (i, sz_str) in enumerate(sz_strs)
+            res[i] = parse(Int64, sz_str)
+        end
+        Tuple(res)
+    end
+    
+function isdir_no_error(p)
+    try
+        isdir(p)
+    catch e
+        if is_debug_on()
+            print("Failed to check isdir because of e=$e")
+        end
+        false
+    end
+end
+function path_as_dir(p)
+    p_sep = p.separator
+    endswith(string(p), p_sep) ? p : (p * p_sep)
+end
+function readdir_no_error(p)
+    try
+        readdir(path_as_dir(p))
+    catch e
+        if is_debug_on()
+            print("Failed to readdir of p=$p because of e=$e")
+        end
+        String[]
+    end
+end
+
+struct AWSExceptionInfo
+    is_aws::Bool
+    unmodified_since::Bool
+    not_found::Bool
+
+    function AWSExceptionInfo(e)
+        is_aws = e isa AWSException && e.cause isa AWS.HTTP.ExceptionRequest.StatusError
+        new(is_aws, is_aws && e.cause.status == 304, is_aws && e.cause.status == 404)
+    end
+end
